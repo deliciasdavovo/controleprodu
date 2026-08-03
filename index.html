@@ -7,7 +7,7 @@
     <!-- Fonts & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -15,7 +15,26 @@
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+              sans: ['Manrope', '-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'sans-serif'],
+            },
+            colors: {
+              blue: {
+                50: '#f0f7ff',
+                100: '#e0efff',
+                200: '#b9dcff',
+                300: '#7cbeff',
+                400: '#409cff',
+                500: '#0a84ff',
+                600: '#0071e3',
+                700: '#0068d1',
+                800: '#0058b0',
+                900: '#003f7e',
+                950: '#002a54',
+              },
+            },
+            boxShadow: {
+              'apple': '0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)',
+              'apple-lg': '0 4px 12px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.10)',
             },
           },
         },
@@ -26,14 +45,236 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-      body {
-        font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-        background-color: #f8fafc;
-        color: #0f172a;
-        -webkit-font-smoothing: antialiased;
+      :root {
+        /* Superfícies — cinzas quentes no estilo iOS/macOS */
+        --bg-canvas: #f5f5f7;
+        --bg-surface: #ffffff;
+        --bg-elevated: #fbfbfd;
+        --ink-1: #1d1d1f;   /* Títulos */
+        --ink-2: #424245;   /* Corpo */
+        --ink-3: #6e6e73;   /* Secundário */
+        --ink-4: #86868b;   /* Terciário / legendas */
+        --hairline: rgba(0, 0, 0, 0.08);
+        --accent: #0071e3;
+        --radius-lg: 20px;
+        --radius-md: 14px;
+        --radius-sm: 10px;
       }
+
+      html { -webkit-text-size-adjust: 100%; }
+
+      body {
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+        background-color: var(--bg-canvas);
+        color: var(--ink-1);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "kern" 1, "liga" 1, "cv11" 1;
+        letter-spacing: -0.01em;
+      }
+
+      /* ==========================================
+         HIERARQUIA TIPOGRÁFICA (escala Apple HIG)
+         ========================================== */
+      .t-display {
+        font-size: 32px;
+        line-height: 1.09;
+        font-weight: 800;
+        letter-spacing: -0.028em;
+        color: var(--ink-1);
+      }
+      .t-title {
+        font-size: 22px;
+        line-height: 1.18;
+        font-weight: 700;
+        letter-spacing: -0.022em;
+      }
+      .t-headline {
+        font-size: 17px;
+        line-height: 1.29;
+        font-weight: 700;
+        letter-spacing: -0.018em;
+      }
+      .t-body {
+        font-size: 15px;
+        line-height: 1.47;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+      }
+      .t-callout {
+        font-size: 13px;
+        line-height: 1.38;
+        font-weight: 500;
+        letter-spacing: -0.006em;
+        color: var(--ink-3);
+      }
+      .t-caption {
+        font-size: 12px;
+        line-height: 1.33;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+      .t-overline {
+        font-size: 11px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-4);
+      }
+      /* Números tabulares: colunas de estoque sempre alinhadas */
+      .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+      /* ==========================================
+         SUPERFÍCIES E CARTÕES
+         ========================================== */
+      .card {
+        background: var(--bg-surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.04);
+      }
+      .card-flat {
+        background: var(--bg-surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+      }
+      .card-quiet {
+        background: var(--bg-elevated);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-md);
+      }
+      .hairline { border-color: var(--hairline) !important; }
+
+      /* Vidro fosco — barra de navegação e modais */
+      .glass {
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+      }
+      .glass-dark {
+        background: rgba(22, 22, 24, 0.72);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+      }
+
+      /* ==========================================
+         CONTROLES
+         ========================================== */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        border-radius: 980px;
+        transition: background-color .18s ease, transform .12s ease, opacity .18s ease, box-shadow .18s ease;
+        white-space: nowrap;
+      }
+      .btn:active { transform: scale(0.97); }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover { background: #0077ed; }
+      .btn-secondary {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--ink-1);
+      }
+      .btn-secondary:hover { background: rgba(0, 0, 0, 0.09); }
+      .btn-danger { background: #ff3b30; color: #fff; }
+      .btn-danger:hover { background: #ff544a; }
+      .btn-warn { background: #ff9f0a; color: #3a2500; }
+      .btn-warn:hover { background: #ffb02e; }
+      .btn-success { background: #34c759; color: #06300f; }
+      .btn-success:hover { background: #46d46b; }
+      .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+      .btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
+      .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
+
+      /* Segmented control (iOS) */
+      .segmented {
+        display: inline-flex;
+        padding: 2px;
+        gap: 2px;
+        background: rgba(120, 120, 128, 0.12);
+        border-radius: 10px;
+      }
+      .segmented > button {
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        padding: 5px 12px;
+        color: var(--ink-3);
+        white-space: nowrap;
+        transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+      }
+      .segmented > button:hover { color: var(--ink-1); }
+      .segmented > button[data-active="true"] {
+        background: #fff;
+        color: var(--ink-1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+      }
+      .segmented-dark { background: rgba(120, 120, 128, 0.24); }
+      .segmented-dark > button { color: rgba(235, 235, 245, 0.6); }
+      .segmented-dark > button:hover { color: #fff; }
+      .segmented-dark > button[data-active="true"] {
+        background: rgba(99, 99, 102, 0.9);
+        color: #fff;
+        box-shadow: none;
+      }
+
+      /* Campos de formulário */
+      .field {
+        width: 100%;
+        background: var(--bg-surface);
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--ink-1);
+        transition: border-color .16s ease, box-shadow .16s ease;
+      }
+      .field::placeholder { color: var(--ink-4); font-weight: 400; }
+      .field:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.16);
+      }
+      .field-sm { height: 32px; padding: 0 10px; }
+      .field-md { height: 38px; padding: 0 12px; }
+      /* Padding próprio: evita conflito com utilitários pl-/pr- do Tailwind */
+      .field-search { padding-left: 34px; padding-right: 12px; }
+      .field-select { padding-right: 28px; }
+      .field-auto { width: auto; }
+
+      /* Selos de status */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 980px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.005em;
+        padding: 2px 9px;
+        white-space: nowrap;
+      }
+
+      /* Divisor fino no padrão das listas do iOS */
+      .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
+
       .scrollbar-none::-webkit-scrollbar { display: none; }
       .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+      }
     </style>
   </head>
   <body>
@@ -112,16 +353,16 @@
       };
 
       const getSlotItemStatus = (item, product) => {
-        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-slate-50', textClass: 'text-slate-400' };
+        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-black/5', textClass: 'text-[#86868b]', dotClass: 'bg-[#c7c7cc]' };
         const days = calculateDaysInShowcase(item.manufactureDate);
         const shelfLife = product?.shelfLifeDays || 2;
 
         if (days >= shelfLife) {
-          return { status: 'expired', label: `Vencido (${days}d)`, bgClass: 'bg-red-100 border-red-300', textClass: 'text-red-700 font-bold' };
+          return { status: 'expired', label: `Vencido · ${days}d`, bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]' };
         } else if (days === shelfLife - 1) {
-          return { status: 'warning', label: `Atenção (${days}d)`, bgClass: 'bg-amber-50 border-amber-300', textClass: 'text-amber-700 font-semibold' };
+          return { status: 'warning', label: `Atenção · ${days}d`, bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]' };
         }
-        return { status: 'normal', label: `Fresco (${days}d)`, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700' };
+        return { status: 'normal', label: `Fresco · ${days}d`, bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]' };
       };
 
       const INITIAL_PRODUCTS = [
@@ -215,53 +456,43 @@
       // ==========================================
       const Navbar = ({ currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
         const navItems = [
-          { id: 'vitrine', label: 'Vitrine Operacional', icon: Icons.LayoutGrid },
-          { id: 'padrao', label: 'Vitrine Padrão', icon: Icons.ClipboardList },
-          { id: 'producao', label: 'Pedido de Produção', icon: Icons.ChefHat },
-          { id: 'perdas', label: 'Relatório de Perdas', icon: Icons.TrendingDown },
-          { id: 'historico', label: 'Histórico & Vendas', icon: Icons.History },
-          { id: 'fora', label: 'Fora da Vitrine', icon: Icons.Coffee },
-          { id: 'produtos', label: 'Produtos', icon: Icons.Package }
+          { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
+          { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
+          { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
+          { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
+          { id: 'historico', label: 'Histórico', fullLabel: 'Histórico e Vendas', icon: Icons.History },
+          { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee },
+          { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos', icon: Icons.Package }
         ];
 
         return (
-          <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40 shadow-md backdrop-blur-md bg-slate-900/95">
+          <header className="glass sticky top-0 z-40 border-b hairline">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between h-16 gap-4">
+              <div className="flex items-center justify-between h-14 gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-[10px] bg-[#0071e3] flex items-center justify-center text-white text-[13px] font-extrabold tracking-tight">
                       DV
                     </div>
-                    <div>
-                      <h1 className="text-sm font-extrabold leading-tight text-white">Delícias da Vovó</h1>
-                      <p className="text-[10px] text-slate-400 font-medium">Gestão Operacional de Vitrine</p>
+                    <div className="leading-none">
+                      <h1 className="t-headline text-[#1d1d1f]">Delícias da Vovó</h1>
+                      <p className="t-caption mt-0.5">Gestão de vitrine</p>
                     </div>
                   </div>
 
-                  <div className="h-6 w-px bg-slate-800 hidden sm:block" />
+                  <div className="h-5 w-px bg-black/10 hidden sm:block" />
 
-                  <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700">
-                    <button
-                      onClick={() => onUnitChange('matriz')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        currentUnit === 'matriz' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
+                  <div className="segmented">
+                    <button onClick={() => onUnitChange('matriz')} data-active={currentUnit === 'matriz'}>
                       Matriz
                     </button>
-                    <button
-                      onClick={() => onUnitChange('vilanova')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        currentUnit === 'vilanova' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
+                    <button onClick={() => onUnitChange('vilanova')} data-active={currentUnit === 'vilanova'}>
                       Vila Nova
                     </button>
                   </div>
                 </div>
 
-                <nav className="hidden lg:flex items-center gap-1">
+                <nav className="hidden lg:flex items-center gap-0.5">
                   {navItems.map((tab) => {
                     const IconComp = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -269,14 +500,17 @@
                       <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                          isActive ? 'bg-slate-800 text-white border border-slate-700 shadow-xs font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        title={tab.fullLabel}
+                        className={`px-2.5 h-8 rounded-lg text-[12px] flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all tracking-tight ${
+                          isActive
+                            ? 'bg-black/[0.06] text-[#1d1d1f] font-bold'
+                            : 'text-[#6e6e73] font-semibold hover:text-[#1d1d1f] hover:bg-black/[0.03]'
                         }`}
                       >
-                        <IconComp className="w-3.5 h-3.5" />
+                        <IconComp className="w-3.5 h-3.5 shrink-0" />
                         <span>{tab.label}</span>
                         {tab.id === 'vitrine' && totalAlerts > 0 && (
-                          <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-red-600 text-white font-bold rounded-full">
+                          <span className="ml-0.5 min-w-4 h-4 px-1 text-[10px] bg-[#ff3b30] text-white font-bold rounded-full flex items-center justify-center tnum">
                             {totalAlerts}
                           </span>
                         )}
@@ -286,8 +520,9 @@
                 </nav>
               </div>
             </div>
-            {/* Mobile Tab Scroll Bar */}
-            <div className="lg:hidden flex overflow-x-auto px-4 py-2 bg-slate-950/80 border-t border-slate-800 gap-1 scrollbar-none">
+
+            {/* Navegação em scroll horizontal no mobile */}
+            <div className="lg:hidden flex overflow-x-auto px-4 py-2 border-t hairline gap-1.5 scrollbar-none">
               {navItems.map((tab) => {
                 const IconComp = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -295,12 +530,17 @@
                   <button
                     key={tab.id}
                     onClick={() => onTabChange(tab.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1.5 ${
-                      isActive ? 'bg-blue-600 text-white' : 'text-slate-400 bg-slate-900'
+                    className={`px-3 h-8 rounded-full text-[12px] font-semibold whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors ${
+                      isActive ? 'bg-[#0071e3] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
                     }`}
                   >
-                    <IconComp className="w-3 h-3" />
-                    <span>{tab.label}</span>
+                    <IconComp className="w-3.5 h-3.5 shrink-0" />
+                    <span>{tab.fullLabel}</span>
+                    {tab.id === 'vitrine' && totalAlerts > 0 && (
+                      <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${isActive ? 'bg-white/25 text-white' : 'bg-[#ff3b30] text-white'}`}>
+                        {totalAlerts}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -328,33 +568,33 @@
           return map;
         }, [unitSlots]);
 
+        const typeLabels = { salgada: 'Salgadas', doce: 'Doces', sobremesa: 'Sobremesas' };
+
         return (
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                {['salgada', 'doce', 'sobremesa'].map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setFilterType(type)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all capitalize ${
-                      filterType === type ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {type === 'salgada' ? 'Salgadas' : type === 'doce' ? 'Doces' : 'Sobremesas'}
-                  </button>
-                ))}
+          <div className="card p-5 sm:p-6 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
+              <div>
+                <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
+                <p className="t-callout mt-0.5">Toque em um espaço para repor ou dar baixa</p>
               </div>
-              <span className="text-xs font-semibold text-slate-500">
-                {unitSlots.length} Espaços Físicos
-              </span>
+              <div className="flex items-center gap-3">
+                <div className="segmented">
+                  {['salgada', 'doce', 'sobremesa'].map((type) => (
+                    <button key={type} onClick={() => setFilterType(type)} data-active={filterType === type}>
+                      {typeLabels[type]}
+                    </button>
+                  ))}
+                </div>
+                <span className="t-caption tnum hidden sm:block">{unitSlots.length} espaços</span>
+              </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-7">
               {Object.keys(shelves).map((shelfNum) => (
-                <div key={shelfNum} className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
-                    Prateleira {shelfNum}
+                <div key={shelfNum} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="t-overline">Prateleira {shelfNum}</span>
+                    <span className="flex-1 h-px bg-black/[0.06]" />
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
                     {shelves[shelfNum].map((slot) => {
@@ -365,52 +605,58 @@
                       return (
                         <div
                           key={slot.id}
-                          className={`p-3 rounded-xl border flex flex-col justify-between h-36 transition-all ${
-                            item ? 'bg-white border-slate-200 shadow-xs hover:border-slate-300' : 'bg-slate-50 border-dashed border-slate-200 justify-center items-center text-slate-400'
+                          className={`p-3.5 rounded-2xl border flex flex-col justify-between h-[148px] transition-all ${
+                            item
+                              ? 'bg-white hairline shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)]'
+                              : 'bg-black/[0.02] border-dashed border-black/10 justify-center items-center'
                           }`}
                         >
                           {item ? (
                             <>
-                              <div className="space-y-1">
-                                <div className="flex items-start justify-between gap-1">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Slot #{slot.slotNumber}</span>
-                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                              <div className="space-y-1.5">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <span className="t-caption tnum">#{slot.slotNumber}</span>
+                                  <span className={`pill ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
                                     {statusInfo.label}
                                   </span>
                                 </div>
-                                <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-tight">{item.productName}</h4>
+                                <h4 className="text-[13px] font-bold text-[#1d1d1f] leading-[1.25] tracking-[-0.015em] line-clamp-2">
+                                  {item.productName}
+                                </h4>
                               </div>
 
-                              <div className="space-y-2 pt-2 border-t border-slate-100">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-slate-500 text-[11px]">Estoque:</span>
-                                  <span className="font-extrabold text-slate-900">{item.currentQty} / {item.producedQty || item.currentQty} {item.unit}</span>
+                              <div className="space-y-2.5">
+                                <div className="flex items-baseline justify-between">
+                                  <span className="t-caption">Estoque</span>
+                                  <span className="tnum text-[15px] font-extrabold text-[#1d1d1f] tracking-[-0.02em]">
+                                    {item.currentQty}
+                                    <span className="text-[11px] font-medium text-[#86868b]"> / {item.producedQty || item.currentQty} {item.unit}</span>
+                                  </span>
                                 </div>
 
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1.5">
                                   <button
                                     onClick={() => onIncrementQty(item.id)}
-                                    className="flex-1 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold text-xs flex items-center justify-center gap-1"
-                                    title="Aumentar +1"
+                                    className="btn btn-secondary w-8 h-7 px-0 shrink-0"
+                                    title="Repor uma unidade"
                                   >
-                                    <Icons.Plus className="w-3 h-3" />
-                                    <span>+1</span>
+                                    <Icons.Plus className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => onOpenDecreaseModal(item)}
-                                    className="flex-1 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
-                                    title="Registrar Venda / Perda"
+                                    className="btn btn-warn flex-1 h-7 text-[12px]"
+                                    title="Registrar venda ou perda"
                                   >
-                                    <Icons.Minus className="w-3 h-3" />
-                                    <span>Baixa</span>
+                                    Baixa
                                   </button>
                                 </div>
                               </div>
                             </>
                           ) : (
-                            <div className="text-center space-y-1">
-                              <span className="text-[10px] font-bold text-slate-400 block">Slot #{slot.slotNumber}</span>
-                              <span className="text-xs font-medium text-slate-400">Livre</span>
+                            <div className="text-center space-y-0.5">
+                              <span className="t-caption tnum block">#{slot.slotNumber}</span>
+                              <span className="text-[13px] font-medium text-[#a1a1a6]">Livre</span>
                             </div>
                           )}
                         </div>
@@ -466,41 +712,29 @@
         };
 
         return (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full overflow-hidden">
-            <div className="p-3.5 bg-slate-900 text-white border-b border-slate-800 flex justify-between items-center">
+          <div className="card flex flex-col h-full overflow-hidden">
+            <div className="px-4 py-3.5 flex justify-between items-center border-b hairline">
               <div>
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                  <Icons.ClipboardList className="w-3.5 h-3.5 text-blue-400" />
-                  Lista de Apoio (Suporte)
-                </h2>
-                <p className="text-[10px] text-slate-400">Edição rápida, datas e alocação tática</p>
+                <h2 className="t-headline text-[#1d1d1f]">Lista de apoio</h2>
+                <p className="t-caption mt-0.5">Alocação rápida, datas e ajustes</p>
               </div>
-              <span className="text-blue-300 font-bold text-[10px] px-2.5 py-0.5 bg-blue-950 border border-blue-800 rounded-full">
-                {filteredItems.length} itens
-              </span>
+              <span className="pill bg-black/[0.05] text-[#6e6e73] tnum">{filteredItems.length} itens</span>
             </div>
 
-            <div className="p-3 bg-slate-50 border-b border-slate-200 space-y-2.5">
-              <form onSubmit={handleQuickSubmit} className="space-y-2">
+            <div className="px-4 py-4 bg-[#fbfbfd] border-b hairline space-y-3">
+              <form onSubmit={handleQuickSubmit} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1">
-                    <Icons.Plus className="w-3 h-3 text-blue-600" />
-                    Adicionar Item na Vitrine
-                  </span>
-                  <span className="text-[9px] text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded font-medium">
-                    [Enter ↵ para avançar]
-                  </span>
+                  <span className="t-overline">Adicionar na vitrine</span>
+                  <span className="t-caption text-[11px]">Enter ↵ avança</span>
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">
-                    1. Produto:
-                  </label>
+                  <label className="t-caption block mb-1">Produto</label>
                   <input
                     ref={productNameRef}
                     type="text"
                     list="product-suggestions"
-                    placeholder="Digite ou escolha o produto..."
+                    placeholder="Digite ou escolha…"
                     value={quickProductName}
                     onChange={(e) => setQuickProductName(e.target.value)}
                     onKeyDown={(e) => {
@@ -509,7 +743,7 @@
                         if (qtyRef.current) { qtyRef.current.focus(); qtyRef.current.select(); }
                       }
                     }}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 h-8 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 font-semibold"
+                    className="field field-sm font-semibold"
                   />
                   <datalist id="product-suggestions">
                     {products.map((p) => (
@@ -518,11 +752,9 @@
                   </datalist>
                 </div>
 
-                <div className="grid grid-cols-12 gap-1.5 items-end">
+                <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-4">
-                    <label className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">
-                      2. Qtd:
-                    </label>
+                    <label className="t-caption block mb-1">Qtd</label>
                     <input
                       ref={qtyRef}
                       type="number"
@@ -536,183 +768,149 @@
                           if (dateRef.current) dateRef.current.focus();
                         }
                       }}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2 h-8 text-xs text-slate-900 text-center font-extrabold focus:outline-none focus:border-blue-500"
+                      className="field field-sm text-center font-extrabold tnum"
                     />
                   </div>
 
                   <div className="col-span-5">
-                    <label className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">
-                      3. Data Fab.:
-                    </label>
+                    <label className="t-caption block mb-1">Fabricação</label>
                     <input
                       ref={dateRef}
                       type="date"
                       value={quickDate}
                       onChange={(e) => setQuickDate(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-1 h-8 text-[11px] text-slate-900 text-center font-medium focus:outline-none focus:border-blue-500"
+                      className="field field-sm text-center text-[12px] tnum"
                     />
                   </div>
 
                   <div className="col-span-3">
-                    <button
-                      type="submit"
-                      className="w-full h-8 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold rounded-lg text-xs transition-all shadow-xs flex items-center justify-center gap-1"
-                    >
+                    <button type="submit" className="btn btn-primary w-full h-8 text-[12px]">
                       <Icons.Plus className="w-3.5 h-3.5" />
                       Alocar
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 pt-0.5 text-[9px]">
-                  <span className="text-slate-500 font-semibold mr-0.5">Atalhos:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="t-caption mr-0.5">Data:</span>
                   <button
                     type="button"
                     onClick={() => setQuickDateOffset(0)}
-                    className={`px-2 py-0.5 rounded border ${
-                      quickDate === getTodayDateString()
-                        ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold'
-                        : 'bg-white text-slate-600 border-slate-200'
+                    className={`btn h-6 px-2.5 text-[11px] ${
+                      quickDate === getTodayDateString() ? 'bg-[#0071e3]/10 text-[#0071e3]' : 'btn-secondary'
                     }`}
                   >
                     Hoje
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuickDateOffset(-1)}
-                    className="px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200"
-                  >
-                    Ontem (-1d)
+                  <button type="button" onClick={() => setQuickDateOffset(-1)} className="btn btn-secondary h-6 px-2.5 text-[11px]">
+                    Ontem
                   </button>
                 </div>
               </form>
 
-              <div className="relative pt-1 border-t border-slate-200">
-                <Icons.Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-3" />
+              <div className="relative pt-3 border-t hairline">
+                <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[18px]" />
                 <input
                   type="text"
-                  placeholder="Filtrar tabela..."
+                  placeholder="Filtrar itens…"
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 h-7 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                  className="field field-sm field-search"
                 />
               </div>
             </div>
 
-            <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left text-[11px]">
-                <thead className="bg-slate-100 border-b border-slate-200 sticky top-0 z-10 text-[9px] font-bold text-slate-500 uppercase">
-                  <tr>
-                    <th className="py-2 px-2.5">Produto</th>
-                    <th className="py-2 px-1 text-center">Data Fab.</th>
-                    <th className="py-2 px-1 text-center">Prod.</th>
-                    <th className="py-2 px-1 text-center">Atual</th>
-                    <th className="py-2 px-1 text-center">Status</th>
-                    <th className="py-2 px-2 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-400 text-xs">
-                        Nenhum item alocado na vitrine no momento.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredItems.map((item) => {
-                      const product = products.find((p) => p.id === item.productId);
-                      const slot = slots.find((s) => s.id === item.slotId);
-                      const statusInfo = getSlotItemStatus(item, product);
+            <div className="flex-1 overflow-y-auto max-h-[560px]">
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <p className="t-body text-[#86868b]">Nenhum item na vitrine</p>
+                  <p className="t-caption mt-1">Use o formulário acima para alocar</p>
+                </div>
+              ) : (
+                filteredItems.map((item) => {
+                  const product = products.find((p) => p.id === item.productId);
+                  const slot = slots.find((s) => s.id === item.slotId);
+                  const statusInfo = getSlotItemStatus(item, product);
 
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-2.5">
-                            <div className="font-semibold text-slate-900 leading-tight">
-                              {item.productName}
-                            </div>
-                            <div className="text-[9px] text-slate-400 mt-0.5">
-                              {slot ? `P${slot.shelfNumber} (Slot #${slot.slotNumber})` : 'Apoio'}
-                            </div>
-                          </td>
+                  return (
+                    <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-[13px] font-bold text-[#1d1d1f] leading-tight tracking-[-0.015em]">
+                            {item.productName}
+                          </h4>
+                          <p className="t-caption text-[11px] mt-0.5 tnum">
+                            {slot ? `Prateleira ${slot.shelfNumber} · slot #${slot.slotNumber}` : 'Apoio'}
+                          </p>
+                        </div>
+                        <span className={`pill text-[10px] shrink-0 ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
 
-                          <td className="py-2 px-1 text-center">
-                            <input
-                              type="date"
-                              value={item.manufactureDate}
-                              onChange={(e) =>
-                                onUpdateItem({ ...item, manufactureDate: e.target.value })
-                              }
-                              className="text-[10px] font-medium py-0.5 px-1 border border-slate-200 rounded bg-white text-slate-800 text-center w-24"
-                            />
-                          </td>
+                      <div className="flex items-end gap-2 mt-2.5">
+                        <label className="flex-1 min-w-0">
+                          <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
+                          <input
+                            type="date"
+                            value={item.manufactureDate}
+                            onChange={(e) => onUpdateItem({ ...item, manufactureDate: e.target.value })}
+                            className="field h-7 px-1.5 text-[11px] text-center tnum"
+                          />
+                        </label>
+                        <label className="w-12 shrink-0">
+                          <span className="t-caption text-[10px] block mb-0.5 text-center">Prod.</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.producedQty || item.currentQty}
+                            onChange={(e) =>
+                              onUpdateItem({ ...item, producedQty: Math.max(0, Number(e.target.value) || 0) })
+                            }
+                            className="field h-7 px-1 text-[12px] font-bold text-center tnum"
+                          />
+                        </label>
+                        <label className="w-12 shrink-0">
+                          <span className="t-caption text-[10px] block mb-0.5 text-center">Atual</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.currentQty}
+                            onChange={(e) =>
+                              onUpdateItem({ ...item, currentQty: Math.max(0, Number(e.target.value) || 0) })
+                            }
+                            className="field h-7 px-1 text-[12px] font-extrabold text-center tnum bg-[#ff9f0a]/10 border-[#ff9f0a]/30 text-[#8a5200]"
+                          />
+                        </label>
 
-                          <td className="py-2 px-1 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.producedQty || item.currentQty}
-                              onChange={(e) =>
-                                onUpdateItem({
-                                  ...item,
-                                  producedQty: Math.max(0, Number(e.target.value) || 0)
-                                })
-                              }
-                              className="text-[10px] font-bold py-0.5 px-1 border border-slate-200 rounded bg-white text-slate-900 text-center w-12"
-                            />
-                          </td>
-
-                          <td className="py-2 px-1 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.currentQty}
-                              onChange={(e) =>
-                                onUpdateItem({
-                                  ...item,
-                                  currentQty: Math.max(0, Number(e.target.value) || 0)
-                                })
-                              }
-                              className="text-[10px] font-black py-0.5 px-1 border border-amber-300 rounded bg-amber-50 text-amber-900 text-center w-12"
-                            />
-                          </td>
-
-                          <td className="py-2 px-1 text-center">
-                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${statusInfo.bgClass} ${statusInfo.textClass}`}>
-                              {statusInfo.label}
-                            </span>
-                          </td>
-
-                          <td className="py-2 px-2 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => onOpenDecreaseModal(item)}
-                                title="Baixa / Venda / Perda"
-                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold"
-                              >
-                                −
-                              </button>
-                              <button
-                                onClick={() => onRecordSellAll(item.id)}
-                                title="Vendeu tudo!"
-                                className="p-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded"
-                              >
-                                <Icons.CheckCircle2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => onRemoveItem(item.id)}
-                                title="Remover item"
-                                className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded"
-                              >
-                                <Icons.Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => onOpenDecreaseModal(item)}
+                            title="Baixa · venda ou perda"
+                            className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold text-[13px] flex items-center justify-center transition-colors"
+                          >
+                            −
+                          </button>
+                          <button
+                            onClick={() => onRecordSellAll(item.id)}
+                            title="Vendeu tudo"
+                            className="w-7 h-7 rounded-full bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35] flex items-center justify-center transition-colors"
+                          >
+                            <Icons.CheckCircle2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onRemoveItem(item.id)}
+                            title="Remover item"
+                            className="w-7 h-7 rounded-full bg-[#ff3b30]/10 hover:bg-[#ff3b30]/18 text-[#c9271d] flex items-center justify-center transition-colors"
+                          >
+                            <Icons.Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         );
@@ -758,32 +956,27 @@
         };
 
         return (
-          <div className="space-y-6">
-            <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-5">
+            <div className="card p-6 sm:p-7">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
-                    <Icons.Calendar className="w-4 h-4" />
-                    Planejamento Semanal
+                  <div className="t-overline flex items-center gap-1.5 mb-2">
+                    <Icons.Calendar className="w-3.5 h-3.5" />
+                    Planejamento semanal
                   </div>
-                  <h2 className="text-xl font-black text-white">
-                    Vitrine Padrão - {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
-                  </h2>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Defina como a vitrine física deve ser montada idealmente em cada dia da semana.
+                  <h2 className="t-display">Vitrine padrão</h2>
+                  <p className="t-body mt-1.5 max-w-lg">
+                    Defina como a vitrine deve ser montada em cada dia — {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}.
                   </p>
                 </div>
 
-                <button
-                  onClick={onGenerateProductionOrder}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-2"
-                >
+                <button onClick={onGenerateProductionOrder} className="btn btn-primary btn-md shrink-0">
                   <Icons.ChefHat className="w-4 h-4" />
-                  Gerar Pedido de Produção
+                  Gerar pedido de produção
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 mt-5 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1 scrollbar-none">
                 {DAYS.map((day) => {
                   const count = standardPlans.filter(
                     (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
@@ -793,14 +986,14 @@
                     <button
                       key={day}
                       onClick={() => onSelectDay(day)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-                        selectedDay === day
-                          ? 'bg-blue-600 text-white shadow-xs font-extrabold'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      className={`btn h-9 px-3.5 text-[13px] shrink-0 ${
+                        selectedDay === day ? 'btn-primary' : 'btn-secondary'
                       }`}
                     >
                       <span>{getDayNameBR(day)}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-300">
+                      <span className={`tnum text-[11px] px-1.5 rounded-full ${
+                        selectedDay === day ? 'bg-white/22 text-white' : 'bg-black/[0.06] text-[#6e6e73]'
+                      }`}>
                         {count}
                       </span>
                     </button>
@@ -809,47 +1002,41 @@
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Icons.Copy className="w-4 h-4 text-purple-600" />
-                  Copiar padrão de <strong>{getDayNameBR(selectedDay)}</strong> para:
+            <div className="card-flat p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="t-callout flex items-center gap-1.5">
+                  <Icons.Copy className="w-4 h-4 text-[#6e6e73]" />
+                  Copiar <strong className="text-[#1d1d1f] font-bold">{getDayNameBR(selectedDay)}</strong> para
                 </span>
                 <select
                   value={targetCopyDay}
                   onChange={(e) => setTargetCopyDay(e.target.value)}
-                  className="text-xs py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl font-medium"
+                  className="field field-sm field-select field-auto"
                 >
                   {DAYS.map((d) => (
                     <option key={d} value={d}>{getDayNameBR(d)}</option>
                   ))}
                 </select>
-                <button
-                  onClick={handleCopy}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs"
-                >
+                <button onClick={handleCopy} className="btn btn-secondary btn-sm">
                   Copiar
                 </button>
               </div>
 
-              <button
-                onClick={handleClear}
-                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs border border-red-200 flex items-center gap-1.5"
-              >
+              <button onClick={handleClear} className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16">
                 <Icons.Trash2 className="w-3.5 h-3.5" />
-                Limpar Padrão
+                Limpar padrão
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-5">
               {Array.from(new Set(unitSlots.map((s) => s.sectionTitle))).map((sectionTitle) => {
                 const sectionSlots = unitSlots.filter((s) => s.sectionTitle === sectionTitle);
 
                 return (
-                  <div key={sectionTitle} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <h3 className="text-sm font-extrabold text-slate-900">{sectionTitle}</h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-900 uppercase">
+                  <div key={sectionTitle} className="card p-5 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b hairline">
+                      <h3 className="t-headline text-[#1d1d1f]">{sectionTitle}</h3>
+                      <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">
                         {sectionSlots[0]?.showcaseType}
                       </span>
                     </div>
@@ -861,12 +1048,15 @@
                         return (
                           <div
                             key={slot.id}
-                            className={`rounded-xl p-3 border transition-all ${
-                              planItem ? 'bg-purple-50/50 border-purple-200' : 'bg-slate-50 border-slate-200'
+                            className={`rounded-2xl p-3.5 border transition-all ${
+                              planItem ? 'bg-[#0071e3]/[0.04] border-[#0071e3]/20' : 'card-quiet'
                             }`}
                           >
-                            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200/60 text-xs font-bold text-slate-800">
-                              <span>Slot #{slot.slotNumber} (P{slot.shelfNumber})</span>
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="t-caption tnum">
+                                Slot #{slot.slotNumber} · P{slot.shelfNumber}
+                              </span>
+                              {planItem && <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3]" />}
                             </div>
 
                             <select
@@ -881,28 +1071,30 @@
                                   onUpdatePlanItem(slot.id, val, qty);
                                 }
                               }}
-                              className="w-full text-xs py-1.5 px-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:border-purple-500 mb-2"
+                              className="field field-sm font-semibold mb-2"
                             >
-                              <option value="">-- Espaço Vazio --</option>
+                              <option value="">Espaço vazio</option>
                               {products.map((p) => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                               ))}
                             </select>
 
                             {planItem && (
-                              <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-purple-200 text-xs">
-                                <span className="text-[10px] font-bold text-slate-600">Qtd Ideal:</span>
-                                <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-between bg-white rounded-xl px-2.5 py-1.5 border hairline">
+                                <span className="t-caption">Qtd ideal</span>
+                                <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1))}
-                                    className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-xs"
+                                    className="w-6 h-6 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[13px] flex items-center justify-center transition-colors"
                                   >
-                                    -
+                                    −
                                   </button>
-                                  <span className="text-xs font-black text-purple-900 min-w-5 text-center">{planItem.idealQty}</span>
+                                  <span className="tnum text-[14px] font-extrabold text-[#1d1d1f] min-w-6 text-center">
+                                    {planItem.idealQty}
+                                  </span>
                                   <button
                                     onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1)}
-                                    className="w-5 h-5 rounded bg-purple-600 text-white font-bold flex items-center justify-center text-xs"
+                                    className="w-6 h-6 rounded-full bg-[#0071e3] text-white font-bold text-[13px] flex items-center justify-center hover:bg-[#0077ed] transition-colors"
                                   >
                                     +
                                   </button>
@@ -975,79 +1167,77 @@
           alert('Produção lançada na vitrine com sucesso!');
         };
 
+        const totalNeeded = itemsNeedingProduction.reduce((a, b) => a + b.neededQty, 0);
+
         return (
-          <div className="space-y-6">
-            <div className="bg-amber-900 text-white rounded-2xl p-6 shadow-md border border-amber-800">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-5">
+            <div className="card p-6 sm:p-7">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 text-amber-300 text-xs font-bold uppercase tracking-wider mb-1">
-                    <Icons.ChefHat className="w-4 h-4" />
-                    Pedido de Produção para Cozinha / Padaria
+                  <div className="t-overline flex items-center gap-1.5 mb-2">
+                    <Icons.ChefHat className="w-3.5 h-3.5" />
+                    Cozinha e padaria
                   </div>
-                  <h2 className="text-xl font-extrabold text-white">
-                    Necessidades de Reposição - {getDayNameBR(selectedDay)} ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
-                  </h2>
-                  <p className="text-xs text-amber-100 mt-1">
-                    Calculado comparando a <strong>Vitrine Padrão Ideal</strong> com a <strong>Vitrine Atual</strong>.
+                  <h2 className="t-display">Pedido de produção</h2>
+                  <p className="t-body mt-1.5 max-w-lg">
+                    {getDayNameBR(selectedDay)} · {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'} — diferença entre o padrão ideal e a vitrine atual.
                   </p>
                 </div>
 
                 <button
                   onClick={handleApplyAll}
                   disabled={itemsNeedingProduction.length === 0}
-                  className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs shadow-lg flex items-center gap-2"
+                  className="btn btn-primary btn-md shrink-0 disabled:opacity-40 disabled:pointer-events-none"
                 >
                   <Icons.Plus className="w-4 h-4" />
-                  Lançar Produção na Vitrine (+{itemsNeedingProduction.reduce((a, b) => a + b.neededQty, 0)} itens)
+                  Lançar na vitrine
+                  {totalNeeded > 0 && <span className="tnum opacity-80">+{totalNeeded}</span>}
                 </button>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Icons.ClipboardList className="w-4 h-4 text-blue-600" />
-                  Checklist de Assamento e Preparo
-                </h3>
-                <span className="text-xs font-bold text-blue-900 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
-                  {itemsNeedingProduction.length} item(s) a produzir
+            <div className="card p-5 sm:p-6 space-y-1">
+              <div className="flex items-center justify-between pb-4 border-b hairline">
+                <h3 className="t-headline text-[#1d1d1f]">Checklist de preparo</h3>
+                <span className="pill bg-black/[0.05] text-[#6e6e73] tnum">
+                  {itemsNeedingProduction.length} a produzir
                 </span>
               </div>
 
               {itemsNeedingProduction.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 space-y-2">
-                  <Icons.CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-                  <h4 className="text-base font-bold text-slate-800">Vitrine 100% Abastecida!</h4>
-                  <p className="text-xs text-slate-500">Nenhum produto em falta em relação ao padrão ideal.</p>
+                <div className="text-center py-14 space-y-2">
+                  <Icons.CheckCircle2 className="w-11 h-11 text-[#34c759] mx-auto" />
+                  <h4 className="t-title text-[#1d1d1f]">Vitrine abastecida</h4>
+                  <p className="t-callout">Nada em falta em relação ao padrão ideal</p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div>
                   {itemsNeedingProduction.map((item) => {
                     const isChecked = !!completedItems[item.planId];
                     return (
-                      <div key={item.planId} className="py-3 px-2 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                      <div key={item.planId} className="py-3.5 flex items-center justify-between gap-4 border-b hairline last:border-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <button
                             type="button"
                             onClick={() => setCompletedItems((prev) => ({ ...prev, [item.planId]: !prev[item.planId] }))}
-                            className="text-slate-400 hover:text-emerald-600"
+                            className="text-[#c7c7cc] hover:text-[#34c759] transition-colors shrink-0"
                           >
-                            {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-emerald-600" /> : <Icons.Square className="w-5 h-5" />}
+                            {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-[#34c759]" /> : <Icons.Square className="w-5 h-5" />}
                           </button>
-                          <div>
-                            <h4 className={`text-sm font-bold ${isChecked ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                          <div className="min-w-0">
+                            <h4 className={`t-headline truncate ${isChecked ? 'line-through text-[#a1a1a6]' : 'text-[#1d1d1f]'}`}>
                               {item.productName}
                             </h4>
-                            <p className="text-xs text-slate-500">Destino: {item.slotTitle}</p>
+                            <p className="t-caption mt-0.5 truncate">{item.slotTitle}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 text-right">
-                          <div className="text-xs text-slate-500 hidden sm:block">
-                            <span>Ideal: <strong>{item.idealQty}</strong></span> • <span>Atual: <strong>{item.currentQty}</strong></span>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="t-caption hidden sm:block tnum text-right">
+                            Ideal {item.idealQty} · atual {item.currentQty}
                           </div>
-                          <div className="bg-amber-100 text-amber-950 font-black text-sm px-3 py-1.5 rounded-xl border border-amber-300">
-                            Faltam: +{item.neededQty} {item.unitOfMeasure}
+                          <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap">
+                            +{item.neededQty} {item.unitOfMeasure}
                           </div>
                         </div>
                       </div>
@@ -1077,54 +1267,61 @@
         const totalLossQty = unitLosses.reduce((acc, l) => acc + l.qty, 0);
 
         return (
-          <div className="space-y-6">
+          <div className="space-y-5">
+            <div>
+              <h2 className="t-display">Relatório de perdas</h2>
+              <p className="t-body mt-1">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-red-900 text-white p-5 rounded-2xl border border-red-800 space-y-1">
-                <span className="text-xs font-bold text-red-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.Trash2 className="w-4 h-4" />
-                  Total de Itens Perdidos ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.Trash2 className="w-3.5 h-3.5" />
+                  Itens perdidos
                 </span>
-                <div className="text-3xl font-black">{totalLossQty} <span className="text-sm font-normal text-red-200">unidades</span></div>
-                <p className="text-[11px] text-red-200">Registrado em {unitLosses.length} lançamento(s)</p>
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#ff3b30]">
+                  {totalLossQty}
+                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> un</span>
+                </div>
+                <p className="t-caption mt-2 tnum">{unitLosses.length} lançamento(s)</p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Monitoramento de Desperdício
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.AlertTriangle className="w-3.5 h-3.5" />
+                  Desperdício
                 </span>
-                <div className="text-xl font-bold text-slate-900">Atenção à Validade</div>
-                <p className="text-[11px] text-slate-500">Mantenha a rotação de estoque em dia</p>
+                <div className="mt-2 t-title text-[#1d1d1f]">Atenção à validade</div>
+                <p className="t-caption mt-2">Mantenha a rotação de estoque em dia</p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.TrendingUp className="w-4 h-4 text-blue-500" />
-                  Ação Recomendada
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.TrendingUp className="w-3.5 h-3.5" />
+                  Recomendação
                 </span>
-                <p className="text-xs text-slate-600">
-                  Ajuste o padrão ideal para dias com menor movimento.
-                </p>
+                <div className="mt-2 t-title text-[#1d1d1f]">Ajustar o padrão</div>
+                <p className="t-caption mt-2">Reduza a quantidade ideal nos dias de menor movimento</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                <h3 className="text-base font-bold text-slate-900">Registro Detalhado de Perdas</h3>
+            <div className="card p-5 sm:p-6 space-y-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b hairline">
+                <h3 className="t-headline text-[#1d1d1f]">Registro detalhado</h3>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Buscar produto..."
+                    placeholder="Buscar produto…"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
-                    className="text-xs pl-3 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg"
+                    className="field field-sm field-auto"
                   />
                   <select
                     value={selectedReason}
                     onChange={(e) => setSelectedReason(e.target.value)}
-                    className="text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-lg"
+                    className="field field-sm field-select field-auto"
                   >
-                    <option value="todos">Todos os Motivos</option>
+                    <option value="todos">Todos os motivos</option>
                     <option value="vencido">Vencidos</option>
                     <option value="danificado">Danificados</option>
                     <option value="qualidade">Qualidade</option>
@@ -1134,29 +1331,35 @@
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="py-2.5 px-3">Data Baixa</th>
-                      <th className="py-2.5 px-3">Produto</th>
-                      <th className="py-2.5 px-3 text-center">Quantidade</th>
-                      <th className="py-2.5 px-3">Motivo</th>
-                      <th className="py-2.5 px-3">Detalhes</th>
+                    <tr className="t-overline text-[10px]">
+                      <th className="py-3 pr-3 font-bold">Data</th>
+                      <th className="py-3 px-3 font-bold">Produto</th>
+                      <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                      <th className="py-3 px-3 font-bold">Motivo</th>
+                      <th className="py-3 pl-3 font-bold">Detalhes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {filteredLosses.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-slate-400">Nenhuma perda registrada.</td>
+                        <td colSpan={5} className="text-center py-10">
+                          <p className="t-body text-[#86868b]">Nenhuma perda registrada</p>
+                        </td>
                       </tr>
                     ) : (
                       filteredLosses.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 text-slate-600">{formatDateBR(r.lossDate)}</td>
-                          <td className="py-2.5 px-3 font-bold text-slate-900">{r.productName}</td>
-                          <td className="py-2.5 px-3 text-center font-extrabold text-red-600">Perdeu {r.qty} {r.unitOfMeasure}</td>
-                          <td className="py-2.5 px-3 font-semibold capitalize">{r.reason}</td>
-                          <td className="py-2.5 px-3 text-slate-500 italic">{r.details || '-'}</td>
+                        <tr key={r.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                          <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.lossDate)}</td>
+                          <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
+                          <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
+                            −{r.qty} {r.unitOfMeasure}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
+                          </td>
+                          <td className="py-3 pl-3 t-callout">{r.details || '—'}</td>
                         </tr>
                       ))
                     )}
@@ -1181,78 +1384,92 @@
           ? (unitSales.reduce((acc, s) => acc + (s.exposureDays || 0), 0) / unitSales.length).toFixed(1)
           : '0';
 
+        const totalLossQty = unitLosses.reduce((a, b) => a + b.qty, 0);
+        const efficiency = totalSalesQty + totalLossQty > 0
+          ? ((totalSalesQty / (totalSalesQty + totalLossQty)) * 100).toFixed(1) + '%'
+          : '100%';
+
         return (
-          <div className="space-y-6">
+          <div className="space-y-5">
+            <div>
+              <h2 className="t-display">Histórico e vendas</h2>
+              <p className="t-body mt-1">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-emerald-900 text-white p-5 rounded-2xl border border-emerald-800 space-y-1">
-                <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.ShoppingCart className="w-4 h-4" />
-                  Total de Vendas ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                  Total vendido
                 </span>
-                <div className="text-3xl font-black">{totalSalesQty} <span className="text-sm font-normal text-emerald-200">itens</span></div>
-                <p className="text-[11px] text-emerald-200">{unitSales.length} transações de saída por venda</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.Clock className="w-4 h-4 text-amber-500" />
-                  Média de Exposição na Vitrine
-                </span>
-                <div className="text-2xl font-black text-slate-900">{avgDays} <span className="text-sm font-normal text-slate-500">dias</span></div>
-                <p className="text-[11px] text-slate-500">Tempo médio do balcão até a venda</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Icons.TrendingUp className="w-4 h-4 text-emerald-500" />
-                  Eficiência do Balcão
-                </span>
-                <div className="text-2xl font-black text-emerald-600">
-                  {totalSalesQty + unitLosses.reduce((a, b) => a + b.qty, 0) > 0
-                    ? ((totalSalesQty / (totalSalesQty + unitLosses.reduce((a, b) => a + b.qty, 0))) * 100).toFixed(1) + '%'
-                    : '100%'}
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                  {totalSalesQty}
+                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
                 </div>
-                <p className="text-[11px] text-slate-500">Aproveitamento de vendas vs perdas</p>
+                <p className="t-caption mt-2 tnum">{unitSales.length} transações</p>
+              </div>
+
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.Clock className="w-3.5 h-3.5" />
+                  Exposição média
+                </span>
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                  {avgDays}
+                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> dias</span>
+                </div>
+                <p className="t-caption mt-2">Do balcão até a venda</p>
+              </div>
+
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.TrendingUp className="w-3.5 h-3.5" />
+                  Eficiência do balcão
+                </span>
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d7a35]">
+                  {efficiency}
+                </div>
+                <p className="t-caption mt-2">Vendas sobre vendas + perdas</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <button
-                  onClick={() => setActiveTab('vendas')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold ${activeTab === 'vendas' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
-                >
-                  Vendas ({unitSales.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('perdas')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold ${activeTab === 'perdas' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700'}`}
-                >
-                  Perdas ({unitLosses.length})
-                </button>
+            <div className="card p-5 sm:p-6 space-y-1">
+              <div className="flex items-center pb-4 border-b hairline">
+                <div className="segmented">
+                  <button onClick={() => setActiveTab('vendas')} data-active={activeTab === 'vendas'}>
+                    Vendas ({unitSales.length})
+                  </button>
+                  <button onClick={() => setActiveTab('perdas')} data-active={activeTab === 'perdas'}>
+                    Perdas ({unitLosses.length})
+                  </button>
+                </div>
               </div>
 
               {activeTab === 'vendas' ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                        <th className="py-2.5 px-3">Data/Hora</th>
-                        <th className="py-2.5 px-3">Produto</th>
-                        <th className="py-2.5 px-3 text-center">Quantidade</th>
-                        <th className="py-2.5 px-3 text-center">Dias Exposto</th>
+                      <tr className="t-overline text-[10px]">
+                        <th className="py-3 pr-3 font-bold">Data e hora</th>
+                        <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 pl-3 text-center font-bold">Exposição</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody>
                       {unitSales.length === 0 ? (
-                        <tr><td colSpan={4} className="text-center py-8 text-slate-400">Nenhuma venda registrada.</td></tr>
+                        <tr><td colSpan={4} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma venda registrada</p></td></tr>
                       ) : (
                         unitSales.map((s) => (
-                          <tr key={s.id} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-3 text-slate-500">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-900">{s.productName}</td>
-                            <td className="py-2.5 px-3 text-center font-bold text-emerald-600">Vendeu {s.qty} {s.unitOfMeasure}</td>
-                            <td className="py-2.5 px-3 text-center font-medium">{s.exposureDays === 0 ? 'Mesmo Dia' : `${s.exposureDays}d`}</td>
+                          <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
+                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
+                            <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#1d7a35] whitespace-nowrap">
+                              {s.qty} {s.unitOfMeasure}
+                            </td>
+                            <td className="py-3 pl-3 text-center t-callout tnum">
+                              {s.exposureDays === 0 ? 'Mesmo dia' : `${s.exposureDays}d`}
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1261,25 +1478,29 @@
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                        <th className="py-2.5 px-3">Data</th>
-                        <th className="py-2.5 px-3">Produto</th>
-                        <th className="py-2.5 px-3 text-center">Quantidade</th>
-                        <th className="py-2.5 px-3">Motivo</th>
+                      <tr className="t-overline text-[10px]">
+                        <th className="py-3 pr-3 font-bold">Data</th>
+                        <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 pl-3 font-bold">Motivo</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody>
                       {unitLosses.length === 0 ? (
-                        <tr><td colSpan={4} className="text-center py-8 text-slate-400">Nenhuma perda registrada.</td></tr>
+                        <tr><td colSpan={4} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
                       ) : (
                         unitLosses.map((l) => (
-                          <tr key={l.id} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-3 text-slate-500">{formatDateBR(l.lossDate)}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-900">{l.productName}</td>
-                            <td className="py-2.5 px-3 text-center font-bold text-red-600">Perdeu {l.qty} {l.unitOfMeasure}</td>
-                            <td className="py-2.5 px-3 capitalize font-medium">{l.reason}</td>
+                          <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.lossDate)}</td>
+                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
+                            <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
+                              −{l.qty} {l.unitOfMeasure}
+                            </td>
+                            <td className="py-3 pl-3">
+                              <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1322,56 +1543,54 @@
         };
 
         return (
-          <div className="space-y-6">
-            <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-5">
+            <div className="card p-6 sm:p-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">
-                  <Icons.Coffee className="w-4 h-4" />
-                  Produtos Fora da Vitrine Física
+                <div className="t-overline flex items-center gap-1.5 mb-2">
+                  <Icons.Coffee className="w-3.5 h-3.5" />
+                  Fora da vitrine
                 </div>
-                <h2 className="text-xl font-extrabold text-white">
-                  Revenda, Cafeteria e Encomendas - {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
-                </h2>
-                <p className="text-xs text-slate-300 mt-1">
-                  Bebidas industrializadas, cafés preparados e itens sob encomenda.
+                <h2 className="t-display">Revenda e cafeteria</h2>
+                <p className="t-body mt-1.5 max-w-lg">
+                  Bebidas, cafés preparados e encomendas — {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}.
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5"
-              >
+              <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md shrink-0">
                 <Icons.Plus className="w-4 h-4" />
-                Novo Item Fora da Vitrine
+                Novo item
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {unitItems.map((item) => (
-                <div key={item.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
+                <div key={item.id} className="card p-4 flex flex-col justify-between gap-4">
                   <div>
-                    <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400 mb-1">
-                      <span>{item.category}</span>
-                      <span className="text-emerald-600 font-extrabold">{formatCurrencyBR(item.price)}</span>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="t-overline">{item.category}</span>
+                      <span className="tnum text-[13px] font-bold text-[#1d1d1f]">{formatCurrencyBR(item.price)}</span>
                     </div>
-                    <h4 className="text-sm font-bold text-slate-900">{item.productName}</h4>
+                    <h4 className="t-headline text-[#1d1d1f]">{item.productName}</h4>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div className="flex items-end justify-between pt-3 border-t hairline">
                     <div>
-                      <span className="text-[10px] text-slate-400 block">Estoque:</span>
-                      <span className="text-base font-black text-slate-900">{item.currentQty} {item.unitOfMeasure}</span>
+                      <span className="t-caption block">Estoque</span>
+                      <span className="tnum text-[22px] leading-tight font-extrabold tracking-[-0.02em] text-[#1d1d1f]">
+                        {item.currentQty}
+                        <span className="text-[12px] font-semibold text-[#86868b] tracking-normal"> {item.unitOfMeasure}</span>
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => onUpdateQty(item.id, -1)}
-                        className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold flex items-center justify-center transition-colors"
                       >
-                        -
+                        −
                       </button>
                       <button
                         onClick={() => onUpdateQty(item.id, 1)}
-                        className="w-8 h-8 rounded-xl bg-amber-500 text-amber-950 font-bold flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white font-bold flex items-center justify-center transition-colors"
                       >
                         +
                       </button>
@@ -1382,56 +1601,52 @@
             </div>
 
             {showModal && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                <form onSubmit={handleSubmit} className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900">Novo Item Fora da Vitrine</h3>
+              <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+                <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+                  <h3 className="t-title text-[#1d1d1f]">Novo item fora da vitrine</h3>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome:</label>
+                    <label className="t-caption block mb-1">Nome</label>
                     <input
                       type="text"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Ex: Coca-Cola 350ml..."
-                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      placeholder="Ex: Coca-Cola 350 ml"
+                      className="field field-md"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Categoria:</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
-                      >
+                      <label className="t-caption block mb-1">Categoria</label>
+                      <select value={category} onChange={(e) => setCategory(e.target.value)} className="field field-md">
                         <option value="revenda">Revenda</option>
                         <option value="cafeteria">Cafeteria</option>
                         <option value="encomenda">Encomenda</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Preço (R$):</label>
+                      <label className="t-caption block mb-1">Preço (R$)</label>
                       <input
                         type="number"
                         step="0.01"
                         value={price}
                         onChange={(e) => setPrice(Number(e.target.value) || 0)}
-                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                        className="field field-md tnum"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Estoque Inicial:</label>
+                    <label className="t-caption block mb-1">Estoque inicial</label>
                     <input
                       type="number"
                       value={qty}
                       onChange={(e) => setQty(Number(e.target.value) || 0)}
-                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      className="field field-md tnum"
                     />
                   </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
-                    <button type="submit" className="px-5 py-2 text-xs font-bold bg-amber-500 text-amber-950 rounded-xl">Salvar</button>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary btn-md">Cancelar</button>
+                    <button type="submit" className="btn btn-primary btn-md">Salvar</button>
                   </div>
                 </form>
               </div>
@@ -1472,121 +1687,122 @@
         };
 
         return (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-5">
+            <div className="card p-6 sm:p-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <Icons.Package className="w-5 h-5 text-amber-600" />
-                  Catálogo de Produtos - Delícias da Vovó
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Cadastre novos salgados, doces e sobremesas.</p>
+                <div className="t-overline flex items-center gap-1.5 mb-2">
+                  <Icons.Package className="w-3.5 h-3.5" />
+                  Cadastro
+                </div>
+                <h2 className="t-display">Catálogo de produtos</h2>
+                <p className="t-body mt-1.5">Salgados, doces e sobremesas da casa.</p>
               </div>
 
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5"
-              >
+              <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md shrink-0">
                 <Icons.Plus className="w-4 h-4" />
-                Cadastrar Novo Produto
+                Novo produto
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
-              <div className="relative max-w-sm">
-                <Icons.Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <div className="card p-5 sm:p-6 space-y-1">
+              <div className="relative max-w-sm pb-4">
+                <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
                 <input
                   type="text"
-                  placeholder="Pesquisar produto..."
+                  placeholder="Pesquisar produto…"
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  className="field field-sm field-search"
                 />
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                      <th className="py-2.5 px-3">Nome do Produto</th>
-                      <th className="py-2.5 px-3">Categoria</th>
-                      <th className="py-2.5 px-3 text-center">Validade</th>
-                      <th className="py-2.5 px-3 text-right">Preço</th>
-                      <th className="py-2.5 px-3 text-right">Ação</th>
+                    <tr className="t-overline text-[10px] border-b hairline">
+                      <th className="py-3 pr-3 font-bold">Produto</th>
+                      <th className="py-3 px-3 font-bold">Categoria</th>
+                      <th className="py-3 px-3 text-center font-bold">Validade</th>
+                      <th className="py-3 px-3 text-right font-bold">Preço</th>
+                      <th className="py-3 pl-3 text-right font-bold">Ação</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filtered.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-bold text-slate-900">{p.name}</td>
-                        <td className="py-2.5 px-3 capitalize font-semibold text-amber-800">{p.category}</td>
-                        <td className="py-2.5 px-3 text-center text-slate-600">{p.shelfLifeDays} dia(s)</td>
-                        <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600">{formatCurrencyBR(p.price)}</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <button
-                            onClick={() => onDeleteProduct(p.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
-                          >
-                            <Icons.Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
+                    ) : (
+                      filtered.map((p) => (
+                        <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                          <td className="py-3 pr-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.name}</td>
+                          <td className="py-3 px-3">
+                            <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{p.category}</span>
+                          </td>
+                          <td className="py-3 px-3 text-center t-callout tnum whitespace-nowrap">{p.shelfLifeDays} dia(s)</td>
+                          <td className="py-3 px-3 text-right tnum text-[13px] font-bold text-[#1d1d1f]">{formatCurrencyBR(p.price)}</td>
+                          <td className="py-3 pl-3 text-right">
+                            <button
+                              onClick={() => onDeleteProduct(p.id)}
+                              title="Excluir produto"
+                              className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                            >
+                              <Icons.Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
 
             {showModal && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                <form onSubmit={handleSubmit} className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900">Novo Produto</h3>
+              <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+                <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+                  <h3 className="t-title text-[#1d1d1f]">Novo produto</h3>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome:</label>
+                    <label className="t-caption block mb-1">Nome</label>
                     <input
                       type="text"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Ex: Coxinha de Carne..."
-                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      placeholder="Ex: Coxinha de carne"
+                      className="field field-md"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Categoria:</label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
-                      >
+                      <label className="t-caption block mb-1">Categoria</label>
+                      <select value={category} onChange={(e) => setCategory(e.target.value)} className="field field-md">
                         <option value="salgado">Salgado</option>
                         <option value="doce">Doce</option>
                         <option value="sobremesa">Sobremesa</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Preço (R$):</label>
+                      <label className="t-caption block mb-1">Preço (R$)</label>
                       <input
                         type="number"
                         step="0.01"
                         value={price}
                         onChange={(e) => setPrice(Number(e.target.value) || 0)}
-                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                        className="field field-md tnum"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Validade (Dias):</label>
+                    <label className="t-caption block mb-1">Validade (dias)</label>
                     <input
                       type="number"
                       value={shelfLifeDays}
                       onChange={(e) => setShelfLifeDays(Number(e.target.value) || 1)}
-                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      className="field field-md tnum"
                     />
                   </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
-                    <button type="submit" className="px-5 py-2 text-xs font-bold bg-amber-500 text-amber-950 rounded-xl">Salvar</button>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary btn-md">Cancelar</button>
+                    <button type="submit" className="btn btn-primary btn-md">Salvar</button>
                   </div>
                 </form>
               </div>
@@ -1616,82 +1832,84 @@
         };
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-              <div className="flex items-start justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
-                    Baixa de Produto
-                  </span>
-                  <h3 className="text-base font-bold text-slate-900 mt-1">{item.productName}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Estoque atual: <strong>{item.currentQty} {item.unit}</strong></p>
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-[20px] max-w-md w-full p-6 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+              <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
+                <div className="min-w-0">
+                  <span className="t-overline">Baixa de produto</span>
+                  <h3 className="t-title text-[#1d1d1f] mt-1">{item.productName}</h3>
+                  <p className="t-callout mt-1 tnum">
+                    Estoque atual: <strong className="text-[#1d1d1f] font-bold">{item.currentQty} {item.unit}</strong>
+                  </p>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                  <Icons.X className="w-5 h-5" />
+                <button onClick={onClose} className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73] flex items-center justify-center shrink-0 transition-colors">
+                  <Icons.X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 my-4">
+              <div className="grid grid-cols-2 gap-2 my-5">
                 <button
                   type="button"
                   onClick={() => setMode('venda')}
-                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border ${
-                    mode === 'venda' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}
+                  className={`btn btn-md ${mode === 'venda' ? 'bg-[#34c759] text-[#06300f]' : 'btn-secondary'}`}
                 >
-                  <Icons.ShoppingCart className="w-4 h-4" /> Registrar Venda
+                  <Icons.ShoppingCart className="w-4 h-4" /> Venda
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode('perda')}
-                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border ${
-                    mode === 'perda' ? 'bg-red-600 text-white border-red-600' : 'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}
+                  className={`btn btn-md ${mode === 'perda' ? 'btn-danger' : 'btn-secondary'}`}
                 >
-                  <Icons.AlertTriangle className="w-4 h-4" /> Registrar Perda
+                  <Icons.AlertTriangle className="w-4 h-4" /> Perda
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quantidade:</label>
+                  <label className="t-caption block mb-1.5">Quantidade</label>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded bg-slate-100 font-bold">-</button>
+                    <button
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[15px] flex items-center justify-center transition-colors"
+                    >
+                      −
+                    </button>
                     <input
                       type="number"
                       min="1"
                       max={item.currentQty}
                       value={qty}
                       onChange={(e) => setQty(Math.min(item.currentQty, Math.max(1, Number(e.target.value) || 1)))}
-                      className="w-16 text-center font-bold text-base py-1 border border-slate-300 rounded"
+                      className="field field-md w-20 text-center text-[17px] font-extrabold tnum"
                     />
-                    <button onClick={() => setQty((q) => Math.min(item.currentQty, q + 1))} className="w-8 h-8 rounded bg-slate-100 font-bold">+</button>
+                    <button
+                      onClick={() => setQty((q) => Math.min(item.currentQty, q + 1))}
+                      className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[15px] flex items-center justify-center transition-colors"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
                 {mode === 'perda' && (
-                  <div className="space-y-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                  <div className="space-y-3 p-4 bg-[#ff3b30]/[0.05] rounded-2xl">
                     <div>
-                      <label className="block text-xs font-semibold text-red-900 mb-1">Motivo:</label>
-                      <select
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        className="w-full text-xs py-1.5 px-2 bg-white border border-red-200 rounded-lg"
-                      >
-                        <option value="vencido">Produto Vencido / Expirado</option>
-                        <option value="danificado">Avaria Física / Amassado</option>
-                        <option value="qualidade">Alteração de Sabor / Textura</option>
-                        <option value="quebrado">Queda / Quebrado</option>
+                      <label className="t-caption block mb-1">Motivo</label>
+                      <select value={reason} onChange={(e) => setReason(e.target.value)} className="field field-sm">
+                        <option value="vencido">Produto vencido</option>
+                        <option value="danificado">Avaria física</option>
+                        <option value="qualidade">Alteração de sabor ou textura</option>
+                        <option value="quebrado">Queda ou quebra</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-red-900 mb-1">Detalhes:</label>
+                      <label className="t-caption block mb-1">Detalhes</label>
                       <input
                         type="text"
                         value={details}
                         onChange={(e) => setDetails(e.target.value)}
-                        placeholder="Observações..."
-                        className="w-full text-xs py-1.5 px-2 bg-white border border-red-200 rounded-lg"
+                        placeholder="Observações"
+                        className="field field-sm"
                       />
                     </div>
                   </div>
@@ -1700,20 +1918,21 @@
                 <button
                   type="button"
                   onClick={() => { onRecordSellAll(item.id); onClose(); }}
-                  className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl text-xs font-bold border border-blue-200 flex items-center justify-center gap-2"
+                  className="btn btn-secondary w-full btn-md"
                 >
-                  <Icons.CheckCircle2 className="w-4 h-4 text-blue-600" /> Vendeu tudo ({item.currentQty})
+                  <Icons.CheckCircle2 className="w-4 h-4 text-[#34c759]" />
+                  <span className="tnum">Vendeu tudo ({item.currentQty})</span>
                 </button>
               </div>
 
               <div className="flex justify-end gap-2 mt-6">
-                <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
+                <button type="button" onClick={onClose} className="btn btn-secondary btn-md">Cancelar</button>
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  className={`px-5 py-2 text-xs font-bold text-white rounded-xl ${mode === 'venda' ? 'bg-emerald-600' : 'bg-red-600'}`}
+                  className={`btn btn-md ${mode === 'venda' ? 'bg-[#34c759] text-[#06300f] hover:bg-[#46d46b]' : 'btn-danger'}`}
                 >
-                  Confirmar {mode === 'venda' ? 'Venda' : 'Perda'}
+                  Confirmar {mode === 'venda' ? 'venda' : 'perda'}
                 </button>
               </div>
             </div>
@@ -1949,7 +2168,7 @@
         };
 
         return (
-          <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
+          <div className="min-h-screen flex flex-col font-sans">
             <Navbar
               currentUnit={currentUnit}
               onUnitChange={setCurrentUnit}
@@ -1958,9 +2177,25 @@
               totalAlerts={totalAlerts}
             />
 
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 sm:py-9">
               {activeTab === 'vitrine' && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <div className="t-overline mb-2">
+                        {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
+                      </div>
+                      <h2 className="t-display">Vitrine operacional</h2>
+                    </div>
+                    {totalAlerts > 0 && (
+                      <span className="pill bg-[#ff9f0a]/12 text-[#8a5200] h-7 px-3 tnum">
+                        <Icons.AlertTriangle className="w-3.5 h-3.5" />
+                        {totalAlerts} {totalAlerts === 1 ? 'item precisa de atenção' : 'itens precisam de atenção'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                   <div className="lg:col-span-7 xl:col-span-8">
                     <ShowcaseGrid
                       currentUnit={currentUnit}
@@ -1971,7 +2206,7 @@
                       onOpenDecreaseModal={setDecreaseModalItem}
                     />
                   </div>
-                  <div className="lg:col-span-5 xl:col-span-4 sticky top-20">
+                  <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-[76px]">
                     <SupportList
                       currentUnit={currentUnit}
                       slotItems={slotItems}
@@ -1983,6 +2218,7 @@
                       onOpenDecreaseModal={setDecreaseModalItem}
                       onRemoveItem={handleRemoveItem}
                     />
+                  </div>
                   </div>
                 </div>
               )}
@@ -2056,14 +2292,15 @@
               onRecordSellAll={handleRecordSellAll}
             />
 
-            <footer className="px-6 py-3 bg-slate-900 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 mt-auto">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-emerald-400 font-bold uppercase text-[11px]">Sistema Operante</span>
-                <span>• Delícias da Vovó</span>
-              </div>
-              <div>
-                Unidade: <strong className="text-white">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</strong>
+            <footer className="mt-auto border-t hairline">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-[#34c759] rounded-full" />
+                  <span className="t-caption">Sistema operante · Delícias da Vovó</span>
+                </div>
+                <div className="t-caption">
+                  Unidade <strong className="text-[#1d1d1f] font-bold">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</strong>
+                </div>
               </div>
             </footer>
           </div>
