@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delícias da Vovó - Operacional da Vitrine</title>
+    <!-- Fonts & Tailwind CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
+    <!-- React, ReactDOM & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body {
+        font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+        background-color: #f8fafc;
+        color: #0f172a;
+        -webkit-font-smoothing: antialiased;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useMemo } = React;
+
+      // ==========================================
+      // SVG ICON COMPONENTS (Standalone)
+      // ==========================================
+      const IconBase = ({ d, className = "w-4 h-4", viewBox = "0 0 24 24" }) => (
+        <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox={viewBox}>
+          {Array.isArray(d) ? d.map((pathD, idx) => <path key={idx} d={pathD} />) : <path d={d} />}
+        </svg>
+      );
+
+      const Icons = {
+        Store: (props) => <IconBase d={["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 22V12h6v10"]} {...props} />,
+        LayoutGrid: (props) => <IconBase d={["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"]} {...props} />,
+        ClipboardList: (props) => <IconBase d={["M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"]} {...props} />,
+        TrendingDown: (props) => <IconBase d="M23 18l-9.5-9.5-5 5L1 6" {...props} />,
+        History: (props) => <IconBase d={["M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5", "M12 7v5l4 2"]} {...props} />,
+        Package: (props) => <IconBase d={["M16.5 9.4 7.55 4.24", "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "M3.27 6.96 12 12.01l8.73-5.05", "M12 22.08V12"]} {...props} />,
+        Database: (props) => <IconBase d={["M21 5c0 1.66-4 3-9 3s-9-1.34-9-3 4-3 9-3 9 1.34 9 3z", "M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5", "M3 12c0 1.66 4 3 9 3s9-1.34 9-3"]} {...props} />,
+        Plus: (props) => <IconBase d="M12 5v14M5 12h14" {...props} />,
+        Minus: (props) => <IconBase d="M5 12h14" {...props} />,
+        Trash2: (props) => <IconBase d={["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"]} {...props} />,
+        ShoppingCart: (props) => <IconBase d={["M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6", "M9 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z", "M20 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"]} {...props} />,
+        AlertTriangle: (props) => <IconBase d={["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z", "M12 9v4", "M12 17h.01"]} {...props} />,
+        CheckCircle2: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M9 12l2 2 4-4"]} {...props} />,
+        Calendar: (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />,
+        Clock: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 6v6l4 2"]} {...props} />,
+        Search: (props) => <IconBase d={["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]} {...props} />,
+        ArrowRight: (props) => <IconBase d="M5 12h14M12 5l7 7-7 7" {...props} />,
+        TrendingUp: (props) => <IconBase d="M23 6l-9.5 9.5-5-5L1 18" {...props} />,
+        AlertCircle: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 8v4", "M12 16h.01"]} {...props} />,
+        Check: (props) => <IconBase d="M20 6L9 17l-5-5" {...props} />,
+        Copy: (props) => <IconBase d={["M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"]} {...props} />,
+        ExternalLink: (props) => <IconBase d={["M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6", "M15 3h6v6", "M10 14L21 3"]} {...props} />,
+        RefreshCw: (props) => <IconBase d={["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"]} {...props} />,
+        FileCode: (props) => <IconBase d={["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6", "M10 12l-2 2 2 2", "M14 12l2 2-2 2"]} {...props} />,
+        X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />
+      };
+
+      // ==========================================
+      // UTILITY FUNCTIONS & INITIAL DATA
+      // ==========================================
+      const generateUniqueId = (prefix = 'id') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+      const formatDateBR = (dateStr) => {
+        if (!dateStr) return '';
+        const [year, month, day] = dateStr.split('-');
+        return `${day}/${month}/${year}`;
+      };
+
+      const formatCurrencyBR = (val) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+      };
+
+      const calculateDaysInShowcase = (manufactureDateStr) => {
+        if (!manufactureDateStr) return 0;
+        const mDate = new Date(manufactureDateStr);
+        const today = new Date(getTodayDateString());
+        const diffTime = Math.abs(today - mDate);
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      };
+
+      const getSlotItemStatus = (item, product) => {
+        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-slate-50', textClass: 'text-slate-400' };
+        const daysInShowcase = calculateDaysInShowcase(item.manufactureDate);
+        const shelfLife = product?.shelfLifeDays || 2;
+
+        if (daysInShowcase >= shelfLife) {
+          return { status: 'expired', label: `Vencido (${daysInShowcase}d)`, bgClass: 'bg-red-100 border-red-300', textClass: 'text-red-700 font-bold' };
+        } else if (daysInShowcase === shelfLife - 1) {
+          return { status: 'warning', label: `Atenção (${daysInShowcase}d)`, bgClass: 'bg-amber-50 border-amber-300', textClass: 'text-amber-700 font-semibold' };
+        }
+        return { status: 'normal', label: `Fresco (${daysInShowcase}d)`, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700' };
+      };
+
+      const INITIAL_PRODUCTS = [
+        { id: 'p1', name: 'Coxinha de Frango com Catupiry', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.5 },
+        { id: 'p2', name: 'Empada de Frango', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.5 },
+        { id: 'p3', name: 'Pastel de Carne Assado', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.0 },
+        { id: 'p4', name: 'Croissant de Presunto e Queijo', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 1, price: 12.0 },
+        { id: 'p5', name: 'Pão de Queijo Tradicional', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 15, shelfLifeDays: 1, price: 4.5 },
+        { id: 'p6', name: 'Sonho de Creme', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 6.5 },
+        { id: 'p7', name: 'Donut Glaceado', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.0 },
+        { id: 'p8', name: 'Fatia de Bolo de Cenoura com Chocolate', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 5, shelfLifeDays: 3, price: 9.5 },
+        { id: 'p9', name: 'Torta Holandesa (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 4, shelfLifeDays: 3, price: 14.0 },
+        { id: 'p10', name: 'Pudim de Leite Condensado (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 3, price: 10.0 }
+      ];
+
+      const generateInitialSlots = () => {
+        const slots = [];
+        // Matriz Slots (59 slots)
+        for (let s = 1; s <= 4; s++) {
+          for (let p = 1; p <= 10; p++) {
+            slots.push({ id: `matriz-salgada-s${s}-p${p}`, unit: 'matriz', showcaseType: 'salgada', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Salgados` });
+          }
+        }
+        for (let s = 1; s <= 3; s++) {
+          for (let p = 1; p <= 5; p++) {
+            slots.push({ id: `matriz-doce-s${s}-p${p}`, unit: 'matriz', showcaseType: 'doce', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Doces` });
+          }
+        }
+        for (let s = 1; s <= 2; s++) {
+          for (let p = 1; p <= 2; p++) {
+            slots.push({ id: `matriz-sobremesa-s${s}-p${p}`, unit: 'matriz', showcaseType: 'sobremesa', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Sobremesas` });
+          }
+        }
+        // Vila Nova Slots (32 slots)
+        for (let s = 1; s <= 3; s++) {
+          for (let p = 1; p <= 8; p++) {
+            slots.push({ id: `vilanova-salgada-s${s}-p${p}`, unit: 'vilanova', showcaseType: 'salgada', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Salgados` });
+          }
+        }
+        for (let s = 1; s <= 2; s++) {
+          for (let p = 1; p <= 4; p++) {
+            slots.push({ id: `vilanova-doce-s${s}-p${p}`, unit: 'vilanova', showcaseType: 'doce', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Doces` });
+          }
+        }
+        return slots;
+      };
+
+      const generateInitialSlotItems = () => {
+        const today = getTodayDateString();
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const twoDaysAgo = new Date(Date.now() - 172800000).toISOString().split('T')[0];
+
+        return [
+          { id: 'item-1', slotId: 'matriz-salgada-s1-p1', productId: 'p1', productName: 'Coxinha de Frango com Catupiry', producedQty: 20, currentQty: 14, unit: 'un', minQty: 10, manufactureDate: today, entryDate: today },
+          { id: 'item-2', slotId: 'matriz-salgada-s1-p2', productId: 'p2', productName: 'Empada de Frango', producedQty: 15, currentQty: 4, unit: 'un', minQty: 8, manufactureDate: yesterday, entryDate: yesterday },
+          { id: 'item-3', slotId: 'matriz-salgada-s2-p1', productId: 'p3', productName: 'Pastel de Carne Assado', producedQty: 12, currentQty: 2, unit: 'un', minQty: 8, manufactureDate: twoDaysAgo, entryDate: twoDaysAgo },
+          { id: 'item-4', slotId: 'matriz-doce-s1-p1', productId: 'p6', productName: 'Sonho de Creme', producedQty: 10, currentQty: 8, unit: 'un', minQty: 5, manufactureDate: today, entryDate: today },
+          { id: 'item-5', slotId: 'matriz-sobremesa-s1-p1', productId: 'p8', productName: 'Fatia de Bolo de Cenoura com Chocolate', producedQty: 8, currentQty: 3, unit: 'un', minQty: 4, manufactureDate: yesterday, entryDate: yesterday }
+        ];
+      };
+
+      // Storage helpers
+      const loadLocal = (key, defaultVal) => {
+        try {
+          const item = localStorage.getItem(key);
+          return item ? JSON.parse(item) : defaultVal;
+        } catch (e) {
+          return defaultVal;
+        }
+      };
+      const saveLocal = (key, val) => {
+        try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+      };
+
+      // ==========================================
+      // NAVBAR COMPONENT
+      // ==========================================
+      const Navbar = ({ currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
+        return (
+          <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40 shadow-xs backdrop-blur-md bg-slate-900/95">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-16 gap-4">
+                {/* Brand & Unit Switcher */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-xs">
+                      DV
+                    </div>
+                    <div>
+                      <h1 className="text-sm font-bold leading-tight text-white">Delícias da Vovó</h1>
+                      <p className="text-[10px] text-slate-400 font-medium">Gestão Operacional de Vitrine</p>
+                    </div>
+                  </div>
+
+                  <div className="h-6 w-px bg-slate-800 hidden sm:block" />
+
+                  {/* Store Selector */}
+                  <div className="flex bg-slate-800/90 p-0.5 rounded-lg border border-slate-700">
+                    <button
+                      onClick={() => onUnitChange('matriz')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        currentUnit === 'matriz' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Matriz
+                    </button>
+                    <button
+                      onClick={() => onUnitChange('vilanova')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        currentUnit === 'vilanova' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Vila Nova
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <nav className="hidden lg:flex items-center gap-1">
+                  {[
+                    { id: 'vitrine', label: 'Vitrine', icon: Icons.LayoutGrid },
+                    { id: 'padrao', label: 'Vitrine Padrão', icon: Icons.ClipboardList },
+                    { id: 'producao', label: 'Pedido de Produção', icon: Icons.Package },
+                    { id: 'perdas', label: 'Relatório de Perdas', icon: Icons.TrendingDown },
+                    { id: 'historico', label: 'Histórico', icon: Icons.History },
+                    { id: 'produtos', label: 'Produtos', icon: Icons.Store }
+                  ].map((tab) => {
+                    const IconComp = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => onTabChange(tab.id)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                          isActive ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <IconComp className="w-3.5 h-3.5" />
+                        <span>{tab.label}</span>
+                        {tab.id === 'vitrine' && totalAlerts > 0 && (
+                          <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-red-600 text-white font-bold rounded-full">
+                            {totalAlerts}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+          </header>
+        );
+      };
+
+      // ==========================================
+      // SHOWCASE GRID COMPONENT
+      // ==========================================
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, onIncrementQty, onOpenDecreaseModal, onRecordSellAll }) => {
+        const [filterType, setFilterType] = useState('salgada');
+
+        const unitSlots = useMemo(() => {
+          return slots.filter((s) => s.unit === currentUnit && s.showcaseType === filterType);
+        }, [slots, currentUnit, filterType]);
+
+        const shelves = useMemo(() => {
+          const map = {};
+          unitSlots.forEach((slot) => {
+            if (!map[slot.shelfNumber]) map[slot.shelfNumber] = [];
+            map[slot.shelfNumber].push(slot);
+          });
+          return map;
+        }, [unitSlots]);
+
+        return (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
+            {/* Filter Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                {['salgada', 'doce', 'sobremesa'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setFilterType(type)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all capitalize ${
+                      filterType === type ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {type === 'salgada' ? 'Salgadas' : type === 'doce' ? 'Doces' : 'Sobremesas'}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                {unitSlots.length} Espaços Físicos
+              </span>
+            </div>
+
+            {/* Shelves Layout */}
+            <div className="space-y-6">
+              {Object.keys(shelves).map((shelfNum) => (
+                <div key={shelfNum} className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                    Prateleira {shelfNum}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {shelves[shelfNum].map((slot) => {
+                      const item = slotItems.find((i) => i.slotId === slot.id);
+                      const prod = item ? products.find((p) => p.id === item.productId) : null;
+                      const statusInfo = getSlotItemStatus(item, prod);
+
+                      return (
+                        <div
+                          key={slot.id}
+                          className={`p-3 rounded-xl border flex flex-col justify-between h-36 transition-all ${
+                            item ? 'bg-white border-slate-200 shadow-xs hover:border-slate-300' : 'bg-slate-50 border-dashed border-slate-200 justify-center items-center text-slate-400'
+                          }`}
+                        >
+                          {item ? (
+                            <>
+                              <div className="space-y-1">
+                                <div className="flex items-start justify-between gap-1">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Slot #{slot.slotNumber}</span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                                    {statusInfo.label}
+                                  </span>
+                                </div>
+                                <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-tight">{item.productName}</h4>
+                              </div>
+
+                              <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-slate-500 text-[11px]">Estoque:</span>
+                                  <span className="font-extrabold text-slate-900">{item.currentQty} / {item.producedQty || item.currentQty} {item.unit}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => onIncrementQty(item.id)}
+                                    className="flex-1 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold text-xs flex items-center justify-center gap-1"
+                                    title="Aumentar +1"
+                                  >
+                                    <Icons.Plus className="w-3 h-3" />
+                                    <span>+1</span>
+                                  </button>
+                                  <button
+                                    onClick={() => onOpenDecreaseModal(item)}
+                                    className="flex-1 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
+                                    title="Registrar Venda / Perda"
+                                  >
+                                    <Icons.Minus className="w-3 h-3" />
+                                    <span>Baixa</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-center space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 block">Slot #{slot.slotNumber}</span>
+                              <span className="text-xs font-medium text-slate-400">Livre</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // TACTICAL SUPPORT LIST COMPONENT
+      // ==========================================
+      const SupportList = ({ currentUnit, slotItems, products, slots, onOpenDecreaseModal }) => {
+        const [search, setSearch] = useState('');
+
+        const alertItems = useMemo(() => {
+          return slotItems.filter((item) => {
+            const slot = slots.find((s) => s.id === item.slotId);
+            if (!slot || slot.unit !== currentUnit) return false;
+            if (search && !item.productName.toLowerCase().includes(search.toLowerCase())) return false;
+
+            const prod = products.find((p) => p.id === item.productId);
+            const statusInfo = getSlotItemStatus(item, prod);
+            return statusInfo.status !== 'normal' || item.currentQty <= item.minQty;
+          });
+        }, [slotItems, products, slots, currentUnit, search]);
+
+        return (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Icons.AlertCircle className="w-4 h-4 text-amber-500" />
+                Painel de Atenção
+              </h3>
+              <span className="text-xs font-bold bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full border border-amber-200">
+                {alertItems.length} Alertas
+              </span>
+            </div>
+
+            <div className="relative">
+              <Icons.Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Filtrar por nome..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              {alertItems.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">Nenhum item crítico ou com estoque baixo no momento.</p>
+              ) : (
+                alertItems.map((item) => {
+                  const prod = products.find((p) => p.id === item.productId);
+                  const statusInfo = getSlotItemStatus(item, prod);
+
+                  return (
+                    <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <h4 className="text-xs font-bold text-slate-900">{item.productName}</h4>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <span>Qtd: <strong className="text-slate-800">{item.currentQty} {item.unit}</strong></span>
+                          <span>•</span>
+                          <span className={`font-bold ${statusInfo.textClass}`}>{statusInfo.label}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => onOpenDecreaseModal(item)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs shrink-0"
+                      >
+                        Ação
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // MAIN APP COMPONENT
+      // ==========================================
+      function App() {
+        const [currentUnit, setCurrentUnit] = useState('matriz');
+        const [activeTab, setActiveTab] = useState('vitrine');
+
+        const [products, setProducts] = useState(() => loadLocal('products', INITIAL_PRODUCTS));
+        const [slots] = useState(generateInitialSlots);
+        const [slotItems, setSlotItems] = useState(() => loadLocal('slotItems', generateInitialSlotItems()));
+        const [decreaseModalItem, setDecreaseModalItem] = useState(null);
+
+        useEffect(() => saveLocal('products', products), [products]);
+        useEffect(() => saveLocal('slotItems', slotItems), [slotItems]);
+
+        const totalAlerts = useMemo(() => {
+          return slotItems.filter((item) => {
+            const slot = slots.find((s) => s.id === item.slotId);
+            if (slot?.unit !== currentUnit) return false;
+            const prod = products.find((p) => p.id === item.productId);
+            const statusInfo = getSlotItemStatus(item, prod);
+            return statusInfo.status !== 'normal';
+          }).length;
+        }, [slotItems, slots, products, currentUnit]);
+
+        const handleIncrementQty = (itemId) => {
+          setSlotItems((prev) => prev.map((item) => item.id === itemId ? { ...item, currentQty: item.currentQty + 1 } : item));
+        };
+
+        return (
+          <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
+            <Navbar
+              currentUnit={currentUnit}
+              onUnitChange={setCurrentUnit}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              totalAlerts={totalAlerts}
+            />
+
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {activeTab === 'vitrine' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  <div className="lg:col-span-8">
+                    <ShowcaseGrid
+                      currentUnit={currentUnit}
+                      slots={slots}
+                      slotItems={slotItems}
+                      products={products}
+                      onIncrementQty={handleIncrementQty}
+                      onOpenDecreaseModal={setDecreaseModalItem}
+                    />
+                  </div>
+                  <div className="lg:col-span-4 sticky top-20">
+                    <SupportList
+                      currentUnit={currentUnit}
+                      slotItems={slotItems}
+                      products={products}
+                      slots={slots}
+                      onOpenDecreaseModal={setDecreaseModalItem}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab !== 'vitrine' && (
+                <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-3">
+                  <h2 className="text-lg font-bold text-slate-900 capitalize">Aba {activeTab}</h2>
+                  <p className="text-xs text-slate-500">Módulo operacional ativo em modo de visualização única no index.html.</p>
+                </div>
+              )}
+            </main>
+
+            <footer className="px-6 py-3 bg-slate-900 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 mt-auto">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-emerald-400 font-bold uppercase text-[11px]">Sistema Operante</span>
+                <span>• Delícias da Vovó</span>
+              </div>
+              <div>
+                Unidade: <strong className="text-white">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</strong>
+              </div>
+            </footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
