@@ -32,16 +32,18 @@
         color: #0f172a;
         -webkit-font-smoothing: antialiased;
       }
+      .scrollbar-none::-webkit-scrollbar { display: none; }
+      .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
   </head>
   <body>
     <div id="root"></div>
 
     <script type="text/babel">
-      const { useState, useEffect, useMemo } = React;
+      const { useState, useEffect, useMemo, useRef } = React;
 
       // ==========================================
-      // SVG ICON COMPONENTS (Standalone)
+      // SVG ICON COMPONENTS
       // ==========================================
       const IconBase = ({ d, className = "w-4 h-4", viewBox = "0 0 24 24" }) => (
         <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox={viewBox}>
@@ -56,7 +58,6 @@
         TrendingDown: (props) => <IconBase d="M23 18l-9.5-9.5-5 5L1 6" {...props} />,
         History: (props) => <IconBase d={["M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5", "M12 7v5l4 2"]} {...props} />,
         Package: (props) => <IconBase d={["M16.5 9.4 7.55 4.24", "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "M3.27 6.96 12 12.01l8.73-5.05", "M12 22.08V12"]} {...props} />,
-        Database: (props) => <IconBase d={["M21 5c0 1.66-4 3-9 3s-9-1.34-9-3 4-3 9-3 9 1.34 9 3z", "M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5", "M3 12c0 1.66 4 3 9 3s9-1.34 9-3"]} {...props} />,
         Plus: (props) => <IconBase d="M12 5v14M5 12h14" {...props} />,
         Minus: (props) => <IconBase d="M5 12h14" {...props} />,
         Trash2: (props) => <IconBase d={["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"]} {...props} />,
@@ -66,36 +67,45 @@
         Calendar: (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />,
         Clock: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 6v6l4 2"]} {...props} />,
         Search: (props) => <IconBase d={["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]} {...props} />,
-        ArrowRight: (props) => <IconBase d="M5 12h14M12 5l7 7-7 7" {...props} />,
         TrendingUp: (props) => <IconBase d="M23 6l-9.5 9.5-5-5L1 18" {...props} />,
         AlertCircle: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 8v4", "M12 16h.01"]} {...props} />,
-        Check: (props) => <IconBase d="M20 6L9 17l-5-5" {...props} />,
         Copy: (props) => <IconBase d={["M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"]} {...props} />,
-        ExternalLink: (props) => <IconBase d={["M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6", "M15 3h6v6", "M10 14L21 3"]} {...props} />,
-        RefreshCw: (props) => <IconBase d={["M23 4v6h-6", "M1 20v-6h6", "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"]} {...props} />,
-        FileCode: (props) => <IconBase d={["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6", "M10 12l-2 2 2 2", "M14 12l2 2-2 2"]} {...props} />,
-        X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />
+        ChefHat: (props) => <IconBase d={["M6 13.8a6 6 0 0 1 11.9 0", "M6 17h12", "M7 21h10", "M8 17v4", "M16 17v4"]} {...props} />,
+        Coffee: (props) => <IconBase d={["M18 8h1a4 4 0 0 1 0 8h-1", "M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z", "M6 1v3", "M10 1v3", "M14 1v3"]} {...props} />,
+        X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />,
+        CheckSquare: (props) => <IconBase d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} {...props} />,
+        Square: (props) => <IconBase d="M3 3h18v18H3z" {...props} />
       };
 
       // ==========================================
-      // UTILITY FUNCTIONS & INITIAL DATA
+      // UTILITIES & CONSTANTS
       // ==========================================
       const generateUniqueId = (prefix = 'id') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
       const formatDateBR = (dateStr) => {
         if (!dateStr) return '';
-        const [year, month, day] = dateStr.split('-');
-        return `${day}/${month}/${year}`;
+        const parts = dateStr.split('T')[0].split('-');
+        if (parts.length < 3) return dateStr;
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
       };
 
-      const formatCurrencyBR = (val) => {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-      };
+      const formatCurrencyBR = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-      const calculateDaysInShowcase = (manufactureDateStr) => {
-        if (!manufactureDateStr) return 0;
-        const mDate = new Date(manufactureDateStr);
+      const DAYS_MAP = {
+        segunda: 'Segunda-feira',
+        terca: 'Terça-feira',
+        quarta: 'Quarta-feira',
+        quinta: 'Quinta-feira',
+        sexta: 'Sexta-feira',
+        sabado: 'Sábado',
+        domingo: 'Domingo'
+      };
+      const getDayNameBR = (d) => DAYS_MAP[d] || d;
+
+      const calculateDaysInShowcase = (mDateStr) => {
+        if (!mDateStr) return 0;
+        const mDate = new Date(mDateStr);
         const today = new Date(getTodayDateString());
         const diffTime = Math.abs(today - mDate);
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -103,15 +113,15 @@
 
       const getSlotItemStatus = (item, product) => {
         if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-slate-50', textClass: 'text-slate-400' };
-        const daysInShowcase = calculateDaysInShowcase(item.manufactureDate);
+        const days = calculateDaysInShowcase(item.manufactureDate);
         const shelfLife = product?.shelfLifeDays || 2;
 
-        if (daysInShowcase >= shelfLife) {
-          return { status: 'expired', label: `Vencido (${daysInShowcase}d)`, bgClass: 'bg-red-100 border-red-300', textClass: 'text-red-700 font-bold' };
-        } else if (daysInShowcase === shelfLife - 1) {
-          return { status: 'warning', label: `Atenção (${daysInShowcase}d)`, bgClass: 'bg-amber-50 border-amber-300', textClass: 'text-amber-700 font-semibold' };
+        if (days >= shelfLife) {
+          return { status: 'expired', label: `Vencido (${days}d)`, bgClass: 'bg-red-100 border-red-300', textClass: 'text-red-700 font-bold' };
+        } else if (days === shelfLife - 1) {
+          return { status: 'warning', label: `Atenção (${days}d)`, bgClass: 'bg-amber-50 border-amber-300', textClass: 'text-amber-700 font-semibold' };
         }
-        return { status: 'normal', label: `Fresco (${daysInShowcase}d)`, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700' };
+        return { status: 'normal', label: `Fresco (${days}d)`, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700' };
       };
 
       const INITIAL_PRODUCTS = [
@@ -173,7 +183,21 @@
         ];
       };
 
-      // Storage helpers
+      const generateInitialStandardPlans = () => [
+        { id: 'sp-1', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s1-p1', productId: 'p1', idealQty: 20, unitOfMeasure: 'un' },
+        { id: 'sp-2', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s1-p2', productId: 'p2', idealQty: 15, unitOfMeasure: 'un' },
+        { id: 'sp-3', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s2-p1', productId: 'p3', idealQty: 12, unitOfMeasure: 'un' },
+        { id: 'sp-4', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-doce-s1-p1', productId: 'p6', idealQty: 10, unitOfMeasure: 'un' },
+        { id: 'sp-5', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-sobremesa-s1-p1', productId: 'p8', idealQty: 8, unitOfMeasure: 'un' }
+      ];
+
+      const generateInitialSeparatedProducts = () => [
+        { id: 'sep-1', unit: 'matriz', productId: 'p-coca', productName: 'Coca-Cola Zero 350ml', category: 'revenda', currentQty: 24, unitOfMeasure: 'un', minQty: 12, price: 6.5 },
+        { id: 'sep-2', unit: 'matriz', productId: 'p-suco', productName: 'Suco Del Valle Laranja 290ml', category: 'revenda', currentQty: 18, unitOfMeasure: 'un', minQty: 10, price: 7.0 },
+        { id: 'sep-3', unit: 'matriz', productId: 'p-exp', productName: 'Café Expresso Tradicional', category: 'cafeteria', currentQty: 50, unitOfMeasure: 'un', minQty: 20, price: 5.0 },
+        { id: 'sep-4', unit: 'matriz', productId: 'p-cap', productName: 'Cappuccino com Canela', category: 'cafeteria', currentQty: 30, unitOfMeasure: 'un', minQty: 15, price: 8.5 }
+      ];
+
       const loadLocal = (key, defaultVal) => {
         try {
           const item = localStorage.getItem(key);
@@ -190,29 +214,37 @@
       // NAVBAR COMPONENT
       // ==========================================
       const Navbar = ({ currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
+        const navItems = [
+          { id: 'vitrine', label: 'Vitrine Operacional', icon: Icons.LayoutGrid },
+          { id: 'padrao', label: 'Vitrine Padrão', icon: Icons.ClipboardList },
+          { id: 'producao', label: 'Pedido de Produção', icon: Icons.ChefHat },
+          { id: 'perdas', label: 'Relatório de Perdas', icon: Icons.TrendingDown },
+          { id: 'historico', label: 'Histórico & Vendas', icon: Icons.History },
+          { id: 'fora', label: 'Fora da Vitrine', icon: Icons.Coffee },
+          { id: 'produtos', label: 'Produtos', icon: Icons.Package }
+        ];
+
         return (
-          <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40 shadow-xs backdrop-blur-md bg-slate-900/95">
+          <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-40 shadow-md backdrop-blur-md bg-slate-900/95">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16 gap-4">
-                {/* Brand & Unit Switcher */}
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-xs">
+                    <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-xs">
                       DV
                     </div>
                     <div>
-                      <h1 className="text-sm font-bold leading-tight text-white">Delícias da Vovó</h1>
+                      <h1 className="text-sm font-extrabold leading-tight text-white">Delícias da Vovó</h1>
                       <p className="text-[10px] text-slate-400 font-medium">Gestão Operacional de Vitrine</p>
                     </div>
                   </div>
 
                   <div className="h-6 w-px bg-slate-800 hidden sm:block" />
 
-                  {/* Store Selector */}
-                  <div className="flex bg-slate-800/90 p-0.5 rounded-lg border border-slate-700">
+                  <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700">
                     <button
                       onClick={() => onUnitChange('matriz')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                         currentUnit === 'matriz' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -220,7 +252,7 @@
                     </button>
                     <button
                       onClick={() => onUnitChange('vilanova')}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                         currentUnit === 'vilanova' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -229,24 +261,16 @@
                   </div>
                 </div>
 
-                {/* Tabs */}
                 <nav className="hidden lg:flex items-center gap-1">
-                  {[
-                    { id: 'vitrine', label: 'Vitrine', icon: Icons.LayoutGrid },
-                    { id: 'padrao', label: 'Vitrine Padrão', icon: Icons.ClipboardList },
-                    { id: 'producao', label: 'Pedido de Produção', icon: Icons.Package },
-                    { id: 'perdas', label: 'Relatório de Perdas', icon: Icons.TrendingDown },
-                    { id: 'historico', label: 'Histórico', icon: Icons.History },
-                    { id: 'produtos', label: 'Produtos', icon: Icons.Store }
-                  ].map((tab) => {
+                  {navItems.map((tab) => {
                     const IconComp = tab.icon;
                     const isActive = activeTab === tab.id;
                     return (
                       <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                          isActive ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                          isActive ? 'bg-slate-800 text-white border border-slate-700 shadow-xs font-bold' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                         }`}
                       >
                         <IconComp className="w-3.5 h-3.5" />
@@ -262,6 +286,25 @@
                 </nav>
               </div>
             </div>
+            {/* Mobile Tab Scroll Bar */}
+            <div className="lg:hidden flex overflow-x-auto px-4 py-2 bg-slate-950/80 border-t border-slate-800 gap-1 scrollbar-none">
+              {navItems.map((tab) => {
+                const IconComp = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => onTabChange(tab.id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1.5 ${
+                      isActive ? 'bg-blue-600 text-white' : 'text-slate-400 bg-slate-900'
+                    }`}
+                  >
+                    <IconComp className="w-3 h-3" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </header>
         );
       };
@@ -269,7 +312,7 @@
       // ==========================================
       // SHOWCASE GRID COMPONENT
       // ==========================================
-      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, onIncrementQty, onOpenDecreaseModal, onRecordSellAll }) => {
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, onIncrementQty, onOpenDecreaseModal }) => {
         const [filterType, setFilterType] = useState('salgada');
 
         const unitSlots = useMemo(() => {
@@ -287,7 +330,6 @@
 
         return (
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
-            {/* Filter Header */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 {['salgada', 'doce', 'sobremesa'].map((type) => (
@@ -307,7 +349,6 @@
               </span>
             </div>
 
-            {/* Shelves Layout */}
             <div className="space-y-6">
               {Object.keys(shelves).map((shelfNum) => (
                 <div key={shelfNum} className="space-y-2">
@@ -384,18 +425,17 @@
       };
 
       // ==========================================
-      // TACTICAL SUPPORT LIST COMPONENT (Lista de Apoio)
+      // TACTICAL SUPPORT LIST COMPONENT
       // ==========================================
       const SupportList = ({ currentUnit, slotItems, products, slots, onUpdateItem, onQuickAllocate, onRecordSellAll, onOpenDecreaseModal, onRemoveItem }) => {
         const [filterText, setFilterText] = useState('');
         const [quickProductName, setQuickProductName] = useState('');
         const [quickQty, setQuickQty] = useState(10);
-        const getTodayISO = () => new Date().toISOString().split('T')[0];
-        const [quickDate, setQuickDate] = useState(getTodayISO());
+        const [quickDate, setQuickDate] = useState(getTodayDateString());
 
-        const productNameRef = React.useRef(null);
-        const qtyRef = React.useRef(null);
-        const dateRef = React.useRef(null);
+        const productNameRef = useRef(null);
+        const qtyRef = useRef(null);
+        const dateRef = useRef(null);
 
         const setQuickDateOffset = (offsetDays) => {
           const d = new Date();
@@ -427,7 +467,6 @@
 
         return (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full overflow-hidden">
-            {/* Header */}
             <div className="p-3.5 bg-slate-900 text-white border-b border-slate-800 flex justify-between items-center">
               <div>
                 <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
@@ -441,7 +480,6 @@
               </span>
             </div>
 
-            {/* Quick Allocation Form */}
             <div className="p-3 bg-slate-50 border-b border-slate-200 space-y-2.5">
               <form onSubmit={handleQuickSubmit} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -454,7 +492,6 @@
                   </span>
                 </div>
 
-                {/* Input Row 1: Product Name */}
                 <div>
                   <label className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">
                     1. Produto:
@@ -462,8 +499,8 @@
                   <input
                     ref={productNameRef}
                     type="text"
-                    list="product-suggestions-index"
-                    placeholder="Digite ou escolha o produto (ex: Coxinha)..."
+                    list="product-suggestions"
+                    placeholder="Digite ou escolha o produto..."
                     value={quickProductName}
                     onChange={(e) => setQuickProductName(e.target.value)}
                     onKeyDown={(e) => {
@@ -472,16 +509,15 @@
                         if (qtyRef.current) { qtyRef.current.focus(); qtyRef.current.select(); }
                       }
                     }}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 h-8 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-semibold"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 h-8 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 font-semibold"
                   />
-                  <datalist id="product-suggestions-index">
+                  <datalist id="product-suggestions">
                     {products.map((p) => (
                       <option key={p.id} value={p.name} />
                     ))}
                   </datalist>
                 </div>
 
-                {/* Input Row 2: Qty & Date & Action */}
                 <div className="grid grid-cols-12 gap-1.5 items-end">
                   <div className="col-span-4">
                     <label className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">
@@ -500,7 +536,7 @@
                           if (dateRef.current) dateRef.current.focus();
                         }
                       }}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-2 h-8 text-xs text-slate-900 text-center font-extrabold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2 h-8 text-xs text-slate-900 text-center font-extrabold focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -513,7 +549,7 @@
                       type="date"
                       value={quickDate}
                       onChange={(e) => setQuickDate(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-1 h-8 text-[11px] text-slate-900 text-center font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-full bg-white border border-slate-300 rounded-lg px-1 h-8 text-[11px] text-slate-900 text-center font-medium focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -528,19 +564,15 @@
                   </div>
                 </div>
 
-                {/* Date Presets */}
                 <div className="flex items-center gap-1 pt-0.5 text-[9px]">
-                  <span className="text-slate-500 font-semibold flex items-center gap-0.5 mr-0.5">
-                    <Icons.Calendar className="w-2.5 h-2.5 text-blue-600" />
-                    Atalhos de data:
-                  </span>
+                  <span className="text-slate-500 font-semibold mr-0.5">Atalhos:</span>
                   <button
                     type="button"
                     onClick={() => setQuickDateOffset(0)}
                     className={`px-2 py-0.5 rounded border ${
-                      quickDate === getTodayISO()
+                      quickDate === getTodayDateString()
                         ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                        : 'bg-white text-slate-600 border-slate-200'
                     }`}
                   >
                     Hoje
@@ -548,26 +580,18 @@
                   <button
                     type="button"
                     onClick={() => setQuickDateOffset(-1)}
-                    className="px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    className="px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200"
                   >
                     Ontem (-1d)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuickDateOffset(1)}
-                    className="px-2 py-0.5 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                  >
-                    Amanhã (+1d)
                   </button>
                 </div>
               </form>
 
-              {/* Filter Search Input */}
               <div className="relative pt-1 border-t border-slate-200">
                 <Icons.Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-3" />
                 <input
                   type="text"
-                  placeholder="Filtrar tabela por nome..."
+                  placeholder="Filtrar tabela..."
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 h-7 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
@@ -575,12 +599,11 @@
               </div>
             </div>
 
-            {/* Editable Table */}
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-left text-[11px]">
                 <thead className="bg-slate-100 border-b border-slate-200 sticky top-0 z-10 text-[9px] font-bold text-slate-500 uppercase">
                   <tr>
-                    <th className="py-2 px-2.5">Produto / Slot</th>
+                    <th className="py-2 px-2.5">Produto</th>
                     <th className="py-2 px-1 text-center">Data Fab.</th>
                     <th className="py-2 px-1 text-center">Prod.</th>
                     <th className="py-2 px-1 text-center">Atual</th>
@@ -592,7 +615,7 @@
                   {filteredItems.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="text-center py-8 text-slate-400 text-xs">
-                        Nenhum item alocado no momento. Use o formulário acima para adicionar.
+                        Nenhum item alocado na vitrine no momento.
                       </td>
                     </tr>
                   ) : (
@@ -602,7 +625,7 @@
                       const statusInfo = getSlotItemStatus(item, product);
 
                       return (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                           <td className="py-2 px-2.5">
                             <div className="font-semibold text-slate-900 leading-tight">
                               {item.productName}
@@ -612,7 +635,6 @@
                             </div>
                           </td>
 
-                          {/* Editable Date */}
                           <td className="py-2 px-1 text-center">
                             <input
                               type="date"
@@ -624,7 +646,6 @@
                             />
                           </td>
 
-                          {/* Editable Produced Qty */}
                           <td className="py-2 px-1 text-center">
                             <input
                               type="number"
@@ -640,7 +661,6 @@
                             />
                           </td>
 
-                          {/* Editable Current Qty */}
                           <td className="py-2 px-1 text-center">
                             <input
                               type="number"
@@ -656,14 +676,12 @@
                             />
                           </td>
 
-                          {/* Status */}
                           <td className="py-2 px-1 text-center">
                             <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${statusInfo.bgClass} ${statusInfo.textClass}`}>
                               {statusInfo.label}
                             </span>
                           </td>
 
-                          {/* Actions */}
                           <td className="py-2 px-2 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -696,13 +714,1008 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        );
+      };
 
-            <div className="p-2.5 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-500 font-medium">
-              <span>Status: <strong className="text-slate-700">Monitoramento Ativo</strong></span>
-              <span className="text-emerald-600 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                Sincronizado
-              </span>
+      // ==========================================
+      // STANDARD SHOWCASE VIEW (Vitrine Padrão)
+      // ==========================================
+      const StandardShowcaseView = ({
+        currentUnit,
+        slots,
+        products,
+        standardPlans,
+        selectedDay,
+        onSelectDay,
+        onUpdatePlanItem,
+        onRemovePlanItem,
+        onCopyDayPlan,
+        onClearDayPlan,
+        onGenerateProductionOrder
+      }) => {
+        const [targetCopyDay, setTargetCopyDay] = useState('terca');
+        const DAYS = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+
+        const unitSlots = slots.filter((s) => s.unit === currentUnit);
+        const dayPlans = standardPlans.filter(
+          (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
+        );
+
+        const handleCopy = () => {
+          if (selectedDay === targetCopyDay) {
+            alert('Selecione um dia de destino diferente do atual.');
+            return;
+          }
+          onCopyDayPlan(selectedDay, targetCopyDay);
+          alert(`Padrão de ${getDayNameBR(selectedDay)} copiado para ${getDayNameBR(targetCopyDay)}!`);
+        };
+
+        const handleClear = () => {
+          if (confirm(`Limpar todo o padrão de ${getDayNameBR(selectedDay)}?`)) {
+            onClearDayPlan(selectedDay);
+          }
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
+                    <Icons.Calendar className="w-4 h-4" />
+                    Planejamento Semanal
+                  </div>
+                  <h2 className="text-xl font-black text-white">
+                    Vitrine Padrão - {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Defina como a vitrine física deve ser montada idealmente em cada dia da semana.
+                  </p>
+                </div>
+
+                <button
+                  onClick={onGenerateProductionOrder}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-2"
+                >
+                  <Icons.ChefHat className="w-4 h-4" />
+                  Gerar Pedido de Produção
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 mt-5 overflow-x-auto pb-1 scrollbar-none">
+                {DAYS.map((day) => {
+                  const count = standardPlans.filter(
+                    (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
+                  ).length;
+
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => onSelectDay(day)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                        selectedDay === day
+                          ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      <span>{getDayNameBR(day)}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-900 text-slate-300">
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Icons.Copy className="w-4 h-4 text-purple-600" />
+                  Copiar padrão de <strong>{getDayNameBR(selectedDay)}</strong> para:
+                </span>
+                <select
+                  value={targetCopyDay}
+                  onChange={(e) => setTargetCopyDay(e.target.value)}
+                  className="text-xs py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl font-medium"
+                >
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>{getDayNameBR(d)}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleCopy}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs"
+                >
+                  Copiar
+                </button>
+              </div>
+
+              <button
+                onClick={handleClear}
+                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs border border-red-200 flex items-center gap-1.5"
+              >
+                <Icons.Trash2 className="w-3.5 h-3.5" />
+                Limpar Padrão
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {Array.from(new Set(unitSlots.map((s) => s.sectionTitle))).map((sectionTitle) => {
+                const sectionSlots = unitSlots.filter((s) => s.sectionTitle === sectionTitle);
+
+                return (
+                  <div key={sectionTitle} className="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h3 className="text-sm font-extrabold text-slate-900">{sectionTitle}</h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-900 uppercase">
+                        {sectionSlots[0]?.showcaseType}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {sectionSlots.map((slot) => {
+                        const planItem = dayPlans.find((sp) => sp.slotId === slot.id);
+
+                        return (
+                          <div
+                            key={slot.id}
+                            className={`rounded-xl p-3 border transition-all ${
+                              planItem ? 'bg-purple-50/50 border-purple-200' : 'bg-slate-50 border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200/60 text-xs font-bold text-slate-800">
+                              <span>Slot #{slot.slotNumber} (P{slot.shelfNumber})</span>
+                            </div>
+
+                            <select
+                              value={planItem?.productId || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (!val) {
+                                  if (planItem) onRemovePlanItem(planItem.id);
+                                } else {
+                                  const prod = products.find((p) => p.id === val);
+                                  const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
+                                  onUpdatePlanItem(slot.id, val, qty);
+                                }
+                              }}
+                              className="w-full text-xs py-1.5 px-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:border-purple-500 mb-2"
+                            >
+                              <option value="">-- Espaço Vazio --</option>
+                              {products.map((p) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+
+                            {planItem && (
+                              <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-purple-200 text-xs">
+                                <span className="text-[10px] font-bold text-slate-600">Qtd Ideal:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1))}
+                                    className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-xs font-black text-purple-900 min-w-5 text-center">{planItem.idealQty}</span>
+                                  <button
+                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1)}
+                                    className="w-5 h-5 rounded bg-purple-600 text-white font-bold flex items-center justify-center text-xs"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // PRODUCTION ORDER VIEW
+      // ==========================================
+      const ProductionOrderView = ({
+        currentUnit,
+        slots,
+        slotItems,
+        products,
+        standardPlans,
+        selectedDay,
+        onApplyProductionToShowcase
+      }) => {
+        const [completedItems, setCompletedItems] = useState({});
+
+        const dayPlans = standardPlans.filter(
+          (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
+        );
+
+        const orderList = dayPlans.map((plan) => {
+          const slot = slots.find((s) => s.id === plan.slotId);
+          const product = products.find((p) => p.id === plan.productId);
+          const currentItemsInSlot = slotItems.filter(
+            (item) => item.slotId === plan.slotId && item.productId === plan.productId
+          );
+          const currentTotalQty = currentItemsInSlot.reduce((acc, item) => acc + item.currentQty, 0);
+          const neededQty = Math.max(0, plan.idealQty - currentTotalQty);
+
+          return {
+            planId: plan.id,
+            slotId: plan.slotId,
+            slotTitle: slot ? `${slot.sectionTitle} (P${slot.shelfNumber})` : 'Slot',
+            productId: plan.productId,
+            productName: product?.name || 'Produto',
+            idealQty: plan.idealQty,
+            currentQty: currentTotalQty,
+            neededQty,
+            unitOfMeasure: plan.unitOfMeasure
+          };
+        });
+
+        const itemsNeedingProduction = orderList.filter((item) => item.neededQty > 0);
+
+        const handleApplyAll = () => {
+          if (itemsNeedingProduction.length === 0) return;
+          const payload = itemsNeedingProduction.map((item) => ({
+            slotId: item.slotId,
+            productId: item.productId,
+            qty: item.neededQty,
+            productName: item.productName
+          }));
+          onApplyProductionToShowcase(payload);
+          alert('Produção lançada na vitrine com sucesso!');
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-amber-900 text-white rounded-2xl p-6 shadow-md border border-amber-800">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-amber-300 text-xs font-bold uppercase tracking-wider mb-1">
+                    <Icons.ChefHat className="w-4 h-4" />
+                    Pedido de Produção para Cozinha / Padaria
+                  </div>
+                  <h2 className="text-xl font-extrabold text-white">
+                    Necessidades de Reposição - {getDayNameBR(selectedDay)} ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
+                  </h2>
+                  <p className="text-xs text-amber-100 mt-1">
+                    Calculado comparando a <strong>Vitrine Padrão Ideal</strong> com a <strong>Vitrine Atual</strong>.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleApplyAll}
+                  disabled={itemsNeedingProduction.length === 0}
+                  className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs shadow-lg flex items-center gap-2"
+                >
+                  <Icons.Plus className="w-4 h-4" />
+                  Lançar Produção na Vitrine (+{itemsNeedingProduction.reduce((a, b) => a + b.neededQty, 0)} itens)
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Icons.ClipboardList className="w-4 h-4 text-blue-600" />
+                  Checklist de Assamento e Preparo
+                </h3>
+                <span className="text-xs font-bold text-blue-900 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+                  {itemsNeedingProduction.length} item(s) a produzir
+                </span>
+              </div>
+
+              {itemsNeedingProduction.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 space-y-2">
+                  <Icons.CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+                  <h4 className="text-base font-bold text-slate-800">Vitrine 100% Abastecida!</h4>
+                  <p className="text-xs text-slate-500">Nenhum produto em falta em relação ao padrão ideal.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {itemsNeedingProduction.map((item) => {
+                    const isChecked = !!completedItems[item.planId];
+                    return (
+                      <div key={item.planId} className="py-3 px-2 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setCompletedItems((prev) => ({ ...prev, [item.planId]: !prev[item.planId] }))}
+                            className="text-slate-400 hover:text-emerald-600"
+                          >
+                            {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-emerald-600" /> : <Icons.Square className="w-5 h-5" />}
+                          </button>
+                          <div>
+                            <h4 className={`text-sm font-bold ${isChecked ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                              {item.productName}
+                            </h4>
+                            <p className="text-xs text-slate-500">Destino: {item.slotTitle}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-right">
+                          <div className="text-xs text-slate-500 hidden sm:block">
+                            <span>Ideal: <strong>{item.idealQty}</strong></span> • <span>Atual: <strong>{item.currentQty}</strong></span>
+                          </div>
+                          <div className="bg-amber-100 text-amber-950 font-black text-sm px-3 py-1.5 rounded-xl border border-amber-300">
+                            Faltam: +{item.neededQty} {item.unitOfMeasure}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // LOSSES REPORT VIEW
+      // ==========================================
+      const LossesReportView = ({ currentUnit, lossRecords }) => {
+        const [filterText, setFilterText] = useState('');
+        const [selectedReason, setSelectedReason] = useState('todos');
+
+        const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
+        const filteredLosses = unitLosses.filter((l) => {
+          const matchesText = l.productName.toLowerCase().includes(filterText.toLowerCase());
+          const matchesReason = selectedReason === 'todos' || l.reason === selectedReason;
+          return matchesText && matchesReason;
+        });
+
+        const totalLossQty = unitLosses.reduce((acc, l) => acc + l.qty, 0);
+
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-red-900 text-white p-5 rounded-2xl border border-red-800 space-y-1">
+                <span className="text-xs font-bold text-red-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.Trash2 className="w-4 h-4" />
+                  Total de Itens Perdidos ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
+                </span>
+                <div className="text-3xl font-black">{totalLossQty} <span className="text-sm font-normal text-red-200">unidades</span></div>
+                <p className="text-[11px] text-red-200">Registrado em {unitLosses.length} lançamento(s)</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.AlertTriangle className="w-4 h-4 text-amber-500" />
+                  Monitoramento de Desperdício
+                </span>
+                <div className="text-xl font-bold text-slate-900">Atenção à Validade</div>
+                <p className="text-[11px] text-slate-500">Mantenha a rotação de estoque em dia</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.TrendingUp className="w-4 h-4 text-blue-500" />
+                  Ação Recomendada
+                </span>
+                <p className="text-xs text-slate-600">
+                  Ajuste o padrão ideal para dias com menor movimento.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-900">Registro Detalhado de Perdas</h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Buscar produto..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="text-xs pl-3 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg"
+                  />
+                  <select
+                    value={selectedReason}
+                    onChange={(e) => setSelectedReason(e.target.value)}
+                    className="text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-lg"
+                  >
+                    <option value="todos">Todos os Motivos</option>
+                    <option value="vencido">Vencidos</option>
+                    <option value="danificado">Danificados</option>
+                    <option value="qualidade">Qualidade</option>
+                    <option value="quebrado">Quebrados</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                      <th className="py-2.5 px-3">Data Baixa</th>
+                      <th className="py-2.5 px-3">Produto</th>
+                      <th className="py-2.5 px-3 text-center">Quantidade</th>
+                      <th className="py-2.5 px-3">Motivo</th>
+                      <th className="py-2.5 px-3">Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLosses.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-slate-400">Nenhuma perda registrada.</td>
+                      </tr>
+                    ) : (
+                      filteredLosses.map((r) => (
+                        <tr key={r.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 text-slate-600">{formatDateBR(r.lossDate)}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{r.productName}</td>
+                          <td className="py-2.5 px-3 text-center font-extrabold text-red-600">Perdeu {r.qty} {r.unitOfMeasure}</td>
+                          <td className="py-2.5 px-3 font-semibold capitalize">{r.reason}</td>
+                          <td className="py-2.5 px-3 text-slate-500 italic">{r.details || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // HISTORY & SALES VIEW
+      // ==========================================
+      const HistoryView = ({ currentUnit, saleRecords, lossRecords }) => {
+        const [activeTab, setActiveTab] = useState('vendas');
+        const unitSales = saleRecords.filter((s) => s.unit === currentUnit);
+        const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
+        const totalSalesQty = unitSales.reduce((acc, s) => acc + s.qty, 0);
+
+        const avgDays = unitSales.length > 0
+          ? (unitSales.reduce((acc, s) => acc + (s.exposureDays || 0), 0) / unitSales.length).toFixed(1)
+          : '0';
+
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-emerald-900 text-white p-5 rounded-2xl border border-emerald-800 space-y-1">
+                <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.ShoppingCart className="w-4 h-4" />
+                  Total de Vendas ({currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'})
+                </span>
+                <div className="text-3xl font-black">{totalSalesQty} <span className="text-sm font-normal text-emerald-200">itens</span></div>
+                <p className="text-[11px] text-emerald-200">{unitSales.length} transações de saída por venda</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.Clock className="w-4 h-4 text-amber-500" />
+                  Média de Exposição na Vitrine
+                </span>
+                <div className="text-2xl font-black text-slate-900">{avgDays} <span className="text-sm font-normal text-slate-500">dias</span></div>
+                <p className="text-[11px] text-slate-500">Tempo médio do balcão até a venda</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Icons.TrendingUp className="w-4 h-4 text-emerald-500" />
+                  Eficiência do Balcão
+                </span>
+                <div className="text-2xl font-black text-emerald-600">
+                  {totalSalesQty + unitLosses.reduce((a, b) => a + b.qty, 0) > 0
+                    ? ((totalSalesQty / (totalSalesQty + unitLosses.reduce((a, b) => a + b.qty, 0))) * 100).toFixed(1) + '%'
+                    : '100%'}
+                </div>
+                <p className="text-[11px] text-slate-500">Aproveitamento de vendas vs perdas</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <button
+                  onClick={() => setActiveTab('vendas')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${activeTab === 'vendas' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+                >
+                  Vendas ({unitSales.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('perdas')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${activeTab === 'perdas' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+                >
+                  Perdas ({unitLosses.length})
+                </button>
+              </div>
+
+              {activeTab === 'vendas' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                        <th className="py-2.5 px-3">Data/Hora</th>
+                        <th className="py-2.5 px-3">Produto</th>
+                        <th className="py-2.5 px-3 text-center">Quantidade</th>
+                        <th className="py-2.5 px-3 text-center">Dias Exposto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {unitSales.length === 0 ? (
+                        <tr><td colSpan={4} className="text-center py-8 text-slate-400">Nenhuma venda registrada.</td></tr>
+                      ) : (
+                        unitSales.map((s) => (
+                          <tr key={s.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3 text-slate-500">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">{s.productName}</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-emerald-600">Vendeu {s.qty} {s.unitOfMeasure}</td>
+                            <td className="py-2.5 px-3 text-center font-medium">{s.exposureDays === 0 ? 'Mesmo Dia' : `${s.exposureDays}d`}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                        <th className="py-2.5 px-3">Data</th>
+                        <th className="py-2.5 px-3">Produto</th>
+                        <th className="py-2.5 px-3 text-center">Quantidade</th>
+                        <th className="py-2.5 px-3">Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {unitLosses.length === 0 ? (
+                        <tr><td colSpan={4} className="text-center py-8 text-slate-400">Nenhuma perda registrada.</td></tr>
+                      ) : (
+                        unitLosses.map((l) => (
+                          <tr key={l.id} className="hover:bg-slate-50">
+                            <td className="py-2.5 px-3 text-slate-500">{formatDateBR(l.lossDate)}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">{l.productName}</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-red-600">Perdeu {l.qty} {l.unitOfMeasure}</td>
+                            <td className="py-2.5 px-3 capitalize font-medium">{l.reason}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // SEPARATED PRODUCTS VIEW (Fora da Vitrine)
+      // ==========================================
+      const SeparatedProductsView = ({ currentUnit, separatedProducts, onUpdateQty, onAddSeparatedProduct }) => {
+        const [showModal, setShowModal] = useState(false);
+        const [name, setName] = useState('');
+        const [category, setCategory] = useState('revenda');
+        const [qty, setQty] = useState(10);
+        const [price, setPrice] = useState(7.0);
+
+        const unitItems = separatedProducts.filter((i) => i.unit === currentUnit);
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          onAddSeparatedProduct({
+            unit: currentUnit,
+            productId: generateUniqueId('sep'),
+            productName: name.trim(),
+            category,
+            currentQty: qty,
+            unitOfMeasure: 'un',
+            minQty: 5,
+            price
+          });
+          setName('');
+          setShowModal(false);
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">
+                  <Icons.Coffee className="w-4 h-4" />
+                  Produtos Fora da Vitrine Física
+                </div>
+                <h2 className="text-xl font-extrabold text-white">
+                  Revenda, Cafeteria e Encomendas - {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Bebidas industrializadas, cafés preparados e itens sob encomenda.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5"
+              >
+                <Icons.Plus className="w-4 h-4" />
+                Novo Item Fora da Vitrine
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {unitItems.map((item) => (
+                <div key={item.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400 mb-1">
+                      <span>{item.category}</span>
+                      <span className="text-emerald-600 font-extrabold">{formatCurrencyBR(item.price)}</span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900">{item.productName}</h4>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Estoque:</span>
+                      <span className="text-base font-black text-slate-900">{item.currentQty} {item.unitOfMeasure}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onUpdateQty(item.id, -1)}
+                        className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center"
+                      >
+                        -
+                      </button>
+                      <button
+                        onClick={() => onUpdateQty(item.id, 1)}
+                        className="w-8 h-8 rounded-xl bg-amber-500 text-amber-950 font-bold flex items-center justify-center"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {showModal && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <form onSubmit={handleSubmit} className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900">Novo Item Fora da Vitrine</h3>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome:</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Ex: Coca-Cola 350ml..."
+                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Categoria:</label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      >
+                        <option value="revenda">Revenda</option>
+                        <option value="cafeteria">Cafeteria</option>
+                        <option value="encomenda">Encomenda</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Preço (R$):</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={price}
+                        onChange={(e) => setPrice(Number(e.target.value) || 0)}
+                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Estoque Inicial:</label>
+                    <input
+                      type="number"
+                      value={qty}
+                      onChange={(e) => setQty(Number(e.target.value) || 0)}
+                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
+                    <button type="submit" className="px-5 py-2 text-xs font-bold bg-amber-500 text-amber-950 rounded-xl">Salvar</button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
+      // PRODUCT CATALOG VIEW
+      // ==========================================
+      const ProductCatalogView = ({ products, onAddProduct, onDeleteProduct }) => {
+        const [filterText, setFilterText] = useState('');
+        const [showModal, setShowModal] = useState(false);
+
+        const [name, setName] = useState('');
+        const [category, setCategory] = useState('salgado');
+        const [price, setPrice] = useState(8.5);
+        const [shelfLifeDays, setShelfLifeDays] = useState(2);
+
+        const filtered = products.filter((p) => p.name.toLowerCase().includes(filterText.toLowerCase()));
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          onAddProduct({
+            id: generateUniqueId('p'),
+            name: name.trim(),
+            category,
+            compatibleShowcases: [category === 'salgado' ? 'salgada' : category === 'doce' ? 'doce' : 'sobremesa'],
+            defaultUnit: 'un',
+            minReplenishmentQty: 5,
+            shelfLifeDays,
+            price
+          });
+          setName('');
+          setShowModal(false);
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Icons.Package className="w-5 h-5 text-amber-600" />
+                  Catálogo de Produtos - Delícias da Vovó
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Cadastre novos salgados, doces e sobremesas.</p>
+              </div>
+
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5"
+              >
+                <Icons.Plus className="w-4 h-4" />
+                Cadastrar Novo Produto
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
+              <div className="relative max-w-sm">
+                <Icons.Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar produto..."
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                      <th className="py-2.5 px-3">Nome do Produto</th>
+                      <th className="py-2.5 px-3">Categoria</th>
+                      <th className="py-2.5 px-3 text-center">Validade</th>
+                      <th className="py-2.5 px-3 text-right">Preço</th>
+                      <th className="py-2.5 px-3 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-900">{p.name}</td>
+                        <td className="py-2.5 px-3 capitalize font-semibold text-amber-800">{p.category}</td>
+                        <td className="py-2.5 px-3 text-center text-slate-600">{p.shelfLifeDays} dia(s)</td>
+                        <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600">{formatCurrencyBR(p.price)}</td>
+                        <td className="py-2.5 px-3 text-right">
+                          <button
+                            onClick={() => onDeleteProduct(p.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded"
+                          >
+                            <Icons.Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {showModal && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <form onSubmit={handleSubmit} className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900">Novo Produto</h3>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome:</label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Ex: Coxinha de Carne..."
+                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Categoria:</label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      >
+                        <option value="salgado">Salgado</option>
+                        <option value="doce">Doce</option>
+                        <option value="sobremesa">Sobremesa</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Preço (R$):</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={price}
+                        onChange={(e) => setPrice(Number(e.target.value) || 0)}
+                        className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Validade (Dias):</label>
+                    <input
+                      type="number"
+                      value={shelfLifeDays}
+                      onChange={(e) => setShelfLifeDays(Number(e.target.value) || 1)}
+                      className="w-full text-xs py-2 px-3 border border-slate-300 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
+                    <button type="submit" className="px-5 py-2 text-xs font-bold bg-amber-500 text-amber-950 rounded-xl">Salvar</button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
+      // ITEM DECREASE MODAL
+      // ==========================================
+      const ItemDecreaseModal = ({ item, onClose, onRecordSale, onRecordLoss, onRecordSellAll }) => {
+        if (!item) return null;
+        const [mode, setMode] = useState('venda');
+        const [qty, setQty] = useState(1);
+        const [reason, setReason] = useState('vencido');
+        const [details, setDetails] = useState('');
+
+        const handleConfirm = () => {
+          if (qty <= 0) return;
+          if (mode === 'venda') {
+            onRecordSale(item.id, qty);
+          } else {
+            onRecordLoss(item.id, qty, reason, details);
+          }
+          onClose();
+        };
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                    Baixa de Produto
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">{item.productName}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Estoque atual: <strong>{item.currentQty} {item.unit}</strong></p>
+                </div>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                  <Icons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 my-4">
+                <button
+                  type="button"
+                  onClick={() => setMode('venda')}
+                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border ${
+                    mode === 'venda' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <Icons.ShoppingCart className="w-4 h-4" /> Registrar Venda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('perda')}
+                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border ${
+                    mode === 'perda' ? 'bg-red-600 text-white border-red-600' : 'bg-slate-50 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <Icons.AlertTriangle className="w-4 h-4" /> Registrar Perda
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quantidade:</label>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded bg-slate-100 font-bold">-</button>
+                    <input
+                      type="number"
+                      min="1"
+                      max={item.currentQty}
+                      value={qty}
+                      onChange={(e) => setQty(Math.min(item.currentQty, Math.max(1, Number(e.target.value) || 1)))}
+                      className="w-16 text-center font-bold text-base py-1 border border-slate-300 rounded"
+                    />
+                    <button onClick={() => setQty((q) => Math.min(item.currentQty, q + 1))} className="w-8 h-8 rounded bg-slate-100 font-bold">+</button>
+                  </div>
+                </div>
+
+                {mode === 'perda' && (
+                  <div className="space-y-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                    <div>
+                      <label className="block text-xs font-semibold text-red-900 mb-1">Motivo:</label>
+                      <select
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        className="w-full text-xs py-1.5 px-2 bg-white border border-red-200 rounded-lg"
+                      >
+                        <option value="vencido">Produto Vencido / Expirado</option>
+                        <option value="danificado">Avaria Física / Amassado</option>
+                        <option value="qualidade">Alteração de Sabor / Textura</option>
+                        <option value="quebrado">Queda / Quebrado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-red-900 mb-1">Detalhes:</label>
+                      <input
+                        type="text"
+                        value={details}
+                        onChange={(e) => setDetails(e.target.value)}
+                        placeholder="Observações..."
+                        className="w-full text-xs py-1.5 px-2 bg-white border border-red-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => { onRecordSellAll(item.id); onClose(); }}
+                  className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl text-xs font-bold border border-blue-200 flex items-center justify-center gap-2"
+                >
+                  <Icons.CheckCircle2 className="w-4 h-4 text-blue-600" /> Vendeu tudo ({item.currentQty})
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-600">Cancelar</button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  className={`px-5 py-2 text-xs font-bold text-white rounded-xl ${mode === 'venda' ? 'bg-emerald-600' : 'bg-red-600'}`}
+                >
+                  Confirmar {mode === 'venda' ? 'Venda' : 'Perda'}
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -718,10 +1731,21 @@
         const [products, setProducts] = useState(() => loadLocal('products', INITIAL_PRODUCTS));
         const [slots] = useState(generateInitialSlots);
         const [slotItems, setSlotItems] = useState(() => loadLocal('slotItems', generateInitialSlotItems()));
+        const [standardPlans, setStandardPlans] = useState(() => loadLocal('standardPlans', generateInitialStandardPlans()));
+        const [selectedDay, setSelectedDay] = useState('segunda');
+
+        const [lossRecords, setLossRecords] = useState(() => loadLocal('lossRecords', []));
+        const [saleRecords, setSaleRecords] = useState(() => loadLocal('saleRecords', []));
+        const [separatedProducts, setSeparatedProducts] = useState(() => loadLocal('separatedProducts', generateInitialSeparatedProducts()));
+
         const [decreaseModalItem, setDecreaseModalItem] = useState(null);
 
         useEffect(() => saveLocal('products', products), [products]);
         useEffect(() => saveLocal('slotItems', slotItems), [slotItems]);
+        useEffect(() => saveLocal('standardPlans', standardPlans), [standardPlans]);
+        useEffect(() => saveLocal('lossRecords', lossRecords), [lossRecords]);
+        useEffect(() => saveLocal('saleRecords', saleRecords), [saleRecords]);
+        useEffect(() => saveLocal('separatedProducts', separatedProducts), [separatedProducts]);
 
         const totalAlerts = useMemo(() => {
           return slotItems.filter((item) => {
@@ -741,8 +1765,61 @@
           setSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
         };
 
+        const handleRecordSale = (itemId, qty) => {
+          const target = slotItems.find((i) => i.id === itemId);
+          if (!target) return;
+
+          const newSale = {
+            id: generateUniqueId('sale'),
+            unit: currentUnit,
+            productId: target.productId,
+            productName: target.productName,
+            qty,
+            producedQty: target.producedQty || target.currentQty,
+            unitOfMeasure: target.unit,
+            timestamp: new Date().toISOString(),
+            manufactureDate: target.manufactureDate,
+            exposureDays: calculateDaysInShowcase(target.manufactureDate)
+          };
+          setSaleRecords((prev) => [newSale, ...prev]);
+
+          if (target.currentQty - qty <= 0) {
+            setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
+          } else {
+            setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: i.currentQty - qty } : i));
+          }
+        };
+
+        const handleRecordLoss = (itemId, qty, reason, details) => {
+          const target = slotItems.find((i) => i.id === itemId);
+          if (!target) return;
+
+          const newLoss = {
+            id: generateUniqueId('loss'),
+            unit: currentUnit,
+            productId: target.productId,
+            productName: target.productName,
+            qty,
+            producedQty: target.producedQty || target.currentQty,
+            unitOfMeasure: target.unit,
+            manufactureDate: target.manufactureDate,
+            lossDate: getTodayDateString(),
+            reason,
+            details,
+            slotId: target.slotId
+          };
+          setLossRecords((prev) => [newLoss, ...prev]);
+
+          if (target.currentQty - qty <= 0) {
+            setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
+          } else {
+            setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: i.currentQty - qty } : i));
+          }
+        };
+
         const handleRecordSellAll = (itemId) => {
-          setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
+          const target = slotItems.find((i) => i.id === itemId);
+          if (target) handleRecordSale(itemId, target.currentQty);
         };
 
         const handleRemoveItem = (itemId) => {
@@ -801,6 +1878,76 @@
           setSlotItems((prev) => [...prev, newItem]);
         };
 
+        const handleUpdatePlanItem = (slotId, productId, idealQty) => {
+          const prod = products.find((p) => p.id === productId);
+          if (!prod) return;
+
+          setStandardPlans((prev) => {
+            const existing = prev.find((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay && sp.slotId === slotId);
+            if (existing) {
+              return prev.map((sp) => sp.id === existing.id ? { ...sp, productId, idealQty } : sp);
+            }
+            return [...prev, {
+              id: generateUniqueId('sp'),
+              unit: currentUnit,
+              dayOfWeek: selectedDay,
+              slotId,
+              productId,
+              idealQty,
+              unitOfMeasure: prod.defaultUnit
+            }];
+          });
+        };
+
+        const handleRemovePlanItem = (planId) => {
+          setStandardPlans((prev) => prev.filter((sp) => sp.id !== planId));
+        };
+
+        const handleCopyDayPlan = (fromDay, toDay) => {
+          setStandardPlans((prev) => {
+            const sourcePlans = prev.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === fromDay);
+            const otherPlans = prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === toDay));
+            const copied = sourcePlans.map((sp) => ({ ...sp, id: generateUniqueId('sp'), dayOfWeek: toDay }));
+            return [...otherPlans, ...copied];
+          });
+        };
+
+        const handleClearDayPlan = (day) => {
+          setStandardPlans((prev) => prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === day)));
+        };
+
+        const handleApplyProductionToShowcase = (itemsToProduce) => {
+          const today = getTodayDateString();
+          itemsToProduce.forEach((item) => {
+            const product = products.find((p) => p.id === item.productId);
+            const newItem = {
+              id: generateUniqueId('item'),
+              slotId: item.slotId,
+              productId: item.productId,
+              productName: item.productName,
+              producedQty: item.qty,
+              currentQty: item.qty,
+              unit: product?.defaultUnit || 'un',
+              minQty: product?.minReplenishmentQty || 5,
+              manufactureDate: today,
+              entryDate: today
+            };
+            setSlotItems((prev) => [...prev, newItem]);
+          });
+          setActiveTab('vitrine');
+        };
+
+        const handleUpdateSeparatedQty = (id, delta) => {
+          setSeparatedProducts((prev) =>
+            prev.map((i) => i.id === id ? { ...i, currentQty: Math.max(0, i.currentQty + delta) } : i)
+          );
+        };
+
+        const handleAddSeparatedProduct = (prod) => {
+          const newItem = { ...prod, id: generateUniqueId('sep') };
+          setSeparatedProducts((prev) => [...prev, newItem]);
+        };
+
         return (
           <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans">
             <Navbar
@@ -840,13 +1987,74 @@
                 </div>
               )}
 
-              {activeTab !== 'vitrine' && (
-                <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-3">
-                  <h2 className="text-lg font-bold text-slate-900 capitalize">Aba {activeTab}</h2>
-                  <p className="text-xs text-slate-500">Módulo operacional ativo em modo de visualização única no index.html.</p>
-                </div>
+              {activeTab === 'padrao' && (
+                <StandardShowcaseView
+                  currentUnit={currentUnit}
+                  slots={slots}
+                  products={products}
+                  standardPlans={standardPlans}
+                  selectedDay={selectedDay}
+                  onSelectDay={setSelectedDay}
+                  onUpdatePlanItem={handleUpdatePlanItem}
+                  onRemovePlanItem={handleRemovePlanItem}
+                  onCopyDayPlan={handleCopyDayPlan}
+                  onClearDayPlan={handleClearDayPlan}
+                  onGenerateProductionOrder={() => setActiveTab('producao')}
+                />
+              )}
+
+              {activeTab === 'producao' && (
+                <ProductionOrderView
+                  currentUnit={currentUnit}
+                  slots={slots}
+                  slotItems={slotItems}
+                  products={products}
+                  standardPlans={standardPlans}
+                  selectedDay={selectedDay}
+                  onApplyProductionToShowcase={handleApplyProductionToShowcase}
+                />
+              )}
+
+              {activeTab === 'perdas' && (
+                <LossesReportView
+                  currentUnit={currentUnit}
+                  lossRecords={lossRecords}
+                />
+              )}
+
+              {activeTab === 'historico' && (
+                <HistoryView
+                  currentUnit={currentUnit}
+                  saleRecords={saleRecords}
+                  lossRecords={lossRecords}
+                />
+              )}
+
+              {activeTab === 'fora' && (
+                <SeparatedProductsView
+                  currentUnit={currentUnit}
+                  separatedProducts={separatedProducts}
+                  onUpdateQty={handleUpdateSeparatedQty}
+                  onAddSeparatedProduct={handleAddSeparatedProduct}
+                />
+              )}
+
+              {activeTab === 'produtos' && (
+                <ProductCatalogView
+                  products={products}
+                  onAddProduct={(p) => setProducts((prev) => [...prev, p])}
+                  onDeleteProduct={(id) => setProducts((prev) => prev.filter((p) => p.id !== id))}
+                />
               )}
             </main>
+
+            <ItemDecreaseModal
+              item={decreaseModalItem}
+              onClose={() => setDecreaseModalItem(null)}
+              onRecordSale={handleRecordSale}
+              onRecordLoss={handleRecordLoss}
+              onRecordSellAll={handleRecordSellAll}
+            />
 
             <footer className="px-6 py-3 bg-slate-900 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 mt-auto">
               <div className="flex items-center gap-2">
