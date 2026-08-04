@@ -45,6 +45,7 @@ comment on table public.units is 'Unidades da rede: matriz e vila nova.';
 create table if not exists public.products (
   id                     uuid primary key default gen_random_uuid(),
   name                   text not null,
+  responsible            text not null default '',
   category               text not null default 'salgado',
   default_unit           text not null default 'un',
   min_replenishment_qty  integer not null default 5,
@@ -61,8 +62,15 @@ create table if not exists public.products (
   constraint products_price_check check (price >= 0)
 );
 
+-- Bancos criados antes do campo "responsável" recebem a coluna aqui
+alter table public.products
+  add column if not exists responsible text not null default '';
+
+create index if not exists products_responsible_idx on public.products (responsible);
+
 comment on table public.products is 'Salgados, doces e sobremesas produzidos pela casa.';
 comment on column public.products.shelf_life_days is 'Validade em dias contados a partir da data de fabricação.';
+comment on column public.products.responsible is 'Quem produz e responde pelo produto. Vazio = sem responsável definido.';
 
 
 -- ---------------------------------------------------------------------
@@ -161,6 +169,7 @@ create table if not exists public.sale_records (
   unit_code         text not null references public.units (code) on delete cascade,
   product_id        uuid references public.products (id) on delete set null,
   product_name      text not null,
+  responsible       text not null default '',
   qty               integer not null,
   produced_qty      integer,
   unit_of_measure   text not null default 'un',
@@ -171,11 +180,16 @@ create table if not exists public.sale_records (
   constraint sale_records_qty_check check (qty > 0)
 );
 
+-- Guarda quem era o responsável no momento da baixa
+alter table public.sale_records
+  add column if not exists responsible text not null default '';
+
 create index if not exists sale_records_unit_date_idx
   on public.sale_records (unit_code, sold_at desc);
 create index if not exists sale_records_product_idx on public.sale_records (product_id);
 
 comment on table public.sale_records is 'Baixas por venda, com o tempo que o item ficou exposto.';
+comment on column public.sale_records.responsible is 'Responsável pelo produto na data da venda.';
 
 
 -- ---------------------------------------------------------------------
@@ -186,6 +200,7 @@ create table if not exists public.loss_records (
   unit_code         text not null references public.units (code) on delete cascade,
   product_id        uuid references public.products (id) on delete set null,
   product_name      text not null,
+  responsible       text not null default '',
   qty               integer not null,
   produced_qty      integer,
   unit_of_measure   text not null default 'un',
@@ -200,11 +215,17 @@ create table if not exists public.loss_records (
     check (reason in ('vencido', 'danificado', 'qualidade', 'quebrado'))
 );
 
+-- Guarda quem era o responsável no momento da baixa
+alter table public.loss_records
+  add column if not exists responsible text not null default '';
+
 create index if not exists loss_records_unit_date_idx
   on public.loss_records (unit_code, loss_date desc);
 create index if not exists loss_records_product_idx on public.loss_records (product_id);
+create index if not exists loss_records_responsible_idx on public.loss_records (unit_code, responsible);
 
 comment on table public.loss_records is 'Baixas por perda, com motivo e observações.';
+comment on column public.loss_records.responsible is 'Responsável pelo produto na data da perda.';
 
 
 -- ---------------------------------------------------------------------
@@ -251,18 +272,21 @@ insert into public.units (code, name) values
 on conflict (code) do nothing;
 
 -- Catálogo de produtos
-insert into public.products (name, category, default_unit, min_replenishment_qty, shelf_life_days, price) values
-  ('Coxinha de Frango com Catupiry',          'salgado',   'un', 10, 2,  8.50),
-  ('Empada de Frango',                        'salgado',   'un',  8, 2,  7.50),
-  ('Pastel de Carne Assado',                  'salgado',   'un', 10, 2,  8.00),
-  ('Croissant de Presunto e Queijo',          'salgado',   'un',  6, 1, 12.00),
-  ('Pão de Queijo Tradicional',               'salgado',   'un', 15, 1,  4.50),
-  ('Sonho de Creme',                          'doce',      'un',  8, 2,  6.50),
-  ('Donut Glaceado',                          'doce',      'un',  8, 2,  7.00),
-  ('Fatia de Bolo de Cenoura com Chocolate',  'sobremesa', 'un',  5, 3,  9.50),
-  ('Torta Holandesa (Fatia)',                 'sobremesa', 'un',  4, 3, 14.00),
-  ('Pudim de Leite Condensado (Fatia)',       'sobremesa', 'un',  6, 3, 10.00)
-on conflict (name) do nothing;
+insert into public.products (name, responsible, category, default_unit, min_replenishment_qty, shelf_life_days, price) values
+  ('Coxinha de Frango com Catupiry',          'Dona Rita',      'salgado',   'un', 10, 2,  8.50),
+  ('Empada de Frango',                        'Dona Rita',      'salgado',   'un',  8, 2,  7.50),
+  ('Pastel de Carne Assado',                  'Marcos Pereira', 'salgado',   'un', 10, 2,  8.00),
+  ('Croissant de Presunto e Queijo',          'Marcos Pereira', 'salgado',   'un',  6, 1, 12.00),
+  ('Pão de Queijo Tradicional',               'Marcos Pereira', 'salgado',   'un', 15, 1,  4.50),
+  ('Sonho de Creme',                          'Juliana Alves',  'doce',      'un',  8, 2,  6.50),
+  ('Donut Glaceado',                          'Juliana Alves',  'doce',      'un',  8, 2,  7.00),
+  ('Fatia de Bolo de Cenoura com Chocolate',  'Camila Souza',   'sobremesa', 'un',  5, 3,  9.50),
+  ('Torta Holandesa (Fatia)',                 'Camila Souza',   'sobremesa', 'un',  4, 3, 14.00),
+  ('Pudim de Leite Condensado (Fatia)',       'Camila Souza',   'sobremesa', 'un',  6, 3, 10.00)
+on conflict (name) do update
+  -- só preenche quem ainda está sem responsável; não sobrescreve o que a loja já definiu
+  set responsible = excluded.responsible
+  where public.products.responsible = '';
 
 -- Espaços da vitrine
 -- Matriz: 40 salgadas + 15 doces + 4 sobremesas = 59 espaços
@@ -322,7 +346,9 @@ select
     when (current_date - si.manufacture_date) >= p.shelf_life_days then 'vencido'
     when (current_date - si.manufacture_date) = p.shelf_life_days - 1 then 'atencao'
     else 'fresco'
-  end as status
+  end as status,
+  -- colunas novas entram no fim para que o create or replace continue funcionando
+  p.responsible
 from public.slot_items si
 join public.showcase_slots s on s.code = si.slot_code
 join public.products p on p.id = si.product_id;
@@ -341,7 +367,9 @@ select
   sp.ideal_qty,
   coalesce(atual.qty, 0) as current_qty,
   greatest(sp.ideal_qty - coalesce(atual.qty, 0), 0) as needed_qty,
-  sp.unit_of_measure
+  sp.unit_of_measure,
+  -- colunas novas entram no fim para que o create or replace continue funcionando
+  p.responsible
 from public.standard_plans sp
 join public.showcase_slots s on s.code = sp.slot_code
 join public.products p on p.id = sp.product_id
