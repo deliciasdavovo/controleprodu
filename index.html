@@ -44,6 +44,8 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Supabase: banco de dados da aplicação -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       :root {
         /* Superfícies — cinzas quentes no estilo iOS/macOS */
@@ -322,7 +324,6 @@
       // ==========================================
       // UTILITIES & CONSTANTS
       // ==========================================
-      const generateUniqueId = (prefix = 'id') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
       const formatDateBR = (dateStr) => {
@@ -388,96 +389,160 @@
         return { status: 'normal', label: `Fresco · ${days}d`, bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]' };
       };
 
-      const INITIAL_PRODUCTS = [
-        { id: 'p1', name: 'Coxinha de Frango com Catupiry', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.5, responsible: 'Dona Rita' },
-        { id: 'p2', name: 'Empada de Frango', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.5, responsible: 'Dona Rita' },
-        { id: 'p3', name: 'Pastel de Carne Assado', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.0, responsible: 'Marcos Pereira' },
-        { id: 'p4', name: 'Croissant de Presunto e Queijo', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 1, price: 12.0, responsible: 'Marcos Pereira' },
-        { id: 'p5', name: 'Pão de Queijo Tradicional', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 15, shelfLifeDays: 1, price: 4.5, responsible: 'Marcos Pereira' },
-        { id: 'p6', name: 'Sonho de Creme', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 6.5, responsible: 'Juliana Alves' },
-        { id: 'p7', name: 'Donut Glaceado', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.0, responsible: 'Juliana Alves' },
-        { id: 'p8', name: 'Fatia de Bolo de Cenoura com Chocolate', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 5, shelfLifeDays: 3, price: 9.5, responsible: 'Camila Souza' },
-        { id: 'p9', name: 'Torta Holandesa (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 4, shelfLifeDays: 3, price: 14.0, responsible: 'Camila Souza' },
-        { id: 'p10', name: 'Pudim de Leite Condensado (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 3, price: 10.0, responsible: 'Camila Souza' }
-      ];
+      // ==========================================
+      // SUPABASE — ÚNICA FONTE DE DADOS
+      //
+      // Dados do projeto (Supabase → Project Settings → API).
+      // A chave abaixo é a pública, feita para ficar no navegador —
+      // quem protege os dados é o RLS, na seção 12 do schema.sql.
+      //
+      // Antes do primeiro uso, rode supabase/schema.sql no SQL Editor.
+      // ==========================================
+      const SUPABASE_URL = 'https://rnycjwlmzpackuodflki.supabase.co';
+      const SUPABASE_KEY = 'sb_publishable_W9Z02Rr3nlUqS1ec5_OCiw_Ezoc_iWk';
 
-      const generateInitialSlots = () => {
-        const slots = [];
-        // Matriz Slots (59 slots)
-        for (let s = 1; s <= 4; s++) {
-          for (let p = 1; p <= 10; p++) {
-            slots.push({ id: `matriz-salgada-s${s}-p${p}`, unit: 'matriz', showcaseType: 'salgada', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Salgados` });
-          }
-        }
-        for (let s = 1; s <= 3; s++) {
-          for (let p = 1; p <= 5; p++) {
-            slots.push({ id: `matriz-doce-s${s}-p${p}`, unit: 'matriz', showcaseType: 'doce', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Doces` });
-          }
-        }
-        for (let s = 1; s <= 2; s++) {
-          for (let p = 1; p <= 2; p++) {
-            slots.push({ id: `matriz-sobremesa-s${s}-p${p}`, unit: 'matriz', showcaseType: 'sobremesa', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Sobremesas` });
-          }
-        }
-        // Vila Nova Slots (32 slots)
-        for (let s = 1; s <= 3; s++) {
-          for (let p = 1; p <= 8; p++) {
-            slots.push({ id: `vilanova-salgada-s${s}-p${p}`, unit: 'vilanova', showcaseType: 'salgada', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Salgados` });
-          }
-        }
-        for (let s = 1; s <= 2; s++) {
-          for (let p = 1; p <= 4; p++) {
-            slots.push({ id: `vilanova-doce-s${s}-p${p}`, unit: 'vilanova', showcaseType: 'doce', shelfNumber: s, slotNumber: p, sectionTitle: `Prateleira ${s} - Doces` });
-          }
-        }
-        return slots;
+      const isSupabaseConfigured =
+        SUPABASE_URL.startsWith('https://') &&
+        !SUPABASE_URL.includes('SEU-PROJETO') &&
+        SUPABASE_KEY.length > 20 &&
+        !SUPABASE_KEY.includes('SUA-CHAVE');
+
+      const sb = isSupabaseConfigured && window.supabase
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+        : null;
+
+      // Toda consulta passa por aqui: erro do banco vira exceção com contexto
+      const run = async (label, query) => {
+        const { data, error } = await query;
+        if (error) throw new Error(`${label}: ${error.message}`);
+        return data;
       };
 
-      const generateInitialSlotItems = () => {
-        const today = getTodayDateString();
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const twoDaysAgo = new Date(Date.now() - 172800000).toISOString().split('T')[0];
+      // ------------------------------------------
+      // Conversão entre as linhas do banco (snake_case)
+      // e o formato usado pelos componentes (camelCase)
+      // ------------------------------------------
+      const fromUnit = (row) => ({ code: row.code, name: row.name });
 
-        return [
-          { id: 'item-1', slotId: 'matriz-salgada-s1-p1', productId: 'p1', productName: 'Coxinha de Frango com Catupiry', producedQty: 20, currentQty: 14, unit: 'un', minQty: 10, manufactureDate: today, entryDate: today },
-          { id: 'item-2', slotId: 'matriz-salgada-s1-p2', productId: 'p2', productName: 'Empada de Frango', producedQty: 15, currentQty: 4, unit: 'un', minQty: 8, manufactureDate: yesterday, entryDate: yesterday },
-          { id: 'item-3', slotId: 'matriz-salgada-s2-p1', productId: 'p3', productName: 'Pastel de Carne Assado', producedQty: 12, currentQty: 2, unit: 'un', minQty: 8, manufactureDate: twoDaysAgo, entryDate: twoDaysAgo },
-          { id: 'item-4', slotId: 'matriz-doce-s1-p1', productId: 'p6', productName: 'Sonho de Creme', producedQty: 10, currentQty: 8, unit: 'un', minQty: 5, manufactureDate: today, entryDate: today },
-          { id: 'item-5', slotId: 'matriz-sobremesa-s1-p1', productId: 'p8', productName: 'Fatia de Bolo de Cenoura com Chocolate', producedQty: 8, currentQty: 3, unit: 'un', minQty: 4, manufactureDate: yesterday, entryDate: yesterday }
-        ];
+      const fromProduct = (row) => ({
+        id: row.id,
+        name: row.name,
+        responsible: row.responsible || '',
+        category: row.category,
+        defaultUnit: row.default_unit,
+        minReplenishmentQty: row.min_replenishment_qty,
+        shelfLifeDays: row.shelf_life_days,
+        price: Number(row.price) || 0
+      });
+
+      const fromSlot = (row) => ({
+        id: row.code,
+        unit: row.unit_code,
+        showcaseType: row.showcase_type,
+        shelfNumber: row.shelf_number,
+        slotNumber: row.slot_number,
+        sectionTitle: row.section_title
+      });
+
+      const fromSlotItem = (row) => ({
+        id: row.id,
+        slotId: row.slot_code,
+        productId: row.product_id,
+        productName: row.products?.name || row.product_name || 'Produto',
+        producedQty: row.produced_qty,
+        currentQty: row.current_qty,
+        unit: row.unit_of_measure,
+        minQty: row.min_qty,
+        manufactureDate: row.manufacture_date,
+        entryDate: row.entry_date
+      });
+
+      const fromPlan = (row) => ({
+        id: row.id,
+        unit: row.unit_code,
+        dayOfWeek: row.day_of_week,
+        slotId: row.slot_code,
+        productId: row.product_id,
+        idealQty: row.ideal_qty,
+        unitOfMeasure: row.unit_of_measure
+      });
+
+      const fromSale = (row) => ({
+        id: row.id,
+        unit: row.unit_code,
+        productId: row.product_id,
+        productName: row.product_name,
+        responsible: row.responsible || '',
+        qty: row.qty,
+        producedQty: row.produced_qty,
+        unitOfMeasure: row.unit_of_measure,
+        manufactureDate: row.manufacture_date,
+        exposureDays: row.exposure_days,
+        timestamp: row.sold_at
+      });
+
+      const fromLoss = (row) => ({
+        id: row.id,
+        unit: row.unit_code,
+        productId: row.product_id,
+        productName: row.product_name,
+        responsible: row.responsible || '',
+        qty: row.qty,
+        producedQty: row.produced_qty,
+        unitOfMeasure: row.unit_of_measure,
+        manufactureDate: row.manufacture_date,
+        lossDate: row.loss_date,
+        reason: row.reason,
+        details: row.details || '',
+        slotId: row.slot_code
+      });
+
+      const fromSeparated = (row) => ({
+        id: row.id,
+        unit: row.unit_code,
+        productName: row.name,
+        category: row.category,
+        currentQty: row.current_qty,
+        unitOfMeasure: row.unit_of_measure,
+        minQty: row.min_qty,
+        price: Number(row.price) || 0
+      });
+
+      const SLOT_ITEM_COLUMNS = '*, products(name)';
+
+      // ------------------------------------------
+      // Leitura: carrega o estado inteiro do banco
+      // ------------------------------------------
+      const fetchEverything = async () => {
+        const [units, products, slots, slotItems, plans, sales, losses, separated] = await Promise.all([
+          run('unidades', sb.from('units').select('*').order('name')),
+          run('produtos', sb.from('products').select('*').eq('is_active', true).order('name')),
+          run('espaços da vitrine', sb.from('showcase_slots').select('*').order('shelf_number').order('slot_number')),
+          run('itens da vitrine', sb.from('slot_items').select(SLOT_ITEM_COLUMNS)),
+          run('vitrine padrão', sb.from('standard_plans').select('*')),
+          run('vendas', sb.from('sale_records').select('*').order('sold_at', { ascending: false }).limit(500)),
+          run('perdas', sb.from('loss_records').select('*').order('loss_date', { ascending: false }).limit(500)),
+          run('itens fora da vitrine', sb.from('separated_products').select('*').eq('is_active', true).order('name'))
+        ]);
+
+        return {
+          units: (units || []).map(fromUnit),
+          products: (products || []).map(fromProduct),
+          slots: (slots || []).map(fromSlot),
+          slotItems: (slotItems || []).map(fromSlotItem),
+          standardPlans: (plans || []).map(fromPlan),
+          saleRecords: (sales || []).map(fromSale),
+          lossRecords: (losses || []).map(fromLoss),
+          separatedProducts: (separated || []).map(fromSeparated)
+        };
       };
 
-      const generateInitialStandardPlans = () => [
-        { id: 'sp-1', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s1-p1', productId: 'p1', idealQty: 20, unitOfMeasure: 'un' },
-        { id: 'sp-2', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s1-p2', productId: 'p2', idealQty: 15, unitOfMeasure: 'un' },
-        { id: 'sp-3', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-salgada-s2-p1', productId: 'p3', idealQty: 12, unitOfMeasure: 'un' },
-        { id: 'sp-4', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-doce-s1-p1', productId: 'p6', idealQty: 10, unitOfMeasure: 'un' },
-        { id: 'sp-5', unit: 'matriz', dayOfWeek: 'segunda', slotId: 'matriz-sobremesa-s1-p1', productId: 'p8', idealQty: 8, unitOfMeasure: 'un' }
-      ];
-
-      const generateInitialSeparatedProducts = () => [
-        { id: 'sep-1', unit: 'matriz', productId: 'p-coca', productName: 'Coca-Cola Zero 350ml', category: 'revenda', currentQty: 24, unitOfMeasure: 'un', minQty: 12, price: 6.5 },
-        { id: 'sep-2', unit: 'matriz', productId: 'p-suco', productName: 'Suco Del Valle Laranja 290ml', category: 'revenda', currentQty: 18, unitOfMeasure: 'un', minQty: 10, price: 7.0 },
-        { id: 'sep-3', unit: 'matriz', productId: 'p-exp', productName: 'Café Expresso Tradicional', category: 'cafeteria', currentQty: 50, unitOfMeasure: 'un', minQty: 20, price: 5.0 },
-        { id: 'sep-4', unit: 'matriz', productId: 'p-cap', productName: 'Cappuccino com Canela', category: 'cafeteria', currentQty: 30, unitOfMeasure: 'un', minQty: 15, price: 8.5 }
-      ];
-
-      const loadLocal = (key, defaultVal) => {
-        try {
-          const item = localStorage.getItem(key);
-          return item ? JSON.parse(item) : defaultVal;
-        } catch (e) {
-          return defaultVal;
-        }
-      };
-      const saveLocal = (key, val) => {
-        try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
-      };
+      const getUnitName = (units, code) => units.find((u) => u.code === code)?.name || code;
 
       // ==========================================
       // NAVBAR COMPONENT
       // ==========================================
-      const Navbar = ({ currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
+      const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
         const navItems = [
           { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
           { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
@@ -505,13 +570,13 @@
 
                   <div className="h-5 w-px bg-black/10 hidden sm:block" />
 
+                  {/* As unidades vêm da tabela units do Supabase */}
                   <div className="segmented">
-                    <button onClick={() => onUnitChange('matriz')} data-active={currentUnit === 'matriz'}>
-                      Matriz
-                    </button>
-                    <button onClick={() => onUnitChange('vilanova')} data-active={currentUnit === 'vilanova'}>
-                      Vila Nova
-                    </button>
+                    {units.map((u) => (
+                      <button key={u.code} onClick={() => onUnitChange(u.code)} data-active={currentUnit === u.code}>
+                        {u.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -960,6 +1025,7 @@
       // ==========================================
       const StandardShowcaseView = ({
         currentUnit,
+        unitName,
         slots,
         products,
         standardPlans,
@@ -1005,7 +1071,7 @@
                   </div>
                   <h2 className="t-display">Vitrine padrão</h2>
                   <p className="t-body mt-1.5 max-w-lg">
-                    Defina como a vitrine deve ser montada em cada dia — {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}.
+                    Defina como a vitrine deve ser montada em cada dia — {unitName}.
                   </p>
                 </div>
 
@@ -1166,6 +1232,7 @@
       // ==========================================
       const ProductionOrderView = ({
         currentUnit,
+        unitName,
         slots,
         slotItems,
         products,
@@ -1240,7 +1307,7 @@
                   </div>
                   <h2 className="t-display">Pedido de produção</h2>
                   <p className="t-body mt-1.5 max-w-lg">
-                    {getDayNameBR(selectedDay)} · {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'} — diferença entre o padrão ideal e a vitrine atual.
+                    {getDayNameBR(selectedDay)} · {unitName} — diferença entre o padrão ideal e a vitrine atual.
                   </p>
                 </div>
 
@@ -1329,7 +1396,7 @@
       // ==========================================
       // LOSSES REPORT VIEW
       // ==========================================
-      const LossesReportView = ({ currentUnit, lossRecords }) => {
+      const LossesReportView = ({ currentUnit, unitName, lossRecords }) => {
         const [filterText, setFilterText] = useState('');
         const [selectedReason, setSelectedReason] = useState('todos');
         const [selectedResponsible, setSelectedResponsible] = useState('todos');
@@ -1357,7 +1424,7 @@
           <div className="space-y-5">
             <div>
               <h2 className="t-display">Relatório de perdas</h2>
-              <p className="t-body mt-1">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</p>
+              <p className="t-body mt-1">{unitName}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1475,7 +1542,7 @@
       // ==========================================
       // HISTORY & SALES VIEW
       // ==========================================
-      const HistoryView = ({ currentUnit, saleRecords, lossRecords }) => {
+      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords }) => {
         const [activeTab, setActiveTab] = useState('vendas');
         const unitSales = saleRecords.filter((s) => s.unit === currentUnit);
         const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
@@ -1494,7 +1561,7 @@
           <div className="space-y-5">
             <div>
               <h2 className="t-display">Histórico e vendas</h2>
-              <p className="t-body mt-1">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</p>
+              <p className="t-body mt-1">{unitName}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1621,7 +1688,7 @@
       // ==========================================
       // SEPARATED PRODUCTS VIEW (Fora da Vitrine)
       // ==========================================
-      const SeparatedProductsView = ({ currentUnit, separatedProducts, onUpdateQty, onAddSeparatedProduct }) => {
+      const SeparatedProductsView = ({ currentUnit, unitName, separatedProducts, onUpdateQty, onAddSeparatedProduct }) => {
         const [showModal, setShowModal] = useState(false);
         const [name, setName] = useState('');
         const [category, setCategory] = useState('revenda');
@@ -1633,9 +1700,8 @@
         const handleSubmit = (e) => {
           e.preventDefault();
           if (!name.trim()) return;
+          // O id vem do banco; aqui só descrevemos o item
           onAddSeparatedProduct({
-            unit: currentUnit,
-            productId: generateUniqueId('sep'),
             productName: name.trim(),
             category,
             currentQty: qty,
@@ -1657,7 +1723,7 @@
                 </div>
                 <h2 className="t-display">Revenda e cafeteria</h2>
                 <p className="t-body mt-1.5 max-w-lg">
-                  Bebidas, cafés preparados e encomendas — {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}.
+                  Bebidas, cafés preparados e encomendas — {unitName}.
                 </p>
               </div>
 
@@ -1788,11 +1854,10 @@
         const handleSubmit = (e) => {
           e.preventDefault();
           if (!name.trim()) return;
+          // O id vem do banco; aqui só descrevemos o produto
           onAddProduct({
-            id: generateUniqueId('p'),
             name: name.trim(),
             category,
-            compatibleShowcases: [category === 'salgado' ? 'salgada' : category === 'doce' ? 'doce' : 'sobremesa'],
             defaultUnit: 'un',
             minReplenishmentQty: 5,
             shelfLifeDays,
@@ -2102,33 +2167,162 @@
       };
 
       // ==========================================
+      // TELAS DE ESTADO DA CONEXÃO
+      // ==========================================
+      const CenteredCard = ({ children }) => (
+        <div className="min-h-screen flex items-center justify-center p-6 font-sans">
+          <div className="card p-7 sm:p-8 max-w-lg w-full space-y-4">{children}</div>
+        </div>
+      );
+
+      const LoadingScreen = () => (
+        <CenteredCard>
+          <div className="t-overline">Delícias da Vovó</div>
+          <h1 className="t-title text-[#1d1d1f]">Carregando a vitrine…</h1>
+          <p className="t-body">Buscando os dados no Supabase.</p>
+        </CenteredCard>
+      );
+
+      const SetupScreen = () => (
+        <CenteredCard>
+          <div className="t-overline flex items-center gap-1.5">
+            <Icons.AlertTriangle className="w-3.5 h-3.5" />
+            Configuração pendente
+          </div>
+          <h1 className="t-title text-[#1d1d1f]">Falta ligar o Supabase</h1>
+          <p className="t-body">
+            Abra o <strong>index.html</strong>, procure por <code className="text-[13px] bg-black/[0.05] px-1.5 py-0.5 rounded">SUPABASE_URL</code> e
+            preencha as duas linhas com os dados do seu projeto.
+          </p>
+          <ol className="t-callout space-y-1.5 list-decimal pl-4">
+            <li>No Supabase, abra <strong>Project Settings → API</strong>.</li>
+            <li>Copie a <strong>Project URL</strong> para <code className="text-[12px]">SUPABASE_URL</code>.</li>
+            <li>Copie a chave <strong>anon public</strong> para <code className="text-[12px]">SUPABASE_ANON_KEY</code>.</li>
+            <li>Rode o arquivo <strong>supabase/schema.sql</strong> no SQL Editor, se ainda não rodou.</li>
+          </ol>
+        </CenteredCard>
+      );
+
+      const ConnectionErrorScreen = ({ message, onRetry }) => (
+        <CenteredCard>
+          <div className="t-overline flex items-center gap-1.5">
+            <Icons.AlertTriangle className="w-3.5 h-3.5" />
+            Sem conexão com o banco
+          </div>
+          <h1 className="t-title text-[#1d1d1f]">Não deu para carregar os dados</h1>
+          <p className="t-body break-words">{message}</p>
+          <p className="t-callout">
+            Confira a internet, a URL e a chave do projeto, e se o <strong>schema.sql</strong> já foi executado no Supabase.
+          </p>
+          <button onClick={onRetry} className="btn btn-primary btn-md">Tentar de novo</button>
+        </CenteredCard>
+      );
+
+      // ==========================================
       // MAIN APP COMPONENT
       // ==========================================
       function App() {
-        const [currentUnit, setCurrentUnit] = useState('matriz');
+        const [currentUnit, setCurrentUnit] = useState('');
         const [activeTab, setActiveTab] = useState('vitrine');
-
-        // Produtos salvos antes do campo "responsável" entram com o campo vazio
-        const [products, setProducts] = useState(() =>
-          loadLocal('products', INITIAL_PRODUCTS).map((p) => ({ ...p, responsible: p.responsible || '' }))
-        );
-        const [slots] = useState(generateInitialSlots);
-        const [slotItems, setSlotItems] = useState(() => loadLocal('slotItems', generateInitialSlotItems()));
-        const [standardPlans, setStandardPlans] = useState(() => loadLocal('standardPlans', generateInitialStandardPlans()));
         const [selectedDay, setSelectedDay] = useState('segunda');
 
-        const [lossRecords, setLossRecords] = useState(() => loadLocal('lossRecords', []));
-        const [saleRecords, setSaleRecords] = useState(() => loadLocal('saleRecords', []));
-        const [separatedProducts, setSeparatedProducts] = useState(() => loadLocal('separatedProducts', generateInitialSeparatedProducts()));
+        // Todo o estado abaixo é espelho do banco — nada é lido ou salvo no navegador
+        const [units, setUnits] = useState([]);
+        const [products, setProducts] = useState([]);
+        const [slots, setSlots] = useState([]);
+        const [slotItems, setSlotItems] = useState([]);
+        const [standardPlans, setStandardPlans] = useState([]);
+        const [lossRecords, setLossRecords] = useState([]);
+        const [saleRecords, setSaleRecords] = useState([]);
+        const [separatedProducts, setSeparatedProducts] = useState([]);
 
         const [decreaseModalItem, setDecreaseModalItem] = useState(null);
 
-        useEffect(() => saveLocal('products', products), [products]);
-        useEffect(() => saveLocal('slotItems', slotItems), [slotItems]);
-        useEffect(() => saveLocal('standardPlans', standardPlans), [standardPlans]);
-        useEffect(() => saveLocal('lossRecords', lossRecords), [lossRecords]);
-        useEffect(() => saveLocal('saleRecords', saleRecords), [saleRecords]);
-        useEffect(() => saveLocal('separatedProducts', separatedProducts), [separatedProducts]);
+        const [loadState, setLoadState] = useState('loading'); // loading | ready | error
+        const [errorMsg, setErrorMsg] = useState('');
+        const [pendingWrites, setPendingWrites] = useState(0);
+        const [lastSync, setLastSync] = useState(null);
+
+        // Gravações em andamento e digitação pendente seguram o auto-refresh,
+        // para não sobrescrever o que a pessoa está fazendo agora
+        const busyRef = useRef(0);
+        const timersRef = useRef({});
+
+        const applySnapshot = (data) => {
+          setUnits(data.units);
+          setProducts(data.products);
+          setSlots(data.slots);
+          setSlotItems(data.slotItems);
+          setStandardPlans(data.standardPlans);
+          setSaleRecords(data.saleRecords);
+          setLossRecords(data.lossRecords);
+          setSeparatedProducts(data.separatedProducts);
+          setCurrentUnit((atual) => (data.units.some((u) => u.code === atual) ? atual : data.units[0]?.code || ''));
+          setLastSync(new Date());
+        };
+
+        const reload = async ({ silent = false } = {}) => {
+          if (!sb) return;
+          try {
+            const data = await fetchEverything();
+            applySnapshot(data);
+            setErrorMsg('');
+            setLoadState('ready');
+          } catch (e) {
+            if (!silent) {
+              setErrorMsg(e.message);
+              setLoadState('error');
+            }
+          }
+        };
+
+        useEffect(() => { reload(); }, []);
+
+        // Mantém a tela em dia com o que as outras unidades e aparelhos gravaram
+        useEffect(() => {
+          if (!sb) return;
+          const canRefresh = () => busyRef.current === 0 && Object.keys(timersRef.current).length === 0;
+          const tick = () => { if (canRefresh() && document.visibilityState === 'visible') reload({ silent: true }); };
+          const id = setInterval(tick, 30000);
+          window.addEventListener('focus', tick);
+          return () => { clearInterval(id); window.removeEventListener('focus', tick); };
+        }, []);
+
+        // Descarta as gravações agendadas ao sair da página
+        useEffect(() => () => {
+          Object.values(timersRef.current).forEach(clearTimeout);
+          timersRef.current = {};
+        }, []);
+
+        // Executa a gravação; se o banco recusar, mostra o motivo e recarrega
+        // para a tela nunca ficar mostrando algo que não foi salvo
+        const write = async (label, fn) => {
+          busyRef.current += 1;
+          setPendingWrites((n) => n + 1);
+          try {
+            await fn();
+            setLastSync(new Date());
+            setErrorMsg('');
+          } catch (e) {
+            // Recarrega primeiro (o reload limpa a mensagem) e só então avisa,
+            // para o aviso não sumir junto
+            await reload({ silent: true });
+            setErrorMsg(`${label} — ${e.message}`);
+          } finally {
+            busyRef.current -= 1;
+            setPendingWrites((n) => Math.max(0, n - 1));
+          }
+        };
+
+        // Campos digitados (datas, quantidades, responsável) gravam depois da
+        // última tecla, em vez de uma chamada por caractere
+        const writeSoon = (key, label, fn) => {
+          if (timersRef.current[key]) clearTimeout(timersRef.current[key]);
+          timersRef.current[key] = setTimeout(() => {
+            delete timersRef.current[key];
+            write(label, fn);
+          }, 600);
+        };
 
         const totalAlerts = useMemo(() => {
           return slotItems.filter((item) => {
@@ -2141,65 +2335,81 @@
         }, [slotItems, slots, products, currentUnit]);
 
         const handleIncrementQty = (itemId) => {
-          setSlotItems((prev) => prev.map((item) => item.id === itemId ? { ...item, currentQty: item.currentQty + 1 } : item));
+          const target = slotItems.find((i) => i.id === itemId);
+          if (!target) return;
+          const novaQtd = target.currentQty + 1;
+
+          setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: novaQtd } : i));
+          write('Repor uma unidade', () =>
+            run('slot_items', sb.from('slot_items').update({ current_qty: novaQtd }).eq('id', itemId))
+          );
         };
 
         const handleUpdateItem = (updatedItem) => {
           setSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
+          writeSoon(`item:${updatedItem.id}`, 'Atualizar item da vitrine', () =>
+            run('slot_items', sb.from('slot_items').update({
+              produced_qty: updatedItem.producedQty,
+              current_qty: updatedItem.currentQty,
+              manufacture_date: updatedItem.manufactureDate
+            }).eq('id', updatedItem.id))
+          );
+        };
+
+        // Venda e perda seguem o mesmo caminho: grava a baixa e acerta o saldo do espaço
+        const registrarBaixa = (tabela, itemId, qty, extras, label) => {
+          const target = slotItems.find((i) => i.id === itemId);
+          if (!target || qty <= 0) return;
+          const product = products.find((p) => p.id === target.productId);
+          const restante = target.currentQty - qty;
+
+          return write(label, async () => {
+            const linhas = await run(tabela, sb.from(tabela).insert({
+              unit_code: currentUnit,
+              product_id: target.productId,
+              product_name: target.productName,
+              responsible: cleanResponsible(product?.responsible),
+              qty,
+              produced_qty: target.producedQty || target.currentQty,
+              unit_of_measure: target.unit,
+              manufacture_date: target.manufactureDate,
+              ...extras
+            }).select());
+
+            const registro = linhas[0];
+            if (tabela === 'sale_records') {
+              setSaleRecords((prev) => [fromSale(registro), ...prev]);
+            } else {
+              setLossRecords((prev) => [fromLoss(registro), ...prev]);
+            }
+
+            if (restante <= 0) {
+              await run('slot_items', sb.from('slot_items').delete().eq('id', itemId));
+              setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
+            } else {
+              await run('slot_items', sb.from('slot_items').update({ current_qty: restante }).eq('id', itemId));
+              setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: restante } : i));
+            }
+          });
         };
 
         const handleRecordSale = (itemId, qty) => {
           const target = slotItems.find((i) => i.id === itemId);
           if (!target) return;
-
-          const newSale = {
-            id: generateUniqueId('sale'),
-            unit: currentUnit,
-            productId: target.productId,
-            productName: target.productName,
-            responsible: cleanResponsible(products.find((p) => p.id === target.productId)?.responsible),
-            qty,
-            producedQty: target.producedQty || target.currentQty,
-            unitOfMeasure: target.unit,
-            timestamp: new Date().toISOString(),
-            manufactureDate: target.manufactureDate,
-            exposureDays: calculateDaysInShowcase(target.manufactureDate)
-          };
-          setSaleRecords((prev) => [newSale, ...prev]);
-
-          if (target.currentQty - qty <= 0) {
-            setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
-          } else {
-            setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: i.currentQty - qty } : i));
-          }
+          registrarBaixa('sale_records', itemId, qty, {
+            exposure_days: calculateDaysInShowcase(target.manufactureDate)
+          }, 'Registrar venda');
         };
 
         const handleRecordLoss = (itemId, qty, reason, details) => {
           const target = slotItems.find((i) => i.id === itemId);
           if (!target) return;
-
-          const newLoss = {
-            id: generateUniqueId('loss'),
-            unit: currentUnit,
-            productId: target.productId,
-            productName: target.productName,
-            responsible: cleanResponsible(products.find((p) => p.id === target.productId)?.responsible),
-            qty,
-            producedQty: target.producedQty || target.currentQty,
-            unitOfMeasure: target.unit,
-            manufactureDate: target.manufactureDate,
-            lossDate: getTodayDateString(),
+          registrarBaixa('loss_records', itemId, qty, {
+            loss_date: getTodayDateString(),
             reason,
-            details,
-            slotId: target.slotId
-          };
-          setLossRecords((prev) => [newLoss, ...prev]);
-
-          if (target.currentQty - qty <= 0) {
-            setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
-          } else {
-            setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: i.currentQty - qty } : i));
-          }
+            details: details || null,
+            slot_code: target.slotId
+          }, 'Registrar perda');
         };
 
         const handleRecordSellAll = (itemId) => {
@@ -2209,134 +2419,246 @@
 
         const handleRemoveItem = (itemId) => {
           const target = slotItems.find((i) => i.id === itemId);
-          if (target && window.confirm(`Remover "${target.productName}" da vitrine?`)) {
+          if (!target || !window.confirm(`Remover "${target.productName}" da vitrine?`)) return;
+
+          write('Remover item da vitrine', async () => {
+            await run('slot_items', sb.from('slot_items').delete().eq('id', itemId));
             setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
-          }
+          });
         };
 
         const handleQuickAllocate = (productName, qty, manufactureDate) => {
-          let product = products.find(
+          const existente = products.find(
             (p) => p.name.toLowerCase().trim() === productName.toLowerCase().trim()
           );
 
-          if (!product) {
-            product = {
-              id: generateUniqueId('p'),
-              name: productName,
-              category: 'salgado',
-              compatibleShowcases: ['salgada'],
-              defaultUnit: 'un',
-              minReplenishmentQty: 10,
-              shelfLifeDays: 2,
-              price: 8.0,
-              responsible: ''
-            };
-            setProducts((prev) => [...prev, product]);
-          }
+          write('Alocar na vitrine', async () => {
+            let product = existente;
 
-          const prodCategory = product.category || 'salgado';
-          const showcaseType = prodCategory === 'salgado' ? 'salgada' : prodCategory === 'doce' ? 'doce' : 'sobremesa';
-          const unitSlots = slots.filter((s) => s.unit === currentUnit && s.showcaseType === showcaseType);
+            // Produto digitado que ainda não existe entra no catálogo
+            if (!product) {
+              const linhas = await run('products', sb.from('products').insert({
+                name: productName.trim(),
+                responsible: '',
+                category: 'salgado',
+                default_unit: 'un',
+                min_replenishment_qty: 10,
+                shelf_life_days: 2,
+                price: 8.0
+              }).select());
+              product = fromProduct(linhas[0]);
+              setProducts((prev) => [...prev, product].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+            }
 
-          if (unitSlots.length === 0) {
-            alert(`Nenhum espaço físico compatível na unidade ${currentUnit}.`);
-            return;
-          }
+            const showcaseType = product.category === 'doce' ? 'doce' : product.category === 'sobremesa' ? 'sobremesa' : 'salgada';
+            const unitSlots = slots.filter((s) => s.unit === currentUnit && s.showcaseType === showcaseType);
 
-          let targetSlot = unitSlots.find((s) => !slotItems.some((i) => i.slotId === s.id));
-          if (!targetSlot) {
-            targetSlot = unitSlots[0];
-          }
+            if (unitSlots.length === 0) {
+              throw new Error(`nenhum espaço de ${showcaseType} cadastrado na unidade ${getUnitName(units, currentUnit)}`);
+            }
 
-          const newItem = {
-            id: generateUniqueId('item'),
-            slotId: targetSlot.id,
-            productId: product.id,
-            productName: product.name,
-            producedQty: qty,
-            currentQty: qty,
-            unit: product.defaultUnit || 'un',
-            minQty: product.minReplenishmentQty || 5,
-            manufactureDate: manufactureDate || getTodayDateString(),
-            entryDate: getTodayDateString()
-          };
+            const targetSlot = unitSlots.find((s) => !slotItems.some((i) => i.slotId === s.id)) || unitSlots[0];
 
-          setSlotItems((prev) => [...prev, newItem]);
+            const linhas = await run('slot_items', sb.from('slot_items').insert({
+              slot_code: targetSlot.id,
+              product_id: product.id,
+              produced_qty: qty,
+              current_qty: qty,
+              unit_of_measure: product.defaultUnit || 'un',
+              min_qty: product.minReplenishmentQty || 5,
+              manufacture_date: manufactureDate || getTodayDateString(),
+              entry_date: getTodayDateString()
+            }).select(SLOT_ITEM_COLUMNS));
+
+            setSlotItems((prev) => [...prev, { ...fromSlotItem(linhas[0]), productName: product.name }]);
+          });
         };
 
         const handleUpdatePlanItem = (slotId, productId, idealQty) => {
           const prod = products.find((p) => p.id === productId);
           if (!prod) return;
+          const existing = standardPlans.find(
+            (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay && sp.slotId === slotId
+          );
 
-          setStandardPlans((prev) => {
-            const existing = prev.find((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay && sp.slotId === slotId);
+          write('Salvar vitrine padrão', async () => {
             if (existing) {
-              return prev.map((sp) => sp.id === existing.id ? { ...sp, productId, idealQty } : sp);
+              await run('standard_plans', sb.from('standard_plans')
+                .update({ product_id: productId, ideal_qty: idealQty })
+                .eq('id', existing.id));
+              setStandardPlans((prev) => prev.map((sp) => sp.id === existing.id ? { ...sp, productId, idealQty } : sp));
+              return;
             }
-            return [...prev, {
-              id: generateUniqueId('sp'),
-              unit: currentUnit,
-              dayOfWeek: selectedDay,
-              slotId,
-              productId,
-              idealQty,
-              unitOfMeasure: prod.defaultUnit
-            }];
+
+            const linhas = await run('standard_plans', sb.from('standard_plans').insert({
+              unit_code: currentUnit,
+              day_of_week: selectedDay,
+              slot_code: slotId,
+              product_id: productId,
+              ideal_qty: idealQty,
+              unit_of_measure: prod.defaultUnit || 'un'
+            }).select());
+            setStandardPlans((prev) => [...prev, fromPlan(linhas[0])]);
           });
         };
 
         const handleRemovePlanItem = (planId) => {
-          setStandardPlans((prev) => prev.filter((sp) => sp.id !== planId));
+          write('Remover do padrão', async () => {
+            await run('standard_plans', sb.from('standard_plans').delete().eq('id', planId));
+            setStandardPlans((prev) => prev.filter((sp) => sp.id !== planId));
+          });
         };
 
         const handleCopyDayPlan = (fromDay, toDay) => {
-          setStandardPlans((prev) => {
-            const sourcePlans = prev.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === fromDay);
-            const otherPlans = prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === toDay));
-            const copied = sourcePlans.map((sp) => ({ ...sp, id: generateUniqueId('sp'), dayOfWeek: toDay }));
-            return [...otherPlans, ...copied];
+          const origem = standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === fromDay);
+
+          write('Copiar o padrão do dia', async () => {
+            await run('standard_plans', sb.from('standard_plans')
+              .delete().eq('unit_code', currentUnit).eq('day_of_week', toDay));
+
+            let novos = [];
+            if (origem.length > 0) {
+              const linhas = await run('standard_plans', sb.from('standard_plans').insert(
+                origem.map((sp) => ({
+                  unit_code: currentUnit,
+                  day_of_week: toDay,
+                  slot_code: sp.slotId,
+                  product_id: sp.productId,
+                  ideal_qty: sp.idealQty,
+                  unit_of_measure: sp.unitOfMeasure
+                }))
+              ).select());
+              novos = linhas.map(fromPlan);
+            }
+
+            setStandardPlans((prev) => [
+              ...prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === toDay)),
+              ...novos
+            ]);
           });
         };
 
         const handleClearDayPlan = (day) => {
-          setStandardPlans((prev) => prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === day)));
+          write('Limpar o padrão do dia', async () => {
+            await run('standard_plans', sb.from('standard_plans')
+              .delete().eq('unit_code', currentUnit).eq('day_of_week', day));
+            setStandardPlans((prev) => prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === day)));
+          });
         };
 
         const handleApplyProductionToShowcase = (itemsToProduce) => {
+          if (itemsToProduce.length === 0) return;
           const today = getTodayDateString();
-          itemsToProduce.forEach((item) => {
-            const product = products.find((p) => p.id === item.productId);
-            const newItem = {
-              id: generateUniqueId('item'),
-              slotId: item.slotId,
-              productId: item.productId,
-              productName: item.productName,
-              producedQty: item.qty,
-              currentQty: item.qty,
-              unit: product?.defaultUnit || 'un',
-              minQty: product?.minReplenishmentQty || 5,
-              manufactureDate: today,
-              entryDate: today
-            };
-            setSlotItems((prev) => [...prev, newItem]);
+
+          write('Lançar produção na vitrine', async () => {
+            const linhas = await run('slot_items', sb.from('slot_items').insert(
+              itemsToProduce.map((item) => {
+                const product = products.find((p) => p.id === item.productId);
+                return {
+                  slot_code: item.slotId,
+                  product_id: item.productId,
+                  produced_qty: item.qty,
+                  current_qty: item.qty,
+                  unit_of_measure: product?.defaultUnit || 'un',
+                  min_qty: product?.minReplenishmentQty || 5,
+                  manufacture_date: today,
+                  entry_date: today
+                };
+              })
+            ).select(SLOT_ITEM_COLUMNS));
+
+            setSlotItems((prev) => [...prev, ...linhas.map(fromSlotItem)]);
+            setActiveTab('vitrine');
           });
-          setActiveTab('vitrine');
         };
 
         const handleUpdateSeparatedQty = (id, delta) => {
-          setSeparatedProducts((prev) =>
-            prev.map((i) => i.id === id ? { ...i, currentQty: Math.max(0, i.currentQty + delta) } : i)
+          const target = separatedProducts.find((i) => i.id === id);
+          if (!target) return;
+          const novaQtd = Math.max(0, target.currentQty + delta);
+
+          setSeparatedProducts((prev) => prev.map((i) => i.id === id ? { ...i, currentQty: novaQtd } : i));
+          writeSoon(`sep:${id}`, 'Atualizar estoque fora da vitrine', () =>
+            run('separated_products', sb.from('separated_products').update({ current_qty: novaQtd }).eq('id', id))
           );
         };
 
         const handleAddSeparatedProduct = (prod) => {
-          const newItem = { ...prod, id: generateUniqueId('sep') };
-          setSeparatedProducts((prev) => [...prev, newItem]);
+          write('Cadastrar item fora da vitrine', async () => {
+            const linhas = await run('separated_products', sb.from('separated_products').insert({
+              unit_code: currentUnit,
+              name: prod.productName,
+              category: prod.category,
+              current_qty: prod.currentQty,
+              unit_of_measure: prod.unitOfMeasure || 'un',
+              min_qty: prod.minQty || 0,
+              price: prod.price
+            }).select());
+            setSeparatedProducts((prev) => [...prev, fromSeparated(linhas[0])]);
+          });
         };
+
+        const handleAddProduct = (prod) => {
+          write('Cadastrar produto', async () => {
+            const linhas = await run('products', sb.from('products').insert({
+              name: prod.name,
+              responsible: prod.responsible,
+              category: prod.category,
+              default_unit: prod.defaultUnit,
+              min_replenishment_qty: prod.minReplenishmentQty,
+              shelf_life_days: prod.shelfLifeDays,
+              price: prod.price
+            }).select());
+            setProducts((prev) => [...prev, fromProduct(linhas[0])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+          });
+        };
+
+        const handleUpdateProduct = (updated) => {
+          setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+          writeSoon(`produto:${updated.id}`, 'Atualizar produto', () =>
+            run('products', sb.from('products').update({
+              name: updated.name,
+              responsible: cleanResponsible(updated.responsible),
+              category: updated.category,
+              shelf_life_days: updated.shelfLifeDays,
+              price: updated.price
+            }).eq('id', updated.id))
+          );
+        };
+
+        const handleDeleteProduct = (id) => {
+          const emUso = slotItems.some((i) => i.productId === id);
+          if (emUso) {
+            setErrorMsg('Este produto está na vitrine agora. Dê baixa nele antes de excluir.');
+            return;
+          }
+
+          write('Excluir produto', async () => {
+            const { error } = await sb.from('products').delete().eq('id', id);
+            // A trava do banco (on delete restrict) impede apagar produto com histórico
+            if (error) throw new Error(
+              error.code === '23503'
+                ? 'o produto tem lançamentos ligados a ele e não pode ser apagado'
+                : error.message
+            );
+            setProducts((prev) => prev.filter((p) => p.id !== id));
+          });
+        };
+
+        if (!isSupabaseConfigured) return <SetupScreen />;
+        if (!sb) return (
+          <ConnectionErrorScreen
+            message="A biblioteca do Supabase não carregou. Verifique a conexão com a internet ou algum bloqueador de scripts."
+            onRetry={() => window.location.reload()}
+          />
+        );
+        if (loadState === 'loading') return <LoadingScreen />;
+        if (loadState === 'error') return <ConnectionErrorScreen message={errorMsg} onRetry={() => { setLoadState('loading'); reload(); }} />;
 
         return (
           <div className="min-h-screen flex flex-col font-sans">
             <Navbar
+              units={units}
               currentUnit={currentUnit}
               onUnitChange={setCurrentUnit}
               activeTab={activeTab}
@@ -2344,13 +2666,25 @@
               totalAlerts={totalAlerts}
             />
 
+            {errorMsg && (
+              <div className="bg-[#ff3b30]/10 border-b border-[#ff3b30]/20">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-2">
+                  <Icons.AlertTriangle className="w-4 h-4 text-[#c9271d] shrink-0" />
+                  <span className="t-callout text-[#c9271d] flex-1">{errorMsg}</span>
+                  <button onClick={() => setErrorMsg('')} className="w-6 h-6 rounded-full hover:bg-[#ff3b30]/15 text-[#c9271d] flex items-center justify-center shrink-0">
+                    <Icons.X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 sm:py-9">
               {activeTab === 'vitrine' && (
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <div className="t-overline mb-2">
-                        {currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}
+                        {getUnitName(units, currentUnit)}
                       </div>
                       <h2 className="t-display">Vitrine operacional</h2>
                     </div>
@@ -2393,6 +2727,7 @@
               {activeTab === 'padrao' && (
                 <StandardShowcaseView
                   currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
                   slots={slots}
                   products={products}
                   standardPlans={standardPlans}
@@ -2409,6 +2744,7 @@
               {activeTab === 'producao' && (
                 <ProductionOrderView
                   currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
                   slots={slots}
                   slotItems={slotItems}
                   products={products}
@@ -2421,6 +2757,7 @@
               {activeTab === 'perdas' && (
                 <LossesReportView
                   currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
                   lossRecords={lossRecords}
                 />
               )}
@@ -2428,6 +2765,7 @@
               {activeTab === 'historico' && (
                 <HistoryView
                   currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
                   saleRecords={saleRecords}
                   lossRecords={lossRecords}
                 />
@@ -2436,6 +2774,7 @@
               {activeTab === 'fora' && (
                 <SeparatedProductsView
                   currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
                   separatedProducts={separatedProducts}
                   onUpdateQty={handleUpdateSeparatedQty}
                   onAddSeparatedProduct={handleAddSeparatedProduct}
@@ -2445,9 +2784,9 @@
               {activeTab === 'produtos' && (
                 <ProductCatalogView
                   products={products}
-                  onAddProduct={(p) => setProducts((prev) => [...prev, p])}
-                  onUpdateProduct={(updated) => setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
-                  onDeleteProduct={(id) => setProducts((prev) => prev.filter((p) => p.id !== id))}
+                  onAddProduct={handleAddProduct}
+                  onUpdateProduct={handleUpdateProduct}
+                  onDeleteProduct={handleDeleteProduct}
                 />
               )}
             </main>
@@ -2463,11 +2802,24 @@
             <footer className="mt-auto border-t hairline">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-[#34c759] rounded-full" />
-                  <span className="t-caption">Sistema operante · Delícias da Vovó</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'bg-[#ff9f0a]' : 'bg-[#34c759]'}`} />
+                  <span className="t-caption">
+                    {pendingWrites > 0
+                      ? 'Salvando no Supabase…'
+                      : lastSync
+                        ? `Salvo no Supabase · ${lastSync.toLocaleTimeString('pt-BR')}`
+                        : 'Conectado ao Supabase'}
+                  </span>
+                  <button
+                    onClick={() => reload()}
+                    title="Buscar as alterações das outras unidades agora"
+                    className="t-caption underline underline-offset-2 hover:text-[#1d1d1f] transition-colors"
+                  >
+                    Atualizar
+                  </button>
                 </div>
                 <div className="t-caption">
-                  Unidade <strong className="text-[#1d1d1f] font-bold">{currentUnit === 'matriz' ? 'Matriz' : 'Vila Nova'}</strong>
+                  Unidade <strong className="text-[#1d1d1f] font-bold">{getUnitName(units, currentUnit)}</strong>
                 </div>
               </div>
             </footer>
