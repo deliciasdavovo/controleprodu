@@ -346,6 +346,15 @@
       };
       const getDayNameBR = (d) => DAYS_MAP[d] || d;
 
+      // Categorias do catálogo, na ordem em que aparecem nos menus
+      const PRODUCT_CATEGORIES = [
+        { value: 'salgado', label: 'Salgado' },
+        { value: 'doce', label: 'Doce' },
+        { value: 'sobremesa', label: 'Sobremesa' }
+      ];
+
+      const normalizeName = (value) => (value || '').trim().toLowerCase();
+
       const calculateDaysInShowcase = (mDateStr) => {
         if (!mDateStr) return 0;
         const mDate = new Date(mDateStr);
@@ -1832,16 +1841,53 @@
       const ProductCatalogView = ({ products, onAddProduct, onUpdateProduct, onDeleteProduct }) => {
         const [filterText, setFilterText] = useState('');
         const [filterResponsible, setFilterResponsible] = useState('todos');
-        const [showModal, setShowModal] = useState(false);
 
-        const [name, setName] = useState('');
-        const [category, setCategory] = useState('salgado');
-        const [price, setPrice] = useState(8.5);
-        const [shelfLifeDays, setShelfLifeDays] = useState(2);
-        const [responsible, setResponsible] = useState('');
+        // Linha de cadastro: um produto por vez, sem sair do teclado
+        const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', shelfLifeDays: 2, price: 8.5 };
+        const [draft, setDraft] = useState(BLANK_DRAFT);
+
+        const nameRef = useRef(null);
+        const responsibleRef = useRef(null);
+        const categoryRef = useRef(null);
+        const shelfLifeRef = useRef(null);
+        const priceRef = useRef(null);
 
         const responsibleOptions = listResponsibles(products);
         const hasUnassigned = products.some((p) => !cleanResponsible(p.responsible));
+
+        // Nome igual ao de um produto já cadastrado: a linha passa a editar aquele produto
+        const findByName = (value) =>
+          normalizeName(value)
+            ? products.find((p) => normalizeName(p.name) === normalizeName(value)) || null
+            : null;
+
+        const matched = findByName(draft.name);
+
+        const setField = (field, value) => setDraft((d) => ({ ...d, [field]: value }));
+
+        // Ao reconhecer um produto existente, a linha carrega os dados dele para ajuste
+        const handleDraftName = (value) => {
+          const found = findByName(value);
+          setDraft((d) => found
+            ? {
+                name: value,
+                responsible: found.responsible || '',
+                category: found.category,
+                shelfLifeDays: found.shelfLifeDays,
+                price: found.price
+              }
+            : { ...d, name: value });
+        };
+
+        // Enter passa para o próximo campo; no último, o formulário salva sozinho
+        const goToField = (ref) => (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          const el = ref.current;
+          if (!el) return;
+          el.focus();
+          if (el.select) el.select();
+        };
 
         const filtered = products.filter((p) => {
           const matchesText = p.name.toLowerCase().includes(filterText.toLowerCase());
@@ -1853,37 +1899,146 @@
 
         const handleSubmit = (e) => {
           e.preventDefault();
-          if (!name.trim()) return;
-          // O id vem do banco; aqui só descrevemos o produto
-          onAddProduct({
-            name: name.trim(),
-            category,
-            defaultUnit: 'un',
-            minReplenishmentQty: 5,
-            shelfLifeDays,
-            price,
-            responsible: cleanResponsible(responsible)
-          });
-          setName('');
-          setShowModal(false);
+          const nome = draft.name.trim();
+          if (!nome) {
+            if (nameRef.current) nameRef.current.focus();
+            return;
+          }
+
+          const dados = {
+            name: nome,
+            responsible: cleanResponsible(draft.responsible),
+            category: draft.category,
+            shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
+            price: Math.max(0, Number(draft.price) || 0)
+          };
+
+          if (matched) {
+            onUpdateProduct({ ...matched, ...dados });
+          } else {
+            // O id vem do banco; aqui só descrevemos o produto
+            onAddProduct({ ...dados, defaultUnit: 'un', minReplenishmentQty: 5 });
+          }
+
+          // Responsável e categoria continuam preenchidos: quem cadastra costuma
+          // lançar vários itens seguidos da mesma pessoa
+          setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category });
+          setTimeout(() => {
+            if (nameRef.current) nameRef.current.focus();
+          }, 50);
         };
 
         return (
           <div className="space-y-5">
-            <div className="card p-6 sm:p-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <div className="t-overline flex items-center gap-1.5 mb-2">
-                  <Icons.Package className="w-3.5 h-3.5" />
-                  Cadastro
-                </div>
-                <h2 className="t-display">Catálogo de produtos</h2>
-                <p className="t-body mt-1.5">Salgados, doces e sobremesas da casa.</p>
+            <div className="card p-6 sm:p-7">
+              <div className="t-overline flex items-center gap-1.5 mb-2">
+                <Icons.Package className="w-3.5 h-3.5" />
+                Cadastro
               </div>
+              <h2 className="t-display">Catálogo de produtos</h2>
+              <p className="t-body mt-1.5">Salgados, doces e sobremesas da casa.</p>
 
-              <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md shrink-0">
-                <Icons.Plus className="w-4 h-4" />
-                Novo produto
-              </button>
+              <form onSubmit={handleSubmit} className="mt-5 pt-5 border-t hairline">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="t-overline">Cadastrar na linha</span>
+                  <span className="t-caption text-[11px]">Enter ↵ avança e salva</span>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                  <div className="col-span-12 md:col-span-3">
+                    <label className="t-caption block mb-1">Produto</label>
+                    <input
+                      ref={nameRef}
+                      type="text"
+                      list="catalog-product-suggestions"
+                      placeholder="Digite ou busque…"
+                      value={draft.name}
+                      onChange={(e) => handleDraftName(e.target.value)}
+                      onKeyDown={goToField(responsibleRef)}
+                      className="field field-md font-semibold"
+                    />
+                  </div>
+
+                  <div className="col-span-7 md:col-span-3">
+                    <label className="t-caption block mb-1">Responsável</label>
+                    <input
+                      ref={responsibleRef}
+                      type="text"
+                      list="responsible-suggestions"
+                      placeholder="Ex: Dona Rita"
+                      value={draft.responsible}
+                      onChange={(e) => setField('responsible', e.target.value)}
+                      onKeyDown={goToField(categoryRef)}
+                      className="field field-md"
+                    />
+                  </div>
+
+                  <div className="col-span-5 md:col-span-2">
+                    <label className="t-caption block mb-1">Categoria</label>
+                    <select
+                      ref={categoryRef}
+                      value={draft.category}
+                      onChange={(e) => setField('category', e.target.value)}
+                      onKeyDown={goToField(shelfLifeRef)}
+                      className="field field-md field-select"
+                    >
+                      {PRODUCT_CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-4 md:col-span-1">
+                    <label className="t-caption block mb-1">Validade</label>
+                    <input
+                      ref={shelfLifeRef}
+                      type="number"
+                      min="1"
+                      title="Validade em dias a partir da fabricação"
+                      value={draft.shelfLifeDays}
+                      onChange={(e) => setField('shelfLifeDays', e.target.value)}
+                      onKeyDown={goToField(priceRef)}
+                      className="field field-md text-center tnum"
+                    />
+                  </div>
+
+                  <div className="col-span-4 md:col-span-1">
+                    <label className="t-caption block mb-1">Preço</label>
+                    <input
+                      ref={priceRef}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={draft.price}
+                      onChange={(e) => setField('price', e.target.value)}
+                      className="field field-md text-right tnum"
+                    />
+                  </div>
+
+                  <div className="col-span-4 md:col-span-2">
+                    <button
+                      type="submit"
+                      title={matched ? 'Salvar alterações do produto' : 'Cadastrar produto'}
+                      className="btn btn-primary btn-md w-full"
+                    >
+                      {matched ? <Icons.CheckCircle2 className="w-4 h-4" /> : <Icons.Plus className="w-4 h-4" />}
+                      {matched ? 'Salvar' : 'Cadastrar'}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="t-caption text-[11px] mt-2">
+                  {matched
+                    ? `“${matched.name}” já está no catálogo — os campos acima atualizam o cadastro dele.`
+                    : 'Validade em dias contados da fabricação. Um nome já cadastrado abre o produto para edição.'}
+                </p>
+              </form>
+
+              <datalist id="catalog-product-suggestions">
+                {products.map((p) => (
+                  <option key={p.id} value={p.name} />
+                ))}
+              </datalist>
             </div>
 
             <div className="card p-5 sm:p-6 space-y-1">
@@ -1921,7 +2076,7 @@
                 <table className="w-full text-left">
                   <thead>
                     <tr className="t-overline text-[10px] border-b hairline">
-                      <th className="py-3 pr-3 font-bold">Produto</th>
+                      <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
                       <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 font-bold">Categoria</th>
                       <th className="py-3 px-3 text-center font-bold">Validade</th>
@@ -1935,8 +2090,17 @@
                     ) : (
                       filtered.map((p) => (
                         <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                          <td className="py-3 pr-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.name}</td>
-                          <td className="py-3 px-3">
+                          <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                            <input
+                              type="text"
+                              value={p.name}
+                              onChange={(e) => onUpdateProduct({ ...p, name: e.target.value })}
+                              placeholder="Nome do produto"
+                              title="Nome do produto"
+                              className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-56"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3">
                             <input
                               type="text"
                               list="responsible-suggestions"
@@ -1944,15 +2108,49 @@
                               onChange={(e) => onUpdateProduct({ ...p, responsible: e.target.value })}
                               placeholder="Quem responde…"
                               title="Responsável pelo produto"
-                              className="field h-8 px-2.5 text-[12px] w-40"
+                              className="field h-8 px-2.5 text-[12px] w-32 sm:w-40"
                             />
                           </td>
-                          <td className="py-3 px-3">
-                            <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{p.category}</span>
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={p.category}
+                              onChange={(e) => onUpdateProduct({ ...p, category: e.target.value })}
+                              title="Categoria do produto"
+                              className="field field-select h-8 pl-2.5 text-[12px] w-28 sm:w-32"
+                            >
+                              {PRODUCT_CATEGORIES.map((c) => (
+                                <option key={c.value} value={c.value}>{c.label}</option>
+                              ))}
+                            </select>
                           </td>
-                          <td className="py-3 px-3 text-center t-callout tnum whitespace-nowrap">{p.shelfLifeDays} dia(s)</td>
-                          <td className="py-3 px-3 text-right tnum text-[13px] font-bold text-[#1d1d1f]">{formatCurrencyBR(p.price)}</td>
-                          <td className="py-3 pl-3 text-right">
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <input
+                                type="number"
+                                min="1"
+                                value={p.shelfLifeDays}
+                                onChange={(e) => onUpdateProduct({ ...p, shelfLifeDays: Math.max(1, Number(e.target.value) || 1) })}
+                                title="Validade em dias a partir da fabricação"
+                                className="field h-8 px-2 text-[12px] text-center tnum w-14 sm:w-16"
+                              />
+                              <span className="t-caption text-[11px] whitespace-nowrap hidden sm:inline">dia(s)</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="t-caption text-[11px] hidden sm:inline">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={p.price}
+                                onChange={(e) => onUpdateProduct({ ...p, price: Math.max(0, Number(e.target.value) || 0) })}
+                                title="Preço de venda"
+                                className="field h-8 px-2 text-[12px] text-right font-bold tnum w-20 sm:w-24"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2.5 pl-3 text-right">
                             <button
                               onClick={() => onDeleteProduct(p.id)}
                               title="Excluir produto"
@@ -1967,72 +2165,11 @@
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            {showModal && (
-              <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
-                <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
-                  <h3 className="t-title text-[#1d1d1f]">Novo produto</h3>
-                  <div>
-                    <label className="t-caption block mb-1">Nome</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Ex: Coxinha de carne"
-                      className="field field-md"
-                    />
-                  </div>
-                  <div>
-                    <label className="t-caption block mb-1">Responsável</label>
-                    <input
-                      type="text"
-                      required
-                      list="responsible-suggestions"
-                      value={responsible}
-                      onChange={(e) => setResponsible(e.target.value)}
-                      placeholder="Ex: Dona Rita"
-                      className="field field-md"
-                    />
-                    <p className="t-caption text-[11px] mt-1">Quem produz e responde por este item</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="t-caption block mb-1">Categoria</label>
-                      <select value={category} onChange={(e) => setCategory(e.target.value)} className="field field-md">
-                        <option value="salgado">Salgado</option>
-                        <option value="doce">Doce</option>
-                        <option value="sobremesa">Sobremesa</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="t-caption block mb-1">Preço (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={price}
-                        onChange={(e) => setPrice(Number(e.target.value) || 0)}
-                        className="field field-md tnum"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="t-caption block mb-1">Validade (dias)</label>
-                    <input
-                      type="number"
-                      value={shelfLifeDays}
-                      onChange={(e) => setShelfLifeDays(Number(e.target.value) || 1)}
-                      className="field field-md tnum"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary btn-md">Cancelar</button>
-                    <button type="submit" className="btn btn-primary btn-md">Salvar</button>
-                  </div>
-                </form>
-              </div>
-            )}
+              <p className="t-caption text-[11px] pt-3">
+                Toque em qualquer campo da tabela para corrigir o produto — o app salva sozinho.
+              </p>
+            </div>
           </div>
         );
       };
@@ -2598,9 +2735,18 @@
           });
         };
 
+        // O banco não aceita dois produtos com o mesmo nome; a mensagem crua
+        // do Postgres não diz isso com clareza para quem está na loja
+        const traduzirErroProduto = (error) =>
+          new Error(
+            error.code === '23505'
+              ? 'já existe um produto com esse nome'
+              : error.message
+          );
+
         const handleAddProduct = (prod) => {
           write('Cadastrar produto', async () => {
-            const linhas = await run('products', sb.from('products').insert({
+            const { data, error } = await sb.from('products').insert({
               name: prod.name,
               responsible: prod.responsible,
               category: prod.category,
@@ -2608,22 +2754,29 @@
               min_replenishment_qty: prod.minReplenishmentQty,
               shelf_life_days: prod.shelfLifeDays,
               price: prod.price
-            }).select());
-            setProducts((prev) => [...prev, fromProduct(linhas[0])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+            }).select();
+            if (error) throw traduzirErroProduto(error);
+            setProducts((prev) => [...prev, fromProduct(data[0])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
           });
         };
 
         const handleUpdateProduct = (updated) => {
           setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-          writeSoon(`produto:${updated.id}`, 'Atualizar produto', () =>
-            run('products', sb.from('products').update({
-              name: updated.name,
-              responsible: cleanResponsible(updated.responsible),
-              category: updated.category,
-              shelf_life_days: updated.shelfLifeDays,
-              price: updated.price
-            }).eq('id', updated.id))
-          );
+
+          const campos = {
+            responsible: cleanResponsible(updated.responsible),
+            category: updated.category,
+            shelf_life_days: updated.shelfLifeDays,
+            price: updated.price
+          };
+          // Nome vazio é apenas uma passagem da digitação: não vai para o banco
+          const nome = (updated.name || '').trim();
+          if (nome) campos.name = nome;
+
+          writeSoon(`produto:${updated.id}`, 'Atualizar produto', async () => {
+            const { error } = await sb.from('products').update(campos).eq('id', updated.id);
+            if (error) throw traduzirErroProduto(error);
+          });
         };
 
         const handleDeleteProduct = (id) => {
