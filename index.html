@@ -315,7 +315,8 @@
         Coffee: (props) => <IconBase d={["M18 8h1a4 4 0 0 1 0 8h-1", "M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z", "M6 1v3", "M10 1v3", "M14 1v3"]} {...props} />,
         X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />,
         CheckSquare: (props) => <IconBase d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} {...props} />,
-        Square: (props) => <IconBase d="M3 3h18v18H3z" {...props} />
+        Square: (props) => <IconBase d="M3 3h18v18H3z" {...props} />,
+        User: (props) => <IconBase d={["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"]} {...props} />
       };
 
       // ==========================================
@@ -352,6 +353,28 @@
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
       };
 
+      // ------------------------------------------
+      // Responsável pelo produto
+      // ------------------------------------------
+      const NO_RESPONSIBLE_LABEL = 'Sem responsável';
+
+      const cleanResponsible = (value) => (value || '').trim();
+
+      const getResponsibleName = (product) => cleanResponsible(product?.responsible) || NO_RESPONSIBLE_LABEL;
+
+      const getResponsibleInitials = (name) => {
+        const clean = cleanResponsible(name);
+        if (!clean) return '?';
+        const parts = clean.split(/\s+/);
+        const first = parts[0][0] || '';
+        const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+        return (first + last).toUpperCase();
+      };
+
+      const listResponsibles = (products) =>
+        Array.from(new Set(products.map((p) => cleanResponsible(p.responsible)).filter(Boolean)))
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
       const getSlotItemStatus = (item, product) => {
         if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-black/5', textClass: 'text-[#86868b]', dotClass: 'bg-[#c7c7cc]' };
         const days = calculateDaysInShowcase(item.manufactureDate);
@@ -366,16 +389,16 @@
       };
 
       const INITIAL_PRODUCTS = [
-        { id: 'p1', name: 'Coxinha de Frango com Catupiry', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.5 },
-        { id: 'p2', name: 'Empada de Frango', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.5 },
-        { id: 'p3', name: 'Pastel de Carne Assado', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.0 },
-        { id: 'p4', name: 'Croissant de Presunto e Queijo', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 1, price: 12.0 },
-        { id: 'p5', name: 'Pão de Queijo Tradicional', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 15, shelfLifeDays: 1, price: 4.5 },
-        { id: 'p6', name: 'Sonho de Creme', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 6.5 },
-        { id: 'p7', name: 'Donut Glaceado', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.0 },
-        { id: 'p8', name: 'Fatia de Bolo de Cenoura com Chocolate', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 5, shelfLifeDays: 3, price: 9.5 },
-        { id: 'p9', name: 'Torta Holandesa (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 4, shelfLifeDays: 3, price: 14.0 },
-        { id: 'p10', name: 'Pudim de Leite Condensado (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 3, price: 10.0 }
+        { id: 'p1', name: 'Coxinha de Frango com Catupiry', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.5, responsible: 'Dona Rita' },
+        { id: 'p2', name: 'Empada de Frango', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.5, responsible: 'Dona Rita' },
+        { id: 'p3', name: 'Pastel de Carne Assado', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 10, shelfLifeDays: 2, price: 8.0, responsible: 'Marcos Pereira' },
+        { id: 'p4', name: 'Croissant de Presunto e Queijo', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 1, price: 12.0, responsible: 'Marcos Pereira' },
+        { id: 'p5', name: 'Pão de Queijo Tradicional', category: 'salgado', compatibleShowcases: ['salgada'], defaultUnit: 'un', minReplenishmentQty: 15, shelfLifeDays: 1, price: 4.5, responsible: 'Marcos Pereira' },
+        { id: 'p6', name: 'Sonho de Creme', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 6.5, responsible: 'Juliana Alves' },
+        { id: 'p7', name: 'Donut Glaceado', category: 'doce', compatibleShowcases: ['doce'], defaultUnit: 'un', minReplenishmentQty: 8, shelfLifeDays: 2, price: 7.0, responsible: 'Juliana Alves' },
+        { id: 'p8', name: 'Fatia de Bolo de Cenoura com Chocolate', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 5, shelfLifeDays: 3, price: 9.5, responsible: 'Camila Souza' },
+        { id: 'p9', name: 'Torta Holandesa (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 4, shelfLifeDays: 3, price: 14.0, responsible: 'Camila Souza' },
+        { id: 'p10', name: 'Pudim de Leite Condensado (Fatia)', category: 'sobremesa', compatibleShowcases: ['sobremesa'], defaultUnit: 'un', minReplenishmentQty: 6, shelfLifeDays: 3, price: 10.0, responsible: 'Camila Souza' }
       ];
 
       const generateInitialSlots = () => {
@@ -615,7 +638,19 @@
                             <>
                               <div className="space-y-1.5">
                                 <div className="flex items-start justify-between gap-1.5">
-                                  <span className="t-caption tnum">#{slot.slotNumber}</span>
+                                  <span className="t-caption tnum flex items-center gap-1">
+                                    #{slot.slotNumber}
+                                    <span
+                                      title={`Responsável: ${getResponsibleName(prod)}`}
+                                      className={`w-[18px] h-[18px] rounded-full text-[9px] font-extrabold flex items-center justify-center tracking-tight ${
+                                        cleanResponsible(prod?.responsible)
+                                          ? 'bg-[#0071e3]/10 text-[#0058b0]'
+                                          : 'bg-black/[0.06] text-[#a1a1a6]'
+                                      }`}
+                                    >
+                                      {getResponsibleInitials(prod?.responsible)}
+                                    </span>
+                                  </span>
                                   <span className={`pill ${statusInfo.bgClass} ${statusInfo.textClass}`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
                                     {statusInfo.label}
@@ -841,6 +876,10 @@
                           </h4>
                           <p className="t-caption text-[11px] mt-0.5 tnum">
                             {slot ? `Prateleira ${slot.shelfNumber} · slot #${slot.slotNumber}` : 'Apoio'}
+                          </p>
+                          <p className="t-caption text-[11px] mt-0.5 flex items-center gap-1 truncate">
+                            <Icons.User className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{getResponsibleName(product)}</span>
                           </p>
                         </div>
                         <span className={`pill text-[10px] shrink-0 ${statusInfo.bgClass} ${statusInfo.textClass}`}>
@@ -1080,6 +1119,15 @@
                             </select>
 
                             {planItem && (
+                              <p className="t-caption text-[11px] mb-2 flex items-center gap-1 truncate">
+                                <Icons.User className="w-3 h-3 shrink-0" />
+                                <span className="truncate">
+                                  {getResponsibleName(products.find((p) => p.id === planItem.productId))}
+                                </span>
+                              </p>
+                            )}
+
+                            {planItem && (
                               <div className="flex items-center justify-between bg-white rounded-xl px-2.5 py-1.5 border hairline">
                                 <span className="t-caption">Qtd ideal</span>
                                 <div className="flex items-center gap-2">
@@ -1126,6 +1174,7 @@
         onApplyProductionToShowcase
       }) => {
         const [completedItems, setCompletedItems] = useState({});
+        const [responsibleFilter, setResponsibleFilter] = useState('todos');
 
         const dayPlans = standardPlans.filter(
           (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
@@ -1146,6 +1195,7 @@
             slotTitle: slot ? `${slot.sectionTitle} (P${slot.shelfNumber})` : 'Slot',
             productId: plan.productId,
             productName: product?.name || 'Produto',
+            responsible: getResponsibleName(product),
             idealQty: plan.idealQty,
             currentQty: currentTotalQty,
             neededQty,
@@ -1153,7 +1203,17 @@
           };
         });
 
-        const itemsNeedingProduction = orderList.filter((item) => item.neededQty > 0);
+        const pendingItems = orderList.filter((item) => item.neededQty > 0);
+
+        const responsibleOptions = Array.from(new Set(pendingItems.map((item) => item.responsible)))
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+        // Se o responsável escolhido não tem mais nada a produzir, volta para "todos"
+        const activeResponsible = responsibleOptions.includes(responsibleFilter) ? responsibleFilter : 'todos';
+
+        const itemsNeedingProduction = activeResponsible === 'todos'
+          ? pendingItems
+          : pendingItems.filter((item) => item.responsible === activeResponsible);
 
         const handleApplyAll = () => {
           if (itemsNeedingProduction.length === 0) return;
@@ -1197,11 +1257,23 @@
             </div>
 
             <div className="card p-5 sm:p-6 space-y-1">
-              <div className="flex items-center justify-between pb-4 border-b hairline">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b hairline">
                 <h3 className="t-headline text-[#1d1d1f]">Checklist de preparo</h3>
-                <span className="pill bg-black/[0.05] text-[#6e6e73] tnum">
-                  {itemsNeedingProduction.length} a produzir
-                </span>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={activeResponsible}
+                    onChange={(e) => setResponsibleFilter(e.target.value)}
+                    className="field field-sm field-select field-auto"
+                  >
+                    <option value="todos">Todos os responsáveis</option>
+                    {responsibleOptions.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0">
+                    {itemsNeedingProduction.length} a produzir
+                  </span>
+                </div>
               </div>
 
               {itemsNeedingProduction.length === 0 ? (
@@ -1229,6 +1301,10 @@
                               {item.productName}
                             </h4>
                             <p className="t-caption mt-0.5 truncate">{item.slotTitle}</p>
+                            <p className="t-caption mt-1 flex items-center gap-1 truncate">
+                              <Icons.User className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{item.responsible}</span>
+                            </p>
                           </div>
                         </div>
 
@@ -1256,12 +1332,23 @@
       const LossesReportView = ({ currentUnit, lossRecords }) => {
         const [filterText, setFilterText] = useState('');
         const [selectedReason, setSelectedReason] = useState('todos');
+        const [selectedResponsible, setSelectedResponsible] = useState('todos');
 
         const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
+
+        const lossResponsibles = Array.from(
+          new Set(unitLosses.map((l) => cleanResponsible(l.responsible)).filter(Boolean))
+        ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+        // Se o responsável escolhido não aparece mais nos registros, volta para "todos"
+        const activeResponsible = lossResponsibles.includes(selectedResponsible) ? selectedResponsible : 'todos';
+
         const filteredLosses = unitLosses.filter((l) => {
           const matchesText = l.productName.toLowerCase().includes(filterText.toLowerCase());
           const matchesReason = selectedReason === 'todos' || l.reason === selectedReason;
-          return matchesText && matchesReason;
+          const matchesResponsible =
+            activeResponsible === 'todos' || cleanResponsible(l.responsible) === activeResponsible;
+          return matchesText && matchesReason && matchesResponsible;
         });
 
         const totalLossQty = unitLosses.reduce((acc, l) => acc + l.qty, 0);
@@ -1316,6 +1403,18 @@
                     onChange={(e) => setFilterText(e.target.value)}
                     className="field field-sm field-auto"
                   />
+                  {lossResponsibles.length > 0 && (
+                    <select
+                      value={activeResponsible}
+                      onChange={(e) => setSelectedResponsible(e.target.value)}
+                      className="field field-sm field-select field-auto"
+                    >
+                      <option value="todos">Todos os responsáveis</option>
+                      {lossResponsibles.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  )}
                   <select
                     value={selectedReason}
                     onChange={(e) => setSelectedReason(e.target.value)}
@@ -1336,6 +1435,7 @@
                     <tr className="t-overline text-[10px]">
                       <th className="py-3 pr-3 font-bold">Data</th>
                       <th className="py-3 px-3 font-bold">Produto</th>
+                      <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 text-center font-bold">Qtd</th>
                       <th className="py-3 px-3 font-bold">Motivo</th>
                       <th className="py-3 pl-3 font-bold">Detalhes</th>
@@ -1344,7 +1444,7 @@
                   <tbody>
                     {filteredLosses.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-10">
+                        <td colSpan={6} className="text-center py-10">
                           <p className="t-body text-[#86868b]">Nenhuma perda registrada</p>
                         </td>
                       </tr>
@@ -1353,6 +1453,7 @@
                         <tr key={r.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                           <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.lossDate)}</td>
                           <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
+                          <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
                           <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
                             −{r.qty} {r.unitOfMeasure}
                           </td>
@@ -1452,18 +1553,20 @@
                       <tr className="t-overline text-[10px]">
                         <th className="py-3 pr-3 font-bold">Data e hora</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
                         <th className="py-3 pl-3 text-center font-bold">Exposição</th>
                       </tr>
                     </thead>
                     <tbody>
                       {unitSales.length === 0 ? (
-                        <tr><td colSpan={4} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma venda registrada</p></td></tr>
+                        <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma venda registrada</p></td></tr>
                       ) : (
                         unitSales.map((s) => (
                           <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                             <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
+                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#1d7a35] whitespace-nowrap">
                               {s.qty} {s.unitOfMeasure}
                             </td>
@@ -1483,18 +1586,20 @@
                       <tr className="t-overline text-[10px]">
                         <th className="py-3 pr-3 font-bold">Data</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
                         <th className="py-3 pl-3 font-bold">Motivo</th>
                       </tr>
                     </thead>
                     <tbody>
                       {unitLosses.length === 0 ? (
-                        <tr><td colSpan={4} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
+                        <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
                       ) : (
                         unitLosses.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                             <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.lossDate)}</td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
+                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(l.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
                               −{l.qty} {l.unitOfMeasure}
                             </td>
@@ -1658,16 +1763,27 @@
       // ==========================================
       // PRODUCT CATALOG VIEW
       // ==========================================
-      const ProductCatalogView = ({ products, onAddProduct, onDeleteProduct }) => {
+      const ProductCatalogView = ({ products, onAddProduct, onUpdateProduct, onDeleteProduct }) => {
         const [filterText, setFilterText] = useState('');
+        const [filterResponsible, setFilterResponsible] = useState('todos');
         const [showModal, setShowModal] = useState(false);
 
         const [name, setName] = useState('');
         const [category, setCategory] = useState('salgado');
         const [price, setPrice] = useState(8.5);
         const [shelfLifeDays, setShelfLifeDays] = useState(2);
+        const [responsible, setResponsible] = useState('');
 
-        const filtered = products.filter((p) => p.name.toLowerCase().includes(filterText.toLowerCase()));
+        const responsibleOptions = listResponsibles(products);
+        const hasUnassigned = products.some((p) => !cleanResponsible(p.responsible));
+
+        const filtered = products.filter((p) => {
+          const matchesText = p.name.toLowerCase().includes(filterText.toLowerCase());
+          const matchesResponsible =
+            filterResponsible === 'todos' ||
+            (filterResponsible === 'sem' ? !cleanResponsible(p.responsible) : cleanResponsible(p.responsible) === filterResponsible);
+          return matchesText && matchesResponsible;
+        });
 
         const handleSubmit = (e) => {
           e.preventDefault();
@@ -1680,7 +1796,8 @@
             defaultUnit: 'un',
             minReplenishmentQty: 5,
             shelfLifeDays,
-            price
+            price,
+            responsible: cleanResponsible(responsible)
           });
           setName('');
           setShowModal(false);
@@ -1705,22 +1822,42 @@
             </div>
 
             <div className="card p-5 sm:p-6 space-y-1">
-              <div className="relative max-w-sm pb-4">
-                <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
-                <input
-                  type="text"
-                  placeholder="Pesquisar produto…"
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  className="field field-sm field-search"
-                />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                  <input
+                    type="text"
+                    placeholder="Pesquisar produto…"
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="field field-sm field-search"
+                  />
+                </div>
+                <select
+                  value={filterResponsible}
+                  onChange={(e) => setFilterResponsible(e.target.value)}
+                  className="field field-sm field-select field-auto"
+                >
+                  <option value="todos">Todos os responsáveis</option>
+                  {responsibleOptions.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                  {hasUnassigned && <option value="sem">{NO_RESPONSIBLE_LABEL}</option>}
+                </select>
               </div>
+
+              <datalist id="responsible-suggestions">
+                {responsibleOptions.map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="t-overline text-[10px] border-b hairline">
                       <th className="py-3 pr-3 font-bold">Produto</th>
+                      <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 font-bold">Categoria</th>
                       <th className="py-3 px-3 text-center font-bold">Validade</th>
                       <th className="py-3 px-3 text-right font-bold">Preço</th>
@@ -1729,11 +1866,22 @@
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
+                      <tr><td colSpan={6} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
                     ) : (
                       filtered.map((p) => (
                         <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                           <td className="py-3 pr-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.name}</td>
+                          <td className="py-3 px-3">
+                            <input
+                              type="text"
+                              list="responsible-suggestions"
+                              value={p.responsible || ''}
+                              onChange={(e) => onUpdateProduct({ ...p, responsible: e.target.value })}
+                              placeholder="Quem responde…"
+                              title="Responsável pelo produto"
+                              className="field h-8 px-2.5 text-[12px] w-40"
+                            />
+                          </td>
                           <td className="py-3 px-3">
                             <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{p.category}</span>
                           </td>
@@ -1770,6 +1918,19 @@
                       placeholder="Ex: Coxinha de carne"
                       className="field field-md"
                     />
+                  </div>
+                  <div>
+                    <label className="t-caption block mb-1">Responsável</label>
+                    <input
+                      type="text"
+                      required
+                      list="responsible-suggestions"
+                      value={responsible}
+                      onChange={(e) => setResponsible(e.target.value)}
+                      placeholder="Ex: Dona Rita"
+                      className="field field-md"
+                    />
+                    <p className="t-caption text-[11px] mt-1">Quem produz e responde por este item</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1947,7 +2108,10 @@
         const [currentUnit, setCurrentUnit] = useState('matriz');
         const [activeTab, setActiveTab] = useState('vitrine');
 
-        const [products, setProducts] = useState(() => loadLocal('products', INITIAL_PRODUCTS));
+        // Produtos salvos antes do campo "responsável" entram com o campo vazio
+        const [products, setProducts] = useState(() =>
+          loadLocal('products', INITIAL_PRODUCTS).map((p) => ({ ...p, responsible: p.responsible || '' }))
+        );
         const [slots] = useState(generateInitialSlots);
         const [slotItems, setSlotItems] = useState(() => loadLocal('slotItems', generateInitialSlotItems()));
         const [standardPlans, setStandardPlans] = useState(() => loadLocal('standardPlans', generateInitialStandardPlans()));
@@ -1993,6 +2157,7 @@
             unit: currentUnit,
             productId: target.productId,
             productName: target.productName,
+            responsible: cleanResponsible(products.find((p) => p.id === target.productId)?.responsible),
             qty,
             producedQty: target.producedQty || target.currentQty,
             unitOfMeasure: target.unit,
@@ -2018,6 +2183,7 @@
             unit: currentUnit,
             productId: target.productId,
             productName: target.productName,
+            responsible: cleanResponsible(products.find((p) => p.id === target.productId)?.responsible),
             qty,
             producedQty: target.producedQty || target.currentQty,
             unitOfMeasure: target.unit,
@@ -2062,7 +2228,8 @@
               defaultUnit: 'un',
               minReplenishmentQty: 10,
               shelfLifeDays: 2,
-              price: 8.0
+              price: 8.0,
+              responsible: ''
             };
             setProducts((prev) => [...prev, product]);
           }
@@ -2279,6 +2446,7 @@
                 <ProductCatalogView
                   products={products}
                   onAddProduct={(p) => setProducts((prev) => [...prev, p])}
+                  onUpdateProduct={(updated) => setProducts((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
                   onDeleteProduct={(id) => setProducts((prev) => prev.filter((p) => p.id !== id))}
                 />
               )}
