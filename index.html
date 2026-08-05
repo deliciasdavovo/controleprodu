@@ -1725,7 +1725,7 @@
       // ==========================================
       // LOSSES REPORT VIEW
       // ==========================================
-      const LossesReportView = ({ currentUnit, unitName, lossRecords }) => {
+      const LossesReportView = ({ currentUnit, unitName, lossRecords, onDeleteLoss }) => {
         const [filterText, setFilterText] = useState('');
         const [selectedReason, setSelectedReason] = useState('todos');
         const [selectedResponsible, setSelectedResponsible] = useState('todos');
@@ -1834,13 +1834,14 @@
                       <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 text-center font-bold">Qtd</th>
                       <th className="py-3 px-3 font-bold">Motivo</th>
-                      <th className="py-3 pl-3 font-bold">Detalhes</th>
+                      <th className="py-3 px-3 font-bold">Detalhes</th>
+                      <th className="py-3 pl-3 text-right font-bold">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLosses.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-10">
+                        <td colSpan={7} className="text-center py-10">
                           <p className="t-body text-[#86868b]">Nenhuma perda registrada</p>
                         </td>
                       </tr>
@@ -1856,7 +1857,16 @@
                           <td className="py-3 px-3">
                             <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
                           </td>
-                          <td className="py-3 pl-3 t-callout">{r.details || '—'}</td>
+                          <td className="py-3 px-3 t-callout">{r.details || '—'}</td>
+                          <td className="py-3 pl-3 text-right">
+                            <button
+                              onClick={() => onDeleteLoss(r.id)}
+                              title="Excluir esta perda"
+                              className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                            >
+                              <Icons.Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1871,7 +1881,7 @@
       // ==========================================
       // HISTORY & SALES VIEW
       // ==========================================
-      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords, productionRecords, productionReady, slots }) => {
+      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords, productionRecords, productionReady, slots, onDeleteLoss, onDeleteProduction }) => {
         const [activeTab, setActiveTab] = useState('producao');
         const unitSales = saleRecords.filter((s) => s.unit === currentUnit);
         const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
@@ -1990,13 +2000,14 @@
                           <th className="py-3 px-3 text-center font-bold">Qtd</th>
                           <th className="py-3 px-3 font-bold">Fabricação</th>
                           <th className="py-3 px-3 font-bold">Espaço</th>
-                          <th className="py-3 pl-3 font-bold">Origem</th>
+                          <th className="py-3 px-3 font-bold">Origem</th>
+                          <th className="py-3 pl-3 text-right font-bold">Ação</th>
                         </tr>
                       </thead>
                       <tbody>
                         {unitProduction.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="text-center py-10">
+                            <td colSpan={8} className="text-center py-10">
                               <p className="t-body text-[#86868b]">Nenhuma produção lançada</p>
                               <p className="t-caption mt-1">
                                 Cada item alocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui
@@ -2014,8 +2025,17 @@
                               </td>
                               <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{formatDateBR(p.manufactureDate) || '—'}</td>
                               <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{slotLabel(p.slotId)}</td>
-                              <td className="py-3 pl-3">
+                              <td className="py-3 px-3">
                                 <span className="pill bg-black/[0.05] text-[#6e6e73]">{SOURCE_LABELS[p.source] || p.source}</span>
+                              </td>
+                              <td className="py-3 pl-3 text-right">
+                                <button
+                                  onClick={() => onDeleteProduction(p.id)}
+                                  title="Excluir este lançamento de produção"
+                                  className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                                >
+                                  <Icons.Trash2 className="w-4 h-4" />
+                                </button>
                               </td>
                             </tr>
                           ))
@@ -2066,12 +2086,13 @@
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
-                        <th className="py-3 pl-3 font-bold">Motivo</th>
+                        <th className="py-3 px-3 font-bold">Motivo</th>
+                        <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
                       {unitLosses.length === 0 ? (
-                        <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
+                        <tr><td colSpan={6} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
                       ) : (
                         unitLosses.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -2081,8 +2102,17 @@
                             <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
                               −{l.qty} {l.unitOfMeasure}
                             </td>
-                            <td className="py-3 pl-3">
+                            <td className="py-3 px-3">
                               <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
+                            </td>
+                            <td className="py-3 pl-3 text-right">
+                              <button
+                                onClick={() => onDeleteLoss(l.id)}
+                                title="Excluir esta perda"
+                                className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                              >
+                                <Icons.Trash2 className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         ))
@@ -3336,6 +3366,38 @@
           });
         };
 
+        // Lançamento errado sai do histórico. A baixa já aconteceu lá atrás:
+        // apagar o registro não devolve nada para a vitrine
+        const handleDeleteLoss = (id) => {
+          const alvo = lossRecords.find((l) => l.id === id);
+          if (!alvo) return;
+          const ok = window.confirm(
+            `Excluir a perda de ${alvo.qty} ${alvo.unitOfMeasure} de "${alvo.productName}"?\n\n` +
+            'O lançamento sai do relatório e do histórico. O estoque da vitrine não muda.'
+          );
+          if (!ok) return;
+
+          write('Excluir perda', async () => {
+            await run('loss_records', sb.from('loss_records').delete().eq('id', id));
+            setLossRecords((prev) => prev.filter((l) => l.id !== id));
+          });
+        };
+
+        const handleDeleteProduction = (id) => {
+          const alvo = productionRecords.find((p) => p.id === id);
+          if (!alvo) return;
+          const ok = window.confirm(
+            `Excluir a produção de ${alvo.qty} ${alvo.unitOfMeasure} de "${alvo.productName}"?\n\n` +
+            'O lançamento sai do histórico. O que está na vitrine agora não muda.'
+          );
+          if (!ok) return;
+
+          write('Excluir produção', async () => {
+            await run('production_records', sb.from('production_records').delete().eq('id', id));
+            setProductionRecords((prev) => prev.filter((p) => p.id !== id));
+          });
+        };
+
         const handleDeleteProduct = (id) => {
           const emUso = slotItems.some((i) => i.productId === id);
           if (emUso) {
@@ -3470,6 +3532,7 @@
                   currentUnit={currentUnit}
                   unitName={getUnitName(units, currentUnit)}
                   lossRecords={lossRecords}
+                  onDeleteLoss={handleDeleteLoss}
                 />
               )}
 
@@ -3482,6 +3545,8 @@
                   productionRecords={productionRecords}
                   productionReady={productionReady}
                   slots={slots}
+                  onDeleteLoss={handleDeleteLoss}
+                  onDeleteProduction={handleDeleteProduction}
                 />
               )}
 
