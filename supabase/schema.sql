@@ -324,28 +324,72 @@ on conflict (name) do update
   set responsible = excluded.responsible
   where public.products.responsible = '';
 
--- Espaços da vitrine
--- Matriz: 40 salgadas + 15 doces + 4 sobremesas = 59 espaços
--- Vila Nova: 24 salgadas + 8 doces = 32 espaços
-insert into public.showcase_slots (code, unit_code, showcase_type, shelf_number, slot_number, section_title)
-select
-  format('%s-%s-s%s-p%s', cfg.unit_code, cfg.showcase_type, shelf.n, slot.n),
-  cfg.unit_code,
-  cfg.showcase_type,
-  shelf.n,
-  slot.n,
-  format('Prateleira %s - %s', shelf.n, cfg.section_label)
-from (
+-- ---------------------------------------------------------------------
+-- Espaços da vitrine — o desenho real das duas lojas
+--
+-- Cada linha da tabela abaixo é uma seção da vitrine, com o número de
+-- espaços que ela tem de verdade. Para mudar a loja, mude só o número
+-- da última coluna e rode o script de novo.
+--
+--   Matriz     salgada  24  |  doce  14  |  sobremesa  25
+--   Vila Nova  salgada  16  |  doce   8  |  sobremesa   8
+--
+-- ATENÇÃO: espaços que deixarem de existir no desenho abaixo são
+-- apagados, junto com o que estiver exposto neles e com o que o padrão
+-- da semana tiver planejado para eles. As vendas, perdas e o histórico
+-- de produção continuam guardados — só perdem a ligação com o espaço.
+--
+-- Tudo em um comando só: o SQL Editor do Supabase pode rodar cada
+-- comando em uma conexão diferente, então nada de tabela temporária.
+-- ---------------------------------------------------------------------
+with layout (unit_code, showcase_type, shelf_number, section_label, slots) as (
   values
-    ('matriz',   'salgada',   'Salgados',   4, 10),
-    ('matriz',   'doce',      'Doces',      3,  5),
-    ('matriz',   'sobremesa', 'Sobremesas', 2,  2),
-    ('vilanova', 'salgada',   'Salgados',   3,  8),
-    ('vilanova', 'doce',      'Doces',      2,  4)
-) as cfg (unit_code, showcase_type, section_label, shelves, slots)
-cross join lateral generate_series(1, cfg.shelves) as shelf(n)
-cross join lateral generate_series(1, cfg.slots)   as slot(n)
-on conflict (code) do nothing;
+    -- Matriz — vitrine salgada: 24 espaços
+    ('matriz',   'salgada',   1, 'Salgados',           16),
+    ('matriz',   'salgada',   2, 'Tortas',              8),
+    -- Matriz — vitrine doce: 14 espaços
+    ('matriz',   'doce',      1, 'Pão de bolinha',      2),
+    ('matriz',   'doce',      2, 'Bolos',               4),
+    ('matriz',   'doce',      3, 'Bandejas de doces',   8),
+    -- Matriz — vitrine sobremesa: 25 espaços
+    ('matriz',   'sobremesa', 1, 'Doces de potinho',    5),
+    ('matriz',   'sobremesa', 2, 'Bolos cremosos',      2),
+    ('matriz',   'sobremesa', 3, 'Bandejas',            8),
+    ('matriz',   'sobremesa', 4, 'Sobremesas grandes', 10),
+    -- Vila Nova — vitrine salgada: 16 espaços
+    ('vilanova', 'salgada',   1, 'Salgados',           14),
+    ('vilanova', 'salgada',   2, 'Tortas',              2),
+    -- Vila Nova — vitrine doce: 8 espaços
+    ('vilanova', 'doce',      1, 'Doces',               6),
+    ('vilanova', 'doce',      2, 'Pão de bolinha',      2),
+    -- Vila Nova — vitrine sobremesa: 8 espaços
+    ('vilanova', 'sobremesa', 1, 'Doces de potinho',    3),
+    ('vilanova', 'sobremesa', 2, 'Sobremesas',          5)
+),
+espacos as (
+  select
+    format('%s-%s-s%s-p%s', l.unit_code, l.showcase_type, l.shelf_number, s.n) as code,
+    l.unit_code,
+    l.showcase_type,
+    l.shelf_number,
+    s.n as slot_number,
+    l.section_label
+  from layout l
+  cross join lateral generate_series(1, l.slots) as s(n)
+),
+-- Cria o que falta e renomeia as seções que mudaram de nome
+gravados as (
+  insert into public.showcase_slots (code, unit_code, showcase_type, shelf_number, slot_number, section_title)
+  select code, unit_code, showcase_type, shelf_number, slot_number, section_label
+  from espacos
+  on conflict (code) do update
+    set section_title = excluded.section_title
+  returning code
+)
+-- E tira da loja os espaços que não existem mais
+delete from public.showcase_slots sl
+where sl.unit_code in (select unit_code from layout)
+  and not exists (select 1 from espacos e where e.code = sl.code);
 
 -- Itens fora da vitrine (exemplo inicial da Matriz)
 insert into public.separated_products (unit_code, name, category, current_qty, unit_of_measure, min_qty, price) values
