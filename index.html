@@ -829,6 +829,21 @@
       };
 
       // ==========================================
+      // QUANTIDADE DA BAIXA SOBRE O LOTE
+      //
+      // "−5 de 8 un": saiu 5 de um lote de 8. Bancos antigos podem não ter
+      // guardado o tamanho do lote; aí mostra só a quantidade.
+      // ==========================================
+      const QtyOfBatch = ({ qty, produced, unit, sign = '', className = 'text-[#1d1d1f]' }) => (
+        <span className="tnum whitespace-nowrap">
+          <span className={`text-[13px] font-extrabold ${className}`}>{sign}{qty}</span>
+          <span className="text-[11px] font-medium text-[#86868b]">
+            {produced > 0 ? ` de ${produced}` : ''} {unit}
+          </span>
+        </span>
+      );
+
+      // ==========================================
       // NAVBAR COMPONENT
       // ==========================================
       const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
@@ -1851,8 +1866,8 @@
                           <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.lossDate)}</td>
                           <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
                           <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
-                          <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
-                            −{r.qty} {r.unitOfMeasure}
+                          <td className="py-3 px-3 text-center">
+                            <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="text-[#c9271d]" />
                           </td>
                           <td className="py-3 px-3">
                             <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
@@ -2065,8 +2080,8 @@
                             <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
-                            <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#1d7a35] whitespace-nowrap">
-                              {s.qty} {s.unitOfMeasure}
+                            <td className="py-3 px-3 text-center">
+                              <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="text-[#1d7a35]" />
                             </td>
                             <td className="py-3 pl-3 text-center t-callout tnum">
                               {s.exposureDays === 0 ? 'Mesmo dia' : `${s.exposureDays}d`}
@@ -2099,8 +2114,8 @@
                             <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.lossDate)}</td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(l.responsible) || '—'}</td>
-                            <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#c9271d] whitespace-nowrap">
-                              −{l.qty} {l.unitOfMeasure}
+                            <td className="py-3 px-3 text-center">
+                              <QtyOfBatch qty={l.qty} produced={l.producedQty} unit={l.unitOfMeasure} sign="−" className="text-[#c9271d]" />
                             </td>
                             <td className="py-3 px-3">
                               <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
