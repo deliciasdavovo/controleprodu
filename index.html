@@ -252,8 +252,89 @@
       .field-md { height: 38px; padding: 0 12px; }
       /* Padding próprio: evita conflito com utilitários pl-/pr- do Tailwind */
       .field-search { padding-left: 34px; padding-right: 12px; }
-      .field-select { padding-right: 28px; }
       .field-auto { width: auto; }
+
+      /* Toda caixa de seleção usa a seta do site, e não a do sistema */
+      select.field,
+      .field-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 11px 11px;
+        padding-right: 30px;
+      }
+      select.field { cursor: pointer; }
+      select.field::-ms-expand { display: none; }
+      select.field:focus,
+      .field-select:focus {
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230071e3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      }
+      .field option {
+        font-family: inherit;
+        font-weight: 500;
+        color: var(--ink-1);
+        background: var(--bg-surface);
+      }
+
+      /* ==========================================
+         LISTA DE ESCOLHA (PickerField)
+         Substitui o menu que o navegador desenha sozinho
+         ========================================== */
+      .picker-panel {
+        position: fixed;
+        z-index: 60;
+        padding: 4px;
+        background: var(--bg-surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-md);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.16);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .picker-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        text-align: left;
+        padding: 7px 10px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--ink-1);
+        transition: background-color .12s ease, color .12s ease;
+      }
+      .picker-option[data-active="true"] { background: var(--accent); color: #fff; }
+      .picker-option[data-muted="true"] { color: var(--ink-3); font-weight: 500; }
+      .picker-option[data-active="true"][data-muted="true"] { color: #fff; }
+      .picker-empty {
+        padding: 9px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+
+      /* ==========================================
+         GRIFA-TEXTO DE VALIDADE
+         O nome do item na vitrine recebe a cor do status
+         ========================================== */
+      .mark {
+        background: transparent;
+        color: inherit;
+        border-radius: 7px;
+        padding: 1px 5px;
+        margin-left: -5px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+      .mark-fresh { background: rgba(52, 199, 89, 0.22); color: #14622c; }
+      .mark-warning { background: rgba(255, 159, 10, 0.26); color: #7c4700; }
+      .mark-expired { background: rgba(255, 59, 48, 0.16); color: #a3241b; }
 
       /* Selos de status */
       .pill {
@@ -385,17 +466,18 @@
         Array.from(new Set(products.map((p) => cleanResponsible(p.responsible)).filter(Boolean)))
           .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+      // markClass: grifa-texto aplicado ao nome do item na vitrine
       const getSlotItemStatus = (item, product) => {
-        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-black/5', textClass: 'text-[#86868b]', dotClass: 'bg-[#c7c7cc]' };
+        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-black/5', textClass: 'text-[#86868b]', dotClass: 'bg-[#c7c7cc]', markClass: '' };
         const days = calculateDaysInShowcase(item.manufactureDate);
         const shelfLife = product?.shelfLifeDays || 2;
 
         if (days >= shelfLife) {
-          return { status: 'expired', label: `Vencido · ${days}d`, bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]' };
+          return { status: 'expired', label: `Vencido · ${days}d`, bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]', markClass: 'mark-expired' };
         } else if (days === shelfLife - 1) {
-          return { status: 'warning', label: `Atenção · ${days}d`, bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]' };
+          return { status: 'warning', label: `Atenção · ${days}d`, bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]', markClass: 'mark-warning' };
         }
-        return { status: 'normal', label: `Fresco · ${days}d`, bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]' };
+        return { status: 'normal', label: `Fresco · ${days}d`, bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]', markClass: 'mark-fresh' };
       };
 
       // ==========================================
@@ -403,7 +485,7 @@
       //
       // Dados do projeto (Supabase → Project Settings → API).
       // A chave abaixo é a pública, feita para ficar no navegador —
-      // quem protege os dados é o RLS, na seção 12 do schema.sql.
+      // quem protege os dados é o RLS, na seção 13 do schema.sql.
       //
       // Antes do primeiro uso, rode supabase/schema.sql no SQL Editor.
       // ==========================================
@@ -506,6 +588,20 @@
         slotId: row.slot_code
       });
 
+      const fromProduction = (row) => ({
+        id: row.id,
+        unit: row.unit_code,
+        productId: row.product_id,
+        productName: row.product_name,
+        responsible: row.responsible || '',
+        qty: row.qty,
+        unitOfMeasure: row.unit_of_measure,
+        manufactureDate: row.manufacture_date,
+        slotId: row.slot_code,
+        source: row.source,
+        timestamp: row.produced_at
+      });
+
       const fromSeparated = (row) => ({
         id: row.id,
         unit: row.unit_code,
@@ -519,11 +615,18 @@
 
       const SLOT_ITEM_COLUMNS = '*, products(name)';
 
+      // O histórico de produção chegou depois das outras tabelas: um banco que
+      // ainda não rodou a versão nova do schema.sql continua abrindo o app
+      const runSoft = async (query) => {
+        const { data, error } = await query;
+        return error ? null : data;
+      };
+
       // ------------------------------------------
       // Leitura: carrega o estado inteiro do banco
       // ------------------------------------------
       const fetchEverything = async () => {
-        const [units, products, slots, slotItems, plans, sales, losses, separated] = await Promise.all([
+        const [units, products, slots, slotItems, plans, sales, losses, separated, production] = await Promise.all([
           run('unidades', sb.from('units').select('*').order('name')),
           run('produtos', sb.from('products').select('*').eq('is_active', true).order('name')),
           run('espaços da vitrine', sb.from('showcase_slots').select('*').order('shelf_number').order('slot_number')),
@@ -531,7 +634,8 @@
           run('vitrine padrão', sb.from('standard_plans').select('*')),
           run('vendas', sb.from('sale_records').select('*').order('sold_at', { ascending: false }).limit(500)),
           run('perdas', sb.from('loss_records').select('*').order('loss_date', { ascending: false }).limit(500)),
-          run('itens fora da vitrine', sb.from('separated_products').select('*').eq('is_active', true).order('name'))
+          run('itens fora da vitrine', sb.from('separated_products').select('*').eq('is_active', true).order('name')),
+          runSoft(sb.from('production_records').select('*').order('produced_at', { ascending: false }).limit(500))
         ]);
 
         return {
@@ -542,11 +646,187 @@
           standardPlans: (plans || []).map(fromPlan),
           saleRecords: (sales || []).map(fromSale),
           lossRecords: (losses || []).map(fromLoss),
-          separatedProducts: (separated || []).map(fromSeparated)
+          separatedProducts: (separated || []).map(fromSeparated),
+          productionRecords: (production || []).map(fromProduction),
+          productionReady: production !== null
         };
       };
 
       const getUnitName = (units, code) => units.find((u) => u.code === code)?.name || code;
+
+      // ==========================================
+      // PICKER FIELD — CAIXA DE SELEÇÃO DO SITE
+      //
+      // O navegador desenha <select> e <datalist> com o estilo dele, que não
+      // combina com o resto da tela. Este campo usa a mesma lista em todo o
+      // app: cartão branco, cantos arredondados e realce azul.
+      //
+      // Dois modos, escolhidos pelo que é passado:
+      //   • com onType  → texto livre com sugestões (produto, responsável)
+      //   • sem onType  → escolha fechada, como um <select>
+      // ==========================================
+      const PickerField = ({
+        value = '',
+        options = [],
+        onPick,
+        onType,
+        placeholder = '',
+        className = 'field field-md',
+        inputRef,
+        onKeyDown,
+        title,
+        emptyLabel = 'Nada encontrado'
+      }) => {
+        const [open, setOpen] = useState(false);
+        const [active, setActive] = useState(-1);
+        const [search, setSearch] = useState('');
+        const [typed, setTyped] = useState(false);
+        const [box, setBox] = useState(null);
+
+        const localRef = useRef(null);
+        const fieldRef = inputRef || localRef;
+
+        const isFree = typeof onType === 'function';
+        const selected = options.find((o) => o.value === value) || null;
+        // A lista só filtra depois que a pessoa digita: abrir um campo já
+        // preenchido mostra todas as opções, para poder trocar de uma vez
+        const term = typed ? (isFree ? value : search).trim().toLowerCase() : '';
+        const visible = term
+          ? options.filter((o) => o.label.toLowerCase().includes(term))
+          : options;
+
+        // A lista fica presa ao corpo da página: assim ela não é cortada por
+        // tabelas com rolagem nem por cartões com overflow escondido
+        const measure = () => {
+          const el = fieldRef.current;
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          const below = window.innerHeight - r.bottom;
+          const flip = below < 180 && r.top > below;
+          setBox({
+            left: r.left,
+            width: r.width,
+            top: flip ? null : r.bottom + 6,
+            bottom: flip ? window.innerHeight - r.top + 6 : null,
+            maxHeight: Math.max(120, Math.min(260, (flip ? r.top : below) - 16))
+          });
+        };
+
+        useEffect(() => {
+          if (!open) return;
+          measure();
+          const reposition = () => measure();
+          window.addEventListener('scroll', reposition, true);
+          window.addEventListener('resize', reposition);
+          return () => {
+            window.removeEventListener('scroll', reposition, true);
+            window.removeEventListener('resize', reposition);
+          };
+        }, [open]);
+
+        const openList = () => { setSearch(''); setTyped(false); setActive(-1); setOpen(true); };
+        const close = () => { setOpen(false); setActive(-1); setTyped(false); };
+
+        const choose = (opt) => {
+          onPick(opt);
+          close();
+        };
+
+        const handleChange = (e) => {
+          const texto = e.target.value;
+          setActive(-1);
+          setTyped(true);
+          setOpen(true);
+          if (isFree) onType(texto);
+          else setSearch(texto);
+        };
+
+        const handleKeyDown = (e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!open) { openList(); return; }
+            const passo = e.key === 'ArrowDown' ? 1 : -1;
+            setActive((i) => {
+              if (visible.length === 0) return -1;
+              const proximo = i + passo;
+              if (proximo < 0) return visible.length - 1;
+              if (proximo >= visible.length) return 0;
+              return proximo;
+            });
+            return;
+          }
+          if (e.key === 'Escape' && open) { e.preventDefault(); close(); return; }
+          // Enter só escolhe quando alguém está destacado na lista;
+          // fora isso o Enter segue para quem usa o campo
+          if (e.key === 'Enter' && open && visible[active]) {
+            e.preventDefault();
+            choose(visible[active]);
+            return;
+          }
+          if (e.key === 'Tab') close();
+          if (onKeyDown) onKeyDown(e);
+        };
+
+        // Modo fechado: o campo mostra o item escolhido e vira busca ao abrir
+        const texto = isFree ? value : (open ? search : (selected ? selected.label : ''));
+        const placeholderAtual = !isFree && open && selected ? selected.label : placeholder;
+
+        return (
+          <>
+            <input
+              ref={fieldRef}
+              type="text"
+              role="combobox"
+              aria-expanded={open}
+              autoComplete="off"
+              title={title}
+              placeholder={placeholderAtual}
+              value={texto}
+              onChange={handleChange}
+              onMouseDown={() => { if (!open) openList(); }}
+              onBlur={close}
+              onKeyDown={handleKeyDown}
+              className={`${className} field-select`}
+            />
+
+            {open && box && ReactDOM.createPortal(
+              <div
+                className="picker-panel"
+                style={{
+                  left: box.left,
+                  width: box.width,
+                  top: box.top === null ? undefined : box.top,
+                  bottom: box.bottom === null ? undefined : box.bottom,
+                  maxHeight: box.maxHeight
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                {visible.length === 0 ? (
+                  <div className="picker-empty">{emptyLabel}</div>
+                ) : (
+                  visible.map((opt, i) => (
+                    <button
+                      key={opt.value || opt.label}
+                      type="button"
+                      data-active={i === active}
+                      data-muted={!!opt.muted}
+                      onMouseEnter={() => setActive(i)}
+                      onMouseDown={(e) => { e.preventDefault(); choose(opt); }}
+                      className="picker-option"
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {opt.value === value && opt.value !== '' && (
+                        <Icons.CheckCircle2 className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>,
+              document.body
+            )}
+          </>
+        );
+      };
 
       // ==========================================
       // NAVBAR COMPONENT
@@ -557,7 +837,7 @@
           { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
           { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
           { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
-          { id: 'historico', label: 'Histórico', fullLabel: 'Histórico e Vendas', icon: Icons.History },
+          { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History },
           { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee },
           { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos', icon: Icons.Package }
         ];
@@ -730,8 +1010,8 @@
                                     {statusInfo.label}
                                   </span>
                                 </div>
-                                <h4 className="text-[13px] font-bold text-[#1d1d1f] leading-[1.25] tracking-[-0.015em] line-clamp-2">
-                                  {item.productName}
+                                <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em] line-clamp-2">
+                                  <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                                 </h4>
                               </div>
 
@@ -802,6 +1082,8 @@
         const unitSlotIds = new Set(unitSlots.map((s) => s.id));
         const itemsInUnit = slotItems.filter((item) => unitSlotIds.has(item.slotId));
 
+        const productOptions = products.map((p) => ({ value: p.name, label: p.name }));
+
         const filteredItems = itemsInUnit.filter((item) =>
           item.productName.toLowerCase().includes(filterText.toLowerCase())
         );
@@ -839,13 +1121,14 @@
 
                 <div>
                   <label className="t-caption block mb-1">Produto</label>
-                  <input
-                    ref={productNameRef}
-                    type="text"
-                    list="product-suggestions"
+                  <PickerField
+                    inputRef={productNameRef}
                     placeholder="Digite ou escolha…"
                     value={quickProductName}
-                    onChange={(e) => setQuickProductName(e.target.value)}
+                    options={productOptions}
+                    onType={setQuickProductName}
+                    onPick={(opt) => setQuickProductName(opt.label)}
+                    emptyLabel="Produto novo — o cadastro é feito ao alocar"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && quickProductName.trim()) {
                         e.preventDefault();
@@ -854,11 +1137,6 @@
                     }}
                     className="field field-sm font-semibold"
                   />
-                  <datalist id="product-suggestions">
-                    {products.map((p) => (
-                      <option key={p.id} value={p.name} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-12 gap-2 items-end">
@@ -945,8 +1223,8 @@
                     <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h4 className="text-[13px] font-bold text-[#1d1d1f] leading-tight tracking-[-0.015em]">
-                            {item.productName}
+                          <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em]">
+                            <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                           </h4>
                           <p className="t-caption text-[11px] mt-0.5 tnum">
                             {slot ? `Prateleira ${slot.shelfNumber} · slot #${slot.slotNumber}` : 'Apoio'}
@@ -1053,6 +1331,12 @@
         const dayPlans = standardPlans.filter(
           (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
         );
+
+        // A primeira opção limpa o espaço, como o "Espaço vazio" de antes
+        const productOptions = [
+          { value: '', label: 'Espaço vazio', muted: true },
+          ...products.map((p) => ({ value: p.id, label: p.name }))
+        ];
 
         const handleCopy = () => {
           if (selectedDay === targetCopyDay) {
@@ -1173,25 +1457,24 @@
                               {planItem && <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3]" />}
                             </div>
 
-                            <select
-                              value={planItem?.productId || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (!val) {
-                                  if (planItem) onRemovePlanItem(planItem.id);
-                                } else {
-                                  const prod = products.find((p) => p.id === val);
+                            <div className="mb-2">
+                              <PickerField
+                                value={planItem?.productId || ''}
+                                options={productOptions}
+                                placeholder="Espaço vazio"
+                                emptyLabel="Nenhum produto com esse nome"
+                                onPick={(opt) => {
+                                  if (!opt.value) {
+                                    if (planItem) onRemovePlanItem(planItem.id);
+                                    return;
+                                  }
+                                  const prod = products.find((p) => p.id === opt.value);
                                   const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
-                                  onUpdatePlanItem(slot.id, val, qty);
-                                }
-                              }}
-                              className="field field-sm font-semibold mb-2"
-                            >
-                              <option value="">Espaço vazio</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                              ))}
-                            </select>
+                                  onUpdatePlanItem(slot.id, opt.value, qty);
+                                }}
+                                className="field field-sm font-semibold"
+                              />
+                            </div>
 
                             {planItem && (
                               <p className="t-caption text-[11px] mb-2 flex items-center gap-1 truncate">
@@ -1551,11 +1834,20 @@
       // ==========================================
       // HISTORY & SALES VIEW
       // ==========================================
-      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords }) => {
-        const [activeTab, setActiveTab] = useState('vendas');
+      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords, productionRecords, productionReady, slots }) => {
+        const [activeTab, setActiveTab] = useState('producao');
         const unitSales = saleRecords.filter((s) => s.unit === currentUnit);
         const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
+        const unitProduction = productionRecords.filter((p) => p.unit === currentUnit);
         const totalSalesQty = unitSales.reduce((acc, s) => acc + s.qty, 0);
+        const totalProducedQty = unitProduction.reduce((acc, p) => acc + p.qty, 0);
+
+        const SOURCE_LABELS = { avulso: 'Lançamento avulso', pedido: 'Pedido de produção' };
+
+        const slotLabel = (slotId) => {
+          const slot = slots.find((s) => s.id === slotId);
+          return slot ? `Prateleira ${slot.shelfNumber} · #${slot.slotNumber}` : '—';
+        };
 
         const avgDays = unitSales.length > 0
           ? (unitSales.reduce((acc, s) => acc + (s.exposureDays || 0), 0) / unitSales.length).toFixed(1)
@@ -1569,11 +1861,23 @@
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="t-display">Histórico e vendas</h2>
-              <p className="t-body mt-1">{unitName}</p>
+              <h2 className="t-display">Histórico da vitrine</h2>
+              <p className="t-body mt-1">Produção, vendas e perdas — {unitName}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.ChefHat className="w-3.5 h-3.5" />
+                  Total produzido
+                </span>
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#0071e3]">
+                  {totalProducedQty}
+                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
+                </div>
+                <p className="t-caption mt-2 tnum">{unitProduction.length} lançamento(s) na vitrine</p>
+              </div>
+
               <div className="card p-5">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.ShoppingCart className="w-3.5 h-3.5" />
@@ -1613,6 +1917,9 @@
             <div className="card p-5 sm:p-6 space-y-1">
               <div className="flex items-center pb-4 border-b hairline">
                 <div className="segmented">
+                  <button onClick={() => setActiveTab('producao')} data-active={activeTab === 'producao'}>
+                    Produção ({unitProduction.length})
+                  </button>
                   <button onClick={() => setActiveTab('vendas')} data-active={activeTab === 'vendas'}>
                     Vendas ({unitSales.length})
                   </button>
@@ -1622,7 +1929,65 @@
                 </div>
               </div>
 
-              {activeTab === 'vendas' ? (
+              {activeTab === 'producao' ? (
+                <div className="space-y-3">
+                  {!productionReady && (
+                    <div className="card-quiet p-4 flex items-start gap-2.5 mt-3">
+                      <Icons.AlertTriangle className="w-4 h-4 text-[#a35e00] shrink-0 mt-0.5" />
+                      <p className="t-callout">
+                        O histórico de produção ainda não existe neste banco. Abra o Supabase → SQL Editor e rode
+                        o arquivo <strong className="text-[#1d1d1f] font-bold">supabase/schema.sql</strong> de novo:
+                        ele cria a tabela <code className="text-[12px] bg-black/[0.05] px-1 py-0.5 rounded">production_records</code> sem
+                        mexer no que já está gravado.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="t-overline text-[10px]">
+                          <th className="py-3 pr-3 font-bold">Data e hora</th>
+                          <th className="py-3 px-3 font-bold">Produto</th>
+                          <th className="py-3 px-3 font-bold">Responsável</th>
+                          <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                          <th className="py-3 px-3 font-bold">Fabricação</th>
+                          <th className="py-3 px-3 font-bold">Espaço</th>
+                          <th className="py-3 pl-3 font-bold">Origem</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unitProduction.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-10">
+                              <p className="t-body text-[#86868b]">Nenhuma produção lançada</p>
+                              <p className="t-caption mt-1">
+                                Cada item alocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui
+                              </p>
+                            </td>
+                          </tr>
+                        ) : (
+                          unitProduction.map((p) => (
+                            <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                              <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(p.timestamp).toLocaleString('pt-BR')}</td>
+                              <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.productName}</td>
+                              <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(p.responsible) || '—'}</td>
+                              <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#0071e3] whitespace-nowrap">
+                                +{p.qty} {p.unitOfMeasure}
+                              </td>
+                              <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{formatDateBR(p.manufactureDate) || '—'}</td>
+                              <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{slotLabel(p.slotId)}</td>
+                              <td className="py-3 pl-3">
+                                <span className="pill bg-black/[0.05] text-[#6e6e73]">{SOURCE_LABELS[p.source] || p.source}</span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : activeTab === 'vendas' ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
@@ -1855,6 +2220,9 @@
         const responsibleOptions = listResponsibles(products);
         const hasUnassigned = products.some((p) => !cleanResponsible(p.responsible));
 
+        const productOptions = products.map((p) => ({ value: p.name, label: p.name }));
+        const responsiblePickerOptions = responsibleOptions.map((r) => ({ value: r, label: r }));
+
         // Nome igual ao de um produto já cadastrado: a linha passa a editar aquele produto
         const findByName = (value) =>
           normalizeName(value)
@@ -1947,13 +2315,14 @@
                 <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
                   <div className="col-span-12 md:col-span-3">
                     <label className="t-caption block mb-1">Produto</label>
-                    <input
-                      ref={nameRef}
-                      type="text"
-                      list="catalog-product-suggestions"
+                    <PickerField
+                      inputRef={nameRef}
                       placeholder="Digite ou busque…"
                       value={draft.name}
-                      onChange={(e) => handleDraftName(e.target.value)}
+                      options={productOptions}
+                      onType={handleDraftName}
+                      onPick={(opt) => handleDraftName(opt.label)}
+                      emptyLabel="Nome novo — vai entrar como produto novo"
                       onKeyDown={goToField(responsibleRef)}
                       className="field field-md font-semibold"
                     />
@@ -1961,13 +2330,14 @@
 
                   <div className="col-span-7 md:col-span-3">
                     <label className="t-caption block mb-1">Responsável</label>
-                    <input
-                      ref={responsibleRef}
-                      type="text"
-                      list="responsible-suggestions"
+                    <PickerField
+                      inputRef={responsibleRef}
                       placeholder="Ex: Dona Rita"
                       value={draft.responsible}
-                      onChange={(e) => setField('responsible', e.target.value)}
+                      options={responsiblePickerOptions}
+                      onType={(texto) => setField('responsible', texto)}
+                      onPick={(opt) => setField('responsible', opt.value)}
+                      emptyLabel="Responsável novo — é criado ao salvar"
                       onKeyDown={goToField(categoryRef)}
                       className="field field-md"
                     />
@@ -2033,12 +2403,6 @@
                     : 'Validade em dias contados da fabricação. Um nome já cadastrado abre o produto para edição.'}
                 </p>
               </form>
-
-              <datalist id="catalog-product-suggestions">
-                {products.map((p) => (
-                  <option key={p.id} value={p.name} />
-                ))}
-              </datalist>
             </div>
 
             <div className="card p-5 sm:p-6 space-y-1">
@@ -2065,12 +2429,6 @@
                   {hasUnassigned && <option value="sem">{NO_RESPONSIBLE_LABEL}</option>}
                 </select>
               </div>
-
-              <datalist id="responsible-suggestions">
-                {responsibleOptions.map((r) => (
-                  <option key={r} value={r} />
-                ))}
-              </datalist>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -2101,15 +2459,18 @@
                             />
                           </td>
                           <td className="py-2.5 px-3">
-                            <input
-                              type="text"
-                              list="responsible-suggestions"
-                              value={p.responsible || ''}
-                              onChange={(e) => onUpdateProduct({ ...p, responsible: e.target.value })}
-                              placeholder="Quem responde…"
-                              title="Responsável pelo produto"
-                              className="field h-8 px-2.5 text-[12px] w-32 sm:w-40"
-                            />
+                            <div className="w-32 sm:w-40">
+                              <PickerField
+                                value={p.responsible || ''}
+                                options={responsiblePickerOptions}
+                                onType={(texto) => onUpdateProduct({ ...p, responsible: texto })}
+                                onPick={(opt) => onUpdateProduct({ ...p, responsible: opt.value })}
+                                placeholder="Quem responde…"
+                                title="Responsável pelo produto"
+                                emptyLabel="Responsável novo"
+                                className="field h-8 pl-2.5 text-[12px]"
+                              />
+                            </div>
                           </td>
                           <td className="py-2.5 px-3">
                             <select
@@ -2372,6 +2733,9 @@
         const [lossRecords, setLossRecords] = useState([]);
         const [saleRecords, setSaleRecords] = useState([]);
         const [separatedProducts, setSeparatedProducts] = useState([]);
+        const [productionRecords, setProductionRecords] = useState([]);
+        // Falso enquanto a tabela production_records não existir no banco
+        const [productionReady, setProductionReady] = useState(true);
 
         const [decreaseModalItem, setDecreaseModalItem] = useState(null);
 
@@ -2394,6 +2758,8 @@
           setSaleRecords(data.saleRecords);
           setLossRecords(data.lossRecords);
           setSeparatedProducts(data.separatedProducts);
+          setProductionRecords(data.productionRecords);
+          setProductionReady(data.productionReady);
           setCurrentUnit((atual) => (data.units.some((u) => u.code === atual) ? atual : data.units[0]?.code || ''));
           setLastSync(new Date());
         };
@@ -2459,6 +2825,20 @@
             delete timersRef.current[key];
             write(label, fn);
           }, 600);
+        };
+
+        // Guarda o que foi colocado na vitrine. A tabela é nova: se o banco
+        // ainda não a tem, a alocação continua valendo e a tela do histórico
+        // explica o que falta rodar — nada de erro em cima de quem está na loja
+        const logProduction = async (linhas) => {
+          if (linhas.length === 0) return;
+          const { data, error } = await sb.from('production_records').insert(linhas).select();
+          if (error) {
+            setProductionReady(false);
+            return;
+          }
+          setProductionReady(true);
+          setProductionRecords((prev) => [...data.map(fromProduction), ...prev]);
         };
 
         const totalAlerts = useMemo(() => {
@@ -2596,6 +2976,8 @@
 
             const targetSlot = unitSlots.find((s) => !slotItems.some((i) => i.slotId === s.id)) || unitSlots[0];
 
+            const dataFabricacao = manufactureDate || getTodayDateString();
+
             const linhas = await run('slot_items', sb.from('slot_items').insert({
               slot_code: targetSlot.id,
               product_id: product.id,
@@ -2603,11 +2985,23 @@
               current_qty: qty,
               unit_of_measure: product.defaultUnit || 'un',
               min_qty: product.minReplenishmentQty || 5,
-              manufacture_date: manufactureDate || getTodayDateString(),
+              manufacture_date: dataFabricacao,
               entry_date: getTodayDateString()
             }).select(SLOT_ITEM_COLUMNS));
 
             setSlotItems((prev) => [...prev, { ...fromSlotItem(linhas[0]), productName: product.name }]);
+
+            await logProduction([{
+              unit_code: currentUnit,
+              product_id: product.id,
+              product_name: product.name,
+              responsible: cleanResponsible(product.responsible),
+              qty,
+              unit_of_measure: product.defaultUnit || 'un',
+              manufacture_date: dataFabricacao,
+              slot_code: targetSlot.id,
+              source: 'avulso'
+            }]);
           });
         };
 
@@ -2705,6 +3099,22 @@
             ).select(SLOT_ITEM_COLUMNS));
 
             setSlotItems((prev) => [...prev, ...linhas.map(fromSlotItem)]);
+
+            await logProduction(itemsToProduce.map((item) => {
+              const product = products.find((p) => p.id === item.productId);
+              return {
+                unit_code: currentUnit,
+                product_id: item.productId,
+                product_name: product?.name || item.productName,
+                responsible: cleanResponsible(product?.responsible),
+                qty: item.qty,
+                unit_of_measure: product?.defaultUnit || 'un',
+                manufacture_date: today,
+                slot_code: item.slotId,
+                source: 'pedido'
+              };
+            }));
+
             setActiveTab('vitrine');
           });
         };
@@ -2921,6 +3331,9 @@
                   unitName={getUnitName(units, currentUnit)}
                   saleRecords={saleRecords}
                   lossRecords={lossRecords}
+                  productionRecords={productionRecords}
+                  productionReady={productionReady}
+                  slots={slots}
                 />
               )}
 

@@ -229,7 +229,43 @@ comment on column public.loss_records.responsible is 'Responsável pelo produto 
 
 
 -- ---------------------------------------------------------------------
--- 9. Produtos fora da vitrine (revenda, cafeteria, encomenda)
+-- 9. Histórico de produção (o que foi colocado na vitrine)
+--
+-- slot_items mostra só o que está exposto agora e some quando o item
+-- acaba. Esta tabela guarda cada lançamento, para a loja poder olhar
+-- para trás e ver o que foi produzido em cada dia.
+-- ---------------------------------------------------------------------
+create table if not exists public.production_records (
+  id                uuid primary key default gen_random_uuid(),
+  unit_code         text not null references public.units (code) on delete cascade,
+  product_id        uuid references public.products (id) on delete set null,
+  product_name      text not null,
+  responsible       text not null default '',
+  qty               integer not null,
+  unit_of_measure   text not null default 'un',
+  manufacture_date  date,
+  slot_code         text references public.showcase_slots (code) on delete set null,
+  source            text not null default 'avulso',
+  produced_at       timestamptz not null default now(),
+  created_at        timestamptz not null default now(),
+  constraint production_records_qty_check check (qty > 0),
+  constraint production_records_source_check
+    check (source in ('avulso', 'pedido'))
+);
+
+create index if not exists production_records_unit_date_idx
+  on public.production_records (unit_code, produced_at desc);
+create index if not exists production_records_product_idx
+  on public.production_records (product_id);
+create index if not exists production_records_responsible_idx
+  on public.production_records (unit_code, responsible);
+
+comment on table public.production_records is 'Cada item colocado na vitrine, com quantidade, espaço e responsável.';
+comment on column public.production_records.source is 'avulso = lista de apoio; pedido = pedido de produção do dia.';
+
+
+-- ---------------------------------------------------------------------
+-- 10. Produtos fora da vitrine (revenda, cafeteria, encomenda)
 -- ---------------------------------------------------------------------
 create table if not exists public.separated_products (
   id               uuid primary key default gen_random_uuid(),
@@ -262,7 +298,7 @@ comment on table public.separated_products is 'Bebidas, cafeteria e encomendas �
 
 
 -- ---------------------------------------------------------------------
--- 10. Dados iniciais
+-- 11. Dados iniciais
 -- ---------------------------------------------------------------------
 
 -- Unidades
@@ -321,7 +357,7 @@ on conflict (unit_code, name) do nothing;
 
 
 -- ---------------------------------------------------------------------
--- 11. Visões de apoio
+-- 12. Visões de apoio
 -- ---------------------------------------------------------------------
 
 -- Situação de cada item na vitrine, com o status de validade já calculado
@@ -393,7 +429,7 @@ $$;
 
 
 -- ---------------------------------------------------------------------
--- 12. Row Level Security
+-- 13. Row Level Security
 --
 -- ATENÇÃO: o app roda sem tela de login, então as políticas abaixo
 -- liberam leitura e escrita para a chave anon. Qualquer pessoa com essa
@@ -408,6 +444,7 @@ alter table public.slot_items         enable row level security;
 alter table public.standard_plans     enable row level security;
 alter table public.sale_records       enable row level security;
 alter table public.loss_records       enable row level security;
+alter table public.production_records enable row level security;
 alter table public.separated_products enable row level security;
 
 do $$
@@ -416,7 +453,8 @@ declare
 begin
   foreach t in array array[
     'units', 'products', 'showcase_slots', 'slot_items',
-    'standard_plans', 'sale_records', 'loss_records', 'separated_products'
+    'standard_plans', 'sale_records', 'loss_records',
+    'production_records', 'separated_products'
   ]
   loop
     execute format('drop policy if exists %I on public.%I', t || '_full_access', t);
@@ -430,7 +468,7 @@ $$;
 
 
 -- ---------------------------------------------------------------------
--- 13. Permissões
+-- 14. Permissões
 -- ---------------------------------------------------------------------
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
