@@ -324,28 +324,75 @@ on conflict (name) do update
   set responsible = excluded.responsible
   where public.products.responsible = '';
 
--- Espaços da vitrine
--- Matriz: 40 salgadas + 15 doces + 4 sobremesas = 59 espaços
--- Vila Nova: 24 salgadas + 8 doces = 32 espaços
+-- ---------------------------------------------------------------------
+-- Espaços da vitrine — o desenho real das duas lojas
+--
+-- Cada linha da tabela abaixo é uma seção da vitrine, com o número de
+-- espaços que ela tem de verdade. Para mudar a loja, mude só o número
+-- da última coluna e rode o script de novo.
+--
+--   Matriz     salgada  24  |  doce  14  |  sobremesa  25
+--   Vila Nova  salgada  16  |  doce   8  |  sobremesa   8
+--
+-- ATENÇÃO: espaços que deixarem de existir no desenho abaixo são
+-- apagados, junto com o que estiver exposto neles e com o que o padrão
+-- da semana tiver planejado para eles. As vendas, perdas e o histórico
+-- de produção continuam guardados — só perdem a ligação com o espaço.
+-- ---------------------------------------------------------------------
+drop table if exists showcase_layout_tmp;
+create temp table showcase_layout_tmp (
+  unit_code      text,
+  showcase_type  text,
+  shelf_number   integer,
+  section_label  text,
+  slots          integer
+);
+
+insert into showcase_layout_tmp values
+  -- Matriz — vitrine salgada: 24 espaços
+  ('matriz',   'salgada',   1, 'Salgados',           16),
+  ('matriz',   'salgada',   2, 'Tortas',              8),
+  -- Matriz — vitrine doce: 14 espaços
+  ('matriz',   'doce',      1, 'Pão de bolinha',      2),
+  ('matriz',   'doce',      2, 'Bolos',               4),
+  ('matriz',   'doce',      3, 'Bandejas de doces',   8),
+  -- Matriz — vitrine sobremesa: 25 espaços
+  ('matriz',   'sobremesa', 1, 'Doces de potinho',    5),
+  ('matriz',   'sobremesa', 2, 'Bolos cremosos',      2),
+  ('matriz',   'sobremesa', 3, 'Bandejas',            8),
+  ('matriz',   'sobremesa', 4, 'Sobremesas grandes', 10),
+  -- Vila Nova — vitrine salgada: 16 espaços
+  ('vilanova', 'salgada',   1, 'Salgados',           14),
+  ('vilanova', 'salgada',   2, 'Tortas',              2),
+  -- Vila Nova — vitrine doce: 8 espaços
+  ('vilanova', 'doce',      1, 'Doces',               6),
+  ('vilanova', 'doce',      2, 'Pão de bolinha',      2),
+  -- Vila Nova — vitrine sobremesa: 8 espaços
+  ('vilanova', 'sobremesa', 1, 'Doces de potinho',    3),
+  ('vilanova', 'sobremesa', 2, 'Sobremesas',          5);
+
 insert into public.showcase_slots (code, unit_code, showcase_type, shelf_number, slot_number, section_title)
 select
-  format('%s-%s-s%s-p%s', cfg.unit_code, cfg.showcase_type, shelf.n, slot.n),
-  cfg.unit_code,
-  cfg.showcase_type,
-  shelf.n,
-  slot.n,
-  format('Prateleira %s - %s', shelf.n, cfg.section_label)
-from (
-  values
-    ('matriz',   'salgada',   'Salgados',   4, 10),
-    ('matriz',   'doce',      'Doces',      3,  5),
-    ('matriz',   'sobremesa', 'Sobremesas', 2,  2),
-    ('vilanova', 'salgada',   'Salgados',   3,  8),
-    ('vilanova', 'doce',      'Doces',      2,  4)
-) as cfg (unit_code, showcase_type, section_label, shelves, slots)
-cross join lateral generate_series(1, cfg.shelves) as shelf(n)
-cross join lateral generate_series(1, cfg.slots)   as slot(n)
-on conflict (code) do nothing;
+  format('%s-%s-s%s-p%s', l.unit_code, l.showcase_type, l.shelf_number, s.n),
+  l.unit_code,
+  l.showcase_type,
+  l.shelf_number,
+  s.n,
+  l.section_label
+from showcase_layout_tmp l
+cross join lateral generate_series(1, l.slots) as s(n)
+on conflict (code) do update
+  set section_title = excluded.section_title;
+
+delete from public.showcase_slots sl
+where not exists (
+  select 1
+  from showcase_layout_tmp l
+  cross join lateral generate_series(1, l.slots) as s(n)
+  where sl.code = format('%s-%s-s%s-p%s', l.unit_code, l.showcase_type, l.shelf_number, s.n)
+);
+
+drop table showcase_layout_tmp;
 
 -- Itens fora da vitrine (exemplo inicial da Matriz)
 insert into public.separated_products (unit_code, name, category, current_qty, unit_of_measure, min_qty, price) values
