@@ -327,12 +327,12 @@ on conflict (name) do update
 -- ---------------------------------------------------------------------
 -- Espaços da vitrine — o desenho real das duas lojas
 --
--- Cada linha da tabela abaixo é uma seção da vitrine, com o número de
--- espaços que ela tem de verdade. Para mudar a loja, mude só o número
--- da última coluna e rode o script de novo.
+-- Cada linha da tabela abaixo é uma vitrine, com o número de espaços
+-- que ela tem de verdade. Para mudar a loja, mude só o número da última
+-- coluna e rode o script de novo.
 --
---   Matriz     salgada  24  |  doce  14  |  sobremesa  25
---   Vila Nova  salgada  16  |  doce   8  |  sobremesa   8
+--   Matriz     salgada 1  12  |  salgada 2  12  |  doce  12  |  sobremesa  12
+--   Vila Nova  salgada    16  |  doce        8  |  sobremesa  8
 --
 -- ATENÇÃO: espaços que deixarem de existir no desenho abaixo são
 -- apagados, junto com o que estiver exposto neles e com o que o padrão
@@ -344,27 +344,15 @@ on conflict (name) do update
 -- ---------------------------------------------------------------------
 with layout (unit_code, showcase_type, shelf_number, section_label, slots) as (
   values
-    -- Matriz — vitrine salgada: 24 espaços
-    ('matriz',   'salgada',   1, 'Salgados',           16),
-    ('matriz',   'salgada',   2, 'Tortas',              8),
-    -- Matriz — vitrine doce: 14 espaços
-    ('matriz',   'doce',      1, 'Pão de bolinha',      2),
-    ('matriz',   'doce',      2, 'Bolos',               4),
-    ('matriz',   'doce',      3, 'Bandejas de doces',   8),
-    -- Matriz — vitrine sobremesa: 25 espaços
-    ('matriz',   'sobremesa', 1, 'Doces de potinho',    5),
-    ('matriz',   'sobremesa', 2, 'Bolos cremosos',      2),
-    ('matriz',   'sobremesa', 3, 'Bandejas',            8),
-    ('matriz',   'sobremesa', 4, 'Sobremesas grandes', 10),
-    -- Vila Nova — vitrine salgada: 16 espaços
-    ('vilanova', 'salgada',   1, 'Salgados',           14),
-    ('vilanova', 'salgada',   2, 'Tortas',              2),
-    -- Vila Nova — vitrine doce: 8 espaços
-    ('vilanova', 'doce',      1, 'Doces',               6),
-    ('vilanova', 'doce',      2, 'Pão de bolinha',      2),
-    -- Vila Nova — vitrine sobremesa: 8 espaços
-    ('vilanova', 'sobremesa', 1, 'Doces de potinho',    3),
-    ('vilanova', 'sobremesa', 2, 'Sobremesas',          5)
+    -- Matriz: duas vitrines de salgada, uma de doce e uma de sobremesa
+    ('matriz',   'salgada',   1, 'Vitrine Salgada 1', 12),
+    ('matriz',   'salgada',   2, 'Vitrine Salgada 2', 12),
+    ('matriz',   'doce',      1, 'Vitrine Doce',      12),
+    ('matriz',   'sobremesa', 1, 'Vitrine Sobremesa', 12),
+    -- Vila Nova
+    ('vilanova', 'salgada',   1, 'Vitrine Salgada',   16),
+    ('vilanova', 'doce',      1, 'Vitrine Doce',       8),
+    ('vilanova', 'sobremesa', 1, 'Vitrine Sobremesa',  8)
 ),
 espacos as (
   select
