@@ -1847,15 +1847,29 @@
           ? pendingItems
           : pendingItems.filter((item) => item.responsible === activeResponsible);
 
-        // O checklist sai separado por vitrine — é assim que a cozinha monta
-        const showcaseBlocks = groupByShowcase(
-          itemsNeedingProduction,
-          (item) => ({
-            showcaseType: item.showcaseType,
-            shelfNumber: item.shelfNumber,
-            sectionTitle: item.showcaseTitle
-          })
-        );
+        // O pedido é entregue por pessoa: cada responsável recebe a lista do
+        // que ele tem para produzir, com a vitrine anotada em cada item.
+        const responsibleBlocks = useMemo(() => {
+          const blocos = [];
+          const porNome = {};
+
+          itemsNeedingProduction.forEach((item) => {
+            if (!porNome[item.responsible]) {
+              porNome[item.responsible] = { key: item.responsible, title: item.responsible, entries: [] };
+              blocos.push(porNome[item.responsible]);
+            }
+            porNome[item.responsible].entries.push(item);
+          });
+
+          // Cada lista sai na ordem das vitrines; quem não tem responsável fica no fim
+          blocos.forEach((bloco) => bloco.entries.sort(compareShowcase));
+
+          return blocos.sort((a, b) => {
+            if (a.title === NO_RESPONSIBLE_LABEL) return 1;
+            if (b.title === NO_RESPONSIBLE_LABEL) return -1;
+            return a.title.localeCompare(b.title, 'pt-BR');
+          });
+        }, [itemsNeedingProduction]);
 
         const handleApplyAll = () => {
           if (itemsNeedingProduction.length === 0) return;
@@ -1929,14 +1943,19 @@
                   <p className="t-callout">Nada em falta em relação ao padrão ideal</p>
                 </div>
               ) : (
-                <div className="space-y-5 pt-1">
-                  {showcaseBlocks.map((bloco) => (
+                <div className="space-y-6 pt-1">
+                  {responsibleBlocks.map((bloco) => (
                     <div key={bloco.key}>
-                      <div className="flex items-center gap-2 pb-1">
-                        <span className="t-overline">{bloco.title}</span>
-                        <span className="t-caption tnum">{bloco.entries.length}</span>
+                      <div className="flex items-center gap-2.5 pb-1.5">
+                        <span className="w-7 h-7 shrink-0 rounded-full bg-[#0071e3]/10 text-[#0058b0] text-[10px] font-extrabold flex items-center justify-center tracking-tight">
+                          {getResponsibleInitials(bloco.title === NO_RESPONSIBLE_LABEL ? '' : bloco.title)}
+                        </span>
+                        <span className="t-headline text-[#1d1d1f] uppercase tracking-[0.02em] truncate">
+                          {bloco.title}
+                        </span>
+                        <span className="t-caption tnum shrink-0">{bloco.entries.length} item(ns)</span>
                         <span className="flex-1 h-px bg-black/[0.06]" />
-                        <span className="t-caption tnum">
+                        <span className="pill bg-[#ff9f0a]/12 text-[#8a5200] tnum shrink-0">
                           +{bloco.entries.reduce((acc, i) => acc + i.neededQty, 0)}
                         </span>
                       </div>
@@ -1958,10 +1977,6 @@
                                   {item.productName}
                                 </h4>
                                 <p className="t-caption mt-0.5 truncate">{item.showcaseTitle} · {item.slotLabel}</p>
-                                <p className="t-caption mt-1 flex items-center gap-1 truncate">
-                                  <Icons.User className="w-3 h-3 shrink-0" />
-                                  <span className="truncate">{item.responsible}</span>
-                                </p>
                               </div>
                             </div>
 
