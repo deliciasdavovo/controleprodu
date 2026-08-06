@@ -1193,7 +1193,7 @@
       // ==========================================
       // SHOWCASE GRID COMPONENT
       // ==========================================
-      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, onIncrementQty, onOpenDecreaseModal, onOpenSlot }) => {
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, onIncrementQty, onQuickSale, onOpenDecreaseModal, onOpenSlot }) => {
         const [filterType, setFilterType] = useState('salgada');
 
         const unitSlots = useMemo(() => {
@@ -1218,7 +1218,7 @@
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
               <div>
                 <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
-                <p className="t-callout mt-0.5">Toque em um espaço para colocar produto, repor ou dar baixa</p>
+                <p className="t-callout mt-0.5">"Vendi 1" tira uma unidade na hora · o ⚠ abre a perda e a baixa em lote</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="segmented">
@@ -1310,6 +1310,9 @@
                                       </span>
                                     </div>
 
+                                    {/* Vender é o que mais acontece no balcão: um
+                                        clique tira uma unidade. Perda e baixa em
+                                        lote ficam no botão de opções ao lado. */}
                                     <div className="flex items-center gap-1.5">
                                       <button
                                         onClick={() => onIncrementQty(item.id)}
@@ -1319,11 +1322,19 @@
                                         <Icons.Plus className="w-3.5 h-3.5" />
                                       </button>
                                       <button
-                                        onClick={() => onOpenDecreaseModal(item)}
-                                        className="btn btn-warn flex-1 h-7 text-[12px]"
-                                        title="Registrar venda ou perda"
+                                        onClick={() => onQuickSale(item.id)}
+                                        className="btn btn-success flex-1 h-7 text-[12px]"
+                                        title="Vendeu 1 — baixa direta, sem abrir janela"
                                       >
-                                        Baixa
+                                        <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                        Vendi 1
+                                      </button>
+                                      <button
+                                        onClick={() => onOpenDecreaseModal(item, 'perda')}
+                                        className="btn w-8 h-7 px-0 shrink-0 bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/18"
+                                        title="Perda e outras baixas — quantidade maior, motivo, vendeu tudo"
+                                      >
+                                        <Icons.AlertTriangle className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
                                   </div>
@@ -1356,7 +1367,7 @@
       // ==========================================
       // TACTICAL SUPPORT LIST COMPONENT
       // ==========================================
-      const SupportList = ({ currentUnit, slotItems, products, slots, onUpdateItem, onQuickAllocate, onRecordSellAll, onOpenDecreaseModal, onRemoveItem }) => {
+      const SupportList = ({ currentUnit, slotItems, products, slots, onUpdateItem, onQuickAllocate, onQuickSale, onRecordSellAll, onOpenDecreaseModal, onRemoveItem }) => {
         const [filterText, setFilterText] = useState('');
         const [quickProductName, setQuickProductName] = useState('');
         const [quickQty, setQuickQty] = useState(10);
@@ -1553,8 +1564,8 @@
                             </span>
                           </div>
 
-                          <div className="flex items-end gap-2 mt-2.5">
-                            <label className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-end gap-2 mt-2.5">
+                            <label className="flex-1 min-w-[104px]">
                               <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
                               <input
                                 type="date"
@@ -1588,11 +1599,13 @@
                               />
                             </label>
 
+                            {/* Mesma divisão da vitrine física: o − vende uma
+                                unidade na hora, o triângulo abre a perda */}
                             <div className="flex items-center gap-1 shrink-0">
                               <button
-                                onClick={() => onOpenDecreaseModal(item)}
-                                title="Baixa · venda ou perda"
-                                className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold text-[13px] flex items-center justify-center transition-colors"
+                                onClick={() => onQuickSale(item.id)}
+                                title="Vendeu 1 — baixa direta, sem abrir janela"
+                                className="w-7 h-7 rounded-full bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35] font-bold text-[13px] flex items-center justify-center transition-colors"
                               >
                                 −
                               </button>
@@ -1602,6 +1615,13 @@
                                 className="w-7 h-7 rounded-full bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35] flex items-center justify-center transition-colors"
                               >
                                 <Icons.CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => onOpenDecreaseModal(item, 'perda')}
+                                title="Perda e outras baixas"
+                                className="w-7 h-7 rounded-full bg-[#ff9f0a]/12 hover:bg-[#ff9f0a]/22 text-[#8a5200] flex items-center justify-center transition-colors"
+                              >
+                                <Icons.AlertTriangle className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => onRemoveItem(item.id)}
@@ -3759,9 +3779,11 @@
       // ==========================================
       // ITEM DECREASE MODAL
       // ==========================================
-      const ItemDecreaseModal = ({ item, onClose, onRecordSale, onRecordLoss, onRecordSellAll }) => {
+      // A venda de uma unidade acontece com um clique na vitrine; esta janela é
+      // para o resto: perda com motivo, baixa em lote e "vendeu tudo".
+      const ItemDecreaseModal = ({ item, initialMode = 'venda', onClose, onRecordSale, onRecordLoss, onRecordSellAll }) => {
         if (!item) return null;
-        const [mode, setMode] = useState('venda');
+        const [mode, setMode] = useState(initialMode);
         const [qty, setQty] = useState(1);
         const [reason, setReason] = useState('vencido');
         const [details, setDetails] = useState('');
@@ -3886,6 +3908,37 @@
       };
 
       // ==========================================
+      // BARRA DE DESFAZER DA VENDA DE UM CLIQUE
+      //
+      // A venda entra sem confirmar, então o conserto do clique errado fica
+      // aqui embaixo por alguns segundos.
+      // ==========================================
+      const UndoSaleBar = ({ info, onUndo, onDismiss }) => (
+        <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-[#1d1d1f] text-white pl-4 pr-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)] max-w-full">
+            <Icons.ShoppingCart className="w-4 h-4 text-[#5ddc7c] shrink-0" />
+            <span className="text-[13px] font-semibold tracking-[-0.01em] truncate">
+              <span className="tnum">{info.qty} {info.item.unit}</span> de {info.item.productName} — venda registrada
+            </span>
+            <button
+              onClick={onUndo}
+              className="btn btn-sm bg-white/[0.14] text-white hover:bg-white/25 shrink-0"
+            >
+              <Icons.History className="w-3.5 h-3.5" />
+              Desfazer
+            </button>
+            <button
+              onClick={onDismiss}
+              title="Fechar"
+              className="w-7 h-7 rounded-full hover:bg-white/15 text-white/70 flex items-center justify-center shrink-0 transition-colors"
+            >
+              <Icons.X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      );
+
+      // ==========================================
       // TELAS DE ESTADO DA CONEXÃO
       // ==========================================
       const CenteredCard = ({ children }) => (
@@ -3960,7 +4013,10 @@
         // Falso enquanto standard_plans não tiver prioridade e frequência
         const [planExtrasReady, setPlanExtrasReady] = useState(true);
 
-        const [decreaseModalItem, setDecreaseModalItem] = useState(null);
+        // { item, mode } — o modo diz se a janela abre em venda ou em perda
+        const [decreaseTarget, setDecreaseTarget] = useState(null);
+        // Última venda de um clique, enquanto ela ainda pode ser desfeita
+        const [undoSale, setUndoSale] = useState(null);
         const [slotToFill, setSlotToFill] = useState(null);
 
         const [loadState, setLoadState] = useState('loading'); // loading | ready | error
@@ -3973,11 +4029,31 @@
         const busyRef = useRef(0);
         const timersRef = useRef({});
 
+        // Espelho dos itens da vitrine, lido no mesmo instante do clique. O
+        // estado do React só chega no próximo render, e a venda de um clique
+        // não pode esperar por ele.
+        const slotItemsRef = useRef(slotItems);
+        slotItemsRef.current = slotItems;
+        const aplicarSlotItems = (atualizar) => {
+          const proximos = typeof atualizar === 'function' ? atualizar(slotItemsRef.current) : atualizar;
+          slotItemsRef.current = proximos;
+          setSlotItems(proximos);
+        };
+
+        // Uma baixa de cada vez: gravações em paralelo poderiam chegar ao
+        // banco fora de ordem e deixar o saldo do espaço errado
+        const baixaQueueRef = useRef(Promise.resolve());
+        const enfileirarBaixa = (label, fn) => {
+          const tarefa = baixaQueueRef.current.then(() => write(label, fn));
+          baixaQueueRef.current = tarefa.catch(() => {});
+          return tarefa;
+        };
+
         const applySnapshot = (data) => {
           setUnits(data.units);
           setProducts(data.products);
           setSlots(data.slots);
-          setSlotItems(data.slotItems);
+          aplicarSlotItems(data.slotItems);
           setStandardPlans(data.standardPlans);
           setSaleRecords(data.saleRecords);
           setLossRecords(data.lossRecords);
@@ -4016,6 +4092,14 @@
           return () => { clearInterval(id); window.removeEventListener('focus', tick); };
         }, []);
 
+        // O "Desfazer" da venda de um clique vale por alguns segundos: depois
+        // disso a barra sai da frente sozinha
+        useEffect(() => {
+          if (!undoSale) return;
+          const id = setTimeout(() => setUndoSale(null), 8000);
+          return () => clearTimeout(id);
+        }, [undoSale]);
+
         // Descarta as gravações agendadas ao sair da página
         useEffect(() => () => {
           Object.values(timersRef.current).forEach(clearTimeout);
@@ -4028,9 +4112,10 @@
           busyRef.current += 1;
           setPendingWrites((n) => n + 1);
           try {
-            await fn();
+            const resultado = await fn();
             setLastSync(new Date());
             setErrorMsg('');
+            return resultado;
           } catch (e) {
             // Recarrega primeiro (o reload limpa a mensagem) e só então avisa,
             // para o aviso não sumir junto
@@ -4077,18 +4162,18 @@
         }, [slotItems, slots, products, currentUnit]);
 
         const handleIncrementQty = (itemId) => {
-          const target = slotItems.find((i) => i.id === itemId);
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target) return;
           const novaQtd = target.currentQty + 1;
 
-          setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: novaQtd } : i));
-          write('Repor uma unidade', () =>
+          aplicarSlotItems(slotItemsRef.current.map((i) => i.id === itemId ? { ...i, currentQty: novaQtd } : i));
+          enfileirarBaixa('Repor uma unidade', () =>
             run('slot_items', sb.from('slot_items').update({ current_qty: novaQtd }).eq('id', itemId))
           );
         };
 
         const handleUpdateItem = (updatedItem) => {
-          setSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
+          aplicarSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
           writeSoon(`item:${updatedItem.id}`, 'Atualizar item da vitrine', () =>
             run('slot_items', sb.from('slot_items').update({
               produced_qty: updatedItem.producedQty,
@@ -4098,14 +4183,25 @@
           );
         };
 
-        // Venda e perda seguem o mesmo caminho: grava a baixa e acerta o saldo do espaço
+        // Venda e perda seguem o mesmo caminho: grava a baixa e acerta o saldo do espaço.
+        //
+        // Com a venda de um clique, dois toques seguidos no mesmo item chegam
+        // aqui antes de a primeira gravação voltar do banco. Por isso o saldo
+        // sai do espelho (slotItemsRef), desce na tela na hora e as gravações
+        // entram em fila — senão o segundo toque leria o saldo antigo e o
+        // banco terminaria com uma unidade a mais.
         const registrarBaixa = (tabela, itemId, qty, extras, label) => {
-          const target = slotItems.find((i) => i.id === itemId);
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target || qty <= 0) return;
           const product = products.find((p) => p.id === target.productId);
           const restante = target.currentQty - qty;
+          const zerou = restante <= 0;
 
-          return write(label, async () => {
+          aplicarSlotItems(zerou
+            ? slotItemsRef.current.filter((i) => i.id !== itemId)
+            : slotItemsRef.current.map((i) => i.id === itemId ? { ...i, currentQty: restante } : i));
+
+          return enfileirarBaixa(label, async () => {
             const linhas = await run(tabela, sb.from(tabela).insert({
               unit_code: currentUnit,
               product_id: target.productId,
@@ -4125,26 +4221,75 @@
               setLossRecords((prev) => [fromLoss(registro), ...prev]);
             }
 
-            if (restante <= 0) {
+            // A tela já desceu o saldo; aqui só o banco acompanha
+            if (zerou) {
               await run('slot_items', sb.from('slot_items').delete().eq('id', itemId));
-              setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
             } else {
               await run('slot_items', sb.from('slot_items').update({ current_qty: restante }).eq('id', itemId));
-              setSlotItems((prev) => prev.map((i) => i.id === itemId ? { ...i, currentQty: restante } : i));
             }
+
+            // O que a venda de um clique precisa para voltar atrás
+            return { recordId: registro.id, item: target, qty, zerou };
           });
         };
 
         const handleRecordSale = (itemId, qty) => {
-          const target = slotItems.find((i) => i.id === itemId);
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target) return;
-          registrarBaixa('sale_records', itemId, qty, {
+          return registrarBaixa('sale_records', itemId, qty, {
             exposure_days: calculateDaysInShowcase(target.manufactureDate)
           }, 'Registrar venda');
         };
 
+        // Um clique = uma unidade vendida. Sem janela, sem confirmação — e com
+        // "Desfazer" na tela por alguns segundos para o clique errado
+        const handleQuickSale = async (itemId) => {
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
+          if (!target || target.currentQty <= 0) return;
+          const baixa = await handleRecordSale(itemId, 1);
+          if (baixa) setUndoSale(baixa);
+        };
+
+        // Apaga o registro da venda e devolve a unidade ao espaço. Se a baixa
+        // tinha zerado o item, o espaço é montado de novo com os mesmos dados
+        const handleUndoSale = () => {
+          const alvo = undoSale;
+          if (!alvo) return;
+          setUndoSale(null);
+
+          enfileirarBaixa('Desfazer venda', async () => {
+            await run('sale_records', sb.from('sale_records').delete().eq('id', alvo.recordId));
+            setSaleRecords((prev) => prev.filter((s) => s.id !== alvo.recordId));
+
+            // A baixa levou o item embora: o espaço volta a ser montado com os
+            // mesmos dados, em uma linha nova
+            if (alvo.zerou) {
+              const linhas = await run('slot_items', sb.from('slot_items').insert({
+                slot_code: alvo.item.slotId,
+                product_id: alvo.item.productId,
+                produced_qty: alvo.item.producedQty,
+                current_qty: alvo.item.currentQty,
+                unit_of_measure: alvo.item.unit,
+                min_qty: alvo.item.minQty,
+                manufacture_date: alvo.item.manufactureDate,
+                entry_date: alvo.item.entryDate
+              }).select(SLOT_ITEM_COLUMNS));
+              aplicarSlotItems([...slotItemsRef.current, fromSlotItem(linhas[0])]);
+              return;
+            }
+
+            // Soma sobre o saldo de agora: o balcão pode ter mexido no item
+            // entre a venda e o arrependimento
+            const atual = slotItemsRef.current.find((i) => i.id === alvo.item.id);
+            if (!atual) return;
+            const devolvido = atual.currentQty + alvo.qty;
+            await run('slot_items', sb.from('slot_items').update({ current_qty: devolvido }).eq('id', alvo.item.id));
+            aplicarSlotItems(slotItemsRef.current.map((i) => i.id === alvo.item.id ? { ...i, currentQty: devolvido } : i));
+          });
+        };
+
         const handleRecordLoss = (itemId, qty, reason, details) => {
-          const target = slotItems.find((i) => i.id === itemId);
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target) return;
           registrarBaixa('loss_records', itemId, qty, {
             loss_date: getTodayDateString(),
@@ -4154,19 +4299,24 @@
           }, 'Registrar perda');
         };
 
-        const handleRecordSellAll = (itemId) => {
-          const target = slotItems.find((i) => i.id === itemId);
-          if (target) handleRecordSale(itemId, target.currentQty);
+        // "Vendeu tudo" também sai de um clique, então ganha o mesmo desfazer
+        const handleRecordSellAll = async (itemId) => {
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
+          if (!target || target.currentQty <= 0) return;
+          const baixa = await handleRecordSale(itemId, target.currentQty);
+          if (baixa) setUndoSale(baixa);
         };
 
+        const abrirBaixa = (item, mode = 'venda') => setDecreaseTarget({ item, mode });
+
         const handleRemoveItem = (itemId) => {
-          const target = slotItems.find((i) => i.id === itemId);
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target || !window.confirm(`Remover "${target.productName}" da vitrine?`)) return;
 
-          write('Remover item da vitrine', async () => {
-            await run('slot_items', sb.from('slot_items').delete().eq('id', itemId));
-            setSlotItems((prev) => prev.filter((i) => i.id !== itemId));
-          });
+          aplicarSlotItems(slotItemsRef.current.filter((i) => i.id !== itemId));
+          enfileirarBaixa('Remover item da vitrine', () =>
+            run('slot_items', sb.from('slot_items').delete().eq('id', itemId))
+          );
         };
 
         // slotId vindo da vitrine física manda o produto para aquele espaço,
@@ -4225,7 +4375,7 @@
               entry_date: getTodayDateString()
             }).select(SLOT_ITEM_COLUMNS));
 
-            setSlotItems((prev) => [...prev, { ...fromSlotItem(linhas[0]), productName: product.name }]);
+            aplicarSlotItems((prev) => [...prev, { ...fromSlotItem(linhas[0]), productName: product.name }]);
 
             await logProduction([{
               unit_code: currentUnit,
@@ -4428,7 +4578,7 @@
               })
             ).select(SLOT_ITEM_COLUMNS));
 
-            setSlotItems((prev) => [...prev, ...linhas.map(fromSlotItem)]);
+            aplicarSlotItems((prev) => [...prev, ...linhas.map(fromSlotItem)]);
 
             await logProduction(itemsToProduce.map((item) => {
               const product = products.find((p) => p.id === item.productId);
@@ -4629,7 +4779,8 @@
                       slotItems={slotItems}
                       products={products}
                       onIncrementQty={handleIncrementQty}
-                      onOpenDecreaseModal={setDecreaseModalItem}
+                      onQuickSale={handleQuickSale}
+                      onOpenDecreaseModal={abrirBaixa}
                       onOpenSlot={setSlotToFill}
                     />
                   </div>
@@ -4641,8 +4792,9 @@
                       slots={slots}
                       onUpdateItem={handleUpdateItem}
                       onQuickAllocate={handleQuickAllocate}
+                      onQuickSale={handleQuickSale}
                       onRecordSellAll={handleRecordSellAll}
-                      onOpenDecreaseModal={setDecreaseModalItem}
+                      onOpenDecreaseModal={abrirBaixa}
                       onRemoveItem={handleRemoveItem}
                     />
                   </div>
@@ -4733,13 +4885,23 @@
               onConfirm={handleQuickAllocate}
             />
 
-            <ItemDecreaseModal
-              item={decreaseModalItem}
-              onClose={() => setDecreaseModalItem(null)}
-              onRecordSale={handleRecordSale}
-              onRecordLoss={handleRecordLoss}
-              onRecordSellAll={handleRecordSellAll}
-            />
+            {/* A chave remonta a janela a cada abertura: o modo (venda ou
+                perda) e a quantidade sempre começam do zero */}
+            {decreaseTarget && (
+              <ItemDecreaseModal
+                key={`${decreaseTarget.item.id}:${decreaseTarget.mode}`}
+                item={slotItems.find((i) => i.id === decreaseTarget.item.id) || decreaseTarget.item}
+                initialMode={decreaseTarget.mode}
+                onClose={() => setDecreaseTarget(null)}
+                onRecordSale={handleRecordSale}
+                onRecordLoss={handleRecordLoss}
+                onRecordSellAll={handleRecordSellAll}
+              />
+            )}
+
+            {undoSale && (
+              <UndoSaleBar info={undoSale} onUndo={handleUndoSale} onDismiss={() => setUndoSale(null)} />
+            )}
 
             <footer className="mt-auto border-t hairline">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2">
