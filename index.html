@@ -399,13 +399,44 @@
         X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />,
         CheckSquare: (props) => <IconBase d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} {...props} />,
         Square: (props) => <IconBase d="M3 3h18v18H3z" {...props} />,
-        User: (props) => <IconBase d={["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"]} {...props} />
+        User: (props) => <IconBase d={["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"]} {...props} />,
+        ChevronLeft: (props) => <IconBase d="M15 18l-6-6 6-6" {...props} />,
+        ChevronRight: (props) => <IconBase d="M9 18l6-6-6-6" {...props} />
       };
 
       // ==========================================
       // UTILITIES & CONSTANTS
       // ==========================================
-      const getTodayDateString = () => new Date().toISOString().split('T')[0];
+      // ------------------------------------------
+      // Datas trabalhadas como "AAAA-MM-DD" no fuso da loja.
+      // toISOString() daria o dia de amanhã depois das 21h no Brasil.
+      // ------------------------------------------
+      const keyFromDate = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      const dateFromKey = (key) => {
+        const [ano, mes, dia] = String(key).split('-').map(Number);
+        return new Date(ano, (mes || 1) - 1, dia || 1);
+      };
+
+      const toDayKey = (value) => (value ? String(value).split('T')[0] : '');
+
+      const shiftDayKey = (key, dias) => {
+        const d = dateFromKey(key);
+        d.setDate(d.getDate() + dias);
+        return keyFromDate(d);
+      };
+
+      // Semana da loja começa na segunda
+      const startOfWeekKey = (key) => {
+        const d = dateFromKey(key);
+        d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        return keyFromDate(d);
+      };
+
+      const weekdayName = (key) => dateFromKey(key).toLocaleDateString('pt-BR', { weekday: 'long' });
+
+      const getTodayDateString = () => keyFromDate(new Date());
 
       const formatDateBR = (dateStr) => {
         if (!dateStr) return '';
@@ -478,6 +509,41 @@
           return { status: 'warning', label: `Atenção · ${days}d`, bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]', markClass: 'mark-warning' };
         }
         return { status: 'normal', label: `Fresco · ${days}d`, bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]', markClass: 'mark-fresh' };
+      };
+
+      // ------------------------------------------
+      // Tempo de exposição lido em cima da validade do produto:
+      // "vendeu fresquinho" é diferente de "vendeu no último dia"
+      // ------------------------------------------
+      const getExposureInfo = (days, shelfLife) => {
+        const cinza = { bgClass: 'bg-black/[0.05]', textClass: 'text-[#6e6e73]', dotClass: 'bg-[#c7c7cc]' };
+        if (days === null || days === undefined) {
+          return { status: 'indefinido', label: 'Sem registro', ...cinza };
+        }
+
+        const validade = Number(shelfLife) || 0;
+        if (validade <= 0) {
+          return { status: 'indefinido', label: days === 0 ? 'No mesmo dia' : `${days}d na vitrine`, ...cinza };
+        }
+        if (days >= validade) {
+          return {
+            status: 'vencido',
+            label: `${days}d · passou da validade`,
+            bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]'
+          };
+        }
+        if (days === validade - 1) {
+          return {
+            status: 'limite',
+            label: `${days}d · último dia de validade`,
+            bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]'
+          };
+        }
+        return {
+          status: 'fresco',
+          label: days === 0 ? 'Fresquinho · saiu no mesmo dia' : `${days}d · dentro da validade`,
+          bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]'
+        };
       };
 
       // ==========================================
@@ -1894,31 +1960,123 @@
       };
 
       // ==========================================
-      // HISTORY & SALES VIEW
+      // HISTORY VIEW — PRODUÇÃO, VENDAS E PERDAS
+      //
+      // Navega por dia ou por semana, e mostra os três tipos de lançamento
+      // juntos na aba "Tudo". Cada venda diz o quanto o produto ficou na
+      // vitrine em relação à validade dele.
       // ==========================================
-      const HistoryView = ({ currentUnit, unitName, saleRecords, lossRecords, productionRecords, productionReady, slots, onDeleteLoss, onDeleteProduction }) => {
-        const [activeTab, setActiveTab] = useState('producao');
-        const unitSales = saleRecords.filter((s) => s.unit === currentUnit);
-        const unitLosses = lossRecords.filter((l) => l.unit === currentUnit);
-        const unitProduction = productionRecords.filter((p) => p.unit === currentUnit);
-        const totalSalesQty = unitSales.reduce((acc, s) => acc + s.qty, 0);
-        const totalProducedQty = unitProduction.reduce((acc, p) => acc + p.qty, 0);
+      const HistoryView = ({
+        currentUnit,
+        unitName,
+        products,
+        slots,
+        saleRecords,
+        lossRecords,
+        productionRecords,
+        productionReady,
+        onDeleteLoss,
+        onDeleteProduction
+      }) => {
+        const [activeTab, setActiveTab] = useState('tudo');
+        const [periodo, setPeriodo] = useState('dia');
+        const [refDia, setRefDia] = useState(getTodayDateString());
 
-        const SOURCE_LABELS = { avulso: 'Lançamento avulso', pedido: 'Pedido de produção' };
+        const hoje = getTodayDateString();
+        const inicio = periodo === 'semana' ? startOfWeekKey(refDia) : refDia;
+        const fim = periodo === 'semana' ? shiftDayKey(inicio, 6) : refDia;
+        // Chave AAAA-MM-DD compara certo como texto
+        const noPeriodo = (dia) => periodo === 'tudo' || (dia >= inicio && dia <= fim);
+
+        const shelfLifeDe = (productId) => products.find((p) => p.id === productId)?.shelfLifeDays;
+
+        // A produção é contada pelo dia de fabricação, não pela hora do lançamento
+        const producao = productionRecords
+          .filter((p) => p.unit === currentUnit)
+          .map((p) => ({ ...p, dia: toDayKey(p.manufactureDate || p.timestamp) }))
+          .filter((p) => noPeriodo(p.dia));
+
+        const vendas = saleRecords
+          .filter((s) => s.unit === currentUnit)
+          .map((s) => ({ ...s, dia: toDayKey(s.timestamp) }))
+          .filter((s) => noPeriodo(s.dia));
+
+        const perdas = lossRecords
+          .filter((l) => l.unit === currentUnit)
+          .map((l) => ({ ...l, dia: toDayKey(l.lossDate) }))
+          .filter((l) => noPeriodo(l.dia));
+
+        const totalProduzido = producao.reduce((acc, p) => acc + p.qty, 0);
+        const totalVendido = vendas.reduce((acc, s) => acc + s.qty, 0);
+        const totalPerdido = perdas.reduce((acc, l) => acc + l.qty, 0);
+        const eficiencia = totalVendido + totalPerdido > 0
+          ? ((totalVendido / (totalVendido + totalPerdido)) * 100).toFixed(1) + '%'
+          : '—';
+
+        // Como as vendas saíram em relação à validade
+        const frescor = vendas.reduce((acc, s) => {
+          const info = getExposureInfo(s.exposureDays, shelfLifeDe(s.productId));
+          acc[info.status] = (acc[info.status] || 0) + s.qty;
+          return acc;
+        }, {});
+
+        const tudo = [
+          ...producao.map((r) => ({ ...r, tipo: 'producao' })),
+          ...vendas.map((r) => ({ ...r, tipo: 'venda' })),
+          ...perdas.map((r) => ({ ...r, tipo: 'perda' }))
+        ].sort((a, b) => (a.dia === b.dia ? 0 : a.dia < b.dia ? 1 : -1));
 
         const slotLabel = (slotId) => {
           const slot = slots.find((s) => s.id === slotId);
           return slot ? `${slot.sectionTitle} · #${slot.slotNumber}` : '—';
         };
 
-        const avgDays = unitSales.length > 0
-          ? (unitSales.reduce((acc, s) => acc + (s.exposureDays || 0), 0) / unitSales.length).toFixed(1)
-          : '0';
+        const SOURCE_LABELS = { avulso: 'Lançamento avulso', pedido: 'Pedido de produção' };
 
-        const totalLossQty = unitLosses.reduce((a, b) => a + b.qty, 0);
-        const efficiency = totalSalesQty + totalLossQty > 0
-          ? ((totalSalesQty / (totalSalesQty + totalLossQty)) * 100).toFixed(1) + '%'
-          : '100%';
+        const TIPOS = {
+          producao: { label: 'Produção', pill: 'bg-[#0071e3]/10 text-[#0058b0]' },
+          venda: { label: 'Venda', pill: 'bg-[#34c759]/12 text-[#1d7a35]' },
+          perda: { label: 'Perda', pill: 'bg-[#ff3b30]/10 text-[#c9271d]' }
+        };
+
+        const mover = (passo) => setRefDia((atual) => shiftDayKey(atual, periodo === 'semana' ? passo * 7 : passo));
+
+        const rotulo = periodo === 'semana'
+          ? `${formatDateBR(inicio)} a ${formatDateBR(fim)}`
+          : formatDateBR(refDia);
+        const subrotulo = periodo === 'semana'
+          ? (inicio === startOfWeekKey(hoje) ? 'Esta semana' : 'Semana')
+          : (refDia === hoje ? 'Hoje' : weekdayName(refDia));
+        const noFuturo = periodo === 'semana' ? inicio >= startOfWeekKey(hoje) : refDia >= hoje;
+
+        const vazioLabel = periodo === 'tudo' ? '' : periodo === 'semana' ? ' nesta semana' : ' neste dia';
+
+        const abas = [
+          { id: 'tudo', label: `Tudo (${tudo.length})` },
+          { id: 'producao', label: `Produção (${producao.length})` },
+          { id: 'vendas', label: `Vendas (${vendas.length})` },
+          { id: 'perdas', label: `Perdas (${perdas.length})` }
+        ];
+
+        const Exposicao = ({ record }) => {
+          const info = getExposureInfo(record.exposureDays, shelfLifeDe(record.productId));
+          return (
+            <span className={`pill ${info.bgClass} ${info.textClass}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${info.dotClass}`} />
+              {info.label}
+            </span>
+          );
+        };
+
+        const BotaoExcluir = ({ onClick, title }) => (
+          <button
+            onClick={onClick}
+            title={title}
+            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+          >
+            <Icons.Trash2 className="w-4 h-4" />
+          </button>
+        );
 
         return (
           <div className="space-y-5">
@@ -1927,164 +2085,205 @@
               <p className="t-body mt-1">Produção, vendas e perdas — {unitName}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Navegação por período */}
+            <div className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="segmented">
+                {[
+                  { id: 'dia', label: 'Por dia' },
+                  { id: 'semana', label: 'Por semana' },
+                  { id: 'tudo', label: 'Tudo' }
+                ].map((op) => (
+                  <button key={op.id} onClick={() => setPeriodo(op.id)} data-active={periodo === op.id}>
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+
+              {periodo === 'tudo' ? (
+                <span className="t-callout tnum">
+                  {tudo.length} lançamento(s) desde o começo
+                </span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => mover(-1)} title="Anterior" className="btn btn-secondary w-8 h-8 px-0 shrink-0">
+                    <Icons.ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <div className="text-center min-w-[172px]">
+                    <div className="t-headline text-[#1d1d1f] tnum">{rotulo}</div>
+                    <div className="t-caption capitalize">{subrotulo}</div>
+                  </div>
+
+                  <button
+                    onClick={() => mover(1)}
+                    disabled={noFuturo}
+                    title="Próximo"
+                    className="btn btn-secondary w-8 h-8 px-0 shrink-0 disabled:opacity-35 disabled:pointer-events-none"
+                  >
+                    <Icons.ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <button onClick={() => setRefDia(hoje)} className="btn btn-secondary btn-sm shrink-0">
+                    Hoje
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Números do período escolhido */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="card p-5">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.ChefHat className="w-3.5 h-3.5" />
-                  Total produzido
+                  Produzido
                 </span>
                 <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#0071e3]">
-                  {totalProducedQty}
+                  {totalProduzido}
                   <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
                 </div>
-                <p className="t-caption mt-2 tnum">{unitProduction.length} lançamento(s) na vitrine</p>
+                <p className="t-caption mt-2 tnum">{producao.length} lançamento(s)</p>
               </div>
 
               <div className="card p-5">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                  Total vendido
+                  Vendido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
-                  {totalSalesQty}
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d7a35]">
+                  {totalVendido}
                   <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
                 </div>
-                <p className="t-caption mt-2 tnum">{unitSales.length} transações</p>
+                <p className="t-caption mt-2 tnum">{vendas.length} baixa(s)</p>
               </div>
 
               <div className="card p-5">
                 <span className="t-overline flex items-center gap-1.5">
-                  <Icons.Clock className="w-3.5 h-3.5" />
-                  Exposição média
+                  <Icons.Trash2 className="w-3.5 h-3.5" />
+                  Perdido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
-                  {avgDays}
-                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> dias</span>
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#c9271d]">
+                  {totalPerdido}
+                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
                 </div>
-                <p className="t-caption mt-2">Do balcão até a venda</p>
+                <p className="t-caption mt-2 tnum">{perdas.length} lançamento(s)</p>
               </div>
 
               <div className="card p-5">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.TrendingUp className="w-3.5 h-3.5" />
-                  Eficiência do balcão
+                  Aproveitamento
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d7a35]">
-                  {efficiency}
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                  {eficiencia}
                 </div>
                 <p className="t-caption mt-2">Vendas sobre vendas + perdas</p>
               </div>
             </div>
 
             <div className="card p-5 sm:p-6 space-y-1">
-              <div className="flex items-center pb-4 border-b hairline">
+              <div className="flex flex-wrap items-center gap-3 pb-4 border-b hairline">
                 <div className="segmented">
-                  <button onClick={() => setActiveTab('producao')} data-active={activeTab === 'producao'}>
-                    Produção ({unitProduction.length})
-                  </button>
-                  <button onClick={() => setActiveTab('vendas')} data-active={activeTab === 'vendas'}>
-                    Vendas ({unitSales.length})
-                  </button>
-                  <button onClick={() => setActiveTab('perdas')} data-active={activeTab === 'perdas'}>
-                    Perdas ({unitLosses.length})
-                  </button>
+                  {abas.map((aba) => (
+                    <button key={aba.id} onClick={() => setActiveTab(aba.id)} data-active={activeTab === aba.id}>
+                      {aba.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {activeTab === 'producao' ? (
-                <div className="space-y-3">
-                  {!productionReady && (
-                    <div className="card-quiet p-4 flex items-start gap-2.5 mt-3">
-                      <Icons.AlertTriangle className="w-4 h-4 text-[#a35e00] shrink-0 mt-0.5" />
-                      <p className="t-callout">
-                        O histórico de produção ainda não existe neste banco. Abra o Supabase → SQL Editor e rode
-                        o arquivo <strong className="text-[#1d1d1f] font-bold">supabase/schema.sql</strong> de novo:
-                        ele cria a tabela <code className="text-[12px] bg-black/[0.05] px-1 py-0.5 rounded">production_records</code> sem
-                        mexer no que já está gravado.
-                      </p>
-                    </div>
+              {/* Como as vendas saíram em relação à validade */}
+              {(activeTab === 'vendas' || activeTab === 'tudo') && vendas.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 pt-3.5 pb-1">
+                  <span className="t-caption">Saída das vendas:</span>
+                  {frescor.fresco > 0 && (
+                    <span className="pill bg-[#34c759]/12 text-[#1d7a35] tnum">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+                      {frescor.fresco} dentro da validade
+                    </span>
                   )}
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="t-overline text-[10px]">
-                          <th className="py-3 pr-3 font-bold">Data e hora</th>
-                          <th className="py-3 px-3 font-bold">Produto</th>
-                          <th className="py-3 px-3 font-bold">Responsável</th>
-                          <th className="py-3 px-3 text-center font-bold">Qtd</th>
-                          <th className="py-3 px-3 font-bold">Fabricação</th>
-                          <th className="py-3 px-3 font-bold">Espaço</th>
-                          <th className="py-3 px-3 font-bold">Origem</th>
-                          <th className="py-3 pl-3 text-right font-bold">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unitProduction.length === 0 ? (
-                          <tr>
-                            <td colSpan={8} className="text-center py-10">
-                              <p className="t-body text-[#86868b]">Nenhuma produção lançada</p>
-                              <p className="t-caption mt-1">
-                                Cada item alocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui
-                              </p>
-                            </td>
-                          </tr>
-                        ) : (
-                          unitProduction.map((p) => (
-                            <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                              <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(p.timestamp).toLocaleString('pt-BR')}</td>
-                              <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.productName}</td>
-                              <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(p.responsible) || '—'}</td>
-                              <td className="py-3 px-3 text-center tnum text-[13px] font-extrabold text-[#0071e3] whitespace-nowrap">
-                                +{p.qty} {p.unitOfMeasure}
-                              </td>
-                              <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{formatDateBR(p.manufactureDate) || '—'}</td>
-                              <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{slotLabel(p.slotId)}</td>
-                              <td className="py-3 px-3">
-                                <span className="pill bg-black/[0.05] text-[#6e6e73]">{SOURCE_LABELS[p.source] || p.source}</span>
-                              </td>
-                              <td className="py-3 pl-3 text-right">
-                                <button
-                                  onClick={() => onDeleteProduction(p.id)}
-                                  title="Excluir este lançamento de produção"
-                                  className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
-                                >
-                                  <Icons.Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  {frescor.limite > 0 && (
+                    <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] tnum">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#ff9f0a]" />
+                      {frescor.limite} no último dia
+                    </span>
+                  )}
+                  {frescor.vencido > 0 && (
+                    <span className="pill bg-[#ff3b30]/10 text-[#c9271d] tnum">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#ff3b30]" />
+                      {frescor.vencido} depois da validade
+                    </span>
+                  )}
+                  {frescor.indefinido > 0 && (
+                    <span className="pill bg-black/[0.05] text-[#6e6e73] tnum">{frescor.indefinido} sem validade definida</span>
+                  )}
                 </div>
-              ) : activeTab === 'vendas' ? (
+              )}
+
+              {!productionReady && (activeTab === 'producao' || activeTab === 'tudo') && (
+                <div className="card-quiet p-4 flex items-start gap-2.5 mt-3">
+                  <Icons.AlertTriangle className="w-4 h-4 text-[#a35e00] shrink-0 mt-0.5" />
+                  <p className="t-callout">
+                    O histórico de produção ainda não existe neste banco. Abra o Supabase → SQL Editor e rode
+                    o arquivo <strong className="text-[#1d1d1f] font-bold">supabase/schema.sql</strong> de novo:
+                    ele cria a tabela <code className="text-[12px] bg-black/[0.05] px-1 py-0.5 rounded">production_records</code> sem
+                    mexer no que já está gravado.
+                  </p>
+                </div>
+              )}
+
+              {/* ---------- TUDO JUNTO ---------- */}
+              {activeTab === 'tudo' && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="t-overline text-[10px]">
-                        <th className="py-3 pr-3 font-bold">Data e hora</th>
+                        <th className="py-3 pr-3 font-bold">Data</th>
+                        <th className="py-3 px-3 font-bold">Tipo</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
-                        <th className="py-3 pl-3 text-center font-bold">Exposição</th>
+                        <th className="py-3 px-3 font-bold">Detalhe</th>
+                        <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {unitSales.length === 0 ? (
-                        <tr><td colSpan={5} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma venda registrada</p></td></tr>
+                      {tudo.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-10">
+                            <p className="t-body text-[#86868b]">Nenhum lançamento{vazioLabel}</p>
+                            <p className="t-caption mt-1">Produção, vendas e perdas aparecem juntas aqui</p>
+                          </td>
+                        </tr>
                       ) : (
-                        unitSales.map((s) => (
-                          <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{new Date(s.timestamp).toLocaleString('pt-BR')}</td>
-                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
-                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
-                            <td className="py-3 px-3 text-center">
-                              <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="text-[#1d7a35]" />
+                        tudo.map((r) => (
+                          <tr key={`${r.tipo}-${r.id}`} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.dia)}</td>
+                            <td className="py-3 px-3">
+                              <span className={`pill ${TIPOS[r.tipo].pill}`}>{TIPOS[r.tipo].label}</span>
                             </td>
-                            <td className="py-3 pl-3 text-center t-callout tnum">
-                              {s.exposureDays === 0 ? 'Mesmo dia' : `${s.exposureDays}d`}
+                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
+                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
+                            <td className="py-3 px-3 text-center">
+                              {r.tipo === 'producao' ? (
+                                <QtyOfBatch qty={r.qty} unit={r.unitOfMeasure} sign="+" className="text-[#0071e3]" />
+                              ) : r.tipo === 'venda' ? (
+                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} className="text-[#1d7a35]" />
+                              ) : (
+                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="text-[#c9271d]" />
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {r.tipo === 'producao' ? (
+                                <span className="t-callout tnum">{slotLabel(r.slotId)}</span>
+                              ) : r.tipo === 'venda' ? (
+                                <Exposicao record={r} />
+                              ) : (
+                                <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
+                              )}
+                            </td>
+                            <td className="py-3 pl-3 text-right">
+                              {r.tipo === 'producao' && <BotaoExcluir onClick={() => onDeleteProduction(r.id)} title="Excluir este lançamento de produção" />}
+                              {r.tipo === 'perda' && <BotaoExcluir onClick={() => onDeleteLoss(r.id)} title="Excluir esta perda" />}
                             </td>
                           </tr>
                         ))
@@ -2092,7 +2291,97 @@
                     </tbody>
                   </table>
                 </div>
-              ) : (
+              )}
+
+              {/* ---------- PRODUÇÃO ---------- */}
+              {activeTab === 'producao' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="t-overline text-[10px]">
+                        <th className="py-3 pr-3 font-bold">Fabricação</th>
+                        <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 font-bold">Responsável</th>
+                        <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 px-3 font-bold">Espaço</th>
+                        <th className="py-3 px-3 font-bold">Origem</th>
+                        <th className="py-3 pl-3 text-right font-bold">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {producao.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-10">
+                            <p className="t-body text-[#86868b]">Nenhuma produção lançada{vazioLabel}</p>
+                            <p className="t-caption mt-1">
+                              Cada item colocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui
+                            </p>
+                          </td>
+                        </tr>
+                      ) : (
+                        producao.map((p) => (
+                          <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(p.dia)}</td>
+                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.productName}</td>
+                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(p.responsible) || '—'}</td>
+                            <td className="py-3 px-3 text-center">
+                              <QtyOfBatch qty={p.qty} unit={p.unitOfMeasure} sign="+" className="text-[#0071e3]" />
+                            </td>
+                            <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{slotLabel(p.slotId)}</td>
+                            <td className="py-3 px-3">
+                              <span className="pill bg-black/[0.05] text-[#6e6e73]">{SOURCE_LABELS[p.source] || p.source}</span>
+                            </td>
+                            <td className="py-3 pl-3 text-right">
+                              <BotaoExcluir onClick={() => onDeleteProduction(p.id)} title="Excluir este lançamento de produção" />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ---------- VENDAS ---------- */}
+              {activeTab === 'vendas' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="t-overline text-[10px]">
+                        <th className="py-3 pr-3 font-bold">Data</th>
+                        <th className="py-3 px-3 font-bold">Produto</th>
+                        <th className="py-3 px-3 font-bold">Responsável</th>
+                        <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 pl-3 font-bold">Como saiu da vitrine</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendas.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-10">
+                            <p className="t-body text-[#86868b]">Nenhuma venda registrada{vazioLabel}</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        vendas.map((s) => (
+                          <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(s.dia)}</td>
+                            <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
+                            <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
+                            <td className="py-3 px-3 text-center">
+                              <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="text-[#1d7a35]" />
+                            </td>
+                            <td className="py-3 pl-3"><Exposicao record={s} /></td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ---------- PERDAS ---------- */}
+              {activeTab === 'perdas' && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
@@ -2106,12 +2395,16 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {unitLosses.length === 0 ? (
-                        <tr><td colSpan={6} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhuma perda registrada</p></td></tr>
+                      {perdas.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-10">
+                            <p className="t-body text-[#86868b]">Nenhuma perda registrada{vazioLabel}</p>
+                          </td>
+                        </tr>
                       ) : (
-                        unitLosses.map((l) => (
+                        perdas.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.lossDate)}</td>
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.dia)}</td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(l.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
@@ -2121,13 +2414,7 @@
                               <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
                             </td>
                             <td className="py-3 pl-3 text-right">
-                              <button
-                                onClick={() => onDeleteLoss(l.id)}
-                                title="Excluir esta perda"
-                                className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
-                              >
-                                <Icons.Trash2 className="w-4 h-4" />
-                              </button>
+                              <BotaoExcluir onClick={() => onDeleteLoss(l.id)} title="Excluir esta perda" />
                             </td>
                           </tr>
                         ))
@@ -2140,7 +2427,6 @@
           </div>
         );
       };
-
       // ==========================================
       // SEPARATED PRODUCTS VIEW (Fora da Vitrine)
       // ==========================================
@@ -3555,6 +3841,7 @@
                 <HistoryView
                   currentUnit={currentUnit}
                   unitName={getUnitName(units, currentUnit)}
+                  products={products}
                   saleRecords={saleRecords}
                   lossRecords={lossRecords}
                   productionRecords={productionRecords}
