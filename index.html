@@ -458,6 +458,108 @@
       };
       const getDayNameBR = (d) => DAYS_MAP[d] || d;
 
+      const WEEK_DAYS = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+
+      const DAYS_SHORT_MAP = {
+        segunda: 'Seg', terca: 'Ter', quarta: 'Qua', quinta: 'Qui',
+        sexta: 'Sex', sabado: 'Sáb', domingo: 'Dom'
+      };
+      const getDayShortBR = (d) => DAYS_SHORT_MAP[d] || d;
+
+      // ------------------------------------------
+      // Prioridade do item na vitrine padrão
+      //
+      // A letra não é só etiqueta: ela decide em que ponto o pedido de produção
+      // chama o item. O que não pode faltar (A) é chamado ainda com meia
+      // vitrine; o que é extra (D) só quando está quase acabando.
+      // ------------------------------------------
+      const PRIORITIES = [
+        {
+          value: 'A', title: 'A · não pode faltar', ratio: 0.50,
+          pill: 'bg-[#ff3b30]/10 text-[#c9271d]', dot: 'bg-[#ff3b30]',
+          hint: 'Carro-chefe: entra no pedido assim que cai para metade do padrão'
+        },
+        {
+          value: 'B', title: 'B · importante', ratio: 0.30,
+          pill: 'bg-[#ff9f0a]/12 text-[#8a5200]', dot: 'bg-[#ff9f0a]',
+          hint: 'Entra no pedido com 30% do padrão na vitrine'
+        },
+        {
+          value: 'C', title: 'C · complementar', ratio: 0.20,
+          pill: 'bg-[#0071e3]/10 text-[#0058b0]', dot: 'bg-[#0071e3]',
+          hint: 'Entra no pedido com 20% do padrão na vitrine'
+        },
+        {
+          value: 'D', title: 'D · extra', ratio: 0.10,
+          pill: 'bg-black/[0.06] text-[#6e6e73]', dot: 'bg-[#c7c7cc]',
+          hint: 'Só é chamado quando está quase acabando (10% do padrão)'
+        }
+      ];
+
+      const DEFAULT_PRIORITY = 'B';
+
+      const getPriority = (value) =>
+        PRIORITIES.find((p) => p.value === value) || PRIORITIES.find((p) => p.value === DEFAULT_PRIORITY);
+
+      const priorityRank = (value) => {
+        const i = PRIORITIES.findIndex((p) => p.value === value);
+        return i === -1 ? PRIORITIES.findIndex((p) => p.value === DEFAULT_PRIORITY) : i;
+      };
+
+      // Em quantos dias da semana o produto deste espaço está planejado
+      const planDaysOf = (standardPlans, unit, slotId, productId) =>
+        WEEK_DAYS.filter((day) =>
+          standardPlans.some(
+            (sp) => sp.unit === unit && sp.dayOfWeek === day && sp.slotId === slotId && sp.productId === productId
+          )
+        );
+
+      // Etiqueta curta, para caber na linha do espaço
+      const frequencyLabel = (days) => {
+        if (days.length >= WEEK_DAYS.length) return 'Todo dia';
+        if (days.length === 0) return 'Nenhum dia';
+        if (days.length === 1) return getDayNameBR(days[0]);
+        if (days.length === 2) return days.map(getDayShortBR).join(' · ');
+        return `${days.length} dias`;
+      };
+
+      // Etiqueta longa, para o title do campo
+      const frequencyTitle = (days) =>
+        days.length >= WEEK_DAYS.length
+          ? 'Todo dia'
+          : days.length === 0
+            ? 'Nenhum dia'
+            : days.map(getDayNameBR).join(', ');
+
+      // ------------------------------------------
+      // Copiar texto para a área de transferência.
+      // navigator.clipboard não existe fora de https (e em WebView antigo),
+      // então tem o caminho antigo pelo textarea escondido.
+      // ------------------------------------------
+      const copyTextToClipboard = async (texto) => {
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+            return true;
+          }
+        } catch (e) { /* cai no plano B */ }
+
+        try {
+          const area = document.createElement('textarea');
+          area.value = texto;
+          area.setAttribute('readonly', '');
+          area.style.position = 'fixed';
+          area.style.top = '-1000px';
+          document.body.appendChild(area);
+          area.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(area);
+          return ok;
+        } catch (e) {
+          return false;
+        }
+      };
+
       // Categorias do catálogo, na ordem em que aparecem nos menus
       const PRODUCT_CATEGORIES = [
         { value: 'salgado', label: 'Salgado' },
@@ -489,7 +591,8 @@
 
       // Ponto de reposição: o pedido de produção só chama o item quando o
       // estoque bom dele cai nesta fatia do que o padrão do dia manda ter.
-      const MIN_STOCK_RATIO = 0.30;
+      // A fatia vem da prioridade do item (A repõe cedo, D repõe no fim).
+      const minStockRatio = (priority) => getPriority(priority).ratio;
 
       // Ordem em que as vitrines aparecem nas listas
       const SHOWCASE_TYPE_ORDER = { salgada: 0, doce: 1, sobremesa: 2 };
@@ -680,7 +783,9 @@
         slotId: row.slot_code,
         productId: row.product_id,
         idealQty: row.ideal_qty,
-        unitOfMeasure: row.unit_of_measure
+        unitOfMeasure: row.unit_of_measure,
+        priority: row.priority || DEFAULT_PRIORITY,
+        frequency: row.frequency || 'dias'
       });
 
       const fromSale = (row) => ({
@@ -773,7 +878,9 @@
           lossRecords: (losses || []).map(fromLoss),
           separatedProducts: (separated || []).map(fromSeparated),
           productionRecords: (production || []).map(fromProduction),
-          productionReady: production !== null
+          productionReady: production !== null,
+          // Banco antigo: as linhas do padrão vêm sem prioridade e frequência
+          planExtrasReady: (plans || []).length === 0 || (plans || [])[0].priority !== undefined
         };
       };
 
@@ -1517,7 +1624,147 @@
       };
 
       // ==========================================
+      // ORGANIZAR ITEM DA VITRINE PADRÃO
+      //
+      // Uma janelinha por espaço: prioridade (A a D), em que dias o item entra
+      // e a quantidade ideal. É aqui que "todo dia" vira as sete linhas da
+      // semana sem precisar copiar dia por dia.
+      // ==========================================
+      const PlanOrganizeModal = ({ slot, product, priority, days, idealQty, onClose, onSave, onRemove }) => {
+        if (!slot) return null;
+        const [prio, setPrio] = useState(priority || DEFAULT_PRIORITY);
+        const [selectedDays, setSelectedDays] = useState(days && days.length ? days : []);
+        const [qty, setQty] = useState(idealQty || 1);
+
+        const todoDia = selectedDays.length === WEEK_DAYS.length;
+
+        const toggleDay = (day) =>
+          setSelectedDays((atual) =>
+            atual.includes(day)
+              ? atual.filter((d) => d !== day)
+              : WEEK_DAYS.filter((d) => d === day || atual.includes(d))
+          );
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (selectedDays.length === 0) {
+            alert('Marque pelo menos um dia — ou use "Tirar do padrão" para remover o item.');
+            return;
+          }
+          onSave({ priority: prio, days: selectedDays, idealQty: Math.max(1, Number(qty) || 1) });
+          onClose();
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+              <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
+                <div className="min-w-0">
+                  <span className="t-overline">Organizar item</span>
+                  <h3 className="t-title text-[#1d1d1f] mt-1 truncate">{product?.name || 'Produto'}</h3>
+                  <p className="t-callout mt-1 truncate">
+                    {slot.sectionTitle} · espaço #{slot.slotNumber} · {getResponsibleName(product)}
+                  </p>
+                </div>
+                <button type="button" onClick={onClose} className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73] flex items-center justify-center shrink-0 transition-colors">
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">Prioridade</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PRIORITIES.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setPrio(p.value)}
+                      title={p.hint}
+                      className={`h-11 rounded-xl border text-[15px] font-extrabold transition-all ${
+                        prio === p.value
+                          ? 'border-[#0071e3] bg-[#0071e3]/[0.06] text-[#0058b0]'
+                          : 'border-black/[0.08] bg-white text-[#6e6e73] hover:bg-black/[0.03]'
+                      }`}
+                    >
+                      {p.value}
+                    </button>
+                  ))}
+                </div>
+                <p className="t-caption mt-1.5">{getPriority(prio).title} — {getPriority(prio).hint}</p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="t-caption">Frequência</label>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDays(todoDia ? [] : [...WEEK_DAYS])}
+                    className="btn btn-secondary h-7 px-2.5 text-[12px]"
+                  >
+                    {todoDia ? 'Limpar dias' : 'Todo dia'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {WEEK_DAYS.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      title={getDayNameBR(day)}
+                      className={`h-10 rounded-xl border text-[12px] font-bold transition-all ${
+                        selectedDays.includes(day)
+                          ? 'border-[#0071e3] bg-[#0071e3] text-white'
+                          : 'border-black/[0.08] bg-white text-[#6e6e73] hover:bg-black/[0.03]'
+                      }`}
+                    >
+                      {getDayShortBR(day)}
+                    </button>
+                  ))}
+                </div>
+                <p className="t-caption mt-1.5">
+                  {todoDia
+                    ? 'O item fica neste espaço nos sete dias da semana.'
+                    : `Entra em: ${frequencyTitle(selectedDays)}.`}
+                  {' '}Nos dias marcados o espaço passa a ser deste produto; nos desmarcados ele fica livre.
+                </p>
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">Quantidade ideal por dia</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  className="field field-md text-center font-extrabold tnum"
+                />
+              </div>
+
+              <div className="flex justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { onRemove(); onClose(); }}
+                  className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16"
+                >
+                  <Icons.Trash2 className="w-3.5 h-3.5" />
+                  Tirar do padrão
+                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={onClose} className="btn btn-secondary btn-md">Cancelar</button>
+                  <button type="submit" className="btn btn-primary btn-md">Salvar</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        );
+      };
+
+      // ==========================================
       // STANDARD SHOWCASE VIEW (Vitrine Padrão)
+      //
+      // As vitrines ficam lado a lado, cada uma em forma de lista: dá para
+      // olhar a salgada e a doce na mesma tela, e cada linha mostra o que
+      // importa para organizar o item — prioridade, dias e quantidade.
       // ==========================================
       const StandardShowcaseView = ({
         currentUnit,
@@ -1529,23 +1776,46 @@
         onSelectDay,
         onUpdatePlanItem,
         onRemovePlanItem,
+        onUpdatePlanSchedule,
         onCopyDayPlan,
         onClearDayPlan,
         onGenerateProductionOrder
       }) => {
         const [targetCopyDay, setTargetCopyDay] = useState('terca');
-        const DAYS = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+        const [priorityFilter, setPriorityFilter] = useState('todas');
+        const [organizing, setOrganizing] = useState(null);
 
         const unitSlots = slots.filter((s) => s.unit === currentUnit);
         const dayPlans = standardPlans.filter(
           (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
         );
 
-        // A primeira opção limpa o espaço, como o "Espaço vazio" de antes
-        const productOptions = [
-          { value: '', label: 'Espaço vazio', muted: true },
-          ...products.map((p) => ({ value: p.id, label: p.name }))
-        ];
+        const planOf = (slotId) => dayPlans.find((sp) => sp.slotId === slotId);
+        const productOf = (productId) => products.find((p) => p.id === productId);
+
+        // Uma coluna por vitrine de verdade (Salgada 1, Salgada 2, Doce…)
+        const showcases = useMemo(() => {
+          const colunas = [];
+          const porChave = {};
+
+          unitSlots.forEach((slot) => {
+            const chave = showcaseKey(slot);
+            if (!porChave[chave]) {
+              porChave[chave] = {
+                key: chave,
+                title: slot.sectionTitle,
+                showcaseType: slot.showcaseType,
+                shelfNumber: slot.shelfNumber,
+                slots: []
+              };
+              colunas.push(porChave[chave]);
+            }
+            porChave[chave].slots.push(slot);
+          });
+
+          colunas.forEach((c) => c.slots.sort((a, b) => a.slotNumber - b.slotNumber));
+          return colunas.sort(compareShowcase);
+        }, [unitSlots]);
 
         const handleCopy = () => {
           if (selectedDay === targetCopyDay) {
@@ -1562,6 +1832,17 @@
           }
         };
 
+        // Quantos itens do dia tem em cada prioridade — vira o filtro do topo
+        const countByPriority = useMemo(() => {
+          const contas = {};
+          PRIORITIES.forEach((p) => { contas[p.value] = 0; });
+          dayPlans.forEach((sp) => { contas[getPriority(sp.priority).value] += 1; });
+          return contas;
+        }, [dayPlans]);
+
+        const matchesFilter = (plan) =>
+          priorityFilter === 'todas' || (plan && getPriority(plan.priority).value === priorityFilter);
+
         return (
           <div className="space-y-5">
             <div className="card p-6 sm:p-7">
@@ -1574,6 +1855,8 @@
                   <h2 className="t-display">Vitrine padrão</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     Defina como a vitrine deve ser montada em cada dia — {unitName}.
+                    Clique nas etiquetas do item para dar prioridade (A a D) e escolher
+                    os dias em que ele entra.
                   </p>
                 </div>
 
@@ -1584,7 +1867,7 @@
               </div>
 
               <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1 scrollbar-none">
-                {DAYS.map((day) => {
+                {WEEK_DAYS.map((day) => {
                   const count = standardPlans.filter(
                     (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
                   ).length;
@@ -1609,7 +1892,29 @@
               </div>
             </div>
 
-            <div className="card-flat p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="card-flat p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="t-callout mr-1">Prioridade</span>
+                <button
+                  onClick={() => setPriorityFilter('todas')}
+                  className={`btn h-8 px-3 text-[12px] ${priorityFilter === 'todas' ? 'btn-primary' : 'btn-secondary'}`}
+                >
+                  Todas
+                </button>
+                {PRIORITIES.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setPriorityFilter(priorityFilter === p.value ? 'todas' : p.value)}
+                    title={p.title}
+                    className={`btn h-8 px-3 text-[12px] ${priorityFilter === p.value ? 'btn-primary' : 'btn-secondary'}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
+                    {p.value}
+                    <span className="tnum opacity-70">{countByPriority[p.value]}</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="flex flex-wrap items-center gap-2.5">
                 <span className="t-callout flex items-center gap-1.5">
                   <Icons.Copy className="w-4 h-4 text-[#6e6e73]" />
@@ -1620,58 +1925,75 @@
                   onChange={(e) => setTargetCopyDay(e.target.value)}
                   className="field field-sm field-select field-auto"
                 >
-                  {DAYS.map((d) => (
+                  {WEEK_DAYS.map((d) => (
                     <option key={d} value={d}>{getDayNameBR(d)}</option>
                   ))}
                 </select>
                 <button onClick={handleCopy} className="btn btn-secondary btn-sm">
                   Copiar
                 </button>
+                <button onClick={handleClear} className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16">
+                  <Icons.Trash2 className="w-3.5 h-3.5" />
+                  Limpar padrão
+                </button>
               </div>
-
-              <button onClick={handleClear} className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16">
-                <Icons.Trash2 className="w-3.5 h-3.5" />
-                Limpar padrão
-              </button>
             </div>
 
-            <div className="space-y-5">
-              {Array.from(new Set(unitSlots.map((s) => s.sectionTitle))).map((sectionTitle) => {
-                const sectionSlots = unitSlots.filter((s) => s.sectionTitle === sectionTitle);
+            {/* Vitrines lado a lado, cada uma em lista */}
+            <div className="flex gap-4 overflow-x-auto pb-2 items-start snap-x">
+              {showcases.map((vitrine) => {
+                const planejados = vitrine.slots.filter((s) => planOf(s.id));
+                const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
+                // O espaço da vitrine salgada só oferece produto salgado
+                const productOptions = [
+                  { value: '', label: 'Espaço vazio', muted: true },
+                  ...productsForShowcaseType(products, vitrine.showcaseType).map((p) => ({ value: p.id, label: p.name }))
+                ];
 
                 return (
-                  <div key={sectionTitle} className="card p-5 space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b hairline">
-                      <h3 className="t-headline text-[#1d1d1f]">{sectionTitle}</h3>
-                      <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">
-                        {sectionSlots[0]?.showcaseType}
+                  <div key={vitrine.key} className="card p-4 flex-1 min-w-[278px] space-y-2.5 snap-start">
+                    <div className="flex items-center justify-between gap-2 pb-2.5 border-b hairline">
+                      <div className="min-w-0">
+                        <h3 className="t-headline text-[#1d1d1f] truncate">{vitrine.title}</h3>
+                        <p className="t-caption tnum mt-0.5">
+                          {planejados.length}/{vitrine.slots.length} espaços · {total} un no dia
+                        </p>
+                      </div>
+                      <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize shrink-0">
+                        {vitrine.showcaseType}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {sectionSlots.map((slot) => {
-                        const planItem = dayPlans.find((sp) => sp.slotId === slot.id);
+                    <div className="space-y-1.5">
+                      {vitrine.slots.map((slot) => {
+                        const planItem = planOf(slot.id);
+                        const product = planItem ? productOf(planItem.productId) : null;
+                        const dias = planItem
+                          ? planDaysOf(standardPlans, currentUnit, slot.id, planItem.productId)
+                          : [];
+                        const prio = getPriority(planItem?.priority);
+                        const apagado = planItem && !matchesFilter(planItem);
+                        // Produto de outra categoria que já estava aqui continua
+                        // aparecendo, senão o campo ficaria em branco com o
+                        // espaço ocupado
+                        const opcoes = product && !productOptions.some((o) => o.value === product.id)
+                          ? [...productOptions, { value: product.id, label: product.name }]
+                          : productOptions;
 
                         return (
                           <div
                             key={slot.id}
-                            className={`rounded-2xl p-3.5 border transition-all ${
-                              planItem ? 'bg-[#0071e3]/[0.04] border-[#0071e3]/20' : 'card-quiet'
-                            }`}
+                            className={`rounded-xl px-2.5 py-2 border transition-all ${
+                              planItem ? 'bg-[#0071e3]/[0.035] border-[#0071e3]/20' : 'card-quiet'
+                            } ${apagado ? 'opacity-35' : ''}`}
                           >
-                            <div className="flex items-center justify-between mb-2.5">
-                              <span className="t-caption tnum">
-                                Espaço #{slot.slotNumber}
-                              </span>
-                              {planItem && <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3]" />}
-                            </div>
-
-                            <div className="mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="t-caption tnum w-7 shrink-0">#{slot.slotNumber}</span>
                               <PickerField
                                 value={planItem?.productId || ''}
-                                options={productOptions}
+                                options={opcoes}
                                 placeholder="Espaço vazio"
-                                emptyLabel="Nenhum produto com esse nome"
+                                emptyLabel="Nenhum produto desta vitrine com esse nome"
                                 onPick={(opt) => {
                                   if (!opt.value) {
                                     if (planItem) onRemovePlanItem(planItem.id);
@@ -1679,42 +2001,52 @@
                                   }
                                   const prod = products.find((p) => p.id === opt.value);
                                   const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
-                                  onUpdatePlanItem(slot.id, opt.value, qty);
+                                  onUpdatePlanItem(slot.id, opt.value, qty, planItem?.priority || DEFAULT_PRIORITY);
                                 }}
-                                className="field field-sm font-semibold"
+                                className="field field-sm font-semibold flex-1 min-w-0"
                               />
                             </div>
 
                             {planItem && (
-                              <p className="t-caption text-[11px] mb-2 flex items-center gap-1 truncate">
-                                <Icons.User className="w-3 h-3 shrink-0" />
-                                <span className="truncate">
-                                  {getResponsibleName(products.find((p) => p.id === planItem.productId))}
-                                </span>
-                              </p>
-                            )}
+                              <div className="flex items-center justify-between gap-2 mt-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
+                                  title={`${prio.title} · ${frequencyTitle(dias)} — clique para mudar`}
+                                  className="flex items-center gap-1 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                                >
+                                  <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`}>{prio.value}</span>
+                                  <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] min-w-0">
+                                    <Icons.Calendar className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{frequencyLabel(dias)}</span>
+                                  </span>
+                                </button>
 
-                            {planItem && (
-                              <div className="flex items-center justify-between bg-white rounded-xl px-2.5 py-1.5 border hairline">
-                                <span className="t-caption">Qtd ideal</span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   <button
-                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1))}
+                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1), planItem.priority)}
                                     className="w-6 h-6 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[13px] flex items-center justify-center transition-colors"
                                   >
                                     −
                                   </button>
-                                  <span className="tnum text-[14px] font-extrabold text-[#1d1d1f] min-w-6 text-center">
+                                  <span className="tnum text-[13px] font-extrabold text-[#1d1d1f] min-w-5 text-center">
                                     {planItem.idealQty}
                                   </span>
                                   <button
-                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1)}
+                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1, planItem.priority)}
                                     className="w-6 h-6 rounded-full bg-[#0071e3] text-white font-bold text-[13px] flex items-center justify-center hover:bg-[#0077ed] transition-colors"
                                   >
                                     +
                                   </button>
                                 </div>
                               </div>
+                            )}
+
+                            {planItem && (
+                              <p className="t-caption text-[11px] mt-1 flex items-center gap-1 truncate">
+                                <Icons.User className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{getResponsibleName(product)}</span>
+                              </p>
                             )}
                           </div>
                         );
@@ -1724,12 +2056,31 @@
                 );
               })}
             </div>
+
+            {organizing && (
+              <PlanOrganizeModal
+                slot={organizing.slot}
+                product={organizing.product}
+                priority={organizing.plan.priority}
+                days={organizing.dias}
+                idealQty={organizing.plan.idealQty}
+                onClose={() => setOrganizing(null)}
+                onSave={({ priority, days, idealQty }) =>
+                  onUpdatePlanSchedule(organizing.slot.id, organizing.plan.productId, { priority, days, idealQty })
+                }
+                onRemove={() => onRemovePlanItem(organizing.plan.id)}
+              />
+            )}
           </div>
         );
       };
 
       // ==========================================
       // PRODUCTION ORDER VIEW
+      //
+      // O pedido sai separado por pessoa: cada responsável tem o seu cartão,
+      // com os itens agrupados por vitrine e um botão que copia a lista dele
+      // em texto — pronto para mandar no WhatsApp ou imprimir.
       // ==========================================
       const ProductionOrderView = ({
         currentUnit,
@@ -1743,6 +2094,7 @@
       }) => {
         const [completedItems, setCompletedItems] = useState({});
         const [responsibleFilter, setResponsibleFilter] = useState('todos');
+        const [copiado, setCopiado] = useState('');
 
         const dayPlans = useMemo(
           () => standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay),
@@ -1816,7 +2168,7 @@
               };
               grupos.push(porChave[chave]);
             }
-            porChave[chave].plans.push({ slot, idealQty: plan.idealQty });
+            porChave[chave].plans.push({ slot, idealQty: plan.idealQty, priority: plan.priority });
           });
 
           return grupos.map((grupo) => {
@@ -1826,10 +2178,16 @@
             const currentQty = estoque.good;
             const neededQty = Math.max(0, idealQty - currentQty);
 
+            // Quando o mesmo produto ocupa dois espaços com letras diferentes,
+            // vale a mais urgente
+            const priority = grupo.plans
+              .map((p) => getPriority(p.priority).value)
+              .sort((a, b) => priorityRank(a) - priorityRank(b))[0] || DEFAULT_PRIORITY;
+
             // Gatilho do pedido: o item só é pedido quando o estoque bom chega
-            // no mínimo, ou quando tem peça vencida para repor. Assim a lista
-            // não vive pedindo 2 unidades de algo que está quase cheio.
-            const minQty = Math.max(1, Math.ceil(idealQty * MIN_STOCK_RATIO));
+            // no mínimo da prioridade dele, ou quando tem peça vencida para
+            // repor. Assim a lista não vive pedindo 2 unidades de algo cheio.
+            const minQty = Math.max(1, Math.ceil(idealQty * minStockRatio(priority)));
             const belowMin = currentQty <= minQty;
             const triggered = neededQty > 0 && (belowMin || estoque.expired > 0);
 
@@ -1873,6 +2231,7 @@
               productId: grupo.productId,
               productName: product?.name || 'Produto',
               responsible: getResponsibleName(product),
+              priority,
               idealQty,
               currentQty,
               expiredQty: estoque.expired,
@@ -1893,6 +2252,8 @@
         // loja continua sabendo que existe
         const aboveMinItems = orderList.filter((item) => item.neededQty > 0 && !item.triggered);
 
+        // Só entram nomes que a loja cadastrou no produto — nada de nome
+        // inventado. Quem está sem responsável cai no bloco "Sem responsável".
         const responsibleOptions = Array.from(new Set(pendingItems.map((item) => item.responsible)))
           .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
@@ -1904,7 +2265,8 @@
           : pendingItems.filter((item) => item.responsible === activeResponsible);
 
         // O pedido é entregue por pessoa: cada responsável recebe a lista do
-        // que ele tem para produzir, com a vitrine anotada em cada item.
+        // que ele tem para produzir, separada por vitrine e na ordem da
+        // prioridade — o que não pode faltar aparece primeiro.
         const responsibleBlocks = useMemo(() => {
           const blocos = [];
           const porNome = {};
@@ -1917,8 +2279,22 @@
             porNome[item.responsible].entries.push(item);
           });
 
-          // Cada lista sai na ordem das vitrines; quem não tem responsável fica no fim
-          blocos.forEach((bloco) => bloco.entries.sort(compareShowcase));
+          blocos.forEach((bloco) => {
+            bloco.total = bloco.entries.reduce((acc, i) => acc + i.neededQty, 0);
+            // Dentro da pessoa: um grupo por vitrine, itens por prioridade
+            bloco.groups = groupByShowcase(bloco.entries, (item) => ({
+              showcaseType: item.showcaseType,
+              shelfNumber: item.shelfNumber,
+              sectionTitle: item.showcaseTitle
+            }));
+            bloco.groups.forEach((g) =>
+              g.entries.sort(
+                (a, b) =>
+                  priorityRank(a.priority) - priorityRank(b.priority) ||
+                  a.productName.localeCompare(b.productName, 'pt-BR')
+              )
+            );
+          });
 
           return blocos.sort((a, b) => {
             if (a.title === NO_RESPONSIBLE_LABEL) return 1;
@@ -1926,6 +2302,50 @@
             return a.title.localeCompare(b.title, 'pt-BR');
           });
         }, [itemsNeedingProduction]);
+
+        // ------------------------------------------
+        // Lista em texto puro, do jeito que vai para o WhatsApp ou para o papel
+        // ------------------------------------------
+        const blockToText = (bloco) => {
+          const linhas = [
+            `PEDIDO DE PRODUÇÃO — ${getDayNameBR(selectedDay)}`,
+            `${unitName} · ${bloco.title}`,
+            ''
+          ];
+
+          bloco.groups.forEach((grupo) => {
+            linhas.push(grupo.title.toUpperCase());
+            grupo.entries.forEach((item) => {
+              const avisos = [];
+              if (item.expiredQty > 0) avisos.push(`${item.expiredQty} vencido(s) para repor`);
+              if (item.lastDayQty > 0) avisos.push(`${item.lastDayQty} no último dia`);
+              linhas.push(
+                `[ ] ${item.productName} — ${item.neededQty} ${item.unitOfMeasure}` +
+                ` (${item.priority} · espaço ${item.slotLabel} · vitrine ${item.currentQty}/${item.idealQty})` +
+                (avisos.length ? ` · ${avisos.join(', ')}` : '')
+              );
+            });
+            linhas.push('');
+          });
+
+          linhas.push(`Total: ${bloco.total} un em ${bloco.entries.length} item(ns)`);
+          return linhas.join('\n');
+        };
+
+        const copiarTexto = async (chave, texto) => {
+          const ok = await copyTextToClipboard(texto);
+          if (!ok) {
+            alert('Não consegui copiar sozinho. Selecione o texto da lista e copie na mão.');
+            return;
+          }
+          setCopiado(chave);
+          setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
+        };
+
+        const copiarTudo = () => {
+          if (responsibleBlocks.length === 0) return;
+          copiarTexto('__tudo__', responsibleBlocks.map(blockToText).join('\n\n──────────\n\n'));
+        };
 
         const handleApplyAll = () => {
           if (itemsNeedingProduction.length === 0) return;
@@ -1956,136 +2376,168 @@
                   </div>
                   <h2 className="t-display">Pedido de produção</h2>
                   <p className="t-body mt-1.5 max-w-lg">
-                    {getDayNameBR(selectedDay)} · {unitName} — o item é chamado quando o estoque
-                    chega no mínimo ({Math.round(MIN_STOCK_RATIO * 100)}% do padrão do dia) ou quando
-                    tem peça vencida para repor. O vencido não conta como estoque.
+                    {getDayNameBR(selectedDay)} · {unitName} — uma lista por responsável, pronta para
+                    copiar. O item é chamado quando o estoque chega no mínimo da prioridade dele
+                    (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
+                    C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão do dia)
+                    ou quando tem peça vencida para repor. O vencido não conta como estoque.
                   </p>
                 </div>
 
-                <button
-                  onClick={handleApplyAll}
-                  disabled={itemsNeedingProduction.length === 0}
-                  className="btn btn-primary btn-md shrink-0 disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  <Icons.Plus className="w-4 h-4" />
-                  Lançar na vitrine
-                  {totalNeeded > 0 && <span className="tnum opacity-80">+{totalNeeded}</span>}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    onClick={copiarTudo}
+                    disabled={responsibleBlocks.length === 0}
+                    className="btn btn-secondary btn-md disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <Icons.Copy className="w-4 h-4" />
+                    {copiado === '__tudo__' ? 'Copiado!' : 'Copiar tudo'}
+                  </button>
+                  <button
+                    onClick={handleApplyAll}
+                    disabled={itemsNeedingProduction.length === 0}
+                    className="btn btn-primary btn-md disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    <Icons.Plus className="w-4 h-4" />
+                    Lançar na vitrine
+                    {totalNeeded > 0 && <span className="tnum opacity-80">+{totalNeeded}</span>}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="card p-5 sm:p-6 space-y-1">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b hairline">
-                <h3 className="t-headline text-[#1d1d1f]">Checklist de preparo</h3>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={activeResponsible}
-                    onChange={(e) => setResponsibleFilter(e.target.value)}
-                    className="field field-sm field-select field-auto"
-                  >
-                    <option value="todos">Todos os responsáveis</option>
-                    {responsibleOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0">
-                    {itemsNeedingProduction.length} a produzir
-                  </span>
-                </div>
+            <div className="card-flat p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h3 className="t-headline text-[#1d1d1f]">Checklist de preparo</h3>
+              <div className="flex items-center gap-2">
+                <select
+                  value={activeResponsible}
+                  onChange={(e) => setResponsibleFilter(e.target.value)}
+                  className="field field-sm field-select field-auto"
+                >
+                  <option value="todos">Todos os responsáveis</option>
+                  {responsibleOptions.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0">
+                  {itemsNeedingProduction.length} a produzir
+                </span>
               </div>
+            </div>
 
-              {itemsNeedingProduction.length === 0 ? (
-                <div className="text-center py-14 space-y-2">
-                  <Icons.CheckCircle2 className="w-11 h-11 text-[#34c759] mx-auto" />
-                  <h4 className="t-title text-[#1d1d1f]">Vitrine abastecida</h4>
-                  <p className="t-callout">
-                    Nada no mínimo nem vencido — não precisa produzir agora
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6 pt-1">
-                  {responsibleBlocks.map((bloco) => (
-                    <div key={bloco.key}>
-                      <div className="flex items-center gap-2.5 pb-1.5">
-                        <span className="w-7 h-7 shrink-0 rounded-full bg-[#0071e3]/10 text-[#0058b0] text-[10px] font-extrabold flex items-center justify-center tracking-tight">
-                          {getResponsibleInitials(bloco.title === NO_RESPONSIBLE_LABEL ? '' : bloco.title)}
-                        </span>
-                        <span className="t-headline text-[#1d1d1f] uppercase tracking-[0.02em] truncate">
-                          {bloco.title}
-                        </span>
-                        <span className="t-caption tnum shrink-0">{bloco.entries.length} item(ns)</span>
-                        <span className="flex-1 h-px bg-black/[0.06]" />
-                        <span className="pill bg-[#ff9f0a]/12 text-[#8a5200] tnum shrink-0">
-                          +{bloco.entries.reduce((acc, i) => acc + i.neededQty, 0)}
-                        </span>
+            {itemsNeedingProduction.length === 0 ? (
+              <div className="card text-center py-14 space-y-2">
+                <Icons.CheckCircle2 className="w-11 h-11 text-[#34c759] mx-auto" />
+                <h4 className="t-title text-[#1d1d1f]">Vitrine abastecida</h4>
+                <p className="t-callout">
+                  Nada no mínimo nem vencido — não precisa produzir agora
+                </p>
+              </div>
+            ) : (
+              // Um cartão por pessoa: é o pedido que vai para a mão dela
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                {responsibleBlocks.map((bloco) => (
+                  <div key={bloco.key} className="card p-5 space-y-3">
+                    <div className="flex items-center gap-2.5 pb-3 border-b hairline">
+                      <span className="w-8 h-8 shrink-0 rounded-full bg-[#0071e3]/10 text-[#0058b0] text-[11px] font-extrabold flex items-center justify-center tracking-tight">
+                        {getResponsibleInitials(bloco.title === NO_RESPONSIBLE_LABEL ? '' : bloco.title)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h4>
+                        <p className="t-caption tnum mt-0.5">
+                          {bloco.entries.length} item(ns) · +{bloco.total} un
+                        </p>
                       </div>
+                      <button
+                        onClick={() => copiarTexto(bloco.key, blockToText(bloco))}
+                        className="btn btn-secondary btn-sm shrink-0"
+                        title="Copiar a lista desta pessoa"
+                      >
+                        <Icons.Copy className="w-3.5 h-3.5" />
+                        {copiado === bloco.key ? 'Copiado!' : 'Copiar lista'}
+                      </button>
+                    </div>
 
-                      {bloco.entries.map((item) => {
-                        const isChecked = !!completedItems[item.key];
-                        return (
-                          <div key={item.key} className="py-3.5 flex items-center justify-between gap-4 border-b hairline last:border-0">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <button
-                                type="button"
-                                onClick={() => setCompletedItems((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
-                                className="text-[#c7c7cc] hover:text-[#34c759] transition-colors shrink-0"
-                              >
-                                {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-[#34c759]" /> : <Icons.Square className="w-5 h-5" />}
-                              </button>
-                              <div className="min-w-0">
-                                <h4 className={`t-headline truncate ${isChecked ? 'line-through text-[#a1a1a6]' : 'text-[#1d1d1f]'}`}>
-                                  {item.productName}
-                                </h4>
-                                <p className="t-caption mt-0.5 truncate">{item.showcaseTitle} · {item.slotLabel}</p>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                  {item.expiredQty > 0 && (
-                                    <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
-                                      <Icons.AlertTriangle className="w-3 h-3" />
-                                      {item.expiredQty} vencido(s) · repor
+                    {bloco.groups.map((grupo) => (
+                      <div key={grupo.key}>
+                        <div className="flex items-center gap-2 py-1.5">
+                          <span className="t-overline truncate">{grupo.title}</span>
+                          <span className="flex-1 h-px bg-black/[0.06]" />
+                          <span className="t-caption tnum shrink-0">
+                            +{grupo.entries.reduce((acc, i) => acc + i.neededQty, 0)}
+                          </span>
+                        </div>
+
+                        {grupo.entries.map((item) => {
+                          const isChecked = !!completedItems[item.key];
+                          const prio = getPriority(item.priority);
+                          return (
+                            <div key={item.key} className="py-2.5 flex items-center justify-between gap-3 border-b hairline last:border-0">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setCompletedItems((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                                  className="text-[#c7c7cc] hover:text-[#34c759] transition-colors shrink-0"
+                                >
+                                  {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-[#34c759]" /> : <Icons.Square className="w-5 h-5" />}
+                                </button>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`} title={prio.title}>
+                                      {prio.value}
                                     </span>
-                                  )}
-                                  {item.lastDayQty > 0 && (
-                                    <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px] tnum">
-                                      {item.lastDayQty} no último dia
-                                    </span>
-                                  )}
-                                  {item.belowMin && (
-                                    <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
-                                      No mínimo · {item.minQty} {item.unitOfMeasure}
-                                    </span>
-                                  )}
+                                    <h5 className={`t-headline truncate ${isChecked ? 'line-through text-[#a1a1a6]' : 'text-[#1d1d1f]'}`}>
+                                      {item.productName}
+                                    </h5>
+                                  </div>
+                                  <p className="t-caption mt-0.5 truncate">
+                                    Espaço {item.slotLabel} · ideal {item.idealQty} · na vitrine {item.currentQty}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    {item.expiredQty > 0 && (
+                                      <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
+                                        <Icons.AlertTriangle className="w-3 h-3" />
+                                        {item.expiredQty} vencido(s) · repor
+                                      </span>
+                                    )}
+                                    {item.lastDayQty > 0 && (
+                                      <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px] tnum">
+                                        {item.lastDayQty} no último dia
+                                      </span>
+                                    )}
+                                    {item.belowMin && (
+                                      <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
+                                        No mínimo · {item.minQty} {item.unitOfMeasure}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex items-center gap-4 shrink-0">
-                              <div className="t-caption hidden sm:block tnum text-right">
-                                Ideal {item.idealQty} · na vitrine {item.currentQty}
-                              </div>
-                              <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap">
+                              <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">
                                 +{item.neededQty} {item.unitOfMeasure}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {aboveMinItems.length > 0 && (
-                <div className="pt-4 mt-2 border-t hairline">
-                  <p className="t-caption">
-                    {aboveMinItems.length} item(ns) com falta pequena, ainda acima do mínimo —
-                    entram no pedido quando chegarem em {Math.round(MIN_STOCK_RATIO * 100)}% do padrão:{' '}
-                    <span className="text-[#1d1d1f] font-semibold">
-                      {aboveMinItems.map((i) => `${i.productName} (${i.currentQty}/${i.idealQty})`).join(', ')}
-                    </span>
-                  </p>
-                </div>
-              )}
-            </div>
+            {aboveMinItems.length > 0 && (
+              <div className="card-flat p-4">
+                <p className="t-caption">
+                  {aboveMinItems.length} item(ns) com falta pequena, ainda acima do mínimo —
+                  entram no pedido quando chegarem no mínimo da prioridade deles:{' '}
+                  <span className="text-[#1d1d1f] font-semibold">
+                    {aboveMinItems.map((i) => `${i.productName} (${i.priority} · ${i.currentQty}/${i.idealQty})`).join(', ')}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
         );
       };
@@ -2995,7 +3447,7 @@
                     <label className="t-caption block mb-1">Responsável</label>
                     <PickerField
                       inputRef={responsibleRef}
-                      placeholder="Ex: Dona Rita"
+                      placeholder="Quem produz"
                       value={draft.responsible}
                       options={responsiblePickerOptions}
                       onType={(texto) => setField('responsible', texto)}
@@ -3505,6 +3957,8 @@
         const [productionRecords, setProductionRecords] = useState([]);
         // Falso enquanto a tabela production_records não existir no banco
         const [productionReady, setProductionReady] = useState(true);
+        // Falso enquanto standard_plans não tiver prioridade e frequência
+        const [planExtrasReady, setPlanExtrasReady] = useState(true);
 
         const [decreaseModalItem, setDecreaseModalItem] = useState(null);
         const [slotToFill, setSlotToFill] = useState(null);
@@ -3530,6 +3984,7 @@
           setSeparatedProducts(data.separatedProducts);
           setProductionRecords(data.productionRecords);
           setProductionReady(data.productionReady);
+          setPlanExtrasReady(data.planExtrasReady);
           setCurrentUnit((atual) => (data.units.some((u) => u.code === atual) ? atual : data.units[0]?.code || ''));
           setLastSync(new Date());
         };
@@ -3786,31 +4241,125 @@
           });
         };
 
-        const handleUpdatePlanItem = (slotId, productId, idealQty) => {
+        // Prioridade e frequência chegaram depois: um banco que ainda não rodou
+        // a versão nova do schema.sql continua salvando o padrão sem elas.
+        const withPlanExtras = (linha, priority, frequency) =>
+          planExtrasReady ? { ...linha, priority, frequency } : linha;
+
+        // Em quantos dias o produto deste espaço fica, contando o dia que
+        // acabou de entrar — é o que a coluna "frequency" guarda
+        const frequencyFor = (slotId, productId, extraDay) => {
+          const dias = new Set(planDaysOf(standardPlans, currentUnit, slotId, productId));
+          if (extraDay) dias.add(extraDay);
+          return dias.size >= WEEK_DAYS.length ? 'todo_dia' : 'dias';
+        };
+
+        const handleUpdatePlanItem = (slotId, productId, idealQty, priority = DEFAULT_PRIORITY) => {
           const prod = products.find((p) => p.id === productId);
           if (!prod) return;
           const existing = standardPlans.find(
             (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay && sp.slotId === slotId
           );
+          const prioridade = getPriority(priority).value;
+          const frequencia = frequencyFor(slotId, productId, selectedDay);
 
           write('Salvar vitrine padrão', async () => {
             if (existing) {
               await run('standard_plans', sb.from('standard_plans')
-                .update({ product_id: productId, ideal_qty: idealQty })
+                .update(withPlanExtras({ product_id: productId, ideal_qty: idealQty }, prioridade, frequencia))
                 .eq('id', existing.id));
-              setStandardPlans((prev) => prev.map((sp) => sp.id === existing.id ? { ...sp, productId, idealQty } : sp));
+              setStandardPlans((prev) => prev.map((sp) =>
+                sp.id === existing.id
+                  ? { ...sp, productId, idealQty, priority: prioridade, frequency: frequencia }
+                  : sp
+              ));
               return;
             }
 
-            const linhas = await run('standard_plans', sb.from('standard_plans').insert({
-              unit_code: currentUnit,
-              day_of_week: selectedDay,
-              slot_code: slotId,
-              product_id: productId,
-              ideal_qty: idealQty,
-              unit_of_measure: prod.defaultUnit || 'un'
-            }).select());
+            const linhas = await run('standard_plans', sb.from('standard_plans').insert(
+              withPlanExtras({
+                unit_code: currentUnit,
+                day_of_week: selectedDay,
+                slot_code: slotId,
+                product_id: productId,
+                ideal_qty: idealQty,
+                unit_of_measure: prod.defaultUnit || 'un'
+              }, prioridade, frequencia)
+            ).select());
             setStandardPlans((prev) => [...prev, fromPlan(linhas[0])]);
+          });
+        };
+
+        // ------------------------------------------
+        // Organizar o item: prioridade, dias da semana e quantidade de uma vez.
+        // Marcar "todo dia" grava o item nos sete dias; desmarcar um dia tira o
+        // item só dele. Se o espaço já tinha outro produto em um dia marcado,
+        // esse dia passa a ser deste produto.
+        // ------------------------------------------
+        const handleUpdatePlanSchedule = (slotId, productId, { priority, days, idealQty }) => {
+          const prod = products.find((p) => p.id === productId);
+          if (!prod || !days || days.length === 0) return;
+
+          const prioridade = getPriority(priority).value;
+          const frequencia = days.length >= WEEK_DAYS.length ? 'todo_dia' : 'dias';
+          const medida = prod.defaultUnit || 'un';
+
+          const planoDoDia = (day) => standardPlans.find(
+            (sp) => sp.unit === currentUnit && sp.dayOfWeek === day && sp.slotId === slotId
+          );
+
+          const aApagar = [];
+          const aAtualizar = [];
+          const aInserir = [];
+
+          WEEK_DAYS.forEach((day) => {
+            const existente = planoDoDia(day);
+            if (days.includes(day)) {
+              if (existente) aAtualizar.push(existente.id);
+              else aInserir.push(day);
+            } else if (existente && existente.productId === productId) {
+              aApagar.push(existente.id);
+            }
+          });
+
+          write('Organizar item da vitrine padrão', async () => {
+            if (aApagar.length > 0) {
+              await run('standard_plans', sb.from('standard_plans').delete().in('id', aApagar));
+            }
+
+            if (aAtualizar.length > 0) {
+              await run('standard_plans', sb.from('standard_plans')
+                .update(withPlanExtras({
+                  product_id: productId,
+                  ideal_qty: idealQty,
+                  unit_of_measure: medida
+                }, prioridade, frequencia))
+                .in('id', aAtualizar));
+            }
+
+            let novos = [];
+            if (aInserir.length > 0) {
+              const linhas = await run('standard_plans', sb.from('standard_plans').insert(
+                aInserir.map((day) => withPlanExtras({
+                  unit_code: currentUnit,
+                  day_of_week: day,
+                  slot_code: slotId,
+                  product_id: productId,
+                  ideal_qty: idealQty,
+                  unit_of_measure: medida
+                }, prioridade, frequencia))
+              ).select());
+              novos = linhas.map(fromPlan);
+            }
+
+            setStandardPlans((prev) => [
+              ...prev
+                .filter((sp) => !aApagar.includes(sp.id))
+                .map((sp) => aAtualizar.includes(sp.id)
+                  ? { ...sp, productId, idealQty, priority: prioridade, frequency: frequencia, unitOfMeasure: medida }
+                  : sp),
+              ...novos
+            ]);
           });
         };
 
@@ -3831,14 +4380,14 @@
             let novos = [];
             if (origem.length > 0) {
               const linhas = await run('standard_plans', sb.from('standard_plans').insert(
-                origem.map((sp) => ({
+                origem.map((sp) => withPlanExtras({
                   unit_code: currentUnit,
                   day_of_week: toDay,
                   slot_code: sp.slotId,
                   product_id: sp.productId,
                   ideal_qty: sp.idealQty,
                   unit_of_measure: sp.unitOfMeasure
-                }))
+                }, getPriority(sp.priority).value, frequencyFor(sp.slotId, sp.productId, toDay)))
               ).select());
               novos = linhas.map(fromPlan);
             }
@@ -4112,6 +4661,7 @@
                   onSelectDay={setSelectedDay}
                   onUpdatePlanItem={handleUpdatePlanItem}
                   onRemovePlanItem={handleRemovePlanItem}
+                  onUpdatePlanSchedule={handleUpdatePlanSchedule}
                   onCopyDayPlan={handleCopyDayPlan}
                   onClearDayPlan={handleClearDayPlan}
                   onGenerateProductionOrder={() => setActiveTab('producao')}
