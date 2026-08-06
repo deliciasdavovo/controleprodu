@@ -487,6 +487,10 @@
       const productsForShowcaseType = (products, showcaseType) =>
         products.filter((p) => showcaseTypeOfCategory(p.category) === showcaseType);
 
+      // Ponto de reposição: o pedido de produção só chama o item quando o
+      // estoque bom dele cai nesta fatia do que o padrão do dia manda ter.
+      const MIN_STOCK_RATIO = 0.30;
+
       // Ordem em que as vitrines aparecem nas listas
       const SHOWCASE_TYPE_ORDER = { salgada: 0, doce: 1, sobremesa: 2 };
 
@@ -1755,20 +1759,38 @@
         // espaços dela. Antes a conta olhava só para o espaço planejado, então
         // o produto colocado no espaço do lado — o que acontece o tempo todo —
         // era pedido de novo mesmo já estando na vitrine.
-        const qtyByShowcaseProduct = useMemo(() => {
+        //
+        // O que está vencido não entra na conta: ele vai sair da vitrine, então
+        // precisa ser refeito. O que está no último dia conta como estoque, mas
+        // fica marcado na lista para a loja decidir se adianta a produção.
+        const stockByShowcaseProduct = useMemo(() => {
           const map = {};
           slotItems.forEach((item) => {
             const slot = slotById[item.slotId];
             if (!slot || slot.unit !== currentUnit) return;
+            const product = products.find((p) => p.id === item.productId);
+            const status = getSlotItemStatus(item, product).status;
             const key = `${showcaseKey(slot)}|${item.productId}`;
-            map[key] = (map[key] || 0) + item.currentQty;
+            const atual = map[key] || { good: 0, expired: 0, lastDay: 0 };
+
+            if (status === 'expired') atual.expired += item.currentQty;
+            else {
+              atual.good += item.currentQty;
+              if (status === 'warning') atual.lastDay += item.currentQty;
+            }
+            map[key] = atual;
           });
           return map;
-        }, [slotItems, slotById, currentUnit]);
+        }, [slotItems, slotById, products, currentUnit]);
 
+        // Estoque bom em um espaço só — usado para espalhar a produção
         const qtyInSlot = (slotId, productId) =>
           slotItems
-            .filter((item) => item.slotId === slotId && item.productId === productId)
+            .filter((item) => {
+              if (item.slotId !== slotId || item.productId !== productId) return false;
+              const product = products.find((p) => p.id === item.productId);
+              return getSlotItemStatus(item, product).status !== 'expired';
+            })
             .reduce((acc, item) => acc + item.currentQty, 0);
 
         // Uma linha por produto em cada vitrine, juntando os espaços que o
@@ -1800,8 +1822,16 @@
           return grupos.map((grupo) => {
             const product = products.find((p) => p.id === grupo.productId);
             const idealQty = grupo.plans.reduce((acc, p) => acc + p.idealQty, 0);
-            const currentQty = qtyByShowcaseProduct[grupo.key] || 0;
+            const estoque = stockByShowcaseProduct[grupo.key] || { good: 0, expired: 0, lastDay: 0 };
+            const currentQty = estoque.good;
             const neededQty = Math.max(0, idealQty - currentQty);
+
+            // Gatilho do pedido: o item só é pedido quando o estoque bom chega
+            // no mínimo, ou quando tem peça vencida para repor. Assim a lista
+            // não vive pedindo 2 unidades de algo que está quase cheio.
+            const minQty = Math.max(1, Math.ceil(idealQty * MIN_STOCK_RATIO));
+            const belowMin = currentQty <= minQty;
+            const triggered = neededQty > 0 && (belowMin || estoque.expired > 0);
 
             // Espalha o que falta pelos espaços planejados, começando por quem
             // está mais vazio; nenhum espaço recebe mais do que o ideal dele
@@ -1845,14 +1875,23 @@
               responsible: getResponsibleName(product),
               idealQty,
               currentQty,
+              expiredQty: estoque.expired,
+              lastDayQty: estoque.lastDay,
+              minQty,
+              belowMin,
+              triggered,
               neededQty,
               targets,
               unitOfMeasure: grupo.unitOfMeasure
             };
           });
-        }, [dayPlans, slotById, slotItems, products, qtyByShowcaseProduct]);
+        }, [dayPlans, slotById, slotItems, products, stockByShowcaseProduct]);
 
-        const pendingItems = orderList.filter((item) => item.neededQty > 0);
+        const pendingItems = orderList.filter((item) => item.triggered);
+
+        // Falta pequena, ainda acima do mínimo: fica de fora do pedido, mas a
+        // loja continua sabendo que existe
+        const aboveMinItems = orderList.filter((item) => item.neededQty > 0 && !item.triggered);
 
         const responsibleOptions = Array.from(new Set(pendingItems.map((item) => item.responsible)))
           .sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -1917,7 +1956,9 @@
                   </div>
                   <h2 className="t-display">Pedido de produção</h2>
                   <p className="t-body mt-1.5 max-w-lg">
-                    {getDayNameBR(selectedDay)} · {unitName} — diferença entre o padrão ideal e a vitrine atual.
+                    {getDayNameBR(selectedDay)} · {unitName} — o item é chamado quando o estoque
+                    chega no mínimo ({Math.round(MIN_STOCK_RATIO * 100)}% do padrão do dia) ou quando
+                    tem peça vencida para repor. O vencido não conta como estoque.
                   </p>
                 </div>
 
@@ -1957,7 +1998,9 @@
                 <div className="text-center py-14 space-y-2">
                   <Icons.CheckCircle2 className="w-11 h-11 text-[#34c759] mx-auto" />
                   <h4 className="t-title text-[#1d1d1f]">Vitrine abastecida</h4>
-                  <p className="t-callout">Nada em falta em relação ao padrão ideal</p>
+                  <p className="t-callout">
+                    Nada no mínimo nem vencido — não precisa produzir agora
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-6 pt-1">
@@ -1994,6 +2037,24 @@
                                   {item.productName}
                                 </h4>
                                 <p className="t-caption mt-0.5 truncate">{item.showcaseTitle} · {item.slotLabel}</p>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  {item.expiredQty > 0 && (
+                                    <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
+                                      <Icons.AlertTriangle className="w-3 h-3" />
+                                      {item.expiredQty} vencido(s) · repor
+                                    </span>
+                                  )}
+                                  {item.lastDayQty > 0 && (
+                                    <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px] tnum">
+                                      {item.lastDayQty} no último dia
+                                    </span>
+                                  )}
+                                  {item.belowMin && (
+                                    <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
+                                      No mínimo · {item.minQty} {item.unitOfMeasure}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
@@ -2010,6 +2071,18 @@
                       })}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {aboveMinItems.length > 0 && (
+                <div className="pt-4 mt-2 border-t hairline">
+                  <p className="t-caption">
+                    {aboveMinItems.length} item(ns) com falta pequena, ainda acima do mínimo —
+                    entram no pedido quando chegarem em {Math.round(MIN_STOCK_RATIO * 100)}% do padrão:{' '}
+                    <span className="text-[#1d1d1f] font-semibold">
+                      {aboveMinItems.map((i) => `${i.productName} (${i.currentQty}/${i.idealQty})`).join(', ')}
+                    </span>
+                  </p>
                 </div>
               )}
             </div>
