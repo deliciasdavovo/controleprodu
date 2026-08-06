@@ -142,6 +142,8 @@ create table if not exists public.standard_plans (
   product_id       uuid not null references public.products (id) on delete cascade,
   ideal_qty        integer not null default 1,
   unit_of_measure  text not null default 'un',
+  priority         text not null default 'B',
+  frequency        text not null default 'dias',
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
   constraint standard_plans_day_check
@@ -150,8 +152,30 @@ create table if not exists public.standard_plans (
   constraint standard_plans_slot_day_unique unique (unit_code, day_of_week, slot_code)
 );
 
+-- Classificação do item na vitrine padrão. Bancos criados antes recebem as
+-- colunas aqui, já com o valor que o app usa como padrão.
+alter table public.standard_plans
+  add column if not exists priority text not null default 'B';
+alter table public.standard_plans
+  add column if not exists frequency text not null default 'dias';
+
+alter table public.standard_plans drop constraint if exists standard_plans_priority_check;
+alter table public.standard_plans
+  add constraint standard_plans_priority_check check (priority in ('A', 'B', 'C', 'D'));
+
+alter table public.standard_plans drop constraint if exists standard_plans_frequency_check;
+alter table public.standard_plans
+  add constraint standard_plans_frequency_check check (frequency in ('todo_dia', 'dias'));
+
 create index if not exists standard_plans_unit_day_idx
   on public.standard_plans (unit_code, day_of_week);
+create index if not exists standard_plans_priority_idx
+  on public.standard_plans (unit_code, priority);
+
+comment on column public.standard_plans.priority is
+  'A = não pode faltar, B = importante, C = complementar, D = extra. Define quando o pedido de produção chama o item.';
+comment on column public.standard_plans.frequency is
+  'todo_dia = o item está nos sete dias; dias = só nos dias marcados na vitrine padrão.';
 
 drop trigger if exists standard_plans_set_updated_at on public.standard_plans;
 create trigger standard_plans_set_updated_at
@@ -308,21 +332,35 @@ insert into public.units (code, name) values
 on conflict (code) do nothing;
 
 -- Catálogo de produtos
-insert into public.products (name, responsible, category, default_unit, min_replenishment_qty, shelf_life_days, price) values
-  ('Coxinha de Frango com Catupiry',          'Dona Rita',      'salgado',   'un', 10, 2,  8.50),
-  ('Empada de Frango',                        'Dona Rita',      'salgado',   'un',  8, 2,  7.50),
-  ('Pastel de Carne Assado',                  'Marcos Pereira', 'salgado',   'un', 10, 2,  8.00),
-  ('Croissant de Presunto e Queijo',          'Marcos Pereira', 'salgado',   'un',  6, 1, 12.00),
-  ('Pão de Queijo Tradicional',               'Marcos Pereira', 'salgado',   'un', 15, 1,  4.50),
-  ('Sonho de Creme',                          'Juliana Alves',  'doce',      'un',  8, 2,  6.50),
-  ('Donut Glaceado',                          'Juliana Alves',  'doce',      'un',  8, 2,  7.00),
-  ('Fatia de Bolo de Cenoura com Chocolate',  'Camila Souza',   'sobremesa', 'un',  5, 3,  9.50),
-  ('Torta Holandesa (Fatia)',                 'Camila Souza',   'sobremesa', 'un',  4, 3, 14.00),
-  ('Pudim de Leite Condensado (Fatia)',       'Camila Souza',   'sobremesa', 'un',  6, 3, 10.00)
-on conflict (name) do update
-  -- só preenche quem ainda está sem responsável; não sobrescreve o que a loja já definiu
-  set responsible = excluded.responsible
-  where public.products.responsible = '';
+--
+-- Os responsáveis NÃO são preenchidos aqui: quem responde por cada produto é
+-- só quem a loja cadastrar na tela "Produtos". Nada de nome inventado.
+insert into public.products (name, category, default_unit, min_replenishment_qty, shelf_life_days, price) values
+  ('Coxinha de Frango com Catupiry',          'salgado',   'un', 10, 2,  8.50),
+  ('Empada de Frango',                        'salgado',   'un',  8, 2,  7.50),
+  ('Pastel de Carne Assado',                  'salgado',   'un', 10, 2,  8.00),
+  ('Croissant de Presunto e Queijo',          'salgado',   'un',  6, 1, 12.00),
+  ('Pão de Queijo Tradicional',               'salgado',   'un', 15, 1,  4.50),
+  ('Sonho de Creme',                          'doce',      'un',  8, 2,  6.50),
+  ('Donut Glaceado',                          'doce',      'un',  8, 2,  7.00),
+  ('Fatia de Bolo de Cenoura com Chocolate',  'sobremesa', 'un',  5, 3,  9.50),
+  ('Torta Holandesa (Fatia)',                 'sobremesa', 'un',  4, 3, 14.00),
+  ('Pudim de Leite Condensado (Fatia)',       'sobremesa', 'un',  6, 3, 10.00)
+on conflict (name) do nothing;
+
+-- Limpeza dos responsáveis de exemplo que versões antigas deste arquivo
+-- gravaram sozinhas. Só apaga estes quatro nomes; qualquer responsável
+-- cadastrado pela loja fica como está.
+do $$
+declare
+  demo text[] := array['Dona Rita', 'Marcos Pereira', 'Juliana Alves', 'Camila Souza'];
+begin
+  update public.products           set responsible = '' where responsible = any (demo);
+  update public.sale_records       set responsible = '' where responsible = any (demo);
+  update public.loss_records       set responsible = '' where responsible = any (demo);
+  update public.production_records set responsible = '' where responsible = any (demo);
+end;
+$$;
 
 -- ---------------------------------------------------------------------
 -- Espaços da vitrine — o desenho real das duas lojas
@@ -437,7 +475,9 @@ select
   greatest(sp.ideal_qty - coalesce(atual.qty, 0), 0) as needed_qty,
   sp.unit_of_measure,
   -- colunas novas entram no fim para que o create or replace continue funcionando
-  p.responsible
+  p.responsible,
+  sp.priority,
+  sp.frequency
 from public.standard_plans sp
 join public.showcase_slots s on s.code = sp.slot_code
 join public.products p on p.id = sp.product_id
