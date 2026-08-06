@@ -467,6 +467,61 @@
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
 
+      // ------------------------------------------
+      // Vitrine = um móvel de verdade da loja (Salgada 1, Salgada 2, Doce…).
+      // O que identifica cada uma é o par tipo + número da vitrine, e não o
+      // espaço isolado: é por isso que a chave abaixo aparece no pedido de
+      // produção, na lista de apoio e no filtro de produtos do espaço.
+      // ------------------------------------------
+      const showcaseKey = (slot) => (slot ? `${slot.showcaseType}#${slot.shelfNumber}` : '');
+
+      // Cada tipo de vitrine aceita uma categoria do catálogo
+      const CATEGORY_BY_SHOWCASE = { salgada: 'salgado', doce: 'doce', sobremesa: 'sobremesa' };
+
+      const showcaseTypeOfCategory = (category) =>
+        category === 'doce' ? 'doce' : category === 'sobremesa' ? 'sobremesa' : 'salgada';
+
+      const categoryOfShowcaseType = (showcaseType) => CATEGORY_BY_SHOWCASE[showcaseType] || 'salgado';
+
+      // Produtos que podem entrar em uma vitrine deste tipo
+      const productsForShowcaseType = (products, showcaseType) =>
+        products.filter((p) => showcaseTypeOfCategory(p.category) === showcaseType);
+
+      // Ordem em que as vitrines aparecem nas listas
+      const SHOWCASE_TYPE_ORDER = { salgada: 0, doce: 1, sobremesa: 2 };
+
+      const compareShowcase = (a, b) => {
+        const ta = SHOWCASE_TYPE_ORDER[a.showcaseType];
+        const tb = SHOWCASE_TYPE_ORDER[b.showcaseType];
+        return (ta === undefined ? 9 : ta) - (tb === undefined ? 9 : tb)
+          || (a.shelfNumber || 0) - (b.shelfNumber || 0);
+      };
+
+      // Quebra uma lista em blocos, um por vitrine. getSlot devolve o espaço de
+      // cada entrada; quem não tem espaço cai no bloco "avulso" do fim.
+      const groupByShowcase = (entries, getSlot, avulsoTitle = 'Sem vitrine') => {
+        const blocos = [];
+        const porChave = {};
+
+        entries.forEach((entry) => {
+          const slot = getSlot(entry);
+          const chave = slot ? showcaseKey(slot) : '__avulso__';
+          if (!porChave[chave]) {
+            porChave[chave] = {
+              key: chave,
+              title: slot ? slot.sectionTitle : avulsoTitle,
+              showcaseType: slot ? slot.showcaseType : 'zzz',
+              shelfNumber: slot ? slot.shelfNumber : 999,
+              entries: []
+            };
+            blocos.push(porChave[chave]);
+          }
+          porChave[chave].entries.push(entry);
+        });
+
+        return blocos.sort(compareShowcase);
+      };
+
       const calculateDaysInShowcase = (mDateStr) => {
         if (!mDateStr) return 0;
         const mDate = new Date(mDateStr);
@@ -1203,6 +1258,12 @@
           item.productName.toLowerCase().includes(filterText.toLowerCase())
         );
 
+        // A lista sai dividida por vitrine (Salgada 1, Salgada 2, Doce…) para
+        // a loja conferir um móvel de cada vez. O formulário de entrada acima
+        // continua único, valendo para a unidade inteira.
+        const slotOf = (item) => unitSlots.find((s) => s.id === item.slotId);
+        const showcaseBlocks = groupByShowcase(filteredItems, slotOf, 'Fora das vitrines');
+
         const handleQuickSubmit = (e) => {
           e.preventDefault();
           if (!quickProductName.trim()) {
@@ -1329,96 +1390,105 @@
                   <p className="t-caption mt-1">Use o formulário acima para alocar</p>
                 </div>
               ) : (
-                filteredItems.map((item) => {
-                  const product = products.find((p) => p.id === item.productId);
-                  const slot = slots.find((s) => s.id === item.slotId);
-                  const statusInfo = getSlotItemStatus(item, product);
-
-                  return (
-                    <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em]">
-                            <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
-                          </h4>
-                          <p className="t-caption text-[11px] mt-0.5 tnum">
-                            {slot ? `${slot.sectionTitle} · #${slot.slotNumber}` : 'Apoio'}
-                            {slot && companheiros(item) > 0 && (
-                              <span className="text-[#0058b0] font-semibold"> · dividido</span>
-                            )}
-                          </p>
-                          <p className="t-caption text-[11px] mt-0.5 flex items-center gap-1 truncate">
-                            <Icons.User className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{getResponsibleName(product)}</span>
-                          </p>
-                        </div>
-                        <span className={`pill text-[10px] shrink-0 ${statusInfo.bgClass} ${statusInfo.textClass}`}>
-                          {statusInfo.label}
-                        </span>
-                      </div>
-
-                      <div className="flex items-end gap-2 mt-2.5">
-                        <label className="flex-1 min-w-0">
-                          <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
-                          <input
-                            type="date"
-                            value={item.manufactureDate}
-                            onChange={(e) => onUpdateItem({ ...item, manufactureDate: e.target.value })}
-                            className="field h-7 px-1.5 text-[11px] text-center tnum"
-                          />
-                        </label>
-                        <label className="w-12 shrink-0">
-                          <span className="t-caption text-[10px] block mb-0.5 text-center">Prod.</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.producedQty || item.currentQty}
-                            onChange={(e) =>
-                              onUpdateItem({ ...item, producedQty: Math.max(0, Number(e.target.value) || 0) })
-                            }
-                            className="field h-7 px-1 text-[12px] font-bold text-center tnum"
-                          />
-                        </label>
-                        <label className="w-12 shrink-0">
-                          <span className="t-caption text-[10px] block mb-0.5 text-center">Atual</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.currentQty}
-                            onChange={(e) =>
-                              onUpdateItem({ ...item, currentQty: Math.max(0, Number(e.target.value) || 0) })
-                            }
-                            className="field h-7 px-1 text-[12px] font-extrabold text-center tnum bg-[#ff9f0a]/10 border-[#ff9f0a]/30 text-[#8a5200]"
-                          />
-                        </label>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => onOpenDecreaseModal(item)}
-                            title="Baixa · venda ou perda"
-                            className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold text-[13px] flex items-center justify-center transition-colors"
-                          >
-                            −
-                          </button>
-                          <button
-                            onClick={() => onRecordSellAll(item.id)}
-                            title="Vendeu tudo"
-                            className="w-7 h-7 rounded-full bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35] flex items-center justify-center transition-colors"
-                          >
-                            <Icons.CheckCircle2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => onRemoveItem(item.id)}
-                            title="Remover item"
-                            className="w-7 h-7 rounded-full bg-[#ff3b30]/10 hover:bg-[#ff3b30]/18 text-[#c9271d] flex items-center justify-center transition-colors"
-                          >
-                            <Icons.Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                showcaseBlocks.map((bloco) => (
+                  <div key={bloco.key}>
+                    <div className="px-4 py-2 bg-[#fbfbfd] border-b hairline sticky top-0 z-10 flex items-center justify-between gap-2">
+                      <span className="t-overline">{bloco.title}</span>
+                      <span className="t-caption tnum">{bloco.entries.length}</span>
                     </div>
-                  );
-                })
+
+                    {bloco.entries.map((item) => {
+                      const product = products.find((p) => p.id === item.productId);
+                      const slot = slotOf(item);
+                      const statusInfo = getSlotItemStatus(item, product);
+
+                      return (
+                        <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em]">
+                                <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                              </h4>
+                              <p className="t-caption text-[11px] mt-0.5 tnum">
+                                {slot ? `Espaço #${slot.slotNumber}` : 'Apoio'}
+                                {slot && companheiros(item) > 0 && (
+                                  <span className="text-[#0058b0] font-semibold"> · dividido</span>
+                                )}
+                              </p>
+                              <p className="t-caption text-[11px] mt-0.5 flex items-center gap-1 truncate">
+                                <Icons.User className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{getResponsibleName(product)}</span>
+                              </p>
+                            </div>
+                            <span className={`pill text-[10px] shrink-0 ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                              {statusInfo.label}
+                            </span>
+                          </div>
+
+                          <div className="flex items-end gap-2 mt-2.5">
+                            <label className="flex-1 min-w-0">
+                              <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
+                              <input
+                                type="date"
+                                value={item.manufactureDate}
+                                onChange={(e) => onUpdateItem({ ...item, manufactureDate: e.target.value })}
+                                className="field h-7 px-1.5 text-[11px] text-center tnum"
+                              />
+                            </label>
+                            <label className="w-12 shrink-0">
+                              <span className="t-caption text-[10px] block mb-0.5 text-center">Prod.</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.producedQty || item.currentQty}
+                                onChange={(e) =>
+                                  onUpdateItem({ ...item, producedQty: Math.max(0, Number(e.target.value) || 0) })
+                                }
+                                className="field h-7 px-1 text-[12px] font-bold text-center tnum"
+                              />
+                            </label>
+                            <label className="w-12 shrink-0">
+                              <span className="t-caption text-[10px] block mb-0.5 text-center">Atual</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.currentQty}
+                                onChange={(e) =>
+                                  onUpdateItem({ ...item, currentQty: Math.max(0, Number(e.target.value) || 0) })
+                                }
+                                className="field h-7 px-1 text-[12px] font-extrabold text-center tnum bg-[#ff9f0a]/10 border-[#ff9f0a]/30 text-[#8a5200]"
+                              />
+                            </label>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => onOpenDecreaseModal(item)}
+                                title="Baixa · venda ou perda"
+                                className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold text-[13px] flex items-center justify-center transition-colors"
+                              >
+                                −
+                              </button>
+                              <button
+                                onClick={() => onRecordSellAll(item.id)}
+                                title="Vendeu tudo"
+                                className="w-7 h-7 rounded-full bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35] flex items-center justify-center transition-colors"
+                              >
+                                <Icons.CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => onRemoveItem(item.id)}
+                                title="Remover item"
+                                className="w-7 h-7 rounded-full bg-[#ff3b30]/10 hover:bg-[#ff3b30]/18 text-[#c9271d] flex items-center justify-center transition-colors"
+                              >
+                                <Icons.Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -1653,32 +1723,117 @@
         const [completedItems, setCompletedItems] = useState({});
         const [responsibleFilter, setResponsibleFilter] = useState('todos');
 
-        const dayPlans = standardPlans.filter(
-          (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay
+        const dayPlans = useMemo(
+          () => standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay),
+          [standardPlans, currentUnit, selectedDay]
         );
 
-        const orderList = dayPlans.map((plan) => {
-          const slot = slots.find((s) => s.id === plan.slotId);
-          const product = products.find((p) => p.id === plan.productId);
-          const currentItemsInSlot = slotItems.filter(
-            (item) => item.slotId === plan.slotId && item.productId === plan.productId
-          );
-          const currentTotalQty = currentItemsInSlot.reduce((acc, item) => acc + item.currentQty, 0);
-          const neededQty = Math.max(0, plan.idealQty - currentTotalQty);
+        const slotById = useMemo(() => {
+          const map = {};
+          slots.forEach((s) => { map[s.id] = s; });
+          return map;
+        }, [slots]);
 
-          return {
-            planId: plan.id,
-            slotId: plan.slotId,
-            slotTitle: slot ? `${slot.sectionTitle} · #${slot.slotNumber}` : 'Espaço',
-            productId: plan.productId,
-            productName: product?.name || 'Produto',
-            responsible: getResponsibleName(product),
-            idealQty: plan.idealQty,
-            currentQty: currentTotalQty,
-            neededQty,
-            unitOfMeasure: plan.unitOfMeasure
-          };
-        });
+        // Quanto de cada produto já existe em cada vitrine, somando todos os
+        // espaços dela. Antes a conta olhava só para o espaço planejado, então
+        // o produto colocado no espaço do lado — o que acontece o tempo todo —
+        // era pedido de novo mesmo já estando na vitrine.
+        const qtyByShowcaseProduct = useMemo(() => {
+          const map = {};
+          slotItems.forEach((item) => {
+            const slot = slotById[item.slotId];
+            if (!slot || slot.unit !== currentUnit) return;
+            const key = `${showcaseKey(slot)}|${item.productId}`;
+            map[key] = (map[key] || 0) + item.currentQty;
+          });
+          return map;
+        }, [slotItems, slotById, currentUnit]);
+
+        const qtyInSlot = (slotId, productId) =>
+          slotItems
+            .filter((item) => item.slotId === slotId && item.productId === productId)
+            .reduce((acc, item) => acc + item.currentQty, 0);
+
+        // Uma linha por produto em cada vitrine, juntando os espaços que o
+        // padrão do dia reservou para ele
+        const orderList = useMemo(() => {
+          const grupos = [];
+          const porChave = {};
+
+          dayPlans.forEach((plan) => {
+            const slot = slotById[plan.slotId];
+            if (!slot) return;
+            const chave = `${showcaseKey(slot)}|${plan.productId}`;
+
+            if (!porChave[chave]) {
+              porChave[chave] = {
+                key: chave,
+                showcaseType: slot.showcaseType,
+                shelfNumber: slot.shelfNumber,
+                showcaseTitle: slot.sectionTitle,
+                productId: plan.productId,
+                unitOfMeasure: plan.unitOfMeasure,
+                plans: []
+              };
+              grupos.push(porChave[chave]);
+            }
+            porChave[chave].plans.push({ slot, idealQty: plan.idealQty });
+          });
+
+          return grupos.map((grupo) => {
+            const product = products.find((p) => p.id === grupo.productId);
+            const idealQty = grupo.plans.reduce((acc, p) => acc + p.idealQty, 0);
+            const currentQty = qtyByShowcaseProduct[grupo.key] || 0;
+            const neededQty = Math.max(0, idealQty - currentQty);
+
+            // Espalha o que falta pelos espaços planejados, começando por quem
+            // está mais vazio; nenhum espaço recebe mais do que o ideal dele
+            let restante = neededQty;
+            const targets = grupo.plans
+              .map((p) => ({
+                slotId: p.slot.id,
+                slotNumber: p.slot.slotNumber,
+                falta: Math.max(0, p.idealQty - qtyInSlot(p.slot.id, grupo.productId))
+              }))
+              .sort((a, b) => b.falta - a.falta)
+              .map((alvo) => {
+                const qty = Math.min(restante, alvo.falta);
+                restante -= qty;
+                return { ...alvo, qty };
+              })
+              .filter((alvo) => alvo.qty > 0);
+
+            // Sobra quando algum espaço da vitrine está com excesso: vai para o
+            // espaço mais vazio para o total da vitrine bater com o padrão
+            if (restante > 0 && grupo.plans.length > 0) {
+              const primeiro = grupo.plans
+                .slice()
+                .sort((a, b) => qtyInSlot(a.slot.id, grupo.productId) - qtyInSlot(b.slot.id, grupo.productId))[0];
+              const existente = targets.find((t) => t.slotId === primeiro.slot.id);
+              if (existente) existente.qty += restante;
+              else targets.push({ slotId: primeiro.slot.id, slotNumber: primeiro.slot.slotNumber, qty: restante });
+            }
+
+            return {
+              key: grupo.key,
+              showcaseType: grupo.showcaseType,
+              shelfNumber: grupo.shelfNumber,
+              showcaseTitle: grupo.showcaseTitle,
+              slotLabel: grupo.plans
+                .map((p) => `#${p.slot.slotNumber}`)
+                .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+                .join(', '),
+              productId: grupo.productId,
+              productName: product?.name || 'Produto',
+              responsible: getResponsibleName(product),
+              idealQty,
+              currentQty,
+              neededQty,
+              targets,
+              unitOfMeasure: grupo.unitOfMeasure
+            };
+          });
+        }, [dayPlans, slotById, slotItems, products, qtyByShowcaseProduct]);
 
         const pendingItems = orderList.filter((item) => item.neededQty > 0);
 
@@ -1692,14 +1847,28 @@
           ? pendingItems
           : pendingItems.filter((item) => item.responsible === activeResponsible);
 
+        // O checklist sai separado por vitrine — é assim que a cozinha monta
+        const showcaseBlocks = groupByShowcase(
+          itemsNeedingProduction,
+          (item) => ({
+            showcaseType: item.showcaseType,
+            shelfNumber: item.shelfNumber,
+            sectionTitle: item.showcaseTitle
+          })
+        );
+
         const handleApplyAll = () => {
           if (itemsNeedingProduction.length === 0) return;
-          const payload = itemsNeedingProduction.map((item) => ({
-            slotId: item.slotId,
-            productId: item.productId,
-            qty: item.neededQty,
-            productName: item.productName
-          }));
+          // Cada linha pode cair em mais de um espaço da mesma vitrine
+          const payload = itemsNeedingProduction.flatMap((item) =>
+            item.targets.map((alvo) => ({
+              slotId: alvo.slotId,
+              productId: item.productId,
+              qty: alvo.qty,
+              productName: item.productName
+            }))
+          );
+          if (payload.length === 0) return;
           onApplyProductionToShowcase(payload);
           alert('Produção lançada na vitrine com sucesso!');
         };
@@ -1760,42 +1929,55 @@
                   <p className="t-callout">Nada em falta em relação ao padrão ideal</p>
                 </div>
               ) : (
-                <div>
-                  {itemsNeedingProduction.map((item) => {
-                    const isChecked = !!completedItems[item.planId];
-                    return (
-                      <div key={item.planId} className="py-3.5 flex items-center justify-between gap-4 border-b hairline last:border-0">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button
-                            type="button"
-                            onClick={() => setCompletedItems((prev) => ({ ...prev, [item.planId]: !prev[item.planId] }))}
-                            className="text-[#c7c7cc] hover:text-[#34c759] transition-colors shrink-0"
-                          >
-                            {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-[#34c759]" /> : <Icons.Square className="w-5 h-5" />}
-                          </button>
-                          <div className="min-w-0">
-                            <h4 className={`t-headline truncate ${isChecked ? 'line-through text-[#a1a1a6]' : 'text-[#1d1d1f]'}`}>
-                              {item.productName}
-                            </h4>
-                            <p className="t-caption mt-0.5 truncate">{item.slotTitle}</p>
-                            <p className="t-caption mt-1 flex items-center gap-1 truncate">
-                              <Icons.User className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{item.responsible}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="t-caption hidden sm:block tnum text-right">
-                            Ideal {item.idealQty} · atual {item.currentQty}
-                          </div>
-                          <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap">
-                            +{item.neededQty} {item.unitOfMeasure}
-                          </div>
-                        </div>
+                <div className="space-y-5 pt-1">
+                  {showcaseBlocks.map((bloco) => (
+                    <div key={bloco.key}>
+                      <div className="flex items-center gap-2 pb-1">
+                        <span className="t-overline">{bloco.title}</span>
+                        <span className="t-caption tnum">{bloco.entries.length}</span>
+                        <span className="flex-1 h-px bg-black/[0.06]" />
+                        <span className="t-caption tnum">
+                          +{bloco.entries.reduce((acc, i) => acc + i.neededQty, 0)}
+                        </span>
                       </div>
-                    );
-                  })}
+
+                      {bloco.entries.map((item) => {
+                        const isChecked = !!completedItems[item.key];
+                        return (
+                          <div key={item.key} className="py-3.5 flex items-center justify-between gap-4 border-b hairline last:border-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => setCompletedItems((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                                className="text-[#c7c7cc] hover:text-[#34c759] transition-colors shrink-0"
+                              >
+                                {isChecked ? <Icons.CheckSquare className="w-5 h-5 text-[#34c759]" /> : <Icons.Square className="w-5 h-5" />}
+                              </button>
+                              <div className="min-w-0">
+                                <h4 className={`t-headline truncate ${isChecked ? 'line-through text-[#a1a1a6]' : 'text-[#1d1d1f]'}`}>
+                                  {item.productName}
+                                </h4>
+                                <p className="t-caption mt-0.5 truncate">{item.showcaseTitle} · {item.slotLabel}</p>
+                                <p className="t-caption mt-1 flex items-center gap-1 truncate">
+                                  <Icons.User className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{item.responsible}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 shrink-0">
+                              <div className="t-caption hidden sm:block tnum text-right">
+                                Ideal {item.idealQty} · na vitrine {item.currentQty}
+                              </div>
+                              <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap">
+                                +{item.neededQty} {item.unitOfMeasure}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -2916,7 +3098,11 @@
         const [qty, setQty] = useState(10);
         const [date, setDate] = useState(getTodayDateString());
 
-        const productOptions = products.map((p) => ({ value: p.name, label: p.name }));
+        // O espaço pertence a uma vitrine, então a lista mostra só os produtos
+        // daquela vitrine — nada de doce aparecendo na vitrine salgada
+        const categoriaDaVitrine = categoryOfShowcaseType(slot.showcaseType);
+        const productOptions = productsForShowcaseType(products, slot.showcaseType)
+          .map((p) => ({ value: p.name, label: p.name }));
         const dividindo = itemsInSlot.length > 0;
 
         const handleSubmit = (e) => {
@@ -2957,14 +3143,16 @@
               )}
 
               <div>
-                <label className="t-caption block mb-1">Produto</label>
+                <label className="t-caption block mb-1">
+                  Produto <span className="font-normal">· só os de {categoriaDaVitrine} desta vitrine</span>
+                </label>
                 <PickerField
                   placeholder="Digite ou escolha…"
                   value={productName}
                   options={productOptions}
                   onType={setProductName}
                   onPick={(opt) => setProductName(opt.label)}
-                  emptyLabel="Produto novo — o cadastro é feito ao colocar"
+                  emptyLabel={`Nenhum produto de ${categoriaDaVitrine} com esse nome — ao colocar, ele entra no catálogo`}
                   className="field field-md font-semibold"
                 />
               </div>
@@ -3421,15 +3609,18 @@
             (p) => p.name.toLowerCase().trim() === productName.toLowerCase().trim()
           );
 
+          const escolhido = slotId ? slots.find((s) => s.id === slotId) : null;
+
           write('Alocar na vitrine', async () => {
             let product = existente;
 
-            // Produto digitado que ainda não existe entra no catálogo
+            // Produto digitado que ainda não existe entra no catálogo, já na
+            // categoria da vitrine em que ele está sendo colocado
             if (!product) {
               const linhas = await run('products', sb.from('products').insert({
                 name: productName.trim(),
                 responsible: '',
-                category: 'salgado',
+                category: escolhido ? categoryOfShowcaseType(escolhido.showcaseType) : 'salgado',
                 default_unit: 'un',
                 min_replenishment_qty: 10,
                 shelf_life_days: 2,
@@ -3439,8 +3630,7 @@
               setProducts((prev) => [...prev, product].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
             }
 
-            const escolhido = slotId ? slots.find((s) => s.id === slotId) : null;
-            const showcaseType = product.category === 'doce' ? 'doce' : product.category === 'sobremesa' ? 'sobremesa' : 'salgada';
+            const showcaseType = showcaseTypeOfCategory(product.category);
             const unitSlots = slots.filter((s) => s.unit === currentUnit && s.showcaseType === showcaseType);
 
             if (!escolhido && unitSlots.length === 0) {
