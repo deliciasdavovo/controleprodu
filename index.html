@@ -1218,7 +1218,7 @@
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
               <div>
                 <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
-                <p className="t-callout mt-0.5">"Vendi 1" tira uma unidade na hora · o ⚠ abre a perda e a baixa em lote</p>
+                <p className="t-callout mt-0.5">O carrinho tira uma unidade na hora · o ⚠ abre a perda e a baixa em lote</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="segmented">
@@ -1323,11 +1323,11 @@
                                       </button>
                                       <button
                                         onClick={() => onQuickSale(item.id)}
-                                        className="btn btn-success flex-1 h-7 text-[12px]"
+                                        className="btn btn-success flex-1 h-7"
                                         title="Vendeu 1 — baixa direta, sem abrir janela"
+                                        aria-label="Vendeu 1"
                                       >
-                                        <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                                        Vendi 1
+                                        <Icons.ShoppingCart className="w-4 h-4" />
                                       </button>
                                       <button
                                         onClick={() => onOpenDecreaseModal(item, 'perda')}
