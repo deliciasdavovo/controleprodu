@@ -956,16 +956,33 @@
       // ==========================================
       // QUANTIDADE DA BAIXA SOBRE O LOTE
       //
-      // "−5 de 8 un": saiu 5 de um lote de 8. Bancos antigos podem não ter
-      // guardado o tamanho do lote; aí mostra só a quantidade.
+      // "5/8 un": saiu 5 de um lote de 8, no mesmo formato da vitrine física.
+      // Bancos antigos podem não ter guardado o tamanho do lote; aí mostra só a
+      // quantidade, e o sinal (+/−) diz se entrou ou saiu.
       // ==========================================
       const QtyOfBatch = ({ qty, produced, unit, sign = '', className = 'text-[#1d1d1f]' }) => (
         <span className="tnum whitespace-nowrap">
-          <span className={`text-[13px] font-extrabold ${className}`}>{sign}{qty}</span>
+          <span className={`text-[13px] font-extrabold ${className}`}>{produced > 0 ? qty : `${sign}${qty}`}</span>
           <span className="text-[11px] font-medium text-[#86868b]">
-            {produced > 0 ? ` de ${produced}` : ''} {unit}
+            {produced > 0 ? `/${produced}` : ''} {unit}
           </span>
         </span>
+      );
+
+      // ==========================================
+      // DATA DA BAIXA + LOTE DE ORIGEM
+      //
+      // A venda ou a perda lançada hoje pode ser de um lote fabricado dias
+      // atrás. Sem dizer de qual lote saiu, dois lançamentos do mesmo produto
+      // ficam iguais na tabela e parecem o mesmo produto lançado duas vezes.
+      // ==========================================
+      const DateWithBatch = ({ dia, manufactureDate }) => (
+        <>
+          {formatDateBR(dia)}
+          {manufactureDate && manufactureDate !== dia && (
+            <span className="block t-caption text-[10px] tnum">lote de {formatDateBR(manufactureDate)}</span>
+          )}
+        </>
       );
 
       // ==========================================
@@ -2199,7 +2216,9 @@
                     ) : (
                       filteredLosses.map((r) => (
                         <tr key={r.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                          <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.lossDate)}</td>
+                          <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
+                            <DateWithBatch dia={r.lossDate} manufactureDate={r.manufactureDate} />
+                          </td>
                           <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
                           <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
                           <td className="py-3 px-3 text-center">
@@ -2527,7 +2546,9 @@
                       ) : (
                         tudo.map((r) => (
                           <tr key={`${r.tipo}-${r.id}`} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(r.dia)}</td>
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
+                              <DateWithBatch dia={r.dia} manufactureDate={r.manufactureDate} />
+                            </td>
                             <td className="py-3 px-3">
                               <span className={`pill ${TIPOS[r.tipo].pill}`}>{TIPOS[r.tipo].label}</span>
                             </td>
@@ -2635,7 +2656,9 @@
                       ) : (
                         vendas.map((s) => (
                           <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(s.dia)}</td>
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
+                              <DateWithBatch dia={s.dia} manufactureDate={s.manufactureDate} />
+                            </td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
@@ -2674,7 +2697,9 @@
                       ) : (
                         perdas.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">{formatDateBR(l.dia)}</td>
+                            <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
+                              <DateWithBatch dia={l.dia} manufactureDate={l.manufactureDate} />
+                            </td>
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(l.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
