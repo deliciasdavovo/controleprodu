@@ -2362,9 +2362,28 @@
           setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
         };
 
+        // "Copiar tudo" é a lista de produzir, e nada mais: quantidade e item.
+        // Sem responsável, sem espaço, sem vitrine, sem prioridade — quem quer
+        // esse detalhe usa o "Copiar lista" de cada pessoa.
+        //
+        // O mesmo produto pode ser chamado por mais de uma vitrine, então as
+        // quantidades são somadas: uma linha por produto.
         const copiarTudo = () => {
-          if (responsibleBlocks.length === 0) return;
-          copiarTexto('__tudo__', responsibleBlocks.map(blockToText).join('\n\n──────────\n\n'));
+          if (itemsNeedingProduction.length === 0) return;
+
+          const porProduto = new Map();
+          itemsNeedingProduction.forEach((item) => {
+            const chave = `${item.productName}|${item.unitOfMeasure}`;
+            const atual = porProduto.get(chave);
+            if (atual) atual.qty += item.neededQty;
+            else porProduto.set(chave, { name: item.productName, unit: item.unitOfMeasure, qty: item.neededQty });
+          });
+
+          const linhas = [...porProduto.values()]
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+            .map((p) => `${p.qty} ${p.unit} — ${p.name}`);
+
+          copiarTexto('__tudo__', linhas.join('\n'));
         };
 
         const handleApplyAll = () => {
@@ -2397,7 +2416,8 @@
                   <h2 className="t-display">Pedido de produção</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     {getDayNameBR(selectedDay)} · {unitName} — uma lista por responsável, pronta para
-                    copiar. O item é chamado quando o estoque chega no mínimo da prioridade dele
+                    copiar; o "Copiar tudo" sai só com quantidade e item.
+                    O item é chamado quando o estoque chega no mínimo da prioridade dele
                     (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
                     C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão do dia)
                     ou quando tem peça vencida para repor. O vencido não conta como estoque.
@@ -2407,7 +2427,8 @@
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   <button
                     onClick={copiarTudo}
-                    disabled={responsibleBlocks.length === 0}
+                    disabled={itemsNeedingProduction.length === 0}
+                    title="Só quantidade e item, sem responsável e sem espaço"
                     className="btn btn-secondary btn-md disabled:opacity-40 disabled:pointer-events-none"
                   >
                     <Icons.Copy className="w-4 h-4" />
