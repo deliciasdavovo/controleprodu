@@ -1929,6 +1929,293 @@
       };
 
       // ==========================================
+      // TABELA DA SEMANA (Vitrine Padrão)
+      //
+      // A vitrine de cada dia é editada uma de cada vez, então é difícil ver
+      // o desenho da semana inteira. Esta tabela abre isso: uma linha por
+      // produto, uma coluna por dia, com a quantidade que o padrão pede, o
+      // total da semana e a média por dia em que o item entra.
+      // ==========================================
+      const WeeklyPlanTable = ({
+        currentUnit,
+        products,
+        slots,
+        standardPlans,
+        selectedDay,
+        onSelectDay
+      }) => {
+        const [aberto, setAberto] = useState(true);
+        const [busca, setBusca] = useState('');
+        const [ordem, setOrdem] = useState('total');
+        const [copiado, setCopiado] = useState(false);
+
+        const slotById = useMemo(() => {
+          const map = {};
+          slots.forEach((s) => { map[s.id] = s; });
+          return map;
+        }, [slots]);
+
+        // Uma linha por produto, somando os espaços que ele ocupa no dia
+        const linhas = useMemo(() => {
+          const porProduto = {};
+
+          standardPlans
+            .filter((sp) => sp.unit === currentUnit)
+            .forEach((sp) => {
+              if (!porProduto[sp.productId]) {
+                const produto = products.find((p) => p.id === sp.productId);
+                porProduto[sp.productId] = {
+                  id: sp.productId,
+                  nome: produto?.name || 'Produto removido',
+                  vitrines: [],
+                  dias: {},
+                  total: 0
+                };
+              }
+
+              const linha = porProduto[sp.productId];
+              const slot = slotById[sp.slotId];
+              if (slot && !linha.vitrines.includes(slot.sectionTitle)) {
+                linha.vitrines.push(slot.sectionTitle);
+              }
+              linha.dias[sp.dayOfWeek] = (linha.dias[sp.dayOfWeek] || 0) + (sp.idealQty || 0);
+              linha.total += sp.idealQty || 0;
+            });
+
+          return Object.values(porProduto).map((linha) => {
+            const diasAtivos = WEEK_DAYS.filter((d) => (linha.dias[d] || 0) > 0).length;
+            return { ...linha, diasAtivos, media: diasAtivos ? linha.total / diasAtivos : 0 };
+          });
+        }, [standardPlans, currentUnit, products, slotById]);
+
+        const visiveis = useMemo(() => {
+          const termo = normalizeName(busca);
+          const lista = termo ? linhas.filter((l) => normalizeName(l.nome).includes(termo)) : linhas;
+          return [...lista].sort((a, b) =>
+            ordem === 'nome'
+              ? a.nome.localeCompare(b.nome, 'pt-BR')
+              : b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR')
+          );
+        }, [linhas, busca, ordem]);
+
+        const totalPorDia = useMemo(() => {
+          const contas = {};
+          WEEK_DAYS.forEach((d) => {
+            contas[d] = visiveis.reduce((acc, l) => acc + (l.dias[d] || 0), 0);
+          });
+          return contas;
+        }, [visiveis]);
+
+        const totalSemana = useMemo(
+          () => visiveis.reduce((acc, l) => acc + l.total, 0),
+          [visiveis]
+        );
+
+        // A célula mais cheia da tabela dá a régua do sombreado: quanto mais
+        // perto dela, mais forte o azul do fundo
+        const maiorCelula = useMemo(() => {
+          let maior = 0;
+          visiveis.forEach((l) => {
+            WEEK_DAYS.forEach((d) => { maior = Math.max(maior, l.dias[d] || 0); });
+          });
+          return maior;
+        }, [visiveis]);
+
+        const fundoDaCelula = (qtd) => {
+          if (!qtd || !maiorCelula) return undefined;
+          return { backgroundColor: `rgba(0, 113, 227, ${(0.05 + (qtd / maiorCelula) * 0.16).toFixed(3)})` };
+        };
+
+        const formatarMedia = (valor) =>
+          (Math.round(valor * 10) / 10).toString().replace('.', ',');
+
+        // Sai com tabulação: cola direto no Excel ou no Google Planilhas
+        const handleCopy = async () => {
+          const linhasTexto = [
+            ['Produto', ...WEEK_DAYS.map(getDayShortBR), 'Total semana'].join('\t'),
+            ...visiveis.map((l) =>
+              [l.nome, ...WEEK_DAYS.map((d) => l.dias[d] || 0), l.total].join('\t')
+            ),
+            ['Total', ...WEEK_DAYS.map((d) => totalPorDia[d]), totalSemana].join('\t')
+          ];
+
+          const ok = await copyTextToClipboard(linhasTexto.join('\n'));
+          if (ok) {
+            setCopiado(true);
+            setTimeout(() => setCopiado(false), 2000);
+          }
+        };
+
+        return (
+          <div className="card p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="t-overline flex items-center gap-1.5 mb-1.5">
+                  <Icons.ClipboardList className="w-3.5 h-3.5" />
+                  Quantidade por dia
+                </div>
+                <h3 className="t-title text-[#1d1d1f]">A semana inteira</h3>
+                <p className="t-caption mt-1">
+                  {linhas.length} produtos no padrão · {WEEK_DAYS.reduce((acc, d) => acc + (totalPorDia[d] || 0), 0)} un na semana
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {aberto && (
+                  <button onClick={handleCopy} className="btn btn-secondary btn-sm">
+                    <Icons.Copy className="w-3.5 h-3.5" />
+                    {copiado ? 'Copiado!' : 'Copiar tabela'}
+                  </button>
+                )}
+                <button onClick={() => setAberto(!aberto)} className="btn btn-secondary btn-sm">
+                  {aberto ? 'Esconder' : 'Mostrar'}
+                </button>
+              </div>
+            </div>
+
+            {aberto && (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-4">
+                  <div className="relative flex-1 max-w-xs">
+                    <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                    <input
+                      type="text"
+                      placeholder="Pesquisar produto…"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      className="field field-sm field-search"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="t-caption mr-0.5">Ordenar</span>
+                    <button
+                      onClick={() => setOrdem('total')}
+                      className={`btn h-8 px-3 text-[12px] ${ordem === 'total' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      Maior total
+                    </button>
+                    <button
+                      onClick={() => setOrdem('nome')}
+                      className={`btn h-8 px-3 text-[12px] ${ordem === 'nome' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      A-Z
+                    </button>
+                  </div>
+                </div>
+
+                {visiveis.length === 0 ? (
+                  <p className="t-body text-center py-10">
+                    {linhas.length === 0
+                      ? 'Nenhum item no padrão ainda — monte a vitrine de um dia para a semana aparecer aqui.'
+                      : 'Nenhum produto com esse nome.'}
+                  </p>
+                ) : (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full border-collapse text-[13px]">
+                      <thead>
+                        <tr>
+                          <th
+                            className="sticky left-0 z-10 text-left t-overline font-bold px-2.5 py-2 border-b border-r hairline w-[136px] sm:w-[240px]"
+                            style={{ background: 'var(--bg-surface)' }}
+                          >
+                            Produto
+                          </th>
+                          {WEEK_DAYS.map((day) => (
+                            <th key={day} className="px-1 pb-2 border-b hairline">
+                              <button
+                                onClick={() => onSelectDay(day)}
+                                title={`Editar a vitrine de ${getDayNameBR(day)}`}
+                                className={`w-full min-w-11 rounded-lg px-2 py-1.5 text-[12px] font-bold transition-colors ${
+                                  selectedDay === day
+                                    ? 'bg-[#0071e3] text-white'
+                                    : 'text-[#6e6e73] hover:bg-black/[0.05]'
+                                }`}
+                              >
+                                {getDayShortBR(day)}
+                              </button>
+                            </th>
+                          ))}
+                          <th className="text-right t-overline font-bold px-2.5 py-2 border-b hairline whitespace-nowrap">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {visiveis.map((linha) => (
+                          <tr key={linha.id} className="border-b hairline">
+                            <td
+                              className="sticky left-0 z-10 px-2.5 py-1.5 border-r hairline w-[136px] sm:w-[240px] max-w-[136px] sm:max-w-[240px]"
+                              style={{ background: 'var(--bg-surface)' }}
+                            >
+                              <p className="font-semibold text-[#1d1d1f] truncate" title={linha.nome}>
+                                {linha.nome}
+                              </p>
+                              {linha.vitrines.length > 0 && (
+                                <p className="t-caption text-[11px] truncate">{linha.vitrines.join(' · ')}</p>
+                              )}
+                            </td>
+
+                            {WEEK_DAYS.map((day) => {
+                              const qtd = linha.dias[day] || 0;
+                              return (
+                                <td
+                                  key={day}
+                                  className={`text-center tnum px-1 py-1.5 ${
+                                    qtd ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'
+                                  } ${selectedDay === day ? 'ring-1 ring-inset ring-[#0071e3]/25' : ''}`}
+                                  style={fundoDaCelula(qtd)}
+                                >
+                                  {qtd || '·'}
+                                </td>
+                              );
+                            })}
+
+                            <td className="text-right px-2.5 py-1.5 whitespace-nowrap">
+                              <span className="tnum font-extrabold text-[#1d1d1f]">{linha.total}</span>
+                              {linha.diasAtivos > 1 && (
+                                <span className="t-caption tnum text-[11px] block">
+                                  {formatarMedia(linha.media)}/dia
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+
+                      <tfoot>
+                        <tr>
+                          <td
+                            className="sticky left-0 z-10 px-2.5 py-2 t-overline font-bold border-r hairline"
+                            style={{ background: 'var(--bg-surface)' }}
+                          >
+                            Total do dia
+                          </td>
+                          {WEEK_DAYS.map((day) => (
+                            <td
+                              key={day}
+                              className={`text-center tnum font-extrabold px-1 py-2 ${
+                                selectedDay === day ? 'text-[#0071e3]' : 'text-[#1d1d1f]'
+                              }`}
+                            >
+                              {totalPorDia[day] || 0}
+                            </td>
+                          ))}
+                          <td className="text-right tnum font-extrabold px-2.5 py-2 text-[#1d1d1f]">
+                            {totalSemana}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
       // STANDARD SHOWCASE VIEW (Vitrine Padrão)
       //
       // As vitrines ficam lado a lado, cada uma em forma de lista: dá para
@@ -2225,6 +2512,15 @@
                 );
               })}
             </div>
+
+            <WeeklyPlanTable
+              currentUnit={currentUnit}
+              products={products}
+              slots={slots}
+              standardPlans={standardPlans}
+              selectedDay={selectedDay}
+              onSelectDay={onSelectDay}
+            />
 
             {organizing && (
               <PlanOrganizeModal
