@@ -254,52 +254,11 @@
       .field-search { padding-left: 34px; padding-right: 12px; }
       .field-auto { width: auto; }
 
-      /* Contador com os botões − e +: as setinhas do navegador só atrapalham */
+      /* Campo de número: as setinhas do navegador só atrapalham no tamanho
+         pequeno que a vitrine usa */
       .no-spin::-webkit-outer-spin-button,
       .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
       .no-spin { -moz-appearance: textfield; }
-
-      /* Contador de unidades: − , número digitável e + em uma peça só */
-      .stepper {
-        display: inline-flex;
-        align-items: center;
-        height: 32px;
-        background: var(--bg-surface);
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        border-radius: var(--radius-sm);
-        overflow: hidden;
-      }
-      .stepper-block { display: flex; width: 100%; }
-      .stepper > button {
-        width: 32px;
-        align-self: stretch;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--ink-2);
-        transition: background-color .12s ease;
-      }
-      .stepper > button:hover { background: rgba(0, 0, 0, 0.05); }
-      .stepper > button:active { background: rgba(0, 0, 0, 0.09); }
-      .stepper > button:disabled { color: var(--ink-4); background: transparent; cursor: default; }
-      .stepper > input {
-        width: 42px;
-        align-self: stretch;
-        text-align: center;
-        background: transparent;
-        border: 0;
-        border-left: 1px solid rgba(0, 0, 0, 0.08);
-        border-right: 1px solid rgba(0, 0, 0, 0.08);
-        font-size: 15px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        color: var(--ink-1);
-      }
-      .stepper > input:focus { outline: none; background: rgba(0, 113, 227, 0.07); }
-      .stepper-block > input { flex: 1; width: auto; }
-      .stepper-sm { height: 28px; }
-      .stepper-sm > button { width: 28px; }
-      .stepper-sm > input { width: 34px; font-size: 13px; }
 
       /* Toda caixa de seleção usa a seta do site, e não a do sistema */
       select.field,
@@ -1243,52 +1202,140 @@
       };
 
       // ==========================================
-      // CONTADOR DE UNIDADES
+      // CAMPO DA CONTAGEM
       //
-      // Acertar a quantidade era digitar dentro de um campo pequeno. Aqui o
-      // − e o + fazem o trabalho no toque, e quem quiser digitar continua
-      // digitando no meio. Isto é contagem, não baixa: nada é registrado
-      // como venda ou perda — para isso existem os botões de baixa ao lado.
+      // Quantas unidades estão na vitrine agora. Isto é acerto de contagem,
+      // não baixa: digitar aqui não registra venda nem perda — para isso são
+      // os botões de baixa ao lado.
       // ==========================================
-      const QtyStepper = ({ value, onStep, onSet, size = 'md', block = false, label }) => {
+      const QtyField = ({ value, onSet, className = '', label }) => {
         // Enquanto a pessoa digita, o campo pode ficar vazio sem virar zero
         const [rascunho, setRascunho] = useState(null);
         const texto = rascunho === null ? String(value) : rascunho;
 
-        const handleType = (e) => {
-          const limpo = e.target.value.replace(/\D/g, '');
-          setRascunho(limpo);
-          if (limpo !== '') onSet(Number(limpo));
+        return (
+          <input
+            type="text"
+            inputMode="numeric"
+            value={texto}
+            onChange={(e) => {
+              const limpo = e.target.value.replace(/\D/g, '');
+              setRascunho(limpo);
+              if (limpo !== '') onSet(Number(limpo));
+            }}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => setRascunho(null)}
+            aria-label={label || 'Quantidade na vitrine'}
+            className={`field tnum text-center no-spin ${className}`}
+          />
+        );
+      };
+
+      // ==========================================
+      // SEGURAR O BOTÃO
+      //
+      // O clique curto dá a baixa rápida; segurar por um instante abre a
+      // janela completa, com motivo, detalhes e quantidade. Serve para a
+      // perda de avaria ou quebra, que é rara perto da perda de vencido.
+      // ==========================================
+      const LONG_PRESS_MS = 600;
+
+      const useLongPress = (onLongPress, onClick) => {
+        const timerRef = useRef(null);
+        const disparouRef = useRef(false);
+        const origemRef = useRef(null);
+
+        const soltar = () => {
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = null;
+          origemRef.current = null;
         };
 
+        return {
+          onPointerDown: (e) => {
+            disparouRef.current = false;
+            origemRef.current = { x: e.clientX, y: e.clientY };
+            timerRef.current = setTimeout(() => {
+              disparouRef.current = true;
+              onLongPress();
+            }, LONG_PRESS_MS);
+          },
+          // O dedo que arrasta está rolando a lista, não segurando o botão
+          onPointerMove: (e) => {
+            const origem = origemRef.current;
+            if (!origem) return;
+            if (Math.abs(e.clientX - origem.x) > 10 || Math.abs(e.clientY - origem.y) > 10) soltar();
+          },
+          onPointerUp: soltar,
+          onPointerLeave: soltar,
+          onPointerCancel: soltar,
+          // O clique vem depois de soltar o dedo: se a janela já abriu, ele
+          // não pode dar a baixa por cima
+          onClick: () => {
+            if (disparouRef.current) {
+              disparouRef.current = false;
+              return;
+            }
+            onClick();
+          },
+          onContextMenu: (e) => e.preventDefault()
+        };
+      };
+
+      // ==========================================
+      // BOTÕES DE BAIXA DE UM ITEM
+      //
+      // Os mesmos quatro botões na vitrine física e na lista de apoio, para
+      // o gesto ser o mesmo nas duas telas:
+      //   🛒 carrinho  → vendeu 1
+      //   ✓ verde      → vendeu tudo
+      //   ⚠ amarelo    → perdeu 1
+      //   ⚠ vermelho   → perdeu tudo
+      // Segurar um dos ⚠ abre a janela de perda com motivo.
+      // ==========================================
+      const ItemActions = ({ item, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, className = '', buttonClass = 'flex-1 h-7 px-0' }) => {
+        const perdeuUm = useLongPress(
+          () => onOpenDecreaseModal(item, 'perda'),
+          () => onQuickLoss(item.id, 1)
+        );
+        const perdeuTudo = useLongPress(
+          () => onOpenDecreaseModal(item, 'perda'),
+          () => onQuickLoss(item.id, item.currentQty)
+        );
+
         return (
-          <div className={`stepper ${size === 'sm' ? 'stepper-sm' : ''} ${block ? 'stepper-block' : ''}`}>
+          <div className={`flex items-center gap-1.5 ${className}`}>
             <button
-              type="button"
-              onClick={() => onStep(-1)}
-              disabled={value <= 0}
-              title="Tirar uma unidade da contagem (não registra venda)"
-              aria-label="Tirar uma unidade da contagem"
+              onClick={() => onQuickSale(item.id)}
+              title="Vendeu 1"
+              aria-label="Vendeu 1"
+              className={`btn btn-success ${buttonClass}`}
             >
-              <Icons.Minus className="w-3.5 h-3.5" />
+              <Icons.ShoppingCart className="w-3.5 h-3.5" />
             </button>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={texto}
-              onChange={handleType}
-              onFocus={(e) => e.target.select()}
-              onBlur={() => setRascunho(null)}
-              aria-label={label || 'Quantidade na vitrine'}
-              className="tnum no-spin"
-            />
             <button
-              type="button"
-              onClick={() => onStep(1)}
-              title="Repor uma unidade na contagem"
-              aria-label="Repor uma unidade na contagem"
+              onClick={() => onRecordSellAll(item.id)}
+              title={`Vendeu tudo (${item.currentQty})`}
+              aria-label={`Vendeu tudo, ${item.currentQty} unidades`}
+              className={`btn bg-[#34c759]/14 hover:bg-[#34c759]/24 text-[#1d7a35] ${buttonClass}`}
             >
-              <Icons.Plus className="w-3.5 h-3.5" />
+              <Icons.CheckCircle2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              {...perdeuUm}
+              title="Perdeu 1 — segure para escolher o motivo"
+              aria-label="Perdeu 1"
+              className={`btn bg-[#ff9f0a]/14 hover:bg-[#ff9f0a]/26 text-[#8a5200] ${buttonClass}`}
+            >
+              <Icons.AlertTriangle className="w-3.5 h-3.5" />
+            </button>
+            <button
+              {...perdeuTudo}
+              title={`Perdeu tudo (${item.currentQty}) — segure para escolher o motivo`}
+              aria-label={`Perdeu tudo, ${item.currentQty} unidades`}
+              className={`btn bg-[#ff3b30]/12 hover:bg-[#ff3b30]/22 text-[#c9271d] ${buttonClass}`}
+            >
+              <Icons.AlertTriangle className="w-3.5 h-3.5" />
             </button>
           </div>
         );
@@ -1297,7 +1344,7 @@
       // ==========================================
       // SHOWCASE GRID COMPONENT
       // ==========================================
-      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, filterType, onChangeFilterType, onStepQty, onSetQty, onQuickSale, onOpenDecreaseModal, onOpenSlot }) => {
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, filterType, onChangeFilterType, onSetQty, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onOpenSlot }) => {
 
         const unitSlots = useMemo(() => {
           return slots.filter((s) => s.unit === currentUnit && s.showcaseType === filterType);
@@ -1320,7 +1367,7 @@
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
               <div>
                 <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
-                <p className="t-callout mt-0.5">− e + acertam a contagem · "Vendeu 1" dá a baixa · o ⚠ abre a perda</p>
+                <p className="t-callout mt-0.5">🛒 vendeu 1 · ✓ vendeu tudo · ⚠ amarelo perdeu 1 · ⚠ vermelho perdeu tudo (segure para o motivo)</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="segmented">
@@ -1404,42 +1451,29 @@
                                       <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                                     </h4>
 
-                                    {/* Contagem direto no card: o − e o + acertam
-                                        o número sem abrir nada, e o campo do meio
-                                        aceita o valor digitado de uma vez */}
-                                    <div className="flex items-baseline justify-between">
-                                      <span className="t-caption">Na vitrine</span>
-                                      <span className="t-caption tnum">de {item.producedQty || item.currentQty} {item.unit}</span>
-                                    </div>
-                                    <QtyStepper
-                                      block
-                                      size="sm"
-                                      value={item.currentQty}
-                                      onStep={(delta) => onStepQty(item.id, delta)}
-                                      onSet={(valor) => onSetQty(item.id, valor)}
-                                      label={`Quantidade de ${item.productName} na vitrine`}
-                                    />
-
-                                    {/* Vender é o que mais acontece no balcão: um
-                                        clique tira uma unidade. Perda e baixa em
-                                        lote ficam no botão de opções ao lado. */}
+                                    {/* A contagem é digitada no próprio card:
+                                        acerta o número sem abrir janela. A
+                                        largura vem do invólucro porque .field
+                                        já ocupa a linha inteira sozinho. */}
                                     <div className="flex items-center gap-1.5">
-                                      <button
-                                        onClick={() => onQuickSale(item.id)}
-                                        className="btn btn-success flex-1 h-7 text-[11px] px-1.5"
-                                        title="Vendeu 1 — baixa direta, sem abrir janela"
-                                      >
-                                        <Icons.ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                                        Vendeu 1
-                                      </button>
-                                      <button
-                                        onClick={() => onOpenDecreaseModal(item, 'perda')}
-                                        className="btn w-8 h-7 px-0 shrink-0 bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/18"
-                                        title="Perda e outras baixas — quantidade maior, motivo, vendeu tudo"
-                                      >
-                                        <Icons.AlertTriangle className="w-3.5 h-3.5" />
-                                      </button>
+                                      <div className="w-11 shrink-0">
+                                        <QtyField
+                                          value={item.currentQty}
+                                          onSet={(valor) => onSetQty(item.id, valor)}
+                                          label={`Quantidade de ${item.productName} na vitrine`}
+                                          className="h-7 px-1 text-[14px] font-extrabold"
+                                        />
+                                      </div>
+                                      <span className="t-caption tnum truncate">de {item.producedQty || item.currentQty} {item.unit}</span>
                                     </div>
+
+                                    <ItemActions
+                                      item={item}
+                                      onQuickSale={onQuickSale}
+                                      onRecordSellAll={onRecordSellAll}
+                                      onQuickLoss={onQuickLoss}
+                                      onOpenDecreaseModal={onOpenDecreaseModal}
+                                    />
                                   </div>
                                 );
                               })}
@@ -1470,7 +1504,7 @@
       // ==========================================
       // TACTICAL SUPPORT LIST COMPONENT
       // ==========================================
-      const SupportList = ({ currentUnit, slotItems, products, slots, showcaseType, onChangeShowcaseType, onUpdateItem, onStepQty, onSetQty, onQuickAllocate, onQuickSale, onRecordSellAll, onOpenDecreaseModal, onRemoveItem }) => {
+      const SupportList = ({ currentUnit, slotItems, products, slots, showcaseType, onChangeShowcaseType, onUpdateItem, onSetQty, onQuickAllocate, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onRemoveItem }) => {
         const [filterText, setFilterText] = useState('');
         const [quickProductName, setQuickProductName] = useState('');
         const [quickQty, setQuickQty] = useState(10);
@@ -1716,48 +1750,33 @@
                                 className="field h-8 px-1 text-[12px] font-bold text-center tnum no-spin"
                               />
                             </label>
-                            <div className="shrink-0">
+                            <div className="w-14 shrink-0">
                               <span className="t-caption text-[10px] block mb-0.5 text-center">Na vitrine</span>
-                              <QtyStepper
+                              <QtyField
                                 value={item.currentQty}
-                                onStep={(delta) => onStepQty(item.id, delta)}
                                 onSet={(valor) => onSetQty(item.id, valor)}
                                 label={`Quantidade de ${item.productName} na vitrine`}
+                                className="h-8 px-1 text-[13px] font-extrabold"
                               />
                             </div>
                           </div>
 
                           {/* Baixas: sai do estoque e vai para o relatório. É
-                              outra coisa do contador acima, que só corrige. */}
+                              outra coisa da contagem acima, que só corrige. */}
                           <div className="flex items-center gap-1.5 mt-2">
-                            <button
-                              onClick={() => onQuickSale(item.id)}
-                              title="Vendeu 1 — baixa direta, sem abrir janela"
-                              className="btn btn-success flex-1 h-7 text-[11px] px-2"
-                            >
-                              <Icons.ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                              Vendeu 1
-                            </button>
-                            <button
-                              onClick={() => onRecordSellAll(item.id)}
-                              title="Vendeu tudo — baixa o saldo inteiro"
-                              className="btn h-7 text-[11px] px-2 bg-[#34c759]/12 hover:bg-[#34c759]/20 text-[#1d7a35]"
-                            >
-                              <Icons.CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              Tudo
-                            </button>
-                            <button
-                              onClick={() => onOpenDecreaseModal(item, 'perda')}
-                              title="Perda e outras baixas"
-                              className="btn h-7 text-[11px] px-2 bg-[#ff9f0a]/12 hover:bg-[#ff9f0a]/22 text-[#8a5200]"
-                            >
-                              <Icons.AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                              Perda
-                            </button>
+                            <ItemActions
+                              item={item}
+                              onQuickSale={onQuickSale}
+                              onRecordSellAll={onRecordSellAll}
+                              onQuickLoss={onQuickLoss}
+                              onOpenDecreaseModal={onOpenDecreaseModal}
+                              className="flex-1"
+                            />
                             <button
                               onClick={() => onRemoveItem(item.id)}
                               title="Remover item da vitrine"
-                              className="btn w-7 h-7 px-0 shrink-0 bg-[#ff3b30]/10 hover:bg-[#ff3b30]/18 text-[#c9271d]"
+                              aria-label="Remover item da vitrine"
+                              className="btn w-7 h-7 px-0 shrink-0 bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73]"
                             >
                               <Icons.Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -4692,17 +4711,21 @@
       };
 
       // ==========================================
-      // BARRA DE DESFAZER DA VENDA DE UM CLIQUE
+      // BARRA DE DESFAZER DA BAIXA DE UM CLIQUE
       //
-      // A venda entra sem confirmar, então o conserto do clique errado fica
-      // aqui embaixo por alguns segundos.
+      // Venda e perda entram sem confirmar, então o conserto do clique errado
+      // fica aqui embaixo por alguns segundos.
       // ==========================================
-      const UndoSaleBar = ({ info, onUndo, onDismiss }) => (
+      const UndoBaixaBar = ({ info, onUndo, onDismiss }) => {
+        const perda = info.tabela === 'loss_records';
+        const IconeBaixa = perda ? Icons.AlertTriangle : Icons.ShoppingCart;
+
+        return (
         <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-[#1d1d1f] text-white pl-4 pr-2 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.28)] max-w-full">
-            <Icons.ShoppingCart className="w-4 h-4 text-[#5ddc7c] shrink-0" />
+            <IconeBaixa className={`w-4 h-4 shrink-0 ${perda ? 'text-[#ffb340]' : 'text-[#5ddc7c]'}`} />
             <span className="text-[13px] font-semibold tracking-[-0.01em] truncate">
-              <span className="tnum">{info.qty} {info.item.unit}</span> de {info.item.productName} — venda registrada
+              <span className="tnum">{info.qty} {info.item.unit}</span> de {info.item.productName} — {perda ? 'perda registrada' : 'venda registrada'}
             </span>
             <button
               onClick={onUndo}
@@ -4720,7 +4743,8 @@
             </button>
           </div>
         </div>
-      );
+        );
+      };
 
       // ==========================================
       // TELAS DE ESTADO DA CONEXÃO
@@ -4804,8 +4828,9 @@
 
         // { item, mode } — o modo diz se a janela abre em venda ou em perda
         const [decreaseTarget, setDecreaseTarget] = useState(null);
-        // Última venda de um clique, enquanto ela ainda pode ser desfeita
-        const [undoSale, setUndoSale] = useState(null);
+        // Última baixa de um clique (venda ou perda), enquanto ela ainda pode
+        // ser desfeita
+        const [undoBaixa, setUndoBaixa] = useState(null);
         const [slotToFill, setSlotToFill] = useState(null);
 
         const [loadState, setLoadState] = useState('loading'); // loading | ready | error
@@ -4881,13 +4906,13 @@
           return () => { clearInterval(id); window.removeEventListener('focus', tick); };
         }, []);
 
-        // O "Desfazer" da venda de um clique vale por alguns segundos: depois
+        // O "Desfazer" da baixa de um clique vale por alguns segundos: depois
         // disso a barra sai da frente sozinha
         useEffect(() => {
-          if (!undoSale) return;
-          const id = setTimeout(() => setUndoSale(null), 8000);
+          if (!undoBaixa) return;
+          const id = setTimeout(() => setUndoBaixa(null), 8000);
           return () => clearTimeout(id);
-        }, [undoSale]);
+        }, [undoBaixa]);
 
         // Descarta as gravações agendadas ao sair da página
         useEffect(() => () => {
@@ -4952,13 +4977,13 @@
 
         // Contagem do que está na vitrine: acerta o número e mais nada — não
         // é venda nem perda, então não entra em relatório nenhum. Lê do
-        // espelho para aguentar vários toques seguidos no − e no +, e o que
-        // for reposto acima do lote levanta junto o total produzido, senão a
-        // leitura "9 de 8" ficaria sem sentido.
-        const aplicarContagem = (itemId, calcular) => {
+        // espelho para pegar o saldo do instante, e o que for reposto acima do
+        // lote levanta junto o total produzido, senão a leitura "9 de 8"
+        // ficaria sem sentido.
+        const handleSetQty = (itemId, valor) => {
           const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target) return;
-          const nova = Math.max(0, Math.round(calcular(target.currentQty)) || 0);
+          const nova = Math.max(0, Math.round(valor) || 0);
           if (nova === target.currentQty) return;
 
           handleUpdateItem({
@@ -4967,9 +4992,6 @@
             producedQty: Math.max(target.producedQty || 0, nova)
           });
         };
-
-        const handleStepQty = (itemId, delta) => aplicarContagem(itemId, (atual) => atual + delta);
-        const handleSetQty = (itemId, valor) => aplicarContagem(itemId, () => valor);
 
         const handleUpdateItem = (updatedItem) => {
           aplicarSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
@@ -5027,8 +5049,8 @@
               await run('slot_items', sb.from('slot_items').update({ current_qty: restante }).eq('id', itemId));
             }
 
-            // O que a venda de um clique precisa para voltar atrás
-            return { recordId: registro.id, item: target, qty, zerou };
+            // O que a baixa de um clique precisa para voltar atrás
+            return { tabela, recordId: registro.id, item: target, qty, zerou };
           });
         };
 
@@ -5046,19 +5068,23 @@
           const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target || target.currentQty <= 0) return;
           const baixa = await handleRecordSale(itemId, 1);
-          if (baixa) setUndoSale(baixa);
+          if (baixa) setUndoBaixa(baixa);
         };
 
-        // Apaga o registro da venda e devolve a unidade ao espaço. Se a baixa
+        // Apaga o registro da baixa e devolve as unidades ao espaço. Se a baixa
         // tinha zerado o item, o espaço é montado de novo com os mesmos dados
-        const handleUndoSale = () => {
-          const alvo = undoSale;
+        const handleUndoBaixa = () => {
+          const alvo = undoBaixa;
           if (!alvo) return;
-          setUndoSale(null);
+          setUndoBaixa(null);
 
-          enfileirarBaixa('Desfazer venda', async () => {
-            await run('sale_records', sb.from('sale_records').delete().eq('id', alvo.recordId));
-            setSaleRecords((prev) => prev.filter((s) => s.id !== alvo.recordId));
+          enfileirarBaixa('Desfazer baixa', async () => {
+            await run(alvo.tabela, sb.from(alvo.tabela).delete().eq('id', alvo.recordId));
+            if (alvo.tabela === 'sale_records') {
+              setSaleRecords((prev) => prev.filter((s) => s.id !== alvo.recordId));
+            } else {
+              setLossRecords((prev) => prev.filter((l) => l.id !== alvo.recordId));
+            }
 
             // A baixa levou o item embora: o espaço volta a ser montado com os
             // mesmos dados, em uma linha nova
@@ -5090,7 +5116,7 @@
         const handleRecordLoss = (itemId, qty, reason, details) => {
           const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target) return;
-          registrarBaixa('loss_records', itemId, qty, {
+          return registrarBaixa('loss_records', itemId, qty, {
             loss_date: getTodayDateString(),
             reason,
             details: details || null,
@@ -5103,7 +5129,17 @@
           const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target || target.currentQty <= 0) return;
           const baixa = await handleRecordSale(itemId, target.currentQty);
-          if (baixa) setUndoSale(baixa);
+          if (baixa) setUndoBaixa(baixa);
+        };
+
+        // Perda de um clique: o ⚠ amarelo tira uma unidade, o vermelho tira o
+        // que sobrou. O motivo entra como "vencido", que é a perda do dia a dia
+        // da vitrine — segurar o botão abre a janela para escolher outro.
+        const handleQuickLoss = async (itemId, qty) => {
+          const target = slotItemsRef.current.find((i) => i.id === itemId);
+          if (!target || target.currentQty <= 0) return;
+          const baixa = await handleRecordLoss(itemId, Math.min(qty, target.currentQty), 'vencido', '');
+          if (baixa) setUndoBaixa(baixa);
         };
 
         const abrirBaixa = (item, mode = 'venda') => setDecreaseTarget({ item, mode });
@@ -5582,9 +5618,10 @@
                       products={products}
                       filterType={showcaseFilter}
                       onChangeFilterType={setShowcaseFilter}
-                      onStepQty={handleStepQty}
                       onSetQty={handleSetQty}
                       onQuickSale={handleQuickSale}
+                      onRecordSellAll={handleRecordSellAll}
+                      onQuickLoss={handleQuickLoss}
                       onOpenDecreaseModal={abrirBaixa}
                       onOpenSlot={setSlotToFill}
                     />
@@ -5598,11 +5635,11 @@
                       showcaseType={showcaseFilter}
                       onChangeShowcaseType={setShowcaseFilter}
                       onUpdateItem={handleUpdateItem}
-                      onStepQty={handleStepQty}
                       onSetQty={handleSetQty}
                       onQuickAllocate={handleQuickAllocate}
                       onQuickSale={handleQuickSale}
                       onRecordSellAll={handleRecordSellAll}
+                      onQuickLoss={handleQuickLoss}
                       onOpenDecreaseModal={abrirBaixa}
                       onRemoveItem={handleRemoveItem}
                     />
@@ -5708,8 +5745,8 @@
               />
             )}
 
-            {undoSale && (
-              <UndoSaleBar info={undoSale} onUndo={handleUndoSale} onDismiss={() => setUndoSale(null)} />
+            {undoBaixa && (
+              <UndoBaixaBar info={undoBaixa} onUndo={handleUndoBaixa} onDismiss={() => setUndoBaixa(null)} />
             )}
 
             <footer className="mt-auto border-t hairline">
