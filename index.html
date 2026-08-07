@@ -1292,6 +1292,10 @@
       //   ⚠ amarelo    → perdeu 1
       //   ⚠ vermelho   → perdeu tudo
       // Segurar um dos ⚠ abre a janela de perda com motivo.
+      //
+      // O fundo cheio fica só nos dois que zeram o espaço — eles acabam com
+      // o item de uma vez, e é neles que o dedo não pode errar. Os de uma
+      // unidade ficam em fundo neutro, com o desenho na cor da baixa.
       // ==========================================
       const ItemActions = ({ item, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, className = '', buttonClass = 'flex-1 h-7 px-0' }) => {
         const perdeuUm = useLongPress(
@@ -1309,7 +1313,7 @@
               onClick={() => onQuickSale(item.id)}
               title="Vendeu 1"
               aria-label="Vendeu 1"
-              className={`btn btn-success ${buttonClass}`}
+              className={`btn btn-secondary text-[#1d7a35] ${buttonClass}`}
             >
               <Icons.ShoppingCart className="w-3.5 h-3.5" />
             </button>
@@ -1317,7 +1321,7 @@
               onClick={() => onRecordSellAll(item.id)}
               title={`Vendeu tudo (${item.currentQty})`}
               aria-label={`Vendeu tudo, ${item.currentQty} unidades`}
-              className={`btn bg-[#34c759]/14 hover:bg-[#34c759]/24 text-[#1d7a35] ${buttonClass}`}
+              className={`btn btn-success ${buttonClass}`}
             >
               <Icons.CheckCircle2 className="w-3.5 h-3.5" />
             </button>
@@ -1325,7 +1329,7 @@
               {...perdeuUm}
               title="Perdeu 1 — segure para escolher o motivo"
               aria-label="Perdeu 1"
-              className={`btn bg-[#ff9f0a]/14 hover:bg-[#ff9f0a]/26 text-[#8a5200] ${buttonClass}`}
+              className={`btn btn-secondary text-[#8a5200] ${buttonClass}`}
             >
               <Icons.AlertTriangle className="w-3.5 h-3.5" />
             </button>
@@ -1333,7 +1337,7 @@
               {...perdeuTudo}
               title={`Perdeu tudo (${item.currentQty}) — segure para escolher o motivo`}
               aria-label={`Perdeu tudo, ${item.currentQty} unidades`}
-              className={`btn bg-[#ff3b30]/12 hover:bg-[#ff3b30]/22 text-[#c9271d] ${buttonClass}`}
+              className={`btn btn-danger ${buttonClass}`}
             >
               <Icons.AlertTriangle className="w-3.5 h-3.5" />
             </button>
@@ -1367,7 +1371,7 @@
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
               <div>
                 <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
-                <p className="t-callout mt-0.5">🛒 vendeu 1 · ✓ vendeu tudo · ⚠ amarelo perdeu 1 · ⚠ vermelho perdeu tudo (segure para o motivo)</p>
+                <p className="t-callout mt-0.5">🛒 vendeu 1 · ⚠ claro perdeu 1 · ✓ verde cheio vendeu tudo · ⚠ vermelho cheio perdeu tudo (segure um ⚠ para o motivo)</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="segmented">
@@ -4685,14 +4689,27 @@
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => { onRecordSellAll(item.id); onClose(); }}
-                  className="btn btn-secondary w-full btn-md"
-                >
-                  <Icons.CheckCircle2 className="w-4 h-4 text-[#34c759]" />
-                  <span className="tnum">Vendeu tudo ({item.currentQty})</span>
-                </button>
+                {/* Os dois que zeram o espaço, com o mesmo fundo cheio dos
+                    botões da vitrine. O "perdeu tudo" daqui só preenche a
+                    quantidade: quem abriu esta janela veio escolher o motivo */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { onRecordSellAll(item.id); onClose(); }}
+                    className="btn btn-success btn-md px-2"
+                  >
+                    <Icons.CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="tnum">Vendeu tudo ({item.currentQty})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('perda'); setQty(item.currentQty); }}
+                    className="btn btn-danger btn-md px-2"
+                  >
+                    <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span className="tnum">Perdeu tudo ({item.currentQty})</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-6">
