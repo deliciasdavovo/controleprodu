@@ -2807,28 +2807,41 @@
           setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
         };
 
-        // "Copiar tudo" é a lista de produzir, e nada mais: quantidade e item.
-        // Sem responsável, sem espaço, sem vitrine, sem prioridade — quem quer
-        // esse detalhe usa o "Copiar lista" de cada pessoa.
+        // "Copiar tudo" é a lista de produzir separada por responsável: o nome
+        // de quem produz e, embaixo, quantidade e item. Sem espaço, sem
+        // vitrine, sem prioridade — quem quer esse detalhe usa o "Copiar
+        // lista" de cada pessoa.
         //
         // O mesmo produto pode ser chamado por mais de uma vitrine, então as
-        // quantidades são somadas: uma linha por produto.
+        // quantidades são somadas: uma linha por produto dentro do responsável.
         const copiarTudo = () => {
           if (itemsNeedingProduction.length === 0) return;
 
-          const porProduto = new Map();
+          const porResponsavel = new Map();
           itemsNeedingProduction.forEach((item) => {
+            if (!porResponsavel.has(item.responsible)) porResponsavel.set(item.responsible, new Map());
+            const porProduto = porResponsavel.get(item.responsible);
             const chave = `${item.productName}|${item.unitOfMeasure}`;
             const atual = porProduto.get(chave);
             if (atual) atual.qty += item.neededQty;
             else porProduto.set(chave, { name: item.productName, unit: item.unitOfMeasure, qty: item.neededQty });
           });
 
-          const linhas = [...porProduto.values()]
-            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-            .map((p) => `${p.qty} ${p.unit} — ${p.name}`);
+          // Quem está sem responsável cadastrado fica por último
+          const nomes = [...porResponsavel.keys()].sort((a, b) => {
+            if (a === NO_RESPONSIBLE_LABEL) return 1;
+            if (b === NO_RESPONSIBLE_LABEL) return -1;
+            return a.localeCompare(b, 'pt-BR');
+          });
 
-          copiarTexto('__tudo__', linhas.join('\n'));
+          const blocos = nomes.map((nome) => {
+            const linhas = [...porResponsavel.get(nome).values()]
+              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+              .map((p) => `${p.qty} ${p.unit} — ${p.name}`);
+            return [nome.toUpperCase(), ...linhas].join('\n');
+          });
+
+          copiarTexto('__tudo__', blocos.join('\n\n'));
         };
 
         const handleApplyAll = () => {
@@ -2861,7 +2874,7 @@
                   <h2 className="t-display">Pedido de produção</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     {getDayNameBR(selectedDay)} · {unitName} — uma lista por responsável, pronta para
-                    copiar; o "Copiar tudo" sai só com quantidade e item.
+                    copiar; o "Copiar tudo" sai com o nome de cada responsável e, embaixo, quantidade e item.
                     O item é chamado quando o estoque chega no mínimo da prioridade dele
                     (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
                     C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão do dia)
@@ -2873,7 +2886,7 @@
                   <button
                     onClick={copiarTudo}
                     disabled={itemsNeedingProduction.length === 0}
-                    title="Só quantidade e item, sem responsável e sem espaço"
+                    title="Responsável, quantidade e item — sem espaço e sem vitrine"
                     className="btn btn-secondary btn-md disabled:opacity-40 disabled:pointer-events-none"
                   >
                     <Icons.Copy className="w-4 h-4" />
