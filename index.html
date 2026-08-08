@@ -404,12 +404,14 @@
         background: rgba(0, 0, 0, 0.1);
       }
 
-      /* Uma bandeja: a borda é o espaço, o preenchimento é o que tem dentro */
+      /* Uma bandeja: a borda é o espaço, o preenchimento é o que tem dentro.
+         O produto se apoia no fundo da bandeja, então a mancha começa embaixo
+         e o nível desce conforme vende. */
       .vitrine-tray { display: block; width: 100%; }
       .vitrine-tray-box {
         position: relative;
         display: block;
-        height: 18px;
+        height: 26px;
         border: 1px solid rgba(0, 0, 0, 0.3);
         border-radius: 5px;
         background: #fff;
@@ -418,7 +420,7 @@
       }
       .vitrine-tray:hover .vitrine-tray-box { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.16); }
       .vitrine-tray:active .vitrine-tray-box { transform: scale(0.96); }
-      .vitrine-tray-fill { position: absolute; top: 0; bottom: 0; left: 0; }
+      .vitrine-tray-fill { position: absolute; left: 0; right: 0; bottom: 0; }
 
       /* Cheia: mancha fechada. Acabando ou vencendo: a mesma mancha em cinza
          claro. Livre: só o contorno tracejado. */
@@ -446,7 +448,7 @@
       }
 
       @media (min-width: 640px) {
-        .vitrine-tray-box { height: 20px; }
+        .vitrine-tray-box { height: 30px; }
       }
 
       /* Divisor fino no padrão das listas do iOS */
@@ -1535,7 +1537,7 @@
           {!leitura.vazio && (
             <span
               className="vitrine-tray-fill"
-              style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
+              style={{ height: `${Math.min(100, Math.max(10, leitura.percent * 100))}%` }}
             />
           )}
         </span>
