@@ -2821,46 +2821,37 @@
               </div>
             </div>
 
-            {/* Uma tabela por vitrine, uma embaixo da outra */}
-            {showcases.map((vitrine) => {
-              const planejados = vitrine.slots.filter((s) => planOf(s.id));
-              const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
-              // O espaço da vitrine salgada só oferece produto salgado
-              const productOptions = [
-                { value: '', label: 'Espaço vazio', muted: true },
-                ...productsForShowcaseType(products, vitrine.showcaseType).map((p) => ({ value: p.id, label: p.name }))
-              ];
+            {/* Vitrines lado a lado, uma coluna por móvel da loja */}
+            <div className="flex gap-4 overflow-x-auto pb-2 items-start snap-x">
+              {showcases.map((vitrine) => {
+                const planejados = vitrine.slots.filter((s) => planOf(s.id));
+                const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
+                // O espaço mais cheio da vitrine é a régua das barrinhas
+                const maiorQtd = planejados.reduce(
+                  (maior, s) => Math.max(maior, planOf(s.id)?.idealQty || 0), 0
+                );
+                // O espaço da vitrine salgada só oferece produto salgado
+                const productOptions = [
+                  { value: '', label: 'Espaço vazio', muted: true },
+                  ...productsForShowcaseType(products, vitrine.showcaseType).map((p) => ({ value: p.id, label: p.name }))
+                ];
 
-              return (
-                <div key={vitrine.key} className="card p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-2 pb-3 border-b hairline">
-                    <div className="min-w-0">
-                      <h3 className="t-headline text-[#1d1d1f] truncate">{vitrine.title}</h3>
-                      <p className="t-caption tnum mt-0.5">
-                        {planejados.length}/{vitrine.slots.length} espaços · {total} un em {getDayNameBR(selectedDay)}
-                      </p>
+                return (
+                  <div key={vitrine.key} className="card p-4 flex-1 min-w-[290px] snap-start">
+                    <div className="flex items-start justify-between gap-2 pb-3 border-b hairline">
+                      <div className="min-w-0">
+                        <h3 className="t-headline text-[#1d1d1f] truncate">{vitrine.title}</h3>
+                        <p className="t-caption tnum mt-0.5">
+                          {planejados.length}/{vitrine.slots.length} espaços cheios
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="tnum text-[19px] font-extrabold text-[#1d1d1f] leading-none">{total}</p>
+                        <p className="t-caption text-[11px] mt-0.5">un no dia</p>
+                      </div>
                     </div>
-                    <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize shrink-0">
-                      {vitrine.showcaseType}
-                    </span>
-                  </div>
 
-                  <table className="w-full border-collapse text-[13px]">
-                    <thead>
-                      <tr className="t-overline">
-                        <th className="text-left font-bold py-2 w-8">#</th>
-                        <th className="text-left font-bold py-2">Produto</th>
-                        <th className="hidden sm:table-cell text-left font-bold py-2 px-2 w-[190px]">
-                          Prioridade e dias
-                        </th>
-                        <th className="hidden lg:table-cell text-left font-bold py-2 px-2 w-[150px]">
-                          Responsável
-                        </th>
-                        <th className="text-right font-bold py-2 w-[104px]">Qtd</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
+                    <div className="space-y-2 mt-3">
                       {vitrine.slots.map((slot) => {
                         const planItem = planOf(slot.id);
                         const product = planItem ? productOf(planItem.productId) : null;
@@ -2869,6 +2860,7 @@
                           : [];
                         const prio = getPriority(planItem?.priority);
                         const apagado = planItem && !matchesFilter(planItem);
+                        const fatia = maiorQtd > 0 ? Math.round(((planItem?.idealQty || 0) / maiorQtd) * 100) : 0;
                         // Produto de outra categoria que já estava aqui continua
                         // aparecendo, senão o campo ficaria em branco com o
                         // espaço ocupado
@@ -2876,31 +2868,23 @@
                           ? [...productOptions, { value: product.id, label: product.name }]
                           : productOptions;
 
-                        const etiquetas = planItem && (
-                          <button
-                            type="button"
-                            onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
-                            title={`${prio.title} · ${frequencyTitle(dias)} — clique para mudar`}
-                            className="flex items-center gap-1 min-w-0 max-w-full hover:opacity-80 transition-opacity"
-                          >
-                            <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`}>{prio.value}</span>
-                            <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] min-w-0">
-                              <Icons.Calendar className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{frequencyLabel(dias)}</span>
-                            </span>
-                          </button>
-                        );
-
                         return (
-                          <tr
+                          <div
                             key={slot.id}
-                            className={`border-b hairline transition-opacity ${apagado ? 'opacity-35' : ''} ${
-                              planItem ? '' : 'bg-black/[0.015]'
-                            }`}
+                            className={`relative overflow-hidden rounded-xl pl-3 pr-2.5 py-2 border transition-all ${
+                              planItem
+                                ? 'bg-[var(--bg-surface)] border-black/[0.09] shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
+                                : 'border-dashed border-black/[0.14] bg-black/[0.015]'
+                            } ${apagado ? 'opacity-35' : ''}`}
                           >
-                            <td className="t-caption tnum py-1.5 align-middle">{slot.slotNumber}</td>
+                            {/* Faixa da prioridade: a cor diz na hora se o item
+                                é carro-chefe ou extra */}
+                            {planItem && (
+                              <span className={`absolute left-0 top-0 bottom-0 w-1 ${prio.dot}`} />
+                            )}
 
-                            <td className="py-1.5 pr-2 align-middle">
+                            <div className="flex items-center gap-2">
+                              <span className="t-caption tnum w-3.5 shrink-0 text-center">{slot.slotNumber}</span>
                               <PickerField
                                 value={planItem?.productId || ''}
                                 options={opcoes}
@@ -2915,72 +2899,79 @@
                                   const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
                                   onUpdatePlanItem(slot.id, opt.value, qty, planItem?.priority || DEFAULT_PRIORITY);
                                 }}
-                                className="field field-sm font-semibold w-full"
+                                className="field field-sm font-semibold flex-1 min-w-0"
                               />
-                              {/* Em tela estreita as colunas de baixo somem: as
-                                  etiquetas continuam aqui, embaixo do nome */}
-                              {planItem && (
-                                <div className="sm:hidden mt-1">{etiquetas}</div>
-                              )}
-                            </td>
+                            </div>
 
-                            <td className="hidden sm:table-cell py-1.5 px-2 align-middle">
-                              {planItem ? etiquetas : <span className="t-caption">—</span>}
-                            </td>
+                            {planItem && (
+                              <>
+                                <div className="flex items-center justify-between gap-2 mt-2">
+                                  {/* Bolinhas da semana: os dias em que o item
+                                      entra, sem precisar ler texto */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
+                                    title={`${prio.title} · ${frequencyTitle(dias)} — clique para mudar`}
+                                    className="flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity"
+                                  >
+                                    <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`}>
+                                      {prio.value}
+                                    </span>
+                                    <span className="flex items-center gap-[3px]">
+                                      {WEEK_DAYS.map((day) => (
+                                        <span
+                                          key={day}
+                                          title={getDayNameBR(day)}
+                                          className={`w-1.5 h-1.5 rounded-full ${
+                                            dias.includes(day)
+                                              ? (day === selectedDay ? 'bg-[#0071e3]' : 'bg-[#0071e3]/40')
+                                              : 'bg-black/[0.10]'
+                                          }`}
+                                        />
+                                      ))}
+                                    </span>
+                                  </button>
 
-                            <td className="hidden lg:table-cell py-1.5 px-2 align-middle">
-                              {planItem ? (
-                                <span className="t-caption flex items-center gap-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1), planItem.priority)}
+                                      title="Tirar uma unidade"
+                                      className="w-6 h-6 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[13px] flex items-center justify-center transition-colors"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="tnum text-[15px] font-extrabold text-[#1d1d1f] min-w-6 text-center">
+                                      {planItem.idealQty}
+                                    </span>
+                                    <button
+                                      onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1, planItem.priority)}
+                                      title="Colocar uma unidade"
+                                      className="w-6 h-6 rounded-full bg-[#0071e3] text-white font-bold text-[13px] flex items-center justify-center hover:bg-[#0077ed] transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Barrinha: o tamanho do item dentro da vitrine */}
+                                <div className="h-1 rounded-full bg-black/[0.06] mt-2 overflow-hidden">
+                                  <div className={`h-1 rounded-full opacity-70 ${prio.dot}`} style={{ width: `${fatia}%` }} />
+                                </div>
+
+                                <p className="t-caption text-[11px] mt-1.5 flex items-center gap-1 truncate">
                                   <Icons.User className="w-3 h-3 shrink-0" />
                                   <span className="truncate">{getResponsibleName(product)}</span>
-                                </span>
-                              ) : (
-                                <span className="t-caption">—</span>
-                              )}
-                            </td>
-
-                            <td className="py-1.5 align-middle">
-                              {planItem ? (
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1), planItem.priority)}
-                                    title="Tirar uma unidade"
-                                    className="w-6 h-6 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[13px] flex items-center justify-center transition-colors shrink-0"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="tnum text-[13px] font-extrabold text-[#1d1d1f] min-w-5 text-center">
-                                    {planItem.idealQty}
-                                  </span>
-                                  <button
-                                    onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1, planItem.priority)}
-                                    title="Colocar uma unidade"
-                                    className="w-6 h-6 rounded-full bg-[#0071e3] text-white font-bold text-[13px] flex items-center justify-center hover:bg-[#0077ed] transition-colors shrink-0"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              ) : (
-                                <p className="t-caption text-right">—</p>
-                              )}
-                            </td>
-                          </tr>
+                                </p>
+                              </>
+                            )}
+                          </div>
                         );
                       })}
-                    </tbody>
-
-                    <tfoot>
-                      <tr>
-                        <td colSpan={2} className="t-overline font-bold py-2">Total da vitrine</td>
-                        <td className="hidden sm:table-cell" />
-                        <td className="hidden lg:table-cell" />
-                        <td className="tnum font-extrabold text-right py-2 text-[#1d1d1f]">{total}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              );
-            })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <WeeklyPlanTable
               currentUnit={currentUnit}
