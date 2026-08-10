@@ -357,96 +357,76 @@
 
       /* ==========================================
          MAPA DA VITRINE
-         O móvel desenhado de frente, sem cor: uma bandeja por espaço, e o
-         quanto ela está pintada é o quanto o espaço tem do padrão de hoje.
-         Bandeja escura está cheia, cinza clara está acabando ou vencendo, e
-         só o contorno é espaço livre. As cheias vêm primeiro.
+         Um bloco por móvel e, dentro dele, uma linha por espaço na ordem #1,
+         #2, #3 — a mesma ordem do móvel de verdade. A linha diz o que está no
+         espaço e o traço colorido diz o quanto tem do padrão de hoje: verde
+         está cheio, amarelo está acabando, vermelho tem item vencendo e o
+         tracejado é espaço livre. É a mesma cor dos selos da lista de apoio.
          ========================================== */
       .vitrine-frame {
         border: 1px solid var(--hairline);
         border-radius: var(--radius-md);
         background: var(--bg-surface);
-        padding: 11px 11px 9px;
+        padding: 12px 10px 9px;
         transition: box-shadow .18s ease, border-color .18s ease;
       }
       /* A vitrine aberta na tela de baixo fica marcada, mas nenhuma apaga:
          o mapa serve para olhar a loja inteira de uma vez */
       .vitrine-frame[data-active="true"] {
-        border-color: rgba(0, 0, 0, 0.3);
-        box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
-      }
-      .vitrine-frame:hover { border-color: rgba(0, 0, 0, 0.2); }
-
-      /* O móvel: o tampo de vidro em cima, as bandejas dentro, a base embaixo */
-      .vitrine-case {
-        margin-top: 10px;
-        padding: 8px 8px 7px;
-        border: 1px solid rgba(0, 0, 0, 0.18);
-        border-radius: 14px 14px 4px 4px;
-        background: var(--bg-surface);
-      }
-      .vitrine-case-top {
-        height: 0;
-        margin: 1px 2px 8px;
-        border-top: 1px solid rgba(0, 0, 0, 0.12);
-      }
-      .vitrine-trays { display: grid; gap: 6px 5px; }
-      .vitrine-base {
-        height: 4px;
-        margin: 8px 1px 0;
-        border-radius: 0 0 4px 4px;
-        background: rgba(0, 0, 0, 0.11);
-      }
-      .vitrine-legs { display: flex; justify-content: space-between; padding: 0 13px; }
-      .vitrine-legs > span {
-        width: 9px; height: 4px;
-        border-radius: 0 0 3px 3px;
-        background: rgba(0, 0, 0, 0.1);
+        border-color: rgba(0, 113, 227, 0.4);
+        box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.08);
       }
 
-      /* Uma bandeja: a borda é o espaço, o preenchimento é o que tem dentro */
-      .vitrine-tray { display: block; width: 100%; }
-      .vitrine-tray-box {
-        position: relative;
-        display: block;
-        height: 18px;
-        border: 1px solid rgba(0, 0, 0, 0.3);
-        border-radius: 5px;
-        background: #fff;
-        overflow: hidden;
-        transition: box-shadow .16s ease, transform .12s ease;
+      /* Uma linha do mapa: número do espaço, o que tem nele e o traço da cor */
+      .slot-row {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr);
+        gap: 9px;
+        align-items: center;
+        width: 100%;
+        text-align: left;
+        padding: 6px 6px 7px;
+        border-radius: var(--radius-sm);
+        transition: background-color .16s ease;
       }
-      .vitrine-tray:hover .vitrine-tray-box { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.16); }
-      .vitrine-tray:active .vitrine-tray-box { transform: scale(0.96); }
-      .vitrine-tray-fill { position: absolute; top: 0; bottom: 0; left: 0; }
+      .slot-row:hover { background: rgba(0, 0, 0, 0.035); }
+      .slot-row:active { background: rgba(0, 0, 0, 0.06); }
+      .slot-row[data-tom="livre"] { opacity: 0.7; }
 
-      /* Cheia: mancha fechada. Acabando ou vencendo: a mesma mancha em cinza
-         claro. Livre: só o contorno tracejado. */
-      .vitrine-tray-box[data-estado="cheio"] .vitrine-tray-fill { background: rgba(0, 0, 0, 0.8); }
-      /* Acabando: o fundo lavado diz que ainda tem produto ali, e a parte mais
-         escura diz quanto — senão um espaço quase no fim ficaria igual ao livre */
-      .vitrine-tray-box[data-estado="atencao"] {
-        border-color: rgba(0, 0, 0, 0.22);
+      .slot-num {
+        height: 20px;
+        border-radius: 6px;
         background: rgba(0, 0, 0, 0.05);
-      }
-      .vitrine-tray-box[data-estado="atencao"] .vitrine-tray-fill { background: rgba(0, 0, 0, 0.2); }
-      .vitrine-tray-box[data-estado="vazio"] {
-        border-style: dashed;
-        border-color: rgba(0, 0, 0, 0.2);
-        background: #fff;
-      }
-
-      .vitrine-tray-num {
-        display: block;
-        margin-top: 3px;
-        text-align: center;
-        font-size: 9px; font-weight: 700; line-height: 1.1;
-        color: var(--ink-4);
+        color: var(--ink-3);
+        font-size: 10px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-variant-numeric: tabular-nums;
       }
 
-      @media (min-width: 640px) {
-        .vitrine-tray-box { height: 20px; }
+      .slot-bar {
+        display: block;
+        height: 6px;
+        margin-top: 5px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.07);
+        overflow: hidden;
+      }
+      .slot-bar > span {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        transition: width .2s ease;
+      }
+      .slot-row[data-tom="cheio"] .slot-bar > span { background: #34c759; }
+      .slot-row[data-tom="acabando"] .slot-bar > span { background: #ff9f0a; }
+      .slot-row[data-tom="vencendo"] .slot-bar > span { background: #ff3b30; }
+      /* Espaço livre não tem traço nenhum: só o lugar dele, tracejado */
+      .slot-row[data-tom="livre"] .slot-bar {
+        background: transparent;
+        border: 1px dashed rgba(0, 0, 0, 0.18);
       }
 
       /* Divisor fino no padrão das listas do iOS */
@@ -799,10 +779,11 @@
       // lote que foi colocado ali como referência: "sobrou meia bandeja"
       // também é leitura de vitrine.
       //
-      // O estado é o que decide o tom e a ordem no desenho:
-      //   cheio   — tem produto bom e ainda acima do ponto de reposição
-      //   atencao — está acabando ou tem item vencendo/vencido (cinza claro)
-      //   vazio   — não tem nada
+      // O tom é o que decide a cor do traço no mapa:
+      //   cheio    — tem produto bom e ainda acima do ponto de reposição
+      //   acabando — caiu abaixo do ponto de reposição
+      //   vencendo — tem item no último dia de validade ou passado dele
+      //   livre    — não tem nada
       // ------------------------------------------
       // Sem padrão para hoje não existe ponto de reposição, então vale este
       // corte: abaixo de um terço do lote colocado já é "acabando"
@@ -823,12 +804,18 @@
         const percent = referencia > 0 ? atual / referencia : (atual > 0 ? 1 : 0);
         const vazio = atual === 0;
 
+        // A validade do espaço é a do pior item que está nele: um espaço com
+        // três produtos bons e um vencido é um espaço com produto vencido
+        const statusDosItens = items
+          .filter((item) => (item.currentQty || 0) > 0)
+          .map((item) => getSlotItemStatus(item, products.find((p) => p.id === item.productId)).status);
+
+        const validade = statusDosItens.includes('expired')
+          ? 'expired'
+          : statusDosItens.includes('warning') ? 'warning' : 'normal';
+
         // Algum item deste espaço está no último dia de validade ou passou dele
-        const vencendo = items.some((item) => {
-          if ((item.currentQty || 0) <= 0) return false;
-          const status = getSlotItemStatus(item, products.find((p) => p.id === item.productId)).status;
-          return status === 'warning' || status === 'expired';
-        });
+        const vencendo = validade !== 'normal';
 
         const acabando = !vazio && (
           reposicao !== null ? percent < reposicao : percent < SEM_PADRAO_ACABANDO
@@ -841,23 +828,16 @@
           percent,
           reposicao,
           vazio,
+          validade,
           vencendo,
           acabando,
           itens: items.filter((item) => (item.currentQty || 0) > 0).length,
           acimaDoPadrao: percent > 1.001,
-          estado: vazio ? 'vazio' : (acabando || vencendo) ? 'atencao' : 'cheio'
+          // Vencendo passa na frente de acabando: um item fora da validade é o
+          // que a pessoa tem que tirar da vitrine primeiro
+          tom: vazio ? 'livre' : vencendo ? 'vencendo' : acabando ? 'acabando' : 'cheio'
         };
       };
-
-      // No desenho da vitrine os espaços cheios vêm primeiro, depois os que
-      // estão acabando ou vencendo, e os livres no fim — é a leitura que a
-      // pessoa faz de longe: quanto de mancha cheia a vitrine ainda tem
-      const ESTADO_ORDEM = { cheio: 0, atencao: 1, vazio: 2 };
-
-      const compareSlotFill = (a, b) =>
-        ESTADO_ORDEM[a.leitura.estado] - ESTADO_ORDEM[b.leitura.estado]
-        || b.leitura.percent - a.leitura.percent
-        || a.slot.slotNumber - b.slot.slotNumber;
 
       // ------------------------------------------
       // Tempo de exposição lido em cima da validade do produto:
@@ -1521,42 +1501,44 @@
       };
 
       // ==========================================
-      // MAPA DA VITRINE (o desenho dos móveis)
+      // MAPA DA VITRINE
       // ==========================================
-      // Cada vitrine da loja desenhada de frente, com uma bandeja por espaço.
-      // As bandejas cheias vêm primeiro, depois as que estão acabando ou
-      // vencendo (cinza claro) e por último os espaços livres: de longe se vê
-      // quanta vitrine montada ainda existe. O número embaixo diz qual espaço
-      // é, e clicar na bandeja cai no card dele.
+      // Um bloco por móvel da loja e, dentro dele, uma linha por espaço na
+      // ordem #1, #2, #3 — a mesma ordem em que os espaços estão no móvel de
+      // verdade, para o mapa e a vitrine baterem quando a pessoa olha os dois.
+      //
+      // A linha diz o nome do que está ali, quanto tem do padrão de hoje e,
+      // pela cor, se aquilo está cheio, acabando ou vencendo. Clicar na linha
+      // abre o card do espaço na vitrine física.
 
-      // Bandejas por fileira: o móvel fica equilibrado em vez de virar uma
-      // fileira comprida (8 espaços = 4 e 4; 6 = 3 e 3)
-      const traysPerRow = (total) => {
-        if (total <= 4) return Math.max(1, total);
-        return Math.ceil(total / Math.ceil(total / 4));
+      const TOM_INFO = {
+        cheio: { label: 'Cheio', dot: 'bg-[#34c759]' },
+        acabando: { label: 'Acabando', dot: 'bg-[#ff9f0a]' },
+        vencendo: { label: 'Vencendo', dot: 'bg-[#ff3b30]' },
+        livre: { label: 'Livre', dot: 'bg-black/[0.14]' }
       };
 
-      // ------------------------------------------
-      // A bandeja de um espaço. O mesmo desenho serve para o mapa e para a
-      // legenda, então a legenda nunca mente sobre o mapa.
-      // ------------------------------------------
-      const SlotTray = ({ leitura, className = '' }) => (
-        <span className={`vitrine-tray-box ${className}`} data-estado={leitura.estado}>
-          {!leitura.vazio && (
-            <span
-              className="vitrine-tray-fill"
-              style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
-            />
-          )}
-        </span>
-      );
+      const TONS = ['cheio', 'acabando', 'vencendo', 'livre'];
 
-      // A legenda é desenhada com as mesmas bandejas do mapa
-      const MAP_LEGEND = [
-        { texto: 'Cheio', leitura: { estado: 'cheio', percent: 1, vazio: false } },
-        { texto: 'Acabando ou vencendo', leitura: { estado: 'atencao', percent: 0.45, vazio: false } },
-        { texto: 'Livre', leitura: { estado: 'vazio', percent: 0, vazio: true } }
-      ];
+      // O nome do espaço é grifado pela validade, e não pelo traço: assim ele
+      // fica com a mesma cor que aquele produto tem na lista de apoio
+      const MARK_POR_VALIDADE = { normal: 'mark-fresh', warning: 'mark-warning', expired: 'mark-expired' };
+
+      // O selo do móvel inteiro: quanto da vitrine está montado agora
+      const pillDoPercent = (percent) => {
+        if (percent === null) return 'bg-black/[0.06] text-[#6e6e73]';
+        if (percent >= 70) return 'bg-[#34c759]/12 text-[#1d7a35]';
+        if (percent >= 35) return 'bg-[#ff9f0a]/12 text-[#a35e00]';
+        return 'bg-[#ff3b30]/10 text-[#c9271d]';
+      };
+
+      // O que aparece no lugar do nome quando o espaço está dividido:
+      // "Coxinha +1" cabe na linha, dois nomes inteiros não cabem
+      const nomeDoEspaco = (itens) => {
+        if (itens.length === 0) return '';
+        const primeiro = itens[0].productName;
+        return itens.length > 1 ? `${primeiro} +${itens.length - 1}` : primeiro;
+      };
 
       const ShowcaseMap = ({ currentUnit, slots, slotItems, products, standardPlans, activeType, onSelectType, onFocusSlot }) => {
         const dayOfWeek = getTodayDayOfWeek();
@@ -1585,13 +1567,13 @@
             <div>
               <h2 className="t-headline text-[#1d1d1f]">Mapa da vitrine</h2>
               <p className="t-caption mt-0.5">
-                Uma bandeja por espaço, as cheias primeiro · o quanto está pintado é o quanto tem do padrão de {getDayNameBR(dayOfWeek).toLowerCase()} · toque para ir ao espaço
+                Uma linha por espaço, na ordem do móvel · o traço é o quanto tem do padrão de {getDayNameBR(dayOfWeek).toLowerCase()} e o nome vem grifado com a cor da validade · toque para abrir o espaço
               </p>
               <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap mt-2.5">
-                {MAP_LEGEND.map((l) => (
-                  <span key={l.texto} className="t-caption flex items-center gap-1.5">
-                    <SlotTray leitura={l.leitura} className="w-7 shrink-0" />
-                    {l.texto}
+                {TONS.map((tom) => (
+                  <span key={tom} className="t-caption flex items-center gap-1.5">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${TOM_INFO[tom].dot}`} />
+                    {TOM_INFO[tom].label}
                   </span>
                 ))}
               </div>
@@ -1601,19 +1583,18 @@
                 deixar meia fileira vazia quando a loja tem três ou cinco */}
             <div
               className="grid gap-3.5"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(216px, 1fr))' }}
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(248px, 1fr))' }}
             >
               {showcases.map((vitrine) => {
-                const leituras = vitrine.slots
-                  .map((slot) => {
-                    const itens = itemsBySlot(slot.id);
-                    return { slot, itens, leitura: readSlotFill(slot, itens, products, dayPlans) };
-                  })
-                  .sort(compareSlotFill);
+                const leituras = vitrine.slots.map((slot) => {
+                  const itens = itemsBySlot(slot.id);
+                  return { slot, itens, leitura: readSlotFill(slot, itens, products, dayPlans) };
+                });
 
-                const cheios = leituras.filter((l) => l.leitura.estado === 'cheio').length;
-                const atencao = leituras.filter((l) => l.leitura.estado === 'atencao').length;
-                const livres = leituras.filter((l) => l.leitura.estado === 'vazio').length;
+                const contagem = {};
+                TONS.forEach((tom) => {
+                  contagem[tom] = leituras.filter((l) => l.leitura.tom === tom).length;
+                });
 
                 const comPadrao = leituras.filter((l) => l.leitura.referencia > 0);
                 const totalAtual = comPadrao.reduce((s, l) => s + l.leitura.atual, 0);
@@ -1621,82 +1602,612 @@
                 const percentGeral = totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null;
 
                 const ativo = vitrine.showcaseType === activeType;
-                const colunas = traysPerRow(vitrine.slots.length);
-
-                const resumo = [
-                  cheios > 0 && `${cheios} ${cheios === 1 ? 'cheio' : 'cheios'}`,
-                  atencao > 0 && `${atencao} acabando`,
-                  livres > 0 && `${livres} ${livres === 1 ? 'livre' : 'livres'}`
-                ].filter(Boolean).join(' · ');
 
                 return (
                   <div key={vitrine.key} className="vitrine-frame" data-active={ativo}>
                     <button
                       onClick={() => onSelectType(vitrine.showcaseType)}
                       title={`Abrir as vitrines ${SHOWCASE_TYPE_LABELS[vitrine.showcaseType].toLowerCase()}`}
-                      className="w-full text-left flex items-center justify-between gap-2"
+                      className="w-full text-left flex items-start justify-between gap-2 px-1.5"
                     >
                       <span className="min-w-0">
                         <span className="t-callout font-bold text-[#1d1d1f] block truncate">{vitrine.title}</span>
-                        <span className="t-caption tnum block truncate">{resumo || `${vitrine.slots.length} espaços`}</span>
+                        {/* Os mesmos pontinhos da legenda, com quantos espaços
+                            estão em cada situação */}
+                        <span className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap mt-1">
+                          {TONS.filter((tom) => contagem[tom] > 0).map((tom) => (
+                            <span key={tom} className="t-caption text-[11px] tnum flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TOM_INFO[tom].dot}`} />
+                              {contagem[tom]} {TOM_INFO[tom].label.toLowerCase()}
+                            </span>
+                          ))}
+                        </span>
                       </span>
-                      <span className="pill tnum shrink-0 bg-black/[0.06] text-[#1d1d1f]">
+                      <span
+                        title={percentGeral === null ? 'Sem padrão para hoje neste móvel' : 'Do padrão de hoje, somando os espaços do móvel'}
+                        className={`pill tnum shrink-0 ${pillDoPercent(percentGeral)}`}
+                      >
                         {percentGeral === null ? 'sem padrão' : `${percentGeral}%`}
                       </span>
                     </button>
 
-                    {/* O móvel: tampo, as bandejas em fileiras e a base */}
-                    <div className="vitrine-case">
-                      <div className="vitrine-case-top" />
-                      <div
-                        className="vitrine-trays"
-                        style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
-                      >
-                        {leituras.map(({ slot, itens, leitura }) => {
-                          const detalhe = itens.length
-                            ? itens
-                                .map((item) => {
-                                  const prod = products.find((p) => p.id === item.productId);
-                                  return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
-                                })
-                                .join('\n')
-                            : 'Livre';
+                    <div className="mt-2 divide-hairline">
+                      {leituras.map(({ slot, itens, leitura }) => {
+                        const detalhe = itens.length
+                          ? itens
+                              .map((item) => {
+                                const prod = products.find((p) => p.id === item.productId);
+                                return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
+                              })
+                              .join('\n')
+                          : 'Livre';
 
-                          const referencia = leitura.referencia > 0
-                            ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
-                            : '';
+                        const referencia = leitura.referencia > 0
+                          ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
+                          : '';
 
-                          const situacao = leitura.vazio
-                            ? 'livre'
-                            : leitura.vencendo
-                              ? 'tem item vencendo'
-                              : leitura.acabando
-                                ? 'está acabando'
-                                : 'cheio';
+                        // A barra nunca fica invisível: um espaço com uma
+                        // unidade só ainda precisa aparecer como "tem algo"
+                        const largura = leitura.vazio ? 0 : Math.min(100, Math.max(7, leitura.percent * 100));
 
-                          return (
-                            <button
-                              key={slot.id}
-                              onClick={() => onFocusSlot(slot)}
-                              className="vitrine-tray"
-                              title={`${vitrine.title} · espaço #${slot.slotNumber} — ${situacao}\n${detalhe}${referencia}`}
-                              aria-label={`Espaço ${slot.slotNumber} de ${vitrine.title}: ${leitura.vazio ? 'livre' : `${leitura.atual} unidades, ${situacao}`}`}
-                            >
-                              <SlotTray leitura={leitura} />
-                              <span className="vitrine-tray-num">{slot.slotNumber}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="vitrine-base" />
-                    </div>
-                    <div className="vitrine-legs">
-                      <span />
-                      <span />
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => onFocusSlot(slot)}
+                            className="slot-row"
+                            data-tom={leitura.tom}
+                            title={`${vitrine.title} · espaço #${slot.slotNumber} — ${TOM_INFO[leitura.tom].label.toLowerCase()}\n${detalhe}${referencia}`}
+                            aria-label={`Espaço ${slot.slotNumber} de ${vitrine.title}: ${leitura.vazio ? 'livre' : `${nomeDoEspaco(itens)}, ${leitura.atual} unidades, ${TOM_INFO[leitura.tom].label.toLowerCase()}`}`}
+                          >
+                            <span className="slot-num">{slot.slotNumber}</span>
+                            <span className="min-w-0">
+                              <span className="flex items-baseline justify-between gap-2">
+                                <span className="min-w-0 truncate text-[12.5px] font-bold leading-[1.35] tracking-[-0.015em]">
+                                  {leitura.vazio
+                                    ? <span className="text-[#a1a1a6] font-semibold">Livre</span>
+                                    : <mark className={`mark ${MARK_POR_VALIDADE[leitura.validade]}`}>{nomeDoEspaco(itens)}</mark>}
+                                </span>
+                                <span className="t-caption text-[11px] tnum shrink-0">
+                                  {leitura.vazio
+                                    ? '—'
+                                    : leitura.referencia > 0
+                                      ? `${leitura.atual}/${leitura.referencia}`
+                                      : leitura.atual}
+                                </span>
+                              </span>
+                              <span className="slot-bar">
+                                <span style={{ width: `${largura}%` }} />
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // CHECKLIST DA VITRINE
+      // ==========================================
+      // A conferência item a item. A tela mostra um produto de cada vez, na
+      // ordem dos espaços, e a pessoa só responde o que aconteceu com ele:
+      // continua igual, vendeu tudo, perdeu tudo, ou sobrou tanto. Cada
+      // resposta já vira venda ou perda no relatório na hora — a conferência
+      // não é uma lista para depois passar a limpo.
+      //
+      // Toda baixa registrada aqui fica com um "Desfazer" na barra de baixo
+      // até a próxima: o dedo erra, e a pessoa não pode ter que ir no
+      // histórico consertar.
+
+      const CHECKLIST_MOTIVOS = [
+        { value: 'vencido', label: 'Venceu' },
+        { value: 'danificado', label: 'Avaria' },
+        { value: 'qualidade', label: 'Sabor ou textura' },
+        { value: 'quebrado', label: 'Queda ou quebra' }
+      ];
+
+      const CHECKLIST_RESULTADOS = {
+        igual: { label: 'Continua igual', dot: 'bg-[#c7c7cc]', text: 'text-[#6e6e73]' },
+        venda: { label: 'Vendeu', dot: 'bg-[#34c759]', text: 'text-[#1d7a35]' },
+        perda: { label: 'Perdeu', dot: 'bg-[#ff3b30]', text: 'text-[#c9271d]' },
+        ajuste: { label: 'Contagem acertada', dot: 'bg-[#0071e3]', text: 'text-[#0058b0]' },
+        pulado: { label: 'Pulado', dot: 'bg-[#c7c7cc]', text: 'text-[#86868b]' }
+      };
+
+      const ShowcaseChecklist = ({
+        currentUnit, slots, slotItems, products, standardPlans, showcaseType,
+        onRecordSale, onRecordLoss, onSetQty, onUndoBaixa, onClose
+      }) => {
+        // Qual vitrine está sendo conferida. Começa na que está aberta na
+        // tela, e "Todas" atravessa a loja inteira de uma vez.
+        const [escopo, setEscopo] = useState(showcaseType);
+        const [index, setIndex] = useState(0);
+        const [passo, setPasso] = useState('acoes'); // acoes | contar | destino | motivo
+        const [restante, setRestante] = useState(0);
+        const [saiu, setSaiu] = useState(0);
+        const [resultados, setResultados] = useState([]);
+        // A última baixa registrada, enquanto ela ainda pode ser desfeita
+        const [ultima, setUltima] = useState(null);
+
+        const dayOfWeek = getTodayDayOfWeek();
+
+        // A fila é montada quando a conferência começa e quando se troca de
+        // vitrine — e só aí. Item que zera no caminho sai da vitrine, mas não
+        // pode sumir do meio da fila e embaralhar o "item 3 de 12".
+        const fila = useMemo(() => {
+          const doEscopo = slots.filter(
+            (s) => s.unit === currentUnit && (escopo === 'todas' || s.showcaseType === escopo)
+          );
+          const porId = {};
+          doEscopo.forEach((s) => { porId[s.id] = s; });
+
+          return slotItems
+            .filter((i) => porId[i.slotId] && (i.currentQty || 0) > 0)
+            .map((i) => ({
+              id: i.id,
+              slotId: i.slotId,
+              productId: i.productId,
+              productName: i.productName,
+              slot: porId[i.slotId]
+            }))
+            .sort((a, b) =>
+              compareShowcase(a.slot, b.slot)
+              || a.slot.slotNumber - b.slot.slotNumber
+              || a.productName.localeCompare(b.productName, 'pt-BR')
+            );
+        }, [escopo, currentUnit]);
+
+        // Trocar de vitrine é começar outra conferência
+        useEffect(() => {
+          setIndex(0);
+          setPasso('acoes');
+          setResultados([]);
+          setUltima(null);
+        }, [escopo]);
+
+        useEffect(() => {
+          const aoTeclar = (e) => { if (e.key === 'Escape') onClose(); };
+          window.addEventListener('keydown', aoTeclar);
+          return () => window.removeEventListener('keydown', aoTeclar);
+        }, []);
+
+        const total = fila.length;
+        const entrada = index < total ? fila[index] : null;
+
+        // O item pode ter zerado e voltado pelo desfazer com outro id: aí ele
+        // é reconhecido pelo mesmo produto no mesmo espaço
+        const item = entrada
+          ? slotItems.find((i) => i.id === entrada.id)
+            || slotItems.find((i) => i.slotId === entrada.slotId && i.productId === entrada.productId)
+          : null;
+
+        const product = item ? products.find((p) => p.id === item.productId) : null;
+        const statusInfo = item ? getSlotItemStatus(item, product) : null;
+
+        // Quanto o padrão de hoje manda ter neste espaço — o número que diz se
+        // o que sobrou ali é pouco ou muito
+        const padraoHoje = entrada
+          ? standardPlans
+              .filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === dayOfWeek && sp.slotId === entrada.slotId)
+              .reduce((soma, sp) => soma + (sp.idealQty || 0), 0)
+          : 0;
+
+        const escopoLabel = escopo === 'todas' ? 'de toda a loja' : SHOWCASE_TYPE_LABELS[escopo].toLowerCase();
+
+        // ------------------------------------------
+        // Guardar a resposta e passar para o próximo
+        // ------------------------------------------
+        const guardar = (tipo, qty, baixa, unidade) => {
+          setResultados((prev) => [
+            ...prev.filter((r) => r.chave !== entrada.id),
+            { chave: entrada.id, nome: entrada.productName, tipo, qty }
+          ]);
+          setUltima(baixa ? { baixa, indice: index, tipo, texto: `${qty} ${unidade} de ${entrada.productName}` } : null);
+          setPasso('acoes');
+          setIndex((i) => i + 1);
+        };
+
+        const continuaIgual = () => guardar('igual', 0, null, '');
+
+        const pular = () => guardar('pulado', 0, null, '');
+
+        const voltar = () => {
+          setPasso('acoes');
+          setIndex((i) => Math.max(0, i - 1));
+        };
+
+        const venderTudo = async () => {
+          const qty = item.currentQty;
+          const baixa = await onRecordSale(item.id, qty);
+          guardar('venda', qty, baixa, item.unit);
+        };
+
+        const perderTudo = () => {
+          setSaiu(item.currentQty);
+          setPasso('motivo');
+        };
+
+        const abrirContagem = () => {
+          setRestante(item.currentQty);
+          setPasso('contar');
+        };
+
+        // O que sobrou na vitrine vira a conta do que saiu — e o que saiu
+        // ainda precisa dizer se foi venda ou perda
+        const confirmarContagem = () => {
+          const atual = item.currentQty;
+          if (restante === atual) return continuaIgual();
+          if (restante > atual) {
+            // Recontagem para cima não é venda nem perda: só acerta o número
+            onSetQty(item.id, restante);
+            return guardar('ajuste', restante - atual, null, item.unit);
+          }
+          setSaiu(atual - restante);
+          setPasso('destino');
+        };
+
+        const confirmarVenda = async () => {
+          const baixa = await onRecordSale(item.id, saiu);
+          guardar('venda', saiu, baixa, item.unit);
+        };
+
+        const confirmarPerda = async (motivo) => {
+          const baixa = await onRecordLoss(item.id, saiu, motivo, '');
+          guardar('perda', saiu, baixa, item.unit);
+        };
+
+        // Desfazer devolve as unidades e traz a conferência de volta para o
+        // item, para a pessoa responder de novo
+        const desfazerUltima = () => {
+          if (!ultima) return;
+          const alvo = fila[ultima.indice];
+          onUndoBaixa(ultima.baixa);
+          if (alvo) setResultados((prev) => prev.filter((r) => r.chave !== alvo.id));
+          setIndex(ultima.indice);
+          setPasso('acoes');
+          setUltima(null);
+        };
+
+        const contarResultado = (tipo) => resultados.filter((r) => r.tipo === tipo).length;
+
+        const botaoGrande = 'btn btn-lg w-full text-[14px]';
+
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Checklist da vitrine"
+            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          >
+            <div className="bg-white rounded-[24px] w-full max-w-lg my-auto shadow-[0_24px_64px_rgba(0,0,0,0.24)] overflow-hidden">
+              {/* Cabeçalho: onde está a conferência e quanto falta */}
+              <div className="px-5 pt-4 pb-3.5 border-b hairline space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="t-overline">Conferência da vitrine</span>
+                    <h2 className="t-title text-[#1d1d1f] mt-0.5">Checklist</h2>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    title="Fechar a conferência"
+                    aria-label="Fechar a conferência"
+                    className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73] flex items-center justify-center shrink-0 transition-colors"
+                  >
+                    <Icons.X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="segmented flex w-full">
+                  {[...SHOWCASE_TYPES, 'todas'].map((tipo) => (
+                    <button
+                      key={tipo}
+                      className="flex-1"
+                      onClick={() => setEscopo(tipo)}
+                      data-active={escopo === tipo}
+                    >
+                      {tipo === 'todas' ? 'Todas' : SHOWCASE_TYPE_LABELS[tipo]}
+                    </button>
+                  ))}
+                </div>
+
+                {total > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="t-caption tnum">
+                        {index >= total ? `${total} de ${total}` : `Item ${index + 1} de ${total}`}
+                      </span>
+                      <span className="t-caption tnum">
+                        {resultados.length} {resultados.length === 1 ? 'respondido' : 'respondidos'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-black/[0.07] overflow-hidden">
+                      <div
+                        className="h-full bg-[#0071e3] rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (index / total) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Nada montado nesta vitrine */}
+              {total === 0 && (
+                <div className="px-5 py-10 text-center space-y-3">
+                  <p className="t-body text-[#86868b]">Não tem nada na vitrine {escopoLabel} para conferir.</p>
+                  <button onClick={onClose} className="btn btn-secondary btn-md">Fechar</button>
+                </div>
+              )}
+
+              {/* Fim da fila: o resumo do que a conferência registrou */}
+              {total > 0 && index >= total && (
+                <div className="px-5 py-6 space-y-4">
+                  <div className="text-center space-y-2">
+                    <div className="w-14 h-14 rounded-full bg-[#34c759]/12 flex items-center justify-center mx-auto">
+                      <Icons.CheckCircle2 className="w-7 h-7 text-[#1d7a35]" />
+                    </div>
+                    <h3 className="t-title text-[#1d1d1f]">Conferência concluída</h3>
+                    <p className="t-callout">
+                      {total} {total === 1 ? 'item conferido' : 'itens conferidos'} na vitrine {escopoLabel}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    {['venda', 'perda', 'ajuste', 'igual', 'pulado']
+                      .filter((tipo) => contarResultado(tipo) > 0)
+                      .map((tipo) => (
+                        <span key={tipo} className={`pill bg-black/[0.05] tnum ${CHECKLIST_RESULTADOS[tipo].text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${CHECKLIST_RESULTADOS[tipo].dot}`} />
+                          {contarResultado(tipo)} {CHECKLIST_RESULTADOS[tipo].label.toLowerCase()}
+                        </span>
+                      ))}
+                  </div>
+
+                  {resultados.length > 0 && (
+                    <div className="card-quiet max-h-56 overflow-y-auto divide-hairline">
+                      {resultados.map((r) => (
+                        <div key={r.chave} className="px-3.5 py-2 flex items-center justify-between gap-2">
+                          <span className="text-[12.5px] font-semibold truncate">{r.nome}</span>
+                          <span className={`t-caption text-[11px] tnum shrink-0 ${CHECKLIST_RESULTADOS[r.tipo].text}`}>
+                            {CHECKLIST_RESULTADOS[r.tipo].label}{r.qty > 0 ? ` · ${r.qty}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setIndex(0); setResultados([]); setPasso('acoes'); setUltima(null); }}
+                      className="btn btn-secondary btn-md"
+                    >
+                      Conferir de novo
+                    </button>
+                    <button onClick={onClose} className="btn btn-primary btn-md">Fechar</button>
+                  </div>
+                </div>
+              )}
+
+              {/* O item que zerou enquanto a conferência andava */}
+              {entrada && !item && (
+                <div className="px-5 py-8 text-center space-y-3">
+                  <p className="t-body text-[#86868b]">
+                    <strong className="text-[#1d1d1f]">{entrada.productName}</strong> já saiu da vitrine.
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <button onClick={voltar} disabled={index === 0} className="btn btn-secondary btn-md disabled:opacity-40">
+                      Voltar
+                    </button>
+                    <button onClick={() => setIndex((i) => i + 1)} className="btn btn-primary btn-md">Próximo</button>
+                  </div>
+                </div>
+              )}
+
+              {/* O item da vez */}
+              {entrada && item && (
+                <div className="px-5 py-5 space-y-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="pill bg-black/[0.05] text-[#6e6e73] tnum">
+                      {entrada.slot.sectionTitle} · espaço {entrada.slot.slotNumber}
+                    </span>
+                    <span className={`pill ${statusInfo.bgClass} ${statusInfo.textClass}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
+                      {statusInfo.label}
+                    </span>
+                  </div>
+
+                  <h3 className="t-title text-[#1d1d1f] leading-[1.2]">
+                    <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                  </h3>
+
+                  <p className="t-caption flex items-center gap-1.5 flex-wrap">
+                    <Icons.User className="w-3.5 h-3.5 shrink-0" />
+                    {getResponsibleName(product)}
+                    <span>·</span>
+                    <span className="tnum">fabricado em {formatDateBR(item.manufactureDate)}</span>
+                  </p>
+
+                  <div className="card-quiet p-3.5 flex items-end justify-between gap-3">
+                    <div>
+                      <span className="t-overline">Na vitrine agora</span>
+                      <p className="tnum text-[30px] font-extrabold leading-none mt-1.5 text-[#1d1d1f]">
+                        {item.currentQty}
+                        <span className="text-[13px] font-semibold text-[#86868b] ml-1">{item.unit}</span>
+                      </p>
+                    </div>
+                    <div className="t-caption text-[11px] tnum text-right">
+                      <span className="block">lote de {item.producedQty || item.currentQty}</span>
+                      {padraoHoje > 0 && <span className="block">padrão de hoje {padraoHoje}</span>}
+                    </div>
+                  </div>
+
+                  {/* As respostas possíveis. "Sobrou parte" é a que abre a
+                      contagem; as outras já fecham o item de uma vez. */}
+                  {passo === 'acoes' && (
+                    <div className="space-y-2">
+                      <button onClick={continuaIgual} className={`${botaoGrande} btn-secondary`}>
+                        <Icons.CheckSquare className="w-4 h-4 shrink-0" />
+                        Continua igual
+                      </button>
+                      <button onClick={abrirContagem} className={`${botaoGrande} btn-primary`}>
+                        <Icons.Layers className="w-4 h-4 shrink-0" />
+                        Sobrou parte — contar
+                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={venderTudo} className="btn btn-lg btn-success text-[14px] px-3">
+                          <Icons.CheckCircle2 className="w-4 h-4 shrink-0" />
+                          Vendeu tudo
+                        </button>
+                        <button onClick={perderTudo} className="btn btn-lg btn-danger text-[14px] px-3">
+                          <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                          Perdeu tudo
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          onClick={voltar}
+                          disabled={index === 0}
+                          className="btn btn-sm btn-secondary disabled:opacity-40"
+                        >
+                          <Icons.ChevronLeft className="w-3.5 h-3.5" />
+                          Voltar
+                        </button>
+                        <button onClick={pular} className="btn btn-sm text-[#6e6e73] hover:bg-black/[0.05]">
+                          Pular este
+                          <Icons.ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contagem: a pessoa olha a bandeja e diz quanto restou */}
+                  {passo === 'contar' && (
+                    <div className="space-y-3">
+                      <p className="t-body text-center">
+                        Conte o que sobrou na vitrine agora — em {item.unit}
+                      </p>
+
+                      <div className="flex items-center justify-center gap-4">
+                        <button
+                          onClick={() => setRestante((r) => Math.max(0, r - 1))}
+                          aria-label="Menos um"
+                          className="w-12 h-12 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[22px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          −
+                        </button>
+                        {/* A largura vem do invólucro: .field sozinho ocupa a
+                            linha inteira */}
+                        <div className="w-24 shrink-0">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={restante}
+                            onChange={(e) => setRestante(Math.max(0, Number(e.target.value.replace(/\D/g, '')) || 0))}
+                            onFocus={(e) => e.target.select()}
+                            aria-label="Quantidade que sobrou na vitrine"
+                            className="field h-14 text-center text-[26px] font-extrabold tnum"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setRestante((r) => r + 1)}
+                          aria-label="Mais um"
+                          className="w-12 h-12 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[22px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => setRestante(0)} className="btn btn-sm btn-secondary">Nenhum</button>
+                        <button onClick={() => setRestante(Math.floor(item.currentQty / 2))} className="btn btn-sm btn-secondary">
+                          Metade
+                        </button>
+                        <button onClick={() => setRestante(item.currentQty)} className="btn btn-sm btn-secondary tnum">
+                          Todos ({item.currentQty})
+                        </button>
+                      </div>
+
+                      <p className="t-caption text-center">
+                        {restante === item.currentQty
+                          ? 'Nada saiu deste espaço'
+                          : restante > item.currentQty
+                            ? `Entram ${restante - item.currentQty} na contagem — sem venda nem perda`
+                            : `Saíram ${item.currentQty - restante} ${item.unit} — no próximo passo você diz se foi venda ou perda`}
+                      </p>
+
+                      <button onClick={confirmarContagem} className={`${botaoGrande} btn-primary`}>
+                        Confirmar
+                      </button>
+                      <button onClick={() => setPasso('acoes')} className="btn btn-secondary btn-md w-full">
+                        Voltar
+                      </button>
+                    </div>
+                  )}
+
+                  {/* O que saiu foi vendido ou foi perdido */}
+                  {passo === 'destino' && (
+                    <div className="space-y-3">
+                      <p className="t-body text-center">
+                        Saíram <strong className="text-[#1d1d1f] tnum">{saiu} {item.unit}</strong>. O que aconteceu com eles?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={confirmarVenda} className="btn btn-lg btn-success text-[14px] px-3">
+                          <Icons.ShoppingCart className="w-4 h-4 shrink-0" />
+                          Vendidos
+                        </button>
+                        <button onClick={() => setPasso('motivo')} className="btn btn-lg btn-danger text-[14px] px-3">
+                          <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                          Perdidos
+                        </button>
+                      </div>
+                      <button onClick={() => setPasso('contar')} className="btn btn-secondary btn-md w-full">
+                        Voltar
+                      </button>
+                    </div>
+                  )}
+
+                  {/* O motivo da perda, que é o que o relatório separa depois */}
+                  {passo === 'motivo' && (
+                    <div className="space-y-3">
+                      <p className="t-body text-center">
+                        Por que <strong className="text-[#1d1d1f] tnum">{saiu} {item.unit}</strong> foram perdidos?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {CHECKLIST_MOTIVOS.map((motivo) => (
+                          <button
+                            key={motivo.value}
+                            onClick={() => confirmarPerda(motivo.value)}
+                            className="btn btn-md btn-secondary px-2"
+                          >
+                            {motivo.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => setPasso('acoes')} className="btn btn-secondary btn-md w-full">
+                        Voltar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* A última baixa, enquanto ela ainda pode voltar atrás */}
+              {ultima && (
+                <div className="px-4 py-2.5 bg-[#1d1d1f] text-white flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-semibold tracking-[-0.01em] truncate">
+                    {ultima.tipo === 'perda' ? 'Perda' : 'Venda'} registrada · <span className="tnum">{ultima.texto}</span>
+                  </span>
+                  <button onClick={desfazerUltima} className="btn btn-sm bg-white/[0.14] text-white hover:bg-white/25 shrink-0">
+                    <Icons.History className="w-3.5 h-3.5" />
+                    Desfazer
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -5595,6 +6106,9 @@
         // Espaço apontado no mapa da vitrine, enquanto a tela rola até ele
         const [focusedSlotId, setFocusedSlotId] = useState(null);
 
+        // Conferência item a item por cima da tela da vitrine
+        const [checklistAberto, setChecklistAberto] = useState(false);
+
         // Clique em um compartimento do desenho: abre a vitrine daquele móvel
         // e leva a pessoa até o card do espaço
         const focarEspaco = (slot) => {
@@ -5918,11 +6432,14 @@
         };
 
         // Apaga o registro da baixa e devolve as unidades ao espaço. Se a baixa
-        // tinha zerado o item, o espaço é montado de novo com os mesmos dados
-        const handleUndoBaixa = () => {
-          const alvo = undoBaixa;
+        // tinha zerado o item, o espaço é montado de novo com os mesmos dados.
+        //
+        // Recebe a baixa por parâmetro porque o desfazer aparece em dois
+        // lugares: a barrinha da tela e o checklist, que guarda a última baixa
+        // dele mesmo.
+        const desfazerBaixa = (alvo) => {
           if (!alvo) return;
-          setUndoBaixa(null);
+          setUndoBaixa((atual) => (atual && atual.recordId === alvo.recordId ? null : atual));
 
           enfileirarBaixa('Desfazer baixa', async () => {
             await run(alvo.tabela, sb.from(alvo.tabela).delete().eq('id', alvo.recordId));
@@ -5958,6 +6475,8 @@
             aplicarSlotItems(slotItemsRef.current.map((i) => i.id === alvo.item.id ? { ...i, currentQty: devolvido } : i));
           });
         };
+
+        const handleUndoBaixa = () => desfazerBaixa(undoBaixa);
 
         const handleRecordLoss = (itemId, qty, reason, details) => {
           const target = slotItemsRef.current.find((i) => i.id === itemId);
@@ -6658,12 +7177,24 @@
                       </div>
                       <h2 className="t-display">Vitrine operacional</h2>
                     </div>
-                    {totalAlerts > 0 && (
-                      <span className="pill bg-[#ff9f0a]/12 text-[#8a5200] h-7 px-3 tnum">
-                        <Icons.AlertTriangle className="w-3.5 h-3.5" />
-                        {totalAlerts} {totalAlerts === 1 ? 'item precisa de atenção' : 'itens precisam de atenção'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {totalAlerts > 0 && (
+                        <span className="pill bg-[#ff9f0a]/12 text-[#8a5200] h-7 px-3 tnum">
+                          <Icons.AlertTriangle className="w-3.5 h-3.5" />
+                          {totalAlerts} {totalAlerts === 1 ? 'item precisa de atenção' : 'itens precisam de atenção'}
+                        </span>
+                      )}
+                      {/* A conferência item a item: a tela pergunta, a pessoa
+                          responde, e a venda ou a perda já fica registrada */}
+                      <button
+                        onClick={() => setChecklistAberto(true)}
+                        title="Conferir a vitrine produto por produto"
+                        className="btn btn-primary btn-md"
+                      >
+                        <Icons.CheckSquare className="w-4 h-4" />
+                        Conferir vitrine
+                      </button>
+                    </div>
                   </div>
 
                   {/* O desenho vem antes das listas: primeiro se vê a loja
@@ -6818,6 +7349,25 @@
                 onRecordSale={handleRecordSale}
                 onRecordLoss={handleRecordLoss}
                 onRecordSellAll={handleRecordSellAll}
+              />
+            )}
+
+            {/* A chave remonta a conferência a cada abertura: ela sempre começa
+                no primeiro item da vitrine que está aberta */}
+            {checklistAberto && (
+              <ShowcaseChecklist
+                key={showcaseFilter}
+                currentUnit={currentUnit}
+                slots={slots}
+                slotItems={slotItems}
+                products={products}
+                standardPlans={standardPlans}
+                showcaseType={showcaseFilter}
+                onRecordSale={handleRecordSale}
+                onRecordLoss={handleRecordLoss}
+                onSetQty={handleSetQty}
+                onUndoBaixa={desfazerBaixa}
+                onClose={() => setChecklistAberto(false)}
               />
             )}
 
