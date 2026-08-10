@@ -502,7 +502,8 @@
         User: (props) => <IconBase d={["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"]} {...props} />,
         ChevronLeft: (props) => <IconBase d="M15 18l-6-6 6-6" {...props} />,
         ChevronRight: (props) => <IconBase d="M9 18l6-6-6-6" {...props} />,
-        Layers: (props) => <IconBase d={["M12 2 2 7l10 5 10-5-10-5z", "M2 17l10 5 10-5", "M2 12l10 5 10-5"]} {...props} />
+        Layers: (props) => <IconBase d={["M12 2 2 7l10 5 10-5-10-5z", "M2 17l10 5 10-5", "M2 12l10 5 10-5"]} {...props} />,
+        Pencil: (props) => <IconBase d={["M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z", "M15 5l4 4"]} {...props} />
       };
 
       // ==========================================
@@ -743,6 +744,15 @@
         const today = new Date(getTodayDateString());
         const diffTime = Math.abs(today - mDate);
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      };
+
+      // Dias entre dois dias AAAA-MM-DD. Serve para refazer o tempo de vitrine
+      // de uma venda quando o lote dela é corrigido no histórico.
+      const daysBetweenKeys = (de, ate) => {
+        const inicio = toDayKey(de);
+        const fim = toDayKey(ate);
+        if (!inicio || !fim) return null;
+        return Math.max(0, Math.round((dateFromKey(fim) - dateFromKey(inicio)) / 86400000));
       };
 
       // ------------------------------------------
@@ -3658,11 +3668,187 @@
       };
 
       // ==========================================
+      // CORRIGIR UM LANÇAMENTO DO HISTÓRICO
+      //
+      // Venda, perda e produção entram com um clique só, então errar a
+      // quantidade ou o lote é fácil. Aqui o lançamento é acertado no lugar,
+      // sem precisar excluir e lançar de novo.
+      //
+      // Só o registro muda: o que está na vitrine agora fica como está — a
+      // mesma regra que já vale para excluir um lançamento.
+      // ==========================================
+      const HistoryEditModal = ({ registro, onClose, onSave }) => {
+        if (!registro) return null;
+
+        const ehProducao = registro.tipo === 'producao';
+        const ehPerda = registro.tipo === 'perda';
+
+        const [qty, setQty] = useState(String(registro.qty || 1));
+        const [lote, setLote] = useState(toDayKey(registro.manufactureDate));
+        const [dia, setDia] = useState(registro.dia || '');
+        const [loteQty, setLoteQty] = useState(registro.producedQty ? String(registro.producedQty) : '');
+        const [reason, setReason] = useState(registro.reason || 'vencido');
+        const [details, setDetails] = useState(registro.details || '');
+
+        const titulo = ehProducao ? 'Corrigir produção' : ehPerda ? 'Corrigir perda' : 'Corrigir venda';
+        const rotuloData = ehPerda ? 'Data da perda' : 'Data da venda';
+
+        const numero = (texto) => {
+          const n = Math.floor(Number(texto));
+          return Number.isFinite(n) ? n : NaN;
+        };
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          const quantidade = numero(qty);
+          if (!(quantidade >= 1)) {
+            alert('A quantidade precisa ser 1 ou mais. Para tirar o lançamento do histórico, use o botão de excluir.');
+            return;
+          }
+
+          const tamanhoLote = loteQty.trim() === '' ? null : Math.max(0, numero(loteQty) || 0);
+
+          onSave(registro.tipo, registro.id, {
+            qty: quantidade,
+            // Na produção o dia do histórico é a própria data de fabricação
+            dia: ehProducao ? (lote || registro.dia) : (dia || registro.dia),
+            manufactureDate: lote || null,
+            producedQty: ehProducao ? null : tamanhoLote,
+            reason,
+            details: details.trim()
+          });
+          onClose();
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+            <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)] max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
+                <div className="min-w-0">
+                  <span className="t-overline">{titulo}</span>
+                  <h3 className="t-title text-[#1d1d1f] mt-1 truncate">{registro.productName}</h3>
+                  <p className="t-callout mt-1 truncate">
+                    {cleanResponsible(registro.responsible) || NO_RESPONSIBLE_LABEL}
+                  </p>
+                </div>
+                <button type="button" onClick={onClose} className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73] flex items-center justify-center shrink-0 transition-colors">
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">Quantidade</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => String(Math.max(1, (numero(q) || 1) - 1)))}
+                    className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[15px] flex items-center justify-center transition-colors"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    className="field field-md w-24 text-center text-[17px] font-extrabold tnum"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => String(Math.max(1, (numero(q) || 0) + 1)))}
+                    className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[15px] flex items-center justify-center transition-colors"
+                  >
+                    +
+                  </button>
+                  <span className="t-callout">{registro.unitOfMeasure || 'un'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {!ehProducao && (
+                  <div>
+                    <label className="t-caption block mb-1.5">{rotuloData}</label>
+                    <input
+                      type="date"
+                      value={dia}
+                      onChange={(e) => setDia(e.target.value)}
+                      className="field field-md text-center text-[13px] tnum"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="t-caption block mb-1.5">Data de fabricação</label>
+                  <input
+                    type="date"
+                    value={lote}
+                    onChange={(e) => setLote(e.target.value)}
+                    className="field field-md text-center text-[13px] tnum"
+                  />
+                </div>
+              </div>
+
+              {!ehProducao && (
+                <div>
+                  <label className="t-caption block mb-1.5">Tamanho do lote</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={loteQty}
+                    placeholder="Não informado"
+                    onChange={(e) => setLoteQty(e.target.value)}
+                    className="field field-md text-center font-extrabold tnum"
+                  />
+                  <p className="t-caption mt-1.5">
+                    Quanto tinha na fornada de onde saiu esta baixa — é o número depois da barra, como em "5/8".
+                  </p>
+                </div>
+              )}
+
+              {ehPerda && (
+                <div className="space-y-3 p-4 bg-[#ff3b30]/[0.05] rounded-2xl">
+                  <div>
+                    <label className="t-caption block mb-1">Motivo</label>
+                    <select value={reason} onChange={(e) => setReason(e.target.value)} className="field field-sm">
+                      <option value="vencido">Produto vencido</option>
+                      <option value="danificado">Avaria física</option>
+                      <option value="qualidade">Alteração de sabor ou textura</option>
+                      <option value="quebrado">Queda ou quebra</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="t-caption block mb-1">Detalhes</label>
+                    <input
+                      type="text"
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value)}
+                      placeholder="Observações"
+                      className="field field-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <p className="t-caption flex items-start gap-1.5 pt-1">
+                <Icons.AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>Muda só este lançamento do histórico. O que está na vitrine agora continua igual.</span>
+              </p>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={onClose} className="btn btn-secondary btn-md">Cancelar</button>
+                <button type="submit" className="btn btn-primary btn-md">Salvar</button>
+              </div>
+            </form>
+          </div>
+        );
+      };
+
+      // ==========================================
       // HISTORY VIEW — PRODUÇÃO, VENDAS E PERDAS
       //
       // Navega por dia ou por semana, e mostra os três tipos de lançamento
       // juntos na aba "Tudo". Cada venda diz o quanto o produto ficou na
-      // vitrine em relação à validade dele.
+      // vitrine em relação à validade dele. Cada linha pode ser corrigida ou
+      // excluída: o que entrou com um clique só tem de dar para acertar.
       // ==========================================
       const HistoryView = ({
         currentUnit,
@@ -3673,8 +3859,10 @@
         lossRecords,
         productionRecords,
         productionReady,
+        onDeleteSale,
         onDeleteLoss,
-        onDeleteProduction
+        onDeleteProduction,
+        onEditRecord
       }) => {
         const [activeTab, setActiveTab] = useState('tudo');
         const [periodo, setPeriodo] = useState('dia');
@@ -3682,6 +3870,8 @@
         // Na aba de lotes: uma linha por lote, ou tudo somado por produto
         const [agrupamento, setAgrupamento] = useState('lote');
         const [itensAbertos, setItensAbertos] = useState([]);
+        // Lançamento aberto para correção (venda, perda ou produção)
+        const [emCorrecao, setEmCorrecao] = useState(null);
 
         const hoje = getTodayDateString();
         const inicio = periodo === 'semana' ? startOfWeekKey(refDia) : refDia;
@@ -3856,6 +4046,20 @@
 
         const vazioLabel = periodo === 'tudo' ? '' : periodo === 'semana' ? ' nesta semana' : ' neste dia';
 
+        // Quanto existe na unidade inteira, sem olhar o período. Serve para
+        // dizer, na tabela vazia, que o lançamento existe — só não é deste dia.
+        const naUnidade = {
+          producao: productionRecords.filter((p) => p.unit === currentUnit).length,
+          vendas: saleRecords.filter((s) => s.unit === currentUnit).length,
+          perdas: lossRecords.filter((l) => l.unit === currentUnit).length
+        };
+        const foraDoPeriodo = {
+          producao: naUnidade.producao - producao.length,
+          vendas: naUnidade.vendas - vendas.length,
+          perdas: naUnidade.perdas - perdas.length
+        };
+        foraDoPeriodo.tudo = foraDoPeriodo.producao + foraDoPeriodo.vendas + foraDoPeriodo.perdas;
+
         const abas = [
           { id: 'tudo', label: `Tudo (${tudo.length})` },
           { id: 'lotes', label: `Por lote (${lotes.length})` },
@@ -3902,10 +4106,47 @@
           <button
             onClick={onClick}
             title={title}
-            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center transition-colors"
           >
             <Icons.Trash2 className="w-4 h-4" />
           </button>
+        );
+
+        const BotaoCorrigir = ({ registro, tipo, title }) => (
+          <button
+            onClick={() => setEmCorrecao({ ...registro, tipo: tipo || registro.tipo })}
+            title={title}
+            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#0071e3]/10 hover:text-[#0058b0] flex items-center justify-center transition-colors"
+          >
+            <Icons.Pencil className="w-4 h-4" />
+          </button>
+        );
+
+        // Os botões de cada linha, sempre encostados na direita da coluna
+        const Acoes = ({ children }) => (
+          <span className="flex items-center justify-end gap-0.5">{children}</span>
+        );
+
+        // Tabela vazia no período escolhido não quer dizer histórico vazio: a
+        // produção é contada pelo dia da fabricação, então o que foi lançado
+        // hoje com fornada de ontem aparece em ontem. Quando existe coisa fora
+        // do período, a tabela diz onde procurar em vez de só ficar em branco.
+        const Vazio = ({ colSpan, titulo, dica, fora = 0 }) => (
+          <tr>
+            <td colSpan={colSpan} className="text-center py-10">
+              <p className="t-body text-[#86868b]">{titulo}{vazioLabel}</p>
+              {dica && <p className="t-caption mt-1 max-w-md mx-auto">{dica}</p>}
+              {periodo !== 'tudo' && fora > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="t-caption tnum">{fora} lançamento(s) em outras datas</p>
+                  <button onClick={() => setPeriodo('tudo')} className="btn btn-secondary btn-sm mx-auto">
+                    <Icons.History className="w-3.5 h-3.5" />
+                    Ver o histórico inteiro
+                  </button>
+                </div>
+              )}
+            </td>
+          </tr>
         );
 
         return (
@@ -4078,12 +4319,12 @@
                     </thead>
                     <tbody>
                       {tudo.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-10">
-                            <p className="t-body text-[#86868b]">Nenhum lançamento{vazioLabel}</p>
-                            <p className="t-caption mt-1">Produção, vendas e perdas aparecem juntas aqui</p>
-                          </td>
-                        </tr>
+                        <Vazio
+                          colSpan={7}
+                          titulo="Nenhum lançamento"
+                          dica="Produção, vendas e perdas aparecem juntas aqui"
+                          fora={foraDoPeriodo.tudo}
+                        />
                       ) : (
                         tudo.map((r) => (
                           <tr key={`${r.tipo}-${r.id}`} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -4114,8 +4355,12 @@
                               )}
                             </td>
                             <td className="py-3 pl-3 text-right">
-                              {r.tipo === 'producao' && <BotaoExcluir onClick={() => onDeleteProduction(r.id)} title="Excluir este lançamento de produção" />}
-                              {r.tipo === 'perda' && <BotaoExcluir onClick={() => onDeleteLoss(r.id)} title="Excluir esta perda" />}
+                              <Acoes>
+                                <BotaoCorrigir registro={r} title={`Corrigir ${TIPOS[r.tipo].label.toLowerCase()}`} />
+                                {r.tipo === 'producao' && <BotaoExcluir onClick={() => onDeleteProduction(r.id)} title="Excluir este lançamento de produção" />}
+                                {r.tipo === 'venda' && <BotaoExcluir onClick={() => onDeleteSale(r.id)} title="Excluir esta venda" />}
+                                {r.tipo === 'perda' && <BotaoExcluir onClick={() => onDeleteLoss(r.id)} title="Excluir esta perda" />}
+                              </Acoes>
                             </td>
                           </tr>
                         ))
@@ -4161,14 +4406,12 @@
                       </thead>
                       <tbody>
                         {lotes.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="text-center py-10">
-                              <p className="t-body text-[#86868b]">Nenhum lote movimentado{vazioLabel}</p>
-                              <p className="t-caption mt-1">
-                                Cada fornada aparece aqui com o que foi produzido, vendido e perdido dela
-                              </p>
-                            </td>
-                          </tr>
+                          <Vazio
+                            colSpan={7}
+                            titulo="Nenhum lote movimentado"
+                            dica="Cada fornada aparece aqui com o que foi produzido, vendido e perdido dela"
+                            fora={foraDoPeriodo.tudo}
+                          />
                         ) : agrupamento === 'lote' ? (
                           lotes.map((lote) => (
                             <tr key={lote.key} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -4347,14 +4590,12 @@
                     </thead>
                     <tbody>
                       {producao.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-10">
-                            <p className="t-body text-[#86868b]">Nenhuma produção lançada{vazioLabel}</p>
-                            <p className="t-caption mt-1">
-                              Cada item colocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui
-                            </p>
-                          </td>
-                        </tr>
+                        <Vazio
+                          colSpan={7}
+                          titulo="Nenhuma produção lançada"
+                          dica="Cada item colocado na vitrine — pela lista de apoio ou pelo pedido de produção — aparece aqui, no dia da fabricação que foi digitada"
+                          fora={foraDoPeriodo.producao}
+                        />
                       ) : (
                         producao.map((p) => (
                           <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -4369,7 +4610,10 @@
                               <span className="pill bg-black/[0.05] text-[#6e6e73]">{SOURCE_LABELS[p.source] || p.source}</span>
                             </td>
                             <td className="py-3 pl-3 text-right">
-                              <BotaoExcluir onClick={() => onDeleteProduction(p.id)} title="Excluir este lançamento de produção" />
+                              <Acoes>
+                                <BotaoCorrigir registro={p} tipo="producao" title="Corrigir este lançamento de produção" />
+                                <BotaoExcluir onClick={() => onDeleteProduction(p.id)} title="Excluir este lançamento de produção" />
+                              </Acoes>
                             </td>
                           </tr>
                         ))
@@ -4389,16 +4633,13 @@
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
-                        <th className="py-3 pl-3 font-bold">Como saiu da vitrine</th>
+                        <th className="py-3 px-3 font-bold">Como saiu da vitrine</th>
+                        <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
                       {vendas.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="text-center py-10">
-                            <p className="t-body text-[#86868b]">Nenhuma venda registrada{vazioLabel}</p>
-                          </td>
-                        </tr>
+                        <Vazio colSpan={6} titulo="Nenhuma venda registrada" fora={foraDoPeriodo.vendas} />
                       ) : (
                         vendas.map((s) => (
                           <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -4410,7 +4651,13 @@
                             <td className="py-3 px-3 text-center">
                               <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="text-[#1d7a35]" />
                             </td>
-                            <td className="py-3 pl-3"><Exposicao record={s} /></td>
+                            <td className="py-3 px-3"><Exposicao record={s} /></td>
+                            <td className="py-3 pl-3 text-right">
+                              <Acoes>
+                                <BotaoCorrigir registro={s} tipo="venda" title="Corrigir esta venda" />
+                                <BotaoExcluir onClick={() => onDeleteSale(s.id)} title="Excluir esta venda" />
+                              </Acoes>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -4435,11 +4682,7 @@
                     </thead>
                     <tbody>
                       {perdas.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="text-center py-10">
-                            <p className="t-body text-[#86868b]">Nenhuma perda registrada{vazioLabel}</p>
-                          </td>
-                        </tr>
+                        <Vazio colSpan={6} titulo="Nenhuma perda registrada" fora={foraDoPeriodo.perdas} />
                       ) : (
                         perdas.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -4455,7 +4698,10 @@
                               <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
                             </td>
                             <td className="py-3 pl-3 text-right">
-                              <BotaoExcluir onClick={() => onDeleteLoss(l.id)} title="Excluir esta perda" />
+                              <Acoes>
+                                <BotaoCorrigir registro={l} tipo="perda" title="Corrigir esta perda" />
+                                <BotaoExcluir onClick={() => onDeleteLoss(l.id)} title="Excluir esta perda" />
+                              </Acoes>
                             </td>
                           </tr>
                         ))
@@ -4465,6 +4711,17 @@
                 </div>
               )}
             </div>
+
+            {/* Montada só quando há lançamento aberto: assim cada correção
+                começa com os valores do registro escolhido */}
+            {emCorrecao && (
+              <HistoryEditModal
+                key={`${emCorrecao.tipo}-${emCorrecao.id}`}
+                registro={emCorrecao}
+                onClose={() => setEmCorrecao(null)}
+                onSave={onEditRecord}
+              />
+            )}
           </div>
         );
       };
@@ -5388,6 +5645,16 @@
           setSlotItems(proximos);
         };
 
+        // Mesmo espelho para o histórico de produção: a contagem digitada na
+        // lista de apoio corrige o lançamento de produção a cada tecla, e cada
+        // uma precisa ler o número que a anterior deixou.
+        const productionRecordsRef = useRef(productionRecords);
+        productionRecordsRef.current = productionRecords;
+        const aplicarProducao = (proximos) => {
+          productionRecordsRef.current = proximos;
+          setProductionRecords(proximos);
+        };
+
         // Uma baixa de cada vez: gravações em paralelo poderiam chegar ao
         // banco fora de ordem e deixar o saldo do espaço errado
         const baixaQueueRef = useRef(Promise.resolve());
@@ -5496,7 +5763,7 @@
             return;
           }
           setProductionReady(true);
-          setProductionRecords((prev) => [...data.map(fromProduction), ...prev]);
+          aplicarProducao([...data.map(fromProduction), ...productionRecordsRef.current]);
         };
 
         const totalAlerts = useMemo(() => {
@@ -5528,6 +5795,7 @@
         };
 
         const handleUpdateItem = (updatedItem) => {
+          const anterior = slotItemsRef.current.find((i) => i.id === updatedItem.id);
           aplicarSlotItems((prev) => prev.map((i) => i.id === updatedItem.id ? updatedItem : i));
           writeSoon(`item:${updatedItem.id}`, 'Atualizar item da vitrine', () =>
             run('slot_items', sb.from('slot_items').update({
@@ -5535,6 +5803,50 @@
               current_qty: updatedItem.currentQty,
               manufacture_date: updatedItem.manufactureDate
             }).eq('id', updatedItem.id))
+          );
+          sincronizarProducao(anterior, updatedItem);
+        };
+
+        // A conferência corrige o tamanho da fornada e a data de fabricação
+        // depois de o item já ter entrado na vitrine. Sem trazer essa correção
+        // para o lançamento de produção, o histórico continua mostrando o
+        // número da hora em que o item entrou e a conta por lote fecha errada.
+        //
+        // O lançamento é achado pelo espaço, produto e data de fabricação que o
+        // item tinha antes da mexida — foi assim que ele foi gravado. Cada
+        // alocação gravou um item e um lançamento com a mesma quantidade, então
+        // o lançamento recebe o número da conferência inteiro, e não a
+        // diferença: assim uma correção atrás da outra não acumula erro.
+        const sincronizarProducao = (anterior, atual) => {
+          if (!anterior || !productionReady) return;
+
+          const novaQty = atual.producedQty || 0;
+          const loteAntes = toDayKey(anterior.manufactureDate);
+          const loteDepois = toDayKey(atual.manufactureDate);
+          if (novaQty === (anterior.producedQty || 0) && loteDepois === loteAntes) return;
+
+          // Campo apagado para digitar outro número: espera o número novo. Para
+          // tirar a produção do histórico existe o botão de excluir de lá.
+          if (novaQty <= 0) return;
+
+          const registro = productionRecordsRef.current.find(
+            (p) => p.unit === currentUnit
+              && p.productId === anterior.productId
+              && p.slotId === anterior.slotId
+              && toDayKey(p.manufactureDate) === loteAntes
+          );
+          if (!registro) return;
+
+          const novoLote = loteDepois || registro.manufactureDate;
+          aplicarProducao(productionRecordsRef.current.map((p) => p.id === registro.id ? {
+            ...p, qty: novaQty, manufactureDate: novoLote
+          } : p));
+
+          writeSoon(`producao:${registro.id}`, 'Atualizar produção do histórico', () =>
+            run('production_records', sb.from('production_records').update({
+              qty: novaQty,
+              manufacture_date: novoLote
+            }).eq('id', registro.id))
           );
         };
 
@@ -6158,6 +6470,21 @@
 
         // Lançamento errado sai do histórico. A baixa já aconteceu lá atrás:
         // apagar o registro não devolve nada para a vitrine
+        const handleDeleteSale = (id) => {
+          const alvo = saleRecords.find((s) => s.id === id);
+          if (!alvo) return;
+          const ok = window.confirm(
+            `Excluir a venda de ${alvo.qty} ${alvo.unitOfMeasure} de "${alvo.productName}"?\n\n` +
+            'O lançamento sai do histórico. O estoque da vitrine não muda.'
+          );
+          if (!ok) return;
+
+          write('Excluir venda', async () => {
+            await run('sale_records', sb.from('sale_records').delete().eq('id', id));
+            setSaleRecords((prev) => prev.filter((s) => s.id !== id));
+          });
+        };
+
         const handleDeleteLoss = (id) => {
           const alvo = lossRecords.find((l) => l.id === id);
           if (!alvo) return;
@@ -6184,8 +6511,89 @@
 
           write('Excluir produção', async () => {
             await run('production_records', sb.from('production_records').delete().eq('id', id));
-            setProductionRecords((prev) => prev.filter((p) => p.id !== id));
+            aplicarProducao(productionRecordsRef.current.filter((p) => p.id !== id));
           });
+        };
+
+        // Troca o dia de um registro guardado com hora (a venda) sem perder a
+        // hora em que ele aconteceu
+        const comDiaNovo = (timestamp, dia) => {
+          const base = timestamp ? new Date(timestamp) : new Date();
+          const [ano, mes, d] = String(dia).split('-').map(Number);
+          if (!ano || !mes || !d) return base.toISOString();
+          base.setFullYear(ano, mes - 1, d);
+          return base.toISOString();
+        };
+
+        // Corrigir um lançamento que já está no histórico: quantidade, lote,
+        // dia e — na perda — o motivo. Igual ao excluir, mexe só no registro:
+        // a baixa aconteceu lá atrás e a vitrine de agora não volta atrás.
+        const handleEditRecord = (tipo, id, campos) => {
+          const qty = Math.max(1, Math.floor(campos.qty) || 1);
+          const lote = campos.manufactureDate || null;
+          const tamanhoLote = campos.producedQty == null ? null : Math.max(0, Math.floor(campos.producedQty) || 0);
+
+          if (tipo === 'venda') {
+            const alvo = saleRecords.find((s) => s.id === id);
+            if (!alvo) return;
+            const dia = campos.dia || toDayKey(alvo.timestamp);
+            const soldAt = comDiaNovo(alvo.timestamp, dia);
+            // O tempo de vitrine é a distância entre o lote e o dia da venda
+            const exposicao = daysBetweenKeys(lote, dia);
+
+            setSaleRecords((prev) => prev.map((s) => s.id === id ? {
+              ...s, qty, producedQty: tamanhoLote, manufactureDate: lote, exposureDays: exposicao, timestamp: soldAt
+            } : s));
+
+            write('Corrigir venda', () =>
+              run('sale_records', sb.from('sale_records').update({
+                qty,
+                produced_qty: tamanhoLote,
+                manufacture_date: lote,
+                exposure_days: exposicao,
+                sold_at: soldAt
+              }).eq('id', id))
+            );
+            return;
+          }
+
+          if (tipo === 'perda') {
+            const alvo = lossRecords.find((l) => l.id === id);
+            if (!alvo) return;
+            const dia = campos.dia || alvo.lossDate;
+            const reason = campos.reason || alvo.reason;
+            const details = campos.details || '';
+
+            setLossRecords((prev) => prev.map((l) => l.id === id ? {
+              ...l, qty, producedQty: tamanhoLote, manufactureDate: lote, lossDate: dia, reason, details
+            } : l));
+
+            write('Corrigir perda', () =>
+              run('loss_records', sb.from('loss_records').update({
+                qty,
+                produced_qty: tamanhoLote,
+                manufacture_date: lote,
+                loss_date: dia,
+                reason,
+                details: details || null
+              }).eq('id', id))
+            );
+            return;
+          }
+
+          const alvo = productionRecordsRef.current.find((p) => p.id === id);
+          if (!alvo) return;
+
+          aplicarProducao(productionRecordsRef.current.map((p) => p.id === id ? {
+            ...p, qty, manufactureDate: lote
+          } : p));
+
+          write('Corrigir produção', () =>
+            run('production_records', sb.from('production_records').update({
+              qty,
+              manufacture_date: lote
+            }).eq('id', id))
+          );
         };
 
         const handleDeleteProduct = (id) => {
@@ -6363,8 +6771,10 @@
                   productionRecords={productionRecords}
                   productionReady={productionReady}
                   slots={slots}
+                  onDeleteSale={handleDeleteSale}
                   onDeleteLoss={handleDeleteLoss}
                   onDeleteProduction={handleDeleteProduction}
+                  onEditRecord={handleEditRecord}
                 />
               )}
 
