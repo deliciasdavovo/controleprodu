@@ -3115,33 +3115,24 @@
             const belowMin = currentQty <= minQty;
             const triggered = neededQty > 0 && (belowMin || estoque.expired > 0);
 
-            // Espalha o que falta pelos espaços planejados, começando por quem
-            // está mais vazio; nenhum espaço recebe mais do que o ideal dele
-            let restante = neededQty;
+            // O QUANTO se produz é sempre a quantidade do padrão do dia —
+            // nunca a diferença. Quem faz empada faz a fornada de empada; o
+            // pedido não manda fazer "mais 1" para completar bandeja.
+            // O estoque decide SE o item entra no pedido (o gatilho acima),
+            // não o tamanho da produção.
+            const orderQty = idealQty;
+
+            // Cada espaço planejado recebe a quantidade que o padrão reservou
+            // para ele — é a mesma conta, espalhada do jeito que o padrão manda
             const targets = grupo.plans
+              .slice()
+              .sort((a, b) => compareShowcase(a.slot, b.slot) || a.slot.slotNumber - b.slot.slotNumber)
               .map((p) => ({
                 slotId: p.slot.id,
                 slotNumber: p.slot.slotNumber,
-                falta: Math.max(0, p.idealQty - qtyInSlot(p.slot.id, grupo.productId))
+                qty: p.idealQty
               }))
-              .sort((a, b) => b.falta - a.falta)
-              .map((alvo) => {
-                const qty = Math.min(restante, alvo.falta);
-                restante -= qty;
-                return { ...alvo, qty };
-              })
               .filter((alvo) => alvo.qty > 0);
-
-            // Sobra quando algum espaço da vitrine está com excesso: vai para o
-            // espaço mais vazio para o total da vitrine bater com o padrão
-            if (restante > 0 && grupo.plans.length > 0) {
-              const primeiro = grupo.plans
-                .slice()
-                .sort((a, b) => qtyInSlot(a.slot.id, grupo.productId) - qtyInSlot(b.slot.id, grupo.productId))[0];
-              const existente = targets.find((t) => t.slotId === primeiro.slot.id);
-              if (existente) existente.qty += restante;
-              else targets.push({ slotId: primeiro.slot.id, slotNumber: primeiro.slot.slotNumber, qty: restante });
-            }
 
             // Onde este produto mora hoje: "Vitrine Salgada 1 #3, #5 ·
             // Vitrine Salgada 2 #1" — o padrão pode espalhar o mesmo item
@@ -3162,7 +3153,8 @@
             const localLabel = locais.map((l) => `${l.title} #${l.espacos.join(', #')}`).join(' · ');
 
             // Estoque bom que está na loja, mas fora dos espaços que o padrão
-            // reservou — some do pedido, então a lista avisa onde ele está
+            // reservou — é o que segurava o pedido sem aparecer em lugar
+            // nenhum, então a lista avisa quanto é
             const noPlano = grupo.plans.reduce((acc, p) => acc + qtyInSlot(p.slot.id, grupo.productId), 0);
             const foraDoPlano = Math.max(0, currentQty - noPlano);
 
@@ -3182,6 +3174,7 @@
               belowMin,
               triggered,
               neededQty,
+              orderQty,
               targets,
               unitOfMeasure: grupo.unitOfMeasure
             };
@@ -3223,7 +3216,7 @@
           });
 
           blocos.forEach((bloco) => {
-            bloco.total = bloco.entries.reduce((acc, i) => acc + i.neededQty, 0);
+            bloco.total = bloco.entries.reduce((acc, i) => acc + i.orderQty, 0);
             bloco.entries.sort(
               (a, b) =>
                 priorityRank(a.priority) - priorityRank(b.priority) ||
@@ -3253,8 +3246,8 @@
             if (item.expiredQty > 0) avisos.push(`${item.expiredQty} vencido(s) para repor`);
             if (item.lastDayQty > 0) avisos.push(`${item.lastDayQty} no último dia`);
             linhas.push(
-              `[ ] ${item.productName} — ${item.neededQty} ${item.unitOfMeasure}` +
-              ` (${item.priority} · ${item.localLabel} · na loja ${item.currentQty}/${item.idealQty})` +
+              `[ ] ${item.productName} — ${item.orderQty} ${item.unitOfMeasure}` +
+              ` (${item.priority} · ${item.localLabel} · na loja ${item.currentQty})` +
               (avisos.length ? ` · ${avisos.join(', ')}` : '')
             );
           });
@@ -3277,10 +3270,7 @@
         // "Copiar tudo" é a lista de produzir separada por responsável: o nome
         // de quem produz e, embaixo, quantidade e item. Sem espaço, sem
         // vitrine, sem prioridade — quem quer esse detalhe usa o "Copiar
-        // lista" de cada pessoa.
-        //
-        // O mesmo produto pode ser chamado por mais de uma vitrine, então as
-        // quantidades são somadas: uma linha por produto dentro do responsável.
+        // lista" de cada pessoa. A quantidade é a do padrão do dia.
         const copiarTudo = () => {
           if (itemsNeedingProduction.length === 0) return;
 
@@ -3290,8 +3280,8 @@
             const porProduto = porResponsavel.get(item.responsible);
             const chave = `${item.productName}|${item.unitOfMeasure}`;
             const atual = porProduto.get(chave);
-            if (atual) atual.qty += item.neededQty;
-            else porProduto.set(chave, { name: item.productName, unit: item.unitOfMeasure, qty: item.neededQty });
+            if (atual) atual.qty += item.orderQty;
+            else porProduto.set(chave, { name: item.productName, unit: item.unitOfMeasure, qty: item.orderQty });
           });
 
           // Quem está sem responsável cadastrado fica por último
@@ -3313,7 +3303,8 @@
 
         const handleApplyAll = () => {
           if (itemsNeedingProduction.length === 0) return;
-          // Cada linha pode cair em mais de um espaço da mesma vitrine
+          // Cada espaço do padrão recebe a quantidade que ele pede — é a
+          // fornada inteira indo para a vitrine, não um complemento
           const payload = itemsNeedingProduction.flatMap((item) =>
             item.targets.map((alvo) => ({
               slotId: alvo.slotId,
@@ -3327,7 +3318,7 @@
           alert('Produção lançada na vitrine com sucesso!');
         };
 
-        const totalNeeded = itemsNeedingProduction.reduce((a, b) => a + b.neededQty, 0);
+        const totalNeeded = itemsNeedingProduction.reduce((a, b) => a + b.orderQty, 0);
 
         return (
           <div className="space-y-5">
@@ -3342,8 +3333,10 @@
                   <p className="t-body mt-1.5 max-w-lg">
                     {getDayNameBR(selectedDay)} · {unitName} — uma lista por responsável, pronta para
                     copiar; o "Copiar tudo" sai com o nome de cada responsável e, embaixo, quantidade e item.
-                    A conta olha tudo o que existe na loja, em qualquer vitrine ou espaço: o que já está
-                    exposto não é pedido de novo.
+                    A quantidade é sempre a do padrão do dia — a fornada inteira, nunca "mais 1" para
+                    completar bandeja. O que muda é <em>se</em> o item entra na lista: a conta olha tudo o
+                    que existe na loja, em qualquer vitrine ou espaço, e o que já está exposto não é
+                    pedido de novo.
                     O item é chamado quando o estoque chega no mínimo da prioridade dele
                     (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
                     C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão do dia)
@@ -3368,7 +3361,7 @@
                   >
                     <Icons.Plus className="w-4 h-4" />
                     Lançar na vitrine
-                    {totalNeeded > 0 && <span className="tnum opacity-80">+{totalNeeded}</span>}
+                    {totalNeeded > 0 && <span className="tnum opacity-80">{totalNeeded} un</span>}
                   </button>
                 </div>
               </div>
@@ -3413,7 +3406,7 @@
                       <div className="min-w-0 flex-1">
                         <h4 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h4>
                         <p className="t-caption tnum mt-0.5">
-                          {bloco.entries.length} item(ns) · +{bloco.total} un
+                          {bloco.entries.length} item(ns) · {bloco.total} un
                         </p>
                       </div>
                       <button
@@ -3449,7 +3442,7 @@
                                 </h5>
                               </div>
                               <p className="t-caption mt-0.5 truncate" title={item.localLabel}>
-                                {item.localLabel} · ideal {item.idealQty} · na loja {item.currentQty}
+                                {item.localLabel} · na loja {item.currentQty}
                               </p>
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                 {item.expiredQty > 0 && (
@@ -3465,7 +3458,7 @@
                                 )}
                                 {item.foraDoPlano > 0 && (
                                   <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
-                                    {item.foraDoPlano} em outro espaço · já contado
+                                    {item.foraDoPlano} em outro espaço
                                   </span>
                                 )}
                                 {item.belowMin && (
@@ -3477,8 +3470,11 @@
                             </div>
                           </div>
 
-                          <div className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">
-                            +{item.neededQty} {item.unitOfMeasure}
+                          <div
+                            className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0"
+                            title="Quantidade do padrão do dia"
+                          >
+                            {item.orderQty} {item.unitOfMeasure}
                           </div>
                         </div>
                       );
