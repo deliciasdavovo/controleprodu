@@ -400,7 +400,7 @@
          cor, uma bandeja por espaço na ordem #1, #2, #3 do móvel de verdade.
          O quanto a bandeja está pintada é o quanto o espaço tem do padrão de
          hoje, e só o contorno tracejado é espaço livre. Não tem tom de
-         aviso: o que está acabando ou vencendo se resolve nos cards da
+         aviso: o que está acabando ou vencendo se resolve na lista da
          vitrine física.
          ========================================== */
       .vitrine-row {
@@ -415,6 +415,18 @@
 
       /* O móvel miúdo: o tampo de vidro, as bandejas dentro e a base */
       .vitrine-mini { max-width: 208px; }
+      /* O mesmo desenho na frente do bloco da vitrine física: menor, porque
+         ali ele é a etiqueta da lista e não o assunto da tela */
+      .vitrine-mini-inline { width: 132px; flex: none; }
+
+      /* O cabeçalho de cada vitrine na lista: o desenho na frente, o nome e a
+         conta do móvel logo ao lado */
+      .vitrine-bloco-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
       .vitrine-mini-case {
         padding: 3px 5px;
         border: 1px solid rgba(0, 0, 0, 0.1);
@@ -1547,10 +1559,10 @@
       // #3 — a mesma ordem do móvel de verdade. O quanto a bandeja está
       // pintada é o quanto o espaço tem do padrão de hoje; espaço livre é só
       // o contorno tracejado. De longe se vê quanta vitrine ainda tem
-      // montada, e clicar na bandeja cai no card dela.
+      // montada, e clicar na bandeja cai na linha dela na lista.
       //
       // O mapa não usa cor nem separa o que está acabando ou vencendo: isso é
-      // conversa dos cards da vitrine física, não do desenho.
+      // conversa da lista da vitrine física, não do desenho.
 
       // Bandejas por fileira: o móvel miúdo cabe em uma fileira só, que é
       // como a vitrine se vê de frente. Só quebra em duas quando o móvel é
@@ -1558,6 +1570,66 @@
       const traysPerRow = (total) => {
         if (total <= 8) return Math.max(1, total);
         return Math.ceil(total / 2);
+      };
+
+      // O móvel desenhado a traço: uma bandeja por espaço, na ordem #1, #2, #3
+      // do móvel de verdade. O mesmo desenho serve no mapa da loja e na frente
+      // de cada vitrine da lista da vitrine física — é sempre a mesma leitura,
+      // só muda onde ele está.
+      const ShowcaseMini = ({ title, slots, itemsBySlot, dayPlans, products, onFocusSlot, className = '' }) => {
+        const colunas = traysPerRow(slots.length);
+
+        return (
+          <div className={`vitrine-mini ${className}`}>
+            <div className="vitrine-mini-case">
+              <div className="vitrine-mini-glass" />
+              <div
+                className="vitrine-mini-trays"
+                style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
+              >
+                {slots.map((slot) => {
+                  const itens = itemsBySlot(slot.id);
+                  const leitura = readSlotFill(slot, itens, dayPlans);
+
+                  const detalhe = itens.length
+                    ? itens
+                        .map((item) => {
+                          const prod = products.find((p) => p.id === item.productId);
+                          return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
+                        })
+                        .join('\n')
+                    : 'Livre';
+
+                  const referencia = leitura.referencia > 0
+                    ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
+                    : '';
+
+                  return (
+                    <button
+                      key={slot.id}
+                      onClick={() => onFocusSlot(slot)}
+                      className="vitrine-tray"
+                      title={`${title} · espaço #${slot.slotNumber}\n${detalhe}${referencia}`}
+                      aria-label={`Espaço ${slot.slotNumber} de ${title}: ${leitura.vazio ? 'livre' : `${leitura.atual} unidades`}`}
+                    >
+                      {/* A bandeja nunca fica invisível: um espaço com uma
+                          unidade só ainda precisa aparecer como "tem algo" */}
+                      <span className="vitrine-tray-box" data-estado={leitura.vazio ? 'vazio' : 'cheio'}>
+                        {!leitura.vazio && (
+                          <span
+                            className="vitrine-tray-fill"
+                            style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
+                          />
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="vitrine-mini-base" />
+          </div>
+        );
       };
 
       const ShowcaseMap = ({ currentUnit, slots, slotItems, products, standardPlans, activeType, onSelectType, onFocusSlot }) => {
@@ -1606,59 +1678,19 @@
                 const percentGeral = totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null;
 
                 const ativo = vitrine.showcaseType === activeType;
-                const colunas = traysPerRow(vitrine.slots.length);
 
                 return (
                   <div key={vitrine.key} className="vitrine-row" data-active={ativo}>
                     {/* O desenho vem primeiro e o nome logo embaixo: a pessoa
                         vê o móvel e só depois lê de qual vitrine ele é */}
-                    <div className="vitrine-mini">
-                      <div className="vitrine-mini-case">
-                        <div className="vitrine-mini-glass" />
-                        <div
-                          className="vitrine-mini-trays"
-                          style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
-                        >
-                          {leituras.map(({ slot, itens, leitura }) => {
-                            const detalhe = itens.length
-                              ? itens
-                                  .map((item) => {
-                                    const prod = products.find((p) => p.id === item.productId);
-                                    return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
-                                  })
-                                  .join('\n')
-                              : 'Livre';
-
-                            const referencia = leitura.referencia > 0
-                              ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
-                              : '';
-
-                            return (
-                              <button
-                                key={slot.id}
-                                onClick={() => onFocusSlot(slot)}
-                                className="vitrine-tray"
-                                title={`${vitrine.title} · espaço #${slot.slotNumber}\n${detalhe}${referencia}`}
-                                aria-label={`Espaço ${slot.slotNumber} de ${vitrine.title}: ${leitura.vazio ? 'livre' : `${leitura.atual} unidades`}`}
-                              >
-                                {/* A bandeja nunca fica invisível: um espaço com
-                                    uma unidade só ainda precisa aparecer como
-                                    "tem algo" */}
-                                <span className="vitrine-tray-box" data-estado={leitura.vazio ? 'vazio' : 'cheio'}>
-                                  {!leitura.vazio && (
-                                    <span
-                                      className="vitrine-tray-fill"
-                                      style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
-                                    />
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="vitrine-mini-base" />
-                    </div>
+                    <ShowcaseMini
+                      title={vitrine.title}
+                      slots={vitrine.slots}
+                      itemsBySlot={itemsBySlot}
+                      dayPlans={dayPlans}
+                      products={products}
+                      onFocusSlot={onFocusSlot}
+                    />
 
                     {/* O nome, quantos espaços tem e o quanto do padrão de
                         hoje está montado — em texto miúdo, para o desenho
@@ -2210,28 +2242,84 @@
       };
 
       // ==========================================
-      // SHOWCASE GRID COMPONENT
+      // VITRINE FÍSICA
       // ==========================================
-      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, filterType, onChangeFilterType, focusedSlotId, onFocusHandled, onSetQty, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onOpenSlot }) => {
+      // A vitrine aberta em forma de lista, e não mais uma grade que imita o
+      // móvel: um bloco por vitrine e, dentro dele, uma linha por item — do
+      // mais velho para o mais novo. Quem confere começa por cima e vai
+      // descendo, que é a ordem em que o balcão gira: o que está há mais tempo
+      // exposto sai primeiro, e o que venceu nunca fica escondido no meio.
+      //
+      // O desenho do móvel vem na frente do bloco, para se saber de qual
+      // vitrine é a lista sem ter de procurar o nome. Os espaços livres ficam
+      // no fim do bloco, porque espaço vazio não tem idade nem pressa.
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, standardPlans, filterType, onChangeFilterType, focusedSlotId, onFocusHandled, onFocusSlot, onSetQty, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onOpenSlot }) => {
+        const dayOfWeek = getTodayDayOfWeek();
+
+        const dayPlans = useMemo(
+          () => standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === dayOfWeek),
+          [standardPlans, currentUnit, dayOfWeek]
+        );
 
         const unitSlots = useMemo(() => {
           return slots.filter((s) => s.unit === currentUnit && s.showcaseType === filterType);
         }, [slots, currentUnit, filterType]);
 
-        // Cada seção da vitrine (Salgados, Tortas, Bandejas…) vira um bloco
-        const sections = useMemo(() => {
-          const map = {};
-          unitSlots.forEach((slot) => {
-            if (!map[slot.shelfNumber]) map[slot.shelfNumber] = { title: slot.sectionTitle, slots: [] };
-            map[slot.shelfNumber].slots.push(slot);
-          });
-          return map;
-        }, [unitSlots]);
-
         const itemsBySlot = (slotId) => slotItems.filter((i) => i.slotId === slotId);
 
-        // Clique no mapa lá em cima: rola até o espaço e o deixa marcado por
-        // um instante, para a pessoa achar o card no meio da grade
+        // Um bloco por móvel de verdade (Salgada 1, Salgada 2…). No desenho os
+        // espaços seguem na ordem #1, #2, #3 do móvel; na lista de baixo a
+        // ordem é a idade do item.
+        const blocos = useMemo(() => {
+          return groupByShowcase(unitSlots, (slot) => slot).map((bloco) => {
+            const espacos = [...bloco.entries].sort((a, b) => a.slotNumber - b.slotNumber);
+            const porEspaco = {};
+            espacos.forEach((slot) => { porEspaco[slot.id] = slot; });
+
+            const doBloco = slotItems.filter((item) => porEspaco[item.slotId]);
+
+            // Quantos produtos dividem cada espaço, para marcar a linha
+            const quantosNoEspaco = {};
+            doBloco.forEach((item) => {
+              quantosNoEspaco[item.slotId] = (quantosNoEspaco[item.slotId] || 0) + 1;
+            });
+
+            // Fabricação mais antiga primeiro. Item sem data entra como se
+            // fosse de hoje, no fim da fila; empate se resolve pelo espaço e
+            // depois pelo nome, para a lista não dançar a cada conferência.
+            const ordenados = doBloco
+              .map((item) => ({ item, slot: porEspaco[item.slotId] }))
+              .sort((a, b) =>
+                (a.item.manufactureDate || '9999-12-31').localeCompare(b.item.manufactureDate || '9999-12-31')
+                || a.slot.slotNumber - b.slot.slotNumber
+                || a.item.productName.localeCompare(b.item.productName, 'pt-BR')
+              );
+
+            // A primeira linha de cada espaço é onde o clique no desenho cai
+            const ocupados = new Set();
+            const linhas = ordenados.map(({ item, slot }) => {
+              const ancora = !ocupados.has(slot.id);
+              ocupados.add(slot.id);
+              return { item, slot, ancora, dividido: (quantosNoEspaco[slot.id] || 0) > 1 };
+            });
+
+            const leituras = espacos.map((slot) => readSlotFill(slot, itemsBySlot(slot.id), dayPlans));
+            const comPadrao = leituras.filter((l) => l.referencia > 0);
+            const totalAtual = comPadrao.reduce((s, l) => s + l.atual, 0);
+            const totalRef = comPadrao.reduce((s, l) => s + l.referencia, 0);
+
+            return {
+              ...bloco,
+              espacos,
+              linhas,
+              livres: espacos.filter((slot) => !ocupados.has(slot.id)),
+              percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
+            };
+          });
+        }, [unitSlots, slotItems, dayPlans]);
+
+        // Clique no mapa lá em cima: rola até a linha do espaço e a deixa
+        // marcada por um instante, para a pessoa achar o item na lista
         useEffect(() => {
           if (!focusedSlotId) return;
           const el = document.getElementById(`espaco-${focusedSlotId}`);
@@ -2245,7 +2333,7 @@
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b hairline">
               <div>
                 <h2 className="t-title text-[#1d1d1f]">Vitrine física</h2>
-                <p className="t-caption mt-0.5">Um card por espaço · os botões dão baixa de 1 ou de tudo; segure um botão de perda para escolher o motivo</p>
+                <p className="t-caption mt-0.5">Uma linha por item, do mais velho para o mais novo · os botões dão baixa de 1 ou de tudo; segure um botão de perda para escolher o motivo</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="segmented">
@@ -2259,125 +2347,144 @@
               </div>
             </div>
 
-            <div className="space-y-7">
-              {Object.keys(sections).map((shelfNum) => (
-                <div key={shelfNum} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="t-overline">{sections[shelfNum].title}</span>
-                    <span className="t-caption tnum">{sections[shelfNum].slots.length}</span>
-                    <span className="flex-1 h-px bg-black/[0.06]" />
-                  </div>
-                  {/* items-start: um espaço dividido cresce sem esticar os vizinhos */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 items-start">
-                    {sections[shelfNum].slots.map((slot) => {
-                      const items = itemsBySlot(slot.id);
-                      const dividido = items.length > 1;
+            {blocos.length === 0 ? (
+              <p className="t-body text-[#86868b] text-center py-10">
+                Nenhuma vitrine {SHOWCASE_TYPE_LABELS[filterType].toLowerCase()} cadastrada nesta unidade.
+              </p>
+            ) : (
+              <div className="space-y-7">
+                {blocos.map((bloco) => (
+                  <div key={bloco.key} className="space-y-2.5">
+                    {/* O desenho na frente do nome: antes de ler a lista, a
+                        pessoa vê de qual móvel ela é e o quanto ele tem */}
+                    <div className="vitrine-bloco-head">
+                      <ShowcaseMini
+                        title={bloco.title}
+                        slots={bloco.espacos}
+                        itemsBySlot={itemsBySlot}
+                        dayPlans={dayPlans}
+                        products={products}
+                        onFocusSlot={onFocusSlot}
+                        className="vitrine-mini-inline"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="t-callout font-bold text-[#1d1d1f] truncate">{bloco.title}</h3>
+                        <p className="t-caption tnum mt-0.5">
+                          {bloco.espacos.length} {bloco.espacos.length === 1 ? 'espaço' : 'espaços'}
+                          {' · '}
+                          {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'}
+                          {bloco.percent !== null && ` · ${bloco.percent}% do padrão de hoje`}
+                        </p>
+                      </div>
+                    </div>
 
-                      return (
-                        <div
-                          key={slot.id}
-                          id={`espaco-${slot.id}`}
-                          className={`p-3.5 rounded-2xl border flex flex-col min-h-[148px] transition-all ${
-                            items.length
-                              ? 'bg-white hairline shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_10px_rgba(0,0,0,0.07)]'
-                              : 'bg-black/[0.02] border-dashed border-black/10'
-                          } ${focusedSlotId === slot.id ? 'ring-2 ring-[#0071e3]/45' : ''}`}
-                        >
-                          <div className="flex items-center justify-between gap-1.5">
-                            <span className="t-caption tnum">#{slot.slotNumber}</span>
-                            {dividido && (
-                              <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px]">
-                                Dividido · {items.length}
-                              </span>
-                            )}
-                          </div>
+                    <div className="rounded-2xl border hairline bg-white overflow-hidden">
+                      {bloco.linhas.length === 0 ? (
+                        <p className="t-body text-[#86868b] text-center py-7 px-4">Nada montado neste móvel</p>
+                      ) : (
+                        bloco.linhas.map(({ item, slot, ancora, dividido }) => {
+                          const prod = products.find((p) => p.id === item.productId);
+                          const statusInfo = getSlotItemStatus(item, prod);
 
-                          {items.length === 0 ? (
-                            <button
-                              onClick={() => onOpenSlot(slot)}
-                              title="Colocar produto neste espaço"
-                              className="flex-1 flex flex-col items-center justify-center gap-1 text-[#a1a1a6] hover:text-[#1d1d1f] transition-colors"
+                          return (
+                            <div
+                              key={item.id}
+                              id={ancora ? `espaco-${slot.id}` : undefined}
+                              className={`px-3.5 py-3 border-b hairline last:border-0 transition-colors ${
+                                focusedSlotId === slot.id ? 'bg-[#0071e3]/[0.06]' : 'hover:bg-black/[0.015]'
+                              }`}
                             >
-                              <Icons.Plus className="w-4 h-4" />
-                              <span className="text-[13px] font-semibold">Livre</span>
-                            </button>
-                          ) : (
-                            <div className="flex-1 flex flex-col">
-                              {items.map((item) => {
-                                const prod = products.find((p) => p.id === item.productId);
-                                const statusInfo = getSlotItemStatus(item, prod);
-
-                                return (
-                                  <div key={item.id} className="pt-2.5 mt-2.5 border-t hairline first:border-0 first:pt-0 first:mt-1.5 space-y-1.5">
-                                    <div className="flex items-start justify-between gap-1.5">
-                                      <span
-                                        title={`Responsável: ${getResponsibleName(prod)}`}
-                                        className={`w-[18px] h-[18px] shrink-0 rounded-full text-[9px] font-extrabold flex items-center justify-center tracking-tight ${
-                                          cleanResponsible(prod?.responsible)
-                                            ? 'bg-black/[0.06] text-[#6e6e73]'
-                                            : 'bg-black/[0.04] text-[#c7c7cc]'
-                                        }`}
-                                      >
-                                        {getResponsibleInitials(prod?.responsible)}
-                                      </span>
-                                      {/* Dia a dia é só o tempo de vitrine em
-                                          texto miúdo; selo mesmo, só no
-                                          último dia e no vencido */}
-                                      <span className={statusInfo.alerta ? `pill ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption text-[11px] tnum'}>
-                                        {statusInfo.label}
-                                      </span>
-                                    </div>
-
-                                    <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em] line-clamp-2">
+                              {/* O número do espaço vem na frente: é assim que
+                                  a pessoa acha o item no móvel de verdade */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="shrink-0 mt-[2px] h-5 px-1.5 rounded-md bg-black/[0.05] text-[#6e6e73] text-[10px] font-extrabold flex items-center tnum">
+                                    #{slot.slotNumber}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em]">
                                       <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                                     </h4>
-
-                                    {/* A contagem é digitada no próprio card:
-                                        acerta o número sem abrir janela. A
-                                        largura vem do invólucro porque .field
-                                        já ocupa a linha inteira sozinho. */}
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="w-11 shrink-0">
-                                        <QtyField
-                                          value={item.currentQty}
-                                          onSet={(valor) => onSetQty(item.id, valor)}
-                                          label={`Quantidade de ${item.productName} na vitrine`}
-                                          className="h-7 px-1 text-[14px] font-extrabold"
-                                        />
-                                      </div>
-                                      <span className="t-caption tnum truncate">de {item.producedQty || item.currentQty} {item.unit}</span>
-                                    </div>
-
-                                    <ItemActions
-                                      item={item}
-                                      onQuickSale={onQuickSale}
-                                      onRecordSellAll={onRecordSellAll}
-                                      onQuickLoss={onQuickLoss}
-                                      onOpenDecreaseModal={onOpenDecreaseModal}
-                                    />
+                                    {/* Quem responde pelo item, o lote que foi
+                                        colocado e se o espaço está dividido —
+                                        tudo o que não se mexe fica nesta linha,
+                                        para a de baixo ser só contagem e baixa */}
+                                    <p className="t-caption text-[11px] mt-0.5 flex items-center gap-1">
+                                      <Icons.User className="w-3 h-3 shrink-0" />
+                                      <span className="truncate">{getResponsibleName(prod)}</span>
+                                      <span className="shrink-0 tnum">· de {item.producedQty || item.currentQty} {item.unit}</span>
+                                      {dividido && <span className="shrink-0">· dividido</span>}
+                                    </p>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                                </div>
+                                {/* Dia a dia é só o tempo de vitrine em texto
+                                    miúdo; selo mesmo, só no último dia e no
+                                    vencido */}
+                                <span className={statusInfo.alerta ? `pill shrink-0 ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption text-[11px] tnum shrink-0'}>
+                                  {statusInfo.label}
+                                </span>
+                              </div>
 
-                          {items.length > 0 && (
-                            <button
-                              onClick={() => onOpenSlot(slot)}
-                              title="Colocar mais um produto neste mesmo espaço"
-                              className="btn btn-secondary h-7 mt-2.5 w-full text-[11px]"
-                            >
-                              <Icons.Plus className="w-3 h-3" />
-                              Dividir espaço
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                              {/* A contagem é digitada na própria linha: acerta
+                                  o número sem abrir janela */}
+                              <div className="flex items-center gap-2 mt-2">
+                                <div className="w-12 shrink-0">
+                                  <QtyField
+                                    value={item.currentQty}
+                                    onSet={(valor) => onSetQty(item.id, valor)}
+                                    label={`Quantidade de ${item.productName} na vitrine`}
+                                    className="h-8 px-1 text-[14px] font-extrabold"
+                                  />
+                                </div>
+                                <ItemActions
+                                  item={item}
+                                  onQuickSale={onQuickSale}
+                                  onRecordSellAll={onRecordSellAll}
+                                  onQuickLoss={onQuickLoss}
+                                  onOpenDecreaseModal={onOpenDecreaseModal}
+                                  className="ml-auto shrink-0"
+                                  buttonClass="w-9 h-8 px-0"
+                                />
+                                <button
+                                  onClick={() => onOpenSlot(slot)}
+                                  title="Colocar mais um produto neste mesmo espaço"
+                                  aria-label={`Dividir o espaço ${slot.slotNumber}`}
+                                  className="btn w-7 h-7 px-0 shrink-0 bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73]"
+                                >
+                                  <Icons.Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Espaço livre não entra na fila da idade: fica no fim do
+                        bloco, à mão de quem vai montar */}
+                    {bloco.livres.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="t-caption">Livres</span>
+                        {bloco.livres.map((slot) => (
+                          <button
+                            key={slot.id}
+                            id={`espaco-${slot.id}`}
+                            onClick={() => onOpenSlot(slot)}
+                            title={`Colocar produto no espaço #${slot.slotNumber}`}
+                            className={`btn btn-secondary h-7 px-2 text-[11px] tnum ${
+                              focusedSlotId === slot.id ? 'ring-2 ring-[#0071e3]/45' : ''
+                            }`}
+                          >
+                            <Icons.Plus className="w-3 h-3" />
+                            #{slot.slotNumber}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       };
@@ -2420,10 +2527,16 @@
         const slotOf = (item) => unitSlots.find((s) => s.id === item.slotId);
 
         // Mesma leitura da vitrine física: um bloco por móvel (Salgada 1,
-        // Salgada 2…) e, dentro dele, os itens na ordem dos espaços #1, #2, #3
+        // Salgada 2…) e, dentro dele, os itens do mais velho para o mais novo.
+        // Item sem data de fabricação entra como se fosse de hoje, no fim da
+        // fila; empate se resolve pelo espaço e depois pelo nome.
         const filteredItems = itemsInUnit
           .filter((item) => item.productName.toLowerCase().includes(filterText.toLowerCase()))
-          .sort((a, b) => (slotOf(a)?.slotNumber || 0) - (slotOf(b)?.slotNumber || 0));
+          .sort((a, b) =>
+            (a.manufactureDate || '9999-12-31').localeCompare(b.manufactureDate || '9999-12-31')
+            || (slotOf(a)?.slotNumber || 0) - (slotOf(b)?.slotNumber || 0)
+            || a.productName.localeCompare(b.productName, 'pt-BR')
+          );
 
         const showcaseBlocks = groupByShowcase(filteredItems, slotOf, 'Fora das vitrines');
 
@@ -2584,7 +2697,7 @@
                       return (
                         <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
                           {/* O número do espaço vem na frente, do mesmo jeito
-                              que aparece no card da vitrine física */}
+                              que aparece na lista da vitrine física */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 min-w-0">
                               <span className="shrink-0 mt-[2px] h-5 px-1.5 rounded-md bg-black/[0.05] text-[#6e6e73] text-[10px] font-extrabold flex items-center tnum">
@@ -6101,7 +6214,7 @@
         const [checklistAberto, setChecklistAberto] = useState(false);
 
         // Clique em um compartimento do desenho: abre a vitrine daquele móvel
-        // e leva a pessoa até o card do espaço
+        // e leva a pessoa até a linha do espaço
         const focarEspaco = (slot) => {
           setShowcaseFilter(slot.showcaseType);
           setFocusedSlotId(slot.id);
@@ -7207,10 +7320,12 @@
                       slots={slots}
                       slotItems={slotItems}
                       products={products}
+                      standardPlans={standardPlans}
                       filterType={showcaseFilter}
                       onChangeFilterType={setShowcaseFilter}
                       focusedSlotId={focusedSlotId}
                       onFocusHandled={() => setFocusedSlotId(null)}
+                      onFocusSlot={focarEspaco}
                       onSetQty={handleSetQty}
                       onQuickSale={handleQuickSale}
                       onRecordSellAll={handleRecordSellAll}
