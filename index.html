@@ -362,51 +362,44 @@
 
       /* ==========================================
          MAPA DA VITRINE
-         O móvel desenhado de frente, a traço e sem cor: uma bandeja por
-         espaço, na ordem #1, #2, #3 do móvel de verdade. O quanto a bandeja
-         está pintada é o quanto o espaço tem do padrão de hoje, e só o
-         contorno tracejado é espaço livre. Não tem tom de aviso: o que está
-         acabando ou vencendo se resolve nos cards da vitrine física.
+         Uma lista de móveis, um por linha. Em cada linha o móvel vem
+         desenhado miúdo logo em cima do nome da vitrine: traço fino, sem
+         cor, uma bandeja por espaço na ordem #1, #2, #3 do móvel de verdade.
+         O quanto a bandeja está pintada é o quanto o espaço tem do padrão de
+         hoje, e só o contorno tracejado é espaço livre. Não tem tom de
+         aviso: o que está acabando ou vencendo se resolve nos cards da
+         vitrine física.
          ========================================== */
-      .vitrine-frame {
-        border: 1px solid var(--hairline);
+      .vitrine-row {
+        padding: 11px 6px 12px;
         border-radius: var(--radius-md);
-        background: var(--bg-surface);
-        padding: 10px 10px 8px;
-        transition: box-shadow .18s ease, border-color .18s ease;
+        transition: background-color .18s ease;
       }
-      /* A vitrine aberta na tela de baixo fica marcada, mas nenhuma apaga:
-         o mapa serve para olhar a loja inteira de uma vez */
-      .vitrine-frame[data-active="true"] {
-        border-color: rgba(0, 0, 0, 0.28);
-      }
-      .vitrine-frame:hover { border-color: rgba(0, 0, 0, 0.18); }
+      .vitrine-row:hover { background: rgba(0, 0, 0, 0.015); }
+      /* A vitrine aberta na tela de baixo fica marcada de leve, mas nenhuma
+         apaga: o mapa serve para olhar a loja inteira de uma vez */
+      .vitrine-row[data-active="true"] { background: rgba(0, 0, 0, 0.028); }
 
-      /* O móvel: o tampo de vidro em cima, as bandejas dentro, a base embaixo */
-      .vitrine-case {
-        margin-top: 8px;
-        padding: 6px 6px 5px;
-        border: 1px solid rgba(0, 0, 0, 0.16);
-        border-radius: 12px 12px 3px 3px;
+      /* O móvel miúdo: o tampo de vidro, as bandejas dentro e a base */
+      .vitrine-mini { max-width: 208px; }
+      .vitrine-mini-case {
+        padding: 3px 5px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px 10px 3px 3px;
         background: var(--bg-surface);
       }
-      .vitrine-case-top {
+      /* O fio do vidro: o que faz o desenho ser um móvel e não uma barrinha */
+      .vitrine-mini-glass {
         height: 0;
-        margin: 1px 2px 6px;
-        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        margin: 1px 1px 4px;
+        border-top: 1px solid rgba(0, 0, 0, 0.06);
       }
-      .vitrine-trays { display: grid; gap: 5px 4px; }
-      .vitrine-base {
-        height: 3px;
-        margin: 6px 1px 0;
-        border-radius: 0 0 3px 3px;
-        background: rgba(0, 0, 0, 0.1);
-      }
-      .vitrine-legs { display: flex; justify-content: space-between; padding: 0 11px; }
-      .vitrine-legs > span {
-        width: 8px; height: 3px;
+      .vitrine-mini-trays { display: grid; gap: 3px; }
+      .vitrine-mini-base {
+        height: 2px;
+        margin: 3px 3px 0;
         border-radius: 0 0 2px 2px;
-        background: rgba(0, 0, 0, 0.09);
+        background: rgba(0, 0, 0, 0.07);
       }
 
       /* Uma bandeja: a borda é o espaço, o preenchimento é o que tem dentro */
@@ -414,36 +407,28 @@
       .vitrine-tray-box {
         position: relative;
         display: block;
-        height: 13px;
-        border: 1px solid rgba(0, 0, 0, 0.28);
-        border-radius: 4px;
+        height: 9px;
+        border: 1px solid rgba(0, 0, 0, 0.16);
+        border-radius: 3px;
         background: #fff;
         overflow: hidden;
         transition: box-shadow .16s ease, transform .12s ease;
       }
-      .vitrine-tray:hover .vitrine-tray-box { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14); }
-      .vitrine-tray:active .vitrine-tray-box { transform: scale(0.96); }
+      .vitrine-tray:hover .vitrine-tray-box { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1); }
+      .vitrine-tray:active .vitrine-tray-box { transform: scale(0.94); }
       .vitrine-tray-fill {
         position: absolute; top: 0; bottom: 0; left: 0;
-        background: rgba(0, 0, 0, 0.78);
+        background: rgba(0, 0, 0, 0.62);
       }
       /* Espaço livre: só o contorno tracejado */
       .vitrine-tray-box[data-estado="vazio"] {
         border-style: dashed;
-        border-color: rgba(0, 0, 0, 0.18);
-      }
-
-      .vitrine-tray-num {
-        display: block;
-        margin-top: 2px;
-        text-align: center;
-        font-size: 9px; font-weight: 700; line-height: 1.1;
-        color: var(--ink-4);
-        font-variant-numeric: tabular-nums;
+        border-color: rgba(0, 0, 0, 0.13);
+        background: transparent;
       }
 
       @media (min-width: 640px) {
-        .vitrine-tray-box { height: 15px; }
+        .vitrine-tray-box { height: 10px; }
       }
 
       /* Divisor fino no padrão das listas do iOS */
@@ -1482,20 +1467,23 @@
       // ==========================================
       // MAPA DA VITRINE
       // ==========================================
-      // Cada móvel da loja desenhado de frente, a traço, com uma bandeja por
-      // espaço na ordem #1, #2, #3 — a mesma ordem do móvel de verdade. O
-      // quanto a bandeja está pintada é o quanto o espaço tem do padrão de
-      // hoje; espaço livre é só o contorno tracejado. De longe se vê quanta
-      // vitrine ainda tem montada, e clicar na bandeja cai no card dela.
+      // A loja em forma de lista: um móvel por linha, e em cada linha o
+      // desenho miúdo do móvel logo em cima do nome da vitrine. O desenho é a
+      // frente do móvel a traço, com uma bandeja por espaço na ordem #1, #2,
+      // #3 — a mesma ordem do móvel de verdade. O quanto a bandeja está
+      // pintada é o quanto o espaço tem do padrão de hoje; espaço livre é só
+      // o contorno tracejado. De longe se vê quanta vitrine ainda tem
+      // montada, e clicar na bandeja cai no card dela.
       //
       // O mapa não usa cor nem separa o que está acabando ou vencendo: isso é
       // conversa dos cards da vitrine física, não do desenho.
 
-      // Bandejas por fileira: o móvel fica equilibrado em vez de virar uma
-      // fileira comprida (8 espaços = 4 e 4; 6 = 3 e 3)
+      // Bandejas por fileira: o móvel miúdo cabe em uma fileira só, que é
+      // como a vitrine se vê de frente. Só quebra em duas quando o móvel é
+      // comprido demais e a bandeja viraria um risco
       const traysPerRow = (total) => {
-        if (total <= 4) return Math.max(1, total);
-        return Math.ceil(total / Math.ceil(total / 4));
+        if (total <= 8) return Math.max(1, total);
+        return Math.ceil(total / 2);
       };
 
       const ShowcaseMap = ({ currentUnit, slots, slotItems, products, standardPlans, activeType, onSelectType, onFocusSlot }) => {
@@ -1521,20 +1509,17 @@
         const itemsBySlot = (slotId) => slotItems.filter((i) => i.slotId === slotId);
 
         return (
-          <div className="card p-4 sm:p-5 space-y-3.5">
-            <div>
+          <div className="card p-4 sm:p-5">
+            <div className="pb-2.5 border-b hairline">
               <h2 className="t-headline text-[#1d1d1f]">Mapa da vitrine</h2>
               <p className="t-caption mt-0.5">
-                Uma bandeja por espaço · o quanto está pintado é o quanto tem do padrão de {getDayNameBR(dayOfWeek).toLowerCase()} · toque para ir ao espaço
+                O móvel desenhado em cima do nome · o quanto está pintado é o quanto tem do padrão de {getDayNameBR(dayOfWeek).toLowerCase()} · toque em uma bandeja para ir ao espaço
               </p>
             </div>
 
-            {/* auto-fit: os móveis se espalham pela largura que houver, sem
-                deixar meia fileira vazia quando a loja tem três ou cinco */}
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(184px, 1fr))' }}
-            >
+            {/* Um móvel por linha: a loja inteira se lê descendo a lista, e
+                cada linha é o desenho e, embaixo, o nome da vitrine */}
+            <div className="divide-hairline">
               {showcases.map((vitrine) => {
                 const leituras = vitrine.slots.map((slot) => {
                   const itens = itemsBySlot(slot.id);
@@ -1550,72 +1535,77 @@
                 const colunas = traysPerRow(vitrine.slots.length);
 
                 return (
-                  <div key={vitrine.key} className="vitrine-frame" data-active={ativo}>
+                  <div key={vitrine.key} className="vitrine-row" data-active={ativo}>
+                    {/* O desenho vem primeiro e o nome logo embaixo: a pessoa
+                        vê o móvel e só depois lê de qual vitrine ele é */}
+                    <div className="vitrine-mini">
+                      <div className="vitrine-mini-case">
+                        <div className="vitrine-mini-glass" />
+                        <div
+                          className="vitrine-mini-trays"
+                          style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
+                        >
+                          {leituras.map(({ slot, itens, leitura }) => {
+                            const detalhe = itens.length
+                              ? itens
+                                  .map((item) => {
+                                    const prod = products.find((p) => p.id === item.productId);
+                                    return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
+                                  })
+                                  .join('\n')
+                              : 'Livre';
+
+                            const referencia = leitura.referencia > 0
+                              ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
+                              : '';
+
+                            return (
+                              <button
+                                key={slot.id}
+                                onClick={() => onFocusSlot(slot)}
+                                className="vitrine-tray"
+                                title={`${vitrine.title} · espaço #${slot.slotNumber}\n${detalhe}${referencia}`}
+                                aria-label={`Espaço ${slot.slotNumber} de ${vitrine.title}: ${leitura.vazio ? 'livre' : `${leitura.atual} unidades`}`}
+                              >
+                                {/* A bandeja nunca fica invisível: um espaço com
+                                    uma unidade só ainda precisa aparecer como
+                                    "tem algo" */}
+                                <span className="vitrine-tray-box" data-estado={leitura.vazio ? 'vazio' : 'cheio'}>
+                                  {!leitura.vazio && (
+                                    <span
+                                      className="vitrine-tray-fill"
+                                      style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
+                                    />
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="vitrine-mini-base" />
+                    </div>
+
+                    {/* O nome, quantos espaços tem e o quanto do padrão de
+                        hoje está montado — em texto miúdo, para o desenho
+                        continuar sendo o que se olha primeiro */}
                     <button
                       onClick={() => onSelectType(vitrine.showcaseType)}
                       title={`Abrir as vitrines ${SHOWCASE_TYPE_LABELS[vitrine.showcaseType].toLowerCase()}`}
-                      className="w-full text-left flex items-center justify-between gap-2"
+                      className="w-full text-left flex items-baseline gap-2 mt-2"
                     >
                       <span className="t-callout font-bold text-[#1d1d1f] min-w-0 truncate">{vitrine.title}</span>
+                      <span className="t-caption tnum shrink-0">
+                        {vitrine.slots.length} {vitrine.slots.length === 1 ? 'espaço' : 'espaços'}
+                      </span>
+                      <span className="flex-1" />
                       <span
                         title={percentGeral === null ? 'Sem padrão para hoje neste móvel' : 'Do padrão de hoje, somando os espaços do móvel'}
-                        className="pill tnum shrink-0 bg-black/[0.05] text-[#6e6e73]"
+                        className="t-caption tnum shrink-0"
                       >
                         {percentGeral === null ? 'sem padrão' : `${percentGeral}%`}
                       </span>
                     </button>
-
-                    {/* O móvel: tampo, as bandejas em fileiras e a base */}
-                    <div className="vitrine-case">
-                      <div className="vitrine-case-top" />
-                      <div
-                        className="vitrine-trays"
-                        style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
-                      >
-                        {leituras.map(({ slot, itens, leitura }) => {
-                          const detalhe = itens.length
-                            ? itens
-                                .map((item) => {
-                                  const prod = products.find((p) => p.id === item.productId);
-                                  return `${item.productName}: ${item.currentQty} ${item.unit} · ${getSlotItemStatus(item, prod).label}`;
-                                })
-                                .join('\n')
-                            : 'Livre';
-
-                          const referencia = leitura.referencia > 0
-                            ? `\n${leitura.atual} de ${leitura.referencia} ${leitura.padrao > 0 ? 'do padrão de hoje' : 'do lote colocado'}`
-                            : '';
-
-                          return (
-                            <button
-                              key={slot.id}
-                              onClick={() => onFocusSlot(slot)}
-                              className="vitrine-tray"
-                              title={`${vitrine.title} · espaço #${slot.slotNumber}\n${detalhe}${referencia}`}
-                              aria-label={`Espaço ${slot.slotNumber} de ${vitrine.title}: ${leitura.vazio ? 'livre' : `${leitura.atual} unidades`}`}
-                            >
-                              {/* A bandeja nunca fica invisível: um espaço com
-                                  uma unidade só ainda precisa aparecer como
-                                  "tem algo" */}
-                              <span className="vitrine-tray-box" data-estado={leitura.vazio ? 'vazio' : 'cheio'}>
-                                {!leitura.vazio && (
-                                  <span
-                                    className="vitrine-tray-fill"
-                                    style={{ width: `${Math.min(100, Math.max(9, leitura.percent * 100))}%` }}
-                                  />
-                                )}
-                              </span>
-                              <span className="vitrine-tray-num">{slot.slotNumber}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="vitrine-base" />
-                    </div>
-                    <div className="vitrine-legs">
-                      <span />
-                      <span />
-                    </div>
                   </div>
                 );
               })}
