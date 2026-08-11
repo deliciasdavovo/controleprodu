@@ -235,6 +235,39 @@
         box-shadow: none;
       }
 
+      /* Stepper (iOS): − valor + em um bloco cinza único. O sinal não é botão
+         colorido: quem manda na leitura é o número no meio. */
+      .stepper {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(120, 120, 128, 0.12);
+        border-radius: 980px;
+        padding: 2px;
+      }
+      .stepper > button {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 980px;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ink-1);
+        transition: background-color .16s ease, transform .12s ease;
+      }
+      .stepper > button:hover { background: rgba(255, 255, 255, 0.9); }
+      .stepper > button:active { transform: scale(0.92); }
+      .stepper-value {
+        min-width: 26px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--ink-1);
+      }
+
       /* Campos de formulário */
       .field {
         width: 100%;
@@ -431,6 +464,41 @@
         .vitrine-tray-box { height: 10px; }
       }
 
+      /* ==========================================
+         TABELA DA SEMANA
+         Uma tabela para ler de relance: linha inteira acende ao passar, a
+         coluna do dia aberto fica de fundo azul lavado e a célula só ganha
+         moldura quando a mão chega nela. Nada de fundo pintado por
+         quantidade — a régua é o número, não a cor.
+         ========================================== */
+      .week-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .week-table tbody tr { transition: background-color .14s ease; }
+      .week-table tbody tr:hover { background: rgba(0, 0, 0, 0.022); }
+      /* A coluna sticky do produto acompanha o realce da linha */
+      .week-table tbody tr:hover > td[data-sticky="true"] { background: #fafafa !important; }
+      .week-table td[data-hoje="true"], .week-table th[data-hoje="true"] {
+        background: rgba(0, 113, 227, 0.045);
+      }
+
+      /* Célula de quantidade: campo invisível até você chegar perto */
+      .qty-cell {
+        width: 100%;
+        min-width: 44px;
+        height: 32px;
+        text-align: center;
+        border-radius: 8px;
+        background: transparent;
+        border: 1px solid transparent;
+        transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
+      }
+      .qty-cell:hover { background: rgba(0, 0, 0, 0.04); }
+      .qty-cell:focus {
+        outline: none;
+        background: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.16);
+      }
+
       /* Divisor fino no padrão das listas do iOS */
       .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
 
@@ -559,26 +627,32 @@
       // A letra não é só etiqueta: ela decide em que ponto o pedido de produção
       // chama o item. O que não pode faltar (A) é chamado ainda com meia
       // vitrine; o que é extra (D) só quando está quase acabando.
+      //
+      // A cor não é semáforo: vermelho e laranja aqui davam ar de alerta em
+      // item que está perfeitamente bem. A escala é uma só — azul do sistema
+      // indo até o cinza — e diz apenas o peso do item: quanto mais forte,
+      // mais cedo ele entra no pedido. Vermelho fica reservado para o que é
+      // problema de verdade (vencido, perda, apagar).
       // ------------------------------------------
       const PRIORITIES = [
         {
           value: 'A', title: 'A · não pode faltar', ratio: 0.50,
-          pill: 'bg-[#ff3b30]/10 text-[#c9271d]', dot: 'bg-[#ff3b30]',
+          pill: 'bg-[#0071e3] text-white', dot: 'bg-[#0071e3]',
           hint: 'Carro-chefe: entra no pedido assim que cai para metade do padrão'
         },
         {
           value: 'B', title: 'B · importante', ratio: 0.30,
-          pill: 'bg-[#ff9f0a]/12 text-[#8a5200]', dot: 'bg-[#ff9f0a]',
+          pill: 'bg-[#0071e3]/[0.12] text-[#0058b0]', dot: 'bg-[#0071e3]/55',
           hint: 'Entra no pedido com 30% do padrão na vitrine'
         },
         {
           value: 'C', title: 'C · complementar', ratio: 0.20,
-          pill: 'bg-[#0071e3]/10 text-[#0058b0]', dot: 'bg-[#0071e3]',
+          pill: 'bg-black/[0.06] text-[#6e6e73]', dot: 'bg-[#c7c7cc]',
           hint: 'Entra no pedido com 20% do padrão na vitrine'
         },
         {
           value: 'D', title: 'D · extra', ratio: 0.10,
-          pill: 'bg-black/[0.06] text-[#6e6e73]', dot: 'bg-[#c7c7cc]',
+          pill: 'bg-white text-[#6e6e73] ring-1 ring-inset ring-black/[0.12]', dot: 'bg-black/[0.16]',
           hint: 'Só é chamado quando está quase acabando (10% do padrão)'
         }
       ];
@@ -2656,13 +2730,14 @@
                       type="button"
                       onClick={() => setPrio(p.value)}
                       title={p.hint}
-                      className={`h-11 rounded-xl border text-[15px] font-extrabold transition-all ${
+                      className={`h-11 rounded-xl border text-[15px] font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
                         prio === p.value
                           ? 'border-[#0071e3] bg-[#0071e3]/[0.06] text-[#0058b0]'
                           : 'border-black/[0.08] bg-white text-[#6e6e73] hover:bg-black/[0.03]'
                       }`}
                     >
                       {p.value}
+                      <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
                     </button>
                   ))}
                 </div>
@@ -2720,7 +2795,7 @@
                 <button
                   type="button"
                   onClick={() => { onRemove(); onClose(); }}
-                  className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16"
+                  className="btn btn-danger-quiet btn-sm"
                 >
                   <Icons.Trash2 className="w-3.5 h-3.5" />
                   Tirar do padrão
@@ -2773,7 +2848,7 @@
             inputMode="numeric"
             value={editando ? texto : (value ? String(value) : '')}
             title={title}
-            placeholder="·"
+            placeholder="—"
             onFocus={(e) => { setEditando(true); setTexto(value ? String(value) : ''); e.target.select(); }}
             onChange={(e) => setTexto(e.target.value.replace(/[^0-9]/g, ''))}
             onBlur={gravar}
@@ -2781,11 +2856,7 @@
               if (e.key === 'Enter') { e.currentTarget.blur(); }
               if (e.key === 'Escape') { setTexto(value ? String(value) : ''); setEditando(false); e.currentTarget.blur(); }
             }}
-            className={`w-full min-w-11 h-8 rounded-lg bg-transparent border border-transparent text-center tnum
-              hover:border-black/[0.12] focus:outline-none focus:bg-white focus:border-[#0071e3]
-              focus:shadow-[0_0_0_3px_rgba(0,113,227,0.16)] transition-colors ${
-                value ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'
-              }`}
+            className={`qty-cell tnum ${value ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'}`}
           />
         );
       };
@@ -2868,21 +2939,6 @@
           [visiveis]
         );
 
-        // A célula mais cheia da tabela dá a régua do sombreado: quanto mais
-        // perto dela, mais forte o azul do fundo
-        const maiorCelula = useMemo(() => {
-          let maior = 0;
-          visiveis.forEach((l) => {
-            WEEK_DAYS.forEach((d) => { maior = Math.max(maior, l.dias[d] || 0); });
-          });
-          return maior;
-        }, [visiveis]);
-
-        const fundoDaCelula = (qtd) => {
-          if (!qtd || !maiorCelula) return undefined;
-          return { backgroundColor: `rgba(0, 113, 227, ${(0.05 + (qtd / maiorCelula) * 0.16).toFixed(3)})` };
-        };
-
         const formatarMedia = (valor) =>
           (Math.round(valor * 10) / 10).toString().replace('.', ',');
 
@@ -2946,20 +3002,16 @@
                       className="field field-sm field-search"
                     />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="t-caption mr-0.5">Ordenar</span>
-                    <button
-                      onClick={() => setOrdem('total')}
-                      className={`btn h-8 px-3 text-[12px] ${ordem === 'total' ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                      Maior total
-                    </button>
-                    <button
-                      onClick={() => setOrdem('nome')}
-                      className={`btn h-8 px-3 text-[12px] ${ordem === 'nome' ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                      A-Z
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <span className="t-caption">Ordenar</span>
+                    <div className="segmented">
+                      <button onClick={() => setOrdem('total')} data-active={ordem === 'total'}>
+                        Maior total
+                      </button>
+                      <button onClick={() => setOrdem('nome')} data-active={ordem === 'nome'}>
+                        A-Z
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2971,24 +3023,29 @@
                   </p>
                 ) : (
                   <div className="mt-3 overflow-x-auto">
-                    <table className="w-full border-collapse text-[13px]">
+                    <table className="week-table">
                       <thead>
                         <tr>
                           <th
+                            data-sticky="true"
                             className="sticky left-0 z-10 text-left t-overline font-bold px-2.5 py-2 border-b border-r hairline w-[136px] sm:w-[240px]"
                             style={{ background: 'var(--bg-surface)' }}
                           >
                             Produto
                           </th>
                           {WEEK_DAYS.map((day) => (
-                            <th key={day} className="px-1 pb-2 border-b hairline">
+                            <th
+                              key={day}
+                              data-hoje={selectedDay === day}
+                              className="px-1 pb-2 border-b hairline"
+                            >
                               <button
                                 onClick={() => onSelectDay(day)}
                                 title={`Editar a vitrine de ${getDayNameBR(day)}`}
                                 className={`w-full min-w-11 rounded-lg px-2 py-1.5 text-[12px] font-bold transition-colors ${
                                   selectedDay === day
-                                    ? 'bg-[#0071e3] text-white'
-                                    : 'text-[#6e6e73] hover:bg-black/[0.05]'
+                                    ? 'text-[#0071e3]'
+                                    : 'text-[#86868b] hover:text-[#1d1d1f] hover:bg-black/[0.04]'
                                 }`}
                               >
                                 {getDayShortBR(day)}
@@ -3005,6 +3062,7 @@
                         {visiveis.map((linha) => (
                           <tr key={linha.id} className="border-b hairline">
                             <td
+                              data-sticky="true"
                               className="sticky left-0 z-10 px-2.5 py-1.5 border-r hairline w-[136px] sm:w-[240px] max-w-[136px] sm:max-w-[240px]"
                               style={{ background: 'var(--bg-surface)' }}
                             >
@@ -3022,10 +3080,8 @@
                               return (
                                 <td
                                   key={day}
-                                  className={`px-1 py-1 ${
-                                    selectedDay === day ? 'ring-1 ring-inset ring-[#0071e3]/25' : ''
-                                  }`}
-                                  style={fundoDaCelula(qtd)}
+                                  data-hoje={selectedDay === day}
+                                  className="px-1 py-1"
                                 >
                                   <WeeklyQtyCell
                                     value={qtd}
@@ -3055,6 +3111,7 @@
                       <tfoot>
                         <tr>
                           <td
+                            data-sticky="true"
                             className="sticky left-0 z-10 px-2.5 py-2 t-overline font-bold border-r hairline"
                             style={{ background: 'var(--bg-surface)' }}
                           >
@@ -3063,6 +3120,7 @@
                           {WEEK_DAYS.map((day) => (
                             <td
                               key={day}
+                              data-hoje={selectedDay === day}
                               className={`text-center tnum font-extrabold px-1 py-2 ${
                                 selectedDay === day ? 'text-[#0071e3]' : 'text-[#1d1d1f]'
                               }`}
@@ -3182,8 +3240,9 @@
                   <h2 className="t-display">Vitrine padrão</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     Defina como a vitrine deve ser montada em cada dia — {unitName}.
-                    Clique nas etiquetas do item para dar prioridade (A a D) e escolher
-                    os dias em que ele entra.
+                    Toque na etiqueta A–D do item para dar prioridade e escolher os dias
+                    em que ele entra: quanto mais forte a marca, mais cedo ele é chamado
+                    no pedido de produção.
                   </p>
                 </div>
 
@@ -3193,53 +3252,67 @@
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1 scrollbar-none">
-                {WEEK_DAYS.map((day) => {
-                  const count = standardPlans.filter(
-                    (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
-                  ).length;
+              {/* Os dias em um segmented control: um bloco só, o dia aberto
+                  aparece na pastilha branca — o mesmo gesto do iOS */}
+              <div className="mt-6 overflow-x-auto pb-1 scrollbar-none">
+                <div className="segmented w-full min-w-max">
+                  {WEEK_DAYS.map((day) => {
+                    const count = standardPlans.filter(
+                      (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
+                    ).length;
 
-                  return (
-                    <button
-                      key={day}
-                      onClick={() => onSelectDay(day)}
-                      className={`btn h-9 px-3.5 text-[13px] shrink-0 ${
-                        selectedDay === day ? 'btn-primary' : 'btn-secondary'
-                      }`}
-                    >
-                      <span>{getDayNameBR(day)}</span>
-                      <span className={`tnum text-[11px] px-1.5 rounded-full ${
-                        selectedDay === day ? 'bg-white/22 text-white' : 'bg-black/[0.06] text-[#6e6e73]'
-                      }`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => onSelectDay(day)}
+                        data-active={selectedDay === day}
+                        title={`${getDayNameBR(day)} · ${count} ${count === 1 ? 'item' : 'itens'}`}
+                        className="flex-1 flex items-center justify-center gap-1.5"
+                      >
+                        <span>{getDayNameBR(day)}</span>
+                        <span className={`tnum text-[11px] font-bold ${
+                          selectedDay === day ? 'text-[#0071e3]' : 'text-[#86868b]'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
             <div className="card-flat p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="t-callout mr-1">Prioridade</span>
-                <button
-                  onClick={() => setPriorityFilter('todas')}
-                  className={`btn h-8 px-3 text-[12px] ${priorityFilter === 'todas' ? 'btn-primary' : 'btn-secondary'}`}
-                >
-                  Todas
-                </button>
-                {PRIORITIES.map((p) => (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="t-callout mr-0.5" title={
+                  priorityFilter === 'todas'
+                    ? 'A prioridade diz quando o item entra no pedido de produção'
+                    : getPriority(priorityFilter).hint
+                }>
+                  Prioridade
+                </span>
+                <div className="segmented">
                   <button
-                    key={p.value}
-                    onClick={() => setPriorityFilter(priorityFilter === p.value ? 'todas' : p.value)}
-                    title={p.title}
-                    className={`btn h-8 px-3 text-[12px] ${priorityFilter === p.value ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setPriorityFilter('todas')}
+                    data-active={priorityFilter === 'todas'}
+                    title="Mostrar todos os itens do dia"
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
-                    {p.value}
-                    <span className="tnum opacity-70">{countByPriority[p.value]}</span>
+                    Todas
                   </button>
-                ))}
+                  {PRIORITIES.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setPriorityFilter(priorityFilter === p.value ? 'todas' : p.value)}
+                      data-active={priorityFilter === p.value}
+                      title={`${p.title} — ${p.hint}`}
+                      className="flex items-center gap-1.5"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
+                      {p.value}
+                      <span className="tnum opacity-60">{countByPriority[p.value]}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
@@ -3259,7 +3332,7 @@
                 <button onClick={handleCopy} className="btn btn-secondary btn-sm">
                   Copiar
                 </button>
-                <button onClick={handleClear} className="btn btn-sm bg-[#ff3b30]/10 text-[#c9271d] hover:bg-[#ff3b30]/16">
+                <button onClick={handleClear} className="btn btn-danger-quiet btn-sm">
                   <Icons.Trash2 className="w-3.5 h-3.5" />
                   Limpar padrão
                 </button>
@@ -3316,18 +3389,12 @@
                         return (
                           <div
                             key={slot.id}
-                            className={`relative overflow-hidden rounded-xl pl-3 pr-2.5 py-2 border transition-all ${
+                            className={`relative overflow-hidden rounded-xl px-2.5 py-2 border transition-all ${
                               planItem
                                 ? 'bg-[var(--bg-surface)] border-black/[0.09] shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
                                 : 'border-dashed border-black/[0.14] bg-black/[0.015]'
                             } ${apagado ? 'opacity-35' : ''}`}
                           >
-                            {/* Faixa da prioridade: a cor diz na hora se o item
-                                é carro-chefe ou extra */}
-                            {planItem && (
-                              <span className={`absolute left-0 top-0 bottom-0 w-1 ${prio.dot}`} />
-                            )}
-
                             <div className="flex items-center gap-2">
                               <span className="t-caption tnum w-3.5 shrink-0 text-center">{slot.slotNumber}</span>
                               <PickerField
@@ -3377,30 +3444,30 @@
                                     </span>
                                   </button>
 
-                                  <div className="flex items-center gap-1.5 shrink-0">
+                                  {/* Stepper do iOS: menos, número e mais em um
+                                      bloco só, com o mesmo peso visual */}
+                                  <div className="stepper shrink-0">
                                     <button
                                       onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1), planItem.priority)}
                                       title="Tirar uma unidade"
-                                      className="w-6 h-6 rounded-full bg-black/[0.05] hover:bg-black/[0.09] font-bold text-[13px] flex items-center justify-center transition-colors"
                                     >
                                       −
                                     </button>
-                                    <span className="tnum text-[15px] font-extrabold text-[#1d1d1f] min-w-6 text-center">
-                                      {planItem.idealQty}
-                                    </span>
+                                    <span className="stepper-value tnum">{planItem.idealQty}</span>
                                     <button
                                       onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1, planItem.priority)}
                                       title="Colocar uma unidade"
-                                      className="w-6 h-6 rounded-full bg-[#0071e3] text-white font-bold text-[13px] flex items-center justify-center hover:bg-[#0077ed] transition-colors"
                                     >
                                       +
                                     </button>
                                   </div>
                                 </div>
 
-                                {/* Barrinha: o tamanho do item dentro da vitrine */}
+                                {/* Barrinha: o tamanho do item dentro da vitrine.
+                                    Sem cor de prioridade — ela só compara este
+                                    espaço com o mais cheio do móvel */}
                                 <div className="h-1 rounded-full bg-black/[0.06] mt-2 overflow-hidden">
-                                  <div className={`h-1 rounded-full opacity-70 ${prio.dot}`} style={{ width: `${fatia}%` }} />
+                                  <div className="h-1 rounded-full bg-[#0071e3]/45" style={{ width: `${fatia}%` }} />
                                 </div>
 
                                 <p className="t-caption text-[11px] mt-1.5 flex items-center gap-1 truncate">
