@@ -1471,10 +1471,19 @@
       // CHECKLIST DA VITRINE
       // ==========================================
       // A conferência item a item. A tela mostra um produto de cada vez, na
-      // ordem dos espaços, e a pessoa só responde o que aconteceu com ele:
-      // continua igual, vendeu tudo, perdeu tudo, ou sobrou tanto. Cada
+      // ordem dos espaços, e a pessoa dá baixa nele com o mesmo gesto da
+      // vitrine física: toque tira 1, segurar tira o lote inteiro. Cada
       // resposta já vira venda ou perda no relatório na hora — a conferência
       // não é uma lista para depois passar a limpo.
+      //
+      // Contar o que sobrou para depois dizer se foi venda ou perda era o
+      // caminho principal daqui, e é lento: são três telas para um item que
+      // vendeu duas coxinhas. Agora a contagem é a saída de baixo, para o
+      // espaço que esvaziou de vez e não compensa ir tocando de um em um.
+      //
+      // Tocar "vendeu 1" três vezes é um item com três vendidos, e não três
+      // respostas: a conferência soma as baixas do item enquanto ela está
+      // nele, e só passa adiante quando a pessoa manda.
       //
       // Toda baixa registrada aqui fica com um "Desfazer" na barra de baixo
       // até a próxima: o dedo erra, e a pessoa não pode ter que ir no
@@ -1493,6 +1502,29 @@
         perda: { label: 'Perdeu', dot: 'bg-[#ff3b30]', text: 'text-[#c9271d]' },
         ajuste: { label: 'Contagem acertada', dot: 'bg-[#0071e3]', text: 'text-[#0058b0]' },
         pulado: { label: 'Pulado', dot: 'bg-[#c7c7cc]', text: 'text-[#86868b]' }
+      };
+
+      // A resposta de um item guarda o quanto foi vendido e o quanto foi
+      // perdido nele, porque as duas coisas cabem no mesmo item: metade da
+      // bandeja saiu vendida e duas venceram. "tipo" só diz o que aconteceu
+      // quando não houve baixa nenhuma.
+      const CHECKLIST_RESPOSTA_VAZIA = { venda: 0, perda: 0, ajuste: 0, tipo: 'igual' };
+
+      const descreverResposta = (r) => {
+        if (r.tipo === 'ajuste') return `Contagem acertada · +${r.ajuste}`;
+        if (r.tipo === 'pulado') return 'Pulado';
+        const partes = [];
+        if (r.venda > 0) partes.push(`Vendeu ${r.venda}`);
+        if (r.perda > 0) partes.push(`Perdeu ${r.perda}`);
+        return partes.length > 0 ? partes.join(' · ') : 'Continua igual';
+      };
+
+      // A perda manda na cor: um item que vendeu oito e perdeu duas é o item
+      // que teve perda, que é o que a pessoa procura na lista do fim
+      const corResposta = (r) => {
+        if (r.perda > 0) return CHECKLIST_RESULTADOS.perda.text;
+        if (r.venda > 0) return CHECKLIST_RESULTADOS.venda.text;
+        return CHECKLIST_RESULTADOS[r.tipo].text;
       };
 
       const ShowcaseChecklist = ({
@@ -1578,29 +1610,80 @@
         // ------------------------------------------
         // Guardar a resposta e passar para o próximo
         // ------------------------------------------
-        const guardar = (tipo, qty, baixa, unidade) => {
-          setResultados((prev) => [
-            ...prev.filter((r) => r.chave !== entrada.id),
-            { chave: entrada.id, nome: entrada.productName, tipo, qty }
-          ]);
-          setUltima(baixa ? { baixa, indice: index, tipo, texto: `${qty} ${unidade} de ${entrada.productName}` } : null);
+        // O item da vez tem uma resposta só, que vai sendo somada enquanto a
+        // conferência está nele
+        const resposta = entrada ? resultados.find((r) => r.chave === entrada.id) : null;
+        const temBaixa = !!resposta && (resposta.venda > 0 || resposta.perda > 0);
+
+        const responder = (mudanca) => {
+          setResultados((prev) => {
+            const anterior = prev.find((r) => r.chave === entrada.id);
+            const base = anterior || { ...CHECKLIST_RESPOSTA_VAZIA, chave: entrada.id, nome: entrada.productName };
+            return [...prev.filter((r) => r.chave !== entrada.id), { ...base, ...mudanca(base) }];
+          });
+        };
+
+        const proximo = () => {
           setPasso('acoes');
           setIndex((i) => i + 1);
         };
 
-        const continuaIgual = () => guardar('igual', 0, null, '');
+        // A baixa entra na conta do item e fica na barra de baixo, de onde
+        // ainda pode voltar atrás
+        const guardarBaixa = (campo, qty, baixa) => {
+          responder((base) => ({ [campo]: base[campo] + qty, tipo: 'baixa' }));
+          setUltima(baixa
+            ? { baixa, indice: index, campo, qty, texto: `${qty} ${item.unit} de ${entrada.productName}` }
+            : null);
+        };
 
-        const pular = () => guardar('pulado', 0, null, '');
+        // Seguir adiante. Sem baixa nenhuma no item, seguir é dizer que ele
+        // continua igual; depois de uma baixa, é só fechar o item — e aí o
+        // desfazer da última baixa continua na tela, que é onde ela ainda
+        // pode ser consertada.
+        const seguir = () => {
+          if (!temBaixa) {
+            responder(() => ({ tipo: 'igual' }));
+            setUltima(null);
+          }
+          proximo();
+        };
+
+        const pular = () => {
+          responder(() => ({ tipo: 'pulado' }));
+          setUltima(null);
+          proximo();
+        };
 
         const voltar = () => {
           setPasso('acoes');
           setIndex((i) => Math.max(0, i - 1));
         };
 
+        // Um toque tira uma unidade. Quando essa unidade é a última do
+        // espaço, não sobra nada para responder e a conferência já anda.
+        const venderUm = async () => {
+          const ultimaUnidade = item.currentQty <= 1;
+          const baixa = await onRecordSale(item.id, 1);
+          guardarBaixa('venda', 1, baixa);
+          if (ultimaUnidade) proximo();
+        };
+
+        // O motivo da perda de uma unidade entra como "vencido", que é a
+        // perda do dia a dia da vitrine — igual ao toque da vitrine física.
+        // Perda do lote inteiro é que pergunta o motivo.
+        const perderUm = async () => {
+          const ultimaUnidade = item.currentQty <= 1;
+          const baixa = await onRecordLoss(item.id, 1, 'vencido', '');
+          guardarBaixa('perda', 1, baixa);
+          if (ultimaUnidade) proximo();
+        };
+
         const venderTudo = async () => {
           const qty = item.currentQty;
           const baixa = await onRecordSale(item.id, qty);
-          guardar('venda', qty, baixa, item.unit);
+          guardarBaixa('venda', qty, baixa);
+          proximo();
         };
 
         const perderTudo = () => {
@@ -1617,11 +1700,13 @@
         // ainda precisa dizer se foi venda ou perda
         const confirmarContagem = () => {
           const atual = item.currentQty;
-          if (restante === atual) return continuaIgual();
+          if (restante === atual) return seguir();
           if (restante > atual) {
             // Recontagem para cima não é venda nem perda: só acerta o número
             onSetQty(item.id, restante);
-            return guardar('ajuste', restante - atual, null, item.unit);
+            responder((base) => ({ ajuste: base.ajuste + (restante - atual), tipo: 'ajuste' }));
+            setUltima(null);
+            return proximo();
           }
           setSaiu(atual - restante);
           setPasso('destino');
@@ -1629,27 +1714,47 @@
 
         const confirmarVenda = async () => {
           const baixa = await onRecordSale(item.id, saiu);
-          guardar('venda', saiu, baixa, item.unit);
+          guardarBaixa('venda', saiu, baixa);
+          proximo();
         };
 
         const confirmarPerda = async (motivo) => {
           const baixa = await onRecordLoss(item.id, saiu, motivo, '');
-          guardar('perda', saiu, baixa, item.unit);
+          guardarBaixa('perda', saiu, baixa);
+          proximo();
         };
 
-        // Desfazer devolve as unidades e traz a conferência de volta para o
-        // item, para a pessoa responder de novo
+        // Desfazer devolve as unidades, tira a quantidade da conta do item e
+        // traz a conferência de volta para ele, para a pessoa responder de
+        // novo. Item que ficou sem baixa nenhuma sai da lista do fim.
         const desfazerUltima = () => {
           if (!ultima) return;
           const alvo = fila[ultima.indice];
           onUndoBaixa(ultima.baixa);
-          if (alvo) setResultados((prev) => prev.filter((r) => r.chave !== alvo.id));
+          if (alvo) {
+            setResultados((prev) => prev
+              .map((r) => r.chave === alvo.id
+                ? { ...r, [ultima.campo]: Math.max(0, r[ultima.campo] - ultima.qty) }
+                : r)
+              .filter((r) => r.tipo !== 'baixa' || r.venda > 0 || r.perda > 0));
+          }
           setIndex(ultima.indice);
           setPasso('acoes');
           setUltima(null);
         };
 
-        const contarResultado = (tipo) => resultados.filter((r) => r.tipo === tipo).length;
+        // Venda e perda contam item, não unidade: o que a pessoa quer saber
+        // no fim é em quantos espaços ela mexeu
+        const contarResultado = (tipo) => resultados.filter((r) => (
+          tipo === 'venda' ? r.venda > 0
+            : tipo === 'perda' ? r.perda > 0
+              : r.tipo === tipo
+        )).length;
+
+        // Toque tira 1, segurar tira o lote inteiro — o mesmo gesto dos
+        // botões da vitrine física
+        const vendeu = useLongPress(venderTudo, venderUm);
+        const perdeu = useLongPress(perderTudo, perderUm);
 
         const botaoGrande = 'btn btn-lg w-full text-[14px]';
 
@@ -1748,8 +1853,8 @@
                       {resultados.map((r) => (
                         <div key={r.chave} className="px-3.5 py-2 flex items-center justify-between gap-2">
                           <span className="text-[12.5px] font-semibold truncate">{r.nome}</span>
-                          <span className={`t-caption text-[11px] tnum shrink-0 ${CHECKLIST_RESULTADOS[r.tipo].text}`}>
-                            {CHECKLIST_RESULTADOS[r.tipo].label}{r.qty > 0 ? ` · ${r.qty}` : ''}
+                          <span className={`t-caption text-[11px] tnum shrink-0 ${corResposta(r)}`}>
+                            {descreverResposta(r)}
                           </span>
                         </div>
                       ))}
@@ -1820,28 +1925,54 @@
                     </div>
                   </div>
 
-                  {/* As respostas possíveis. "Sobrou parte" é a que abre a
-                      contagem; as outras já fecham o item de uma vez. */}
+                  {/* As baixas do item, no gesto da vitrine: toque tira 1,
+                      segurar tira o lote todo. Contar o que sobrou continua
+                      aqui embaixo, para o espaço que saiu quase inteiro. */}
                   {passo === 'acoes' && (
                     <div className="space-y-2">
-                      <button onClick={continuaIgual} className={`${botaoGrande} btn-secondary`}>
-                        <Icons.CheckSquare className="w-4 h-4 shrink-0" />
-                        Continua igual
-                      </button>
-                      <button onClick={abrirContagem} className={`${botaoGrande} btn-primary`}>
-                        <Icons.Layers className="w-4 h-4 shrink-0" />
-                        Sobrou parte — contar
-                      </button>
                       <div className="grid grid-cols-2 gap-2">
-                        <button onClick={venderTudo} className="btn btn-lg btn-success-quiet text-[14px] px-3">
-                          <Icons.CheckCircle2 className="w-4 h-4 shrink-0" />
-                          Vendeu tudo
+                        <button
+                          {...vendeu}
+                          title={`Vendeu 1 — segure para vender as ${item.currentQty}`}
+                          aria-label="Vendeu 1, segure para vender tudo"
+                          className="btn btn-lg btn-success-quiet text-[14px] px-3"
+                        >
+                          <Icons.ShoppingCart className="w-4 h-4 shrink-0" />
+                          Vendeu 1
                         </button>
-                        <button onClick={perderTudo} className="btn btn-lg btn-danger-quiet text-[14px] px-3">
+                        <button
+                          {...perdeu}
+                          title={`Perdeu 1 — segure para perder as ${item.currentQty}`}
+                          aria-label="Perdeu 1, segure para perder tudo"
+                          className="btn btn-lg btn-danger-quiet text-[14px] px-3"
+                        >
                           <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
-                          Perdeu tudo
+                          Perdeu 1
                         </button>
                       </div>
+
+                      <p className="t-caption text-[11px] text-center">
+                        Segure para dar baixa nas <span className="tnum">{item.currentQty}</span> de uma vez ·
+                        a perda de 1 entra como vencida
+                      </p>
+
+                      {/* O que já entrou neste item, enquanto a conferência
+                          está nele */}
+                      {temBaixa && (
+                        <p className={`t-caption text-[11px] text-center tnum font-semibold ${corResposta(resposta)}`}>
+                          {descreverResposta(resposta)} neste item
+                        </p>
+                      )}
+
+                      <button onClick={seguir} className={`${botaoGrande} ${temBaixa ? 'btn-primary' : 'btn-secondary'}`}>
+                        <Icons.CheckSquare className="w-4 h-4 shrink-0" />
+                        {temBaixa ? 'Pronto — próximo item' : 'Continua igual'}
+                      </button>
+
+                      <button onClick={abrirContagem} className="btn btn-sm btn-secondary w-full text-[#6e6e73]">
+                        <Icons.Layers className="w-3.5 h-3.5 shrink-0" />
+                        Saiu bastante — contar o que sobrou
+                      </button>
 
                       <div className="flex items-center justify-between pt-1">
                         <button
@@ -1852,10 +1983,12 @@
                           <Icons.ChevronLeft className="w-3.5 h-3.5" />
                           Voltar
                         </button>
-                        <button onClick={pular} className="btn btn-sm text-[#6e6e73] hover:bg-black/[0.05]">
-                          Pular este
-                          <Icons.ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                        {!temBaixa && (
+                          <button onClick={pular} className="btn btn-sm text-[#6e6e73] hover:bg-black/[0.05]">
+                            Pular este
+                            <Icons.ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1975,7 +2108,7 @@
               {ultima && (
                 <div className="px-4 py-2.5 bg-[#1d1d1f] text-white flex items-center justify-between gap-3">
                   <span className="text-[12px] font-semibold tracking-[-0.01em] truncate">
-                    {ultima.tipo === 'perda' ? 'Perda' : 'Venda'} registrada · <span className="tnum">{ultima.texto}</span>
+                    {ultima.campo === 'perda' ? 'Perda' : 'Venda'} registrada · <span className="tnum">{ultima.texto}</span>
                   </span>
                   <button onClick={desfazerUltima} className="btn btn-sm bg-white/[0.14] text-white hover:bg-white/25 shrink-0">
                     <Icons.History className="w-3.5 h-3.5" />
