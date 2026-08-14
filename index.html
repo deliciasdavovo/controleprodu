@@ -445,7 +445,7 @@
          ========================================== */
       .sheet {
         width: 100%;
-        min-width: 1000px;
+        min-width: 1080px;
         table-layout: fixed;
         border-collapse: separate;
         border-spacing: 0;
@@ -2996,6 +2996,7 @@
                   vitrines: [],
                   dias: {},
                   espacos: {},
+                  prioridade: null,
                   total: 0
                 };
               }
@@ -3008,22 +3009,51 @@
               linha.dias[sp.dayOfWeek] = (linha.dias[sp.dayOfWeek] || 0) + (sp.idealQty || 0);
               linha.espacos[sp.dayOfWeek] = (linha.espacos[sp.dayOfWeek] || 0) + 1;
               linha.total += sp.idealQty || 0;
+
+              // Quando o produto entra com letras diferentes em dias ou
+              // espaços diferentes, vale a mais urgente. A primeira letra que
+              // aparece é o ponto de partida: começar do padrão B fazia um
+              // item C inteiro ser lido como B.
+              const prio = getPriority(sp.priority).value;
+              if (linha.prioridade === null || priorityRank(prio) < priorityRank(linha.prioridade)) {
+                linha.prioridade = prio;
+              }
             });
 
           return Object.values(porProduto).map((linha) => {
-            const diasAtivos = WEEK_DAYS.filter((d) => (linha.dias[d] || 0) > 0).length;
-            return { ...linha, diasAtivos, media: diasAtivos ? linha.total / diasAtivos : 0 };
+            const diasDoItem = WEEK_DAYS.filter((d) => (linha.dias[d] || 0) > 0);
+            const diasAtivos = diasDoItem.length;
+            return {
+              ...linha,
+              prioridade: linha.prioridade || DEFAULT_PRIORITY,
+              diasAtivos,
+              freqLabel: frequencyLabel(diasDoItem),
+              freqTitle: frequencyTitle(diasDoItem),
+              todoDia: diasAtivos >= WEEK_DAYS.length,
+              media: diasAtivos ? linha.total / diasAtivos : 0
+            };
           });
         }, [standardPlans, currentUnit, products, slotById]);
 
         const visiveis = useMemo(() => {
           const termo = normalizeName(busca);
           const lista = termo ? linhas.filter((l) => normalizeName(l.nome).includes(termo)) : linhas;
-          return [...lista].sort((a, b) =>
-            ordem === 'nome'
-              ? a.nome.localeCompare(b.nome, 'pt-BR')
-              : b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR')
-          );
+          return [...lista].sort((a, b) => {
+            if (ordem === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR');
+            // Por importância: a letra primeiro e, dentro dela, quem entra em
+            // mais dias da semana — é a ordem do que a cozinha faz sempre
+            if (ordem === 'importancia') {
+              return priorityRank(a.prioridade) - priorityRank(b.prioridade)
+                || b.diasAtivos - a.diasAtivos
+                || a.nome.localeCompare(b.nome, 'pt-BR');
+            }
+            if (ordem === 'frequencia') {
+              return b.diasAtivos - a.diasAtivos
+                || priorityRank(a.prioridade) - priorityRank(b.prioridade)
+                || a.nome.localeCompare(b.nome, 'pt-BR');
+            }
+            return b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR');
+          });
         }, [linhas, busca, ordem]);
 
         const totalPorDia = useMemo(() => {
@@ -3045,11 +3075,11 @@
         // Sai com tabulação: cola direto no Excel ou no Google Planilhas
         const handleCopy = async () => {
           const linhasTexto = [
-            ['Produto', ...WEEK_DAYS.map(getDayShortBR), 'Total semana'].join('\t'),
+            ['Produto', 'Prioridade', 'Frequência', ...WEEK_DAYS.map(getDayShortBR), 'Total semana'].join('\t'),
             ...visiveis.map((l) =>
-              [l.nome, ...WEEK_DAYS.map((d) => l.dias[d] || 0), l.total].join('\t')
+              [l.nome, l.prioridade, l.freqLabel, ...WEEK_DAYS.map((d) => l.dias[d] || 0), l.total].join('\t')
             ),
-            ['Total', ...WEEK_DAYS.map((d) => totalPorDia[d]), totalSemana].join('\t')
+            ['Total', '', '', ...WEEK_DAYS.map((d) => totalPorDia[d]), totalSemana].join('\t')
           ];
 
           const ok = await copyTextToClipboard(linhasTexto.join('\n'));
@@ -3108,6 +3138,14 @@
                       <button onClick={() => setOrdem('total')} data-active={ordem === 'total'}>
                         Maior total
                       </button>
+                      <button onClick={() => setOrdem('importancia')} data-active={ordem === 'importancia'}
+                              title="A letra primeiro e, dentro dela, quem entra em mais dias">
+                        Importância
+                      </button>
+                      <button onClick={() => setOrdem('frequencia')} data-active={ordem === 'frequencia'}
+                              title="Quem entra em mais dias da semana primeiro">
+                        Frequência
+                      </button>
                       <button onClick={() => setOrdem('nome')} data-active={ordem === 'nome'}>
                         A-Z
                       </button>
@@ -3132,6 +3170,14 @@
                             style={{ background: 'var(--bg-surface)' }}
                           >
                             Produto
+                          </th>
+                          <th className="text-center t-overline font-bold px-1.5 py-2 border-b border-r hairline"
+                              title="A–D: a importância do item, que decide quando ele é chamado no pedido">
+                            P
+                          </th>
+                          <th className="text-left t-overline font-bold px-2.5 py-2 border-b border-r hairline whitespace-nowrap"
+                              title="Em quantos dias da semana o item entra no padrão">
+                            Freq.
                           </th>
                           {WEEK_DAYS.map((day) => (
                             <th
@@ -3172,6 +3218,22 @@
                               {linha.vitrines.length > 0 && (
                                 <p className="t-caption text-[11px] truncate">{linha.vitrines.join(' · ')}</p>
                               )}
+                            </td>
+
+                            {/* A importância e a frequência coladas no nome:
+                                a letra diz o peso do item, a frequência diz se
+                                ele é rotina de todo dia ou só de alguns */}
+                            <td className="text-center px-1.5 py-1.5 border-r hairline font-bold text-[#6e6e73]"
+                                title={getPriority(linha.prioridade).title}>
+                              {linha.prioridade}
+                            </td>
+                            <td
+                              className={`px-2.5 py-1.5 border-r hairline whitespace-nowrap text-[12px] ${
+                                linha.todoDia ? 'text-[#1d1d1f] font-semibold' : 'text-[#86868b]'
+                              }`}
+                              title={`${linha.nome} entra em: ${linha.freqTitle}`}
+                            >
+                              {linha.freqLabel}
                             </td>
 
                             {WEEK_DAYS.map((day) => {
@@ -3217,6 +3279,8 @@
                           >
                             Total do dia
                           </td>
+                          <td className="border-r hairline" />
+                          <td className="border-r hairline" />
                           {WEEK_DAYS.map((day) => (
                             <td
                               key={day}
@@ -3678,7 +3742,7 @@
       // todos os blocos ficarem alinhadas entre si: sem isso, cada vitrine
       // media as colunas pelo próprio conteúdo e a leitura de cima para baixo
       // se perdia. A última fica com a sobra.
-      const SHEET_COLS = ['34px', '220px', '34px', '112px', '64px', '64px', '58px', '58px', '54px', '88px', '48px', '132px', 'auto'];
+      const SHEET_COLS = ['34px', '220px', '34px', '96px', '108px', '64px', '64px', '58px', '58px', '54px', '88px', '46px', '126px', 'auto'];
 
       const SheetCols = () => (
         <colgroup>
@@ -3723,6 +3787,7 @@
         const [quantidades, setQuantidades] = useState({});
         const [agrupar, setAgrupar] = useState('vitrine');
         const [mostrar, setMostrar] = useState('tudo');
+        const [frequencia, setFrequencia] = useState('todas');
         const [copiado, setCopiado] = useState('');
 
         // Os campos da coluna Produzir, na ordem da tela — é por eles que as
@@ -3866,6 +3931,16 @@
             // vitrine: o primeiro espaço reservado para o produto
             const primeiro = ordenados[0].slot;
 
+            // Em quantos dias da semana este produto entra no padrão da
+            // unidade, juntando todos os espaços dele. É o que separa o item
+            // de todo dia — que a cozinha faz sempre — do que aparece só em
+            // um dia ou outro.
+            const diasDaSemana = WEEK_DAYS.filter((day) =>
+              standardPlans.some(
+                (sp) => sp.unit === currentUnit && sp.dayOfWeek === day && sp.productId === grupo.productId
+              )
+            );
+
             // Estoque bom que está na loja, mas fora dos espaços que o padrão
             // reservou — é o que segurava o pedido sem aparecer em lugar
             // nenhum, então a planilha avisa quanto é
@@ -3878,6 +3953,10 @@
               espacosLabel,
               showcaseTitle: primeiro.sectionTitle,
               showcaseSort: primeiro,
+              diasDaSemana,
+              freqLabel: frequencyLabel(diasDaSemana),
+              freqTitle: frequencyTitle(diasDaSemana),
+              todoDia: diasDaSemana.length >= WEEK_DAYS.length,
               foraDoPlano,
               productId: grupo.productId,
               productName: product?.name || 'Produto',
@@ -3896,7 +3975,7 @@
               unitOfMeasure: grupo.unitOfMeasure
             };
           });
-        }, [dayPlans, slotById, slotItems, products, stockByProduct, currentUnit]);
+        }, [dayPlans, standardPlans, slotById, slotItems, products, stockByProduct, currentUnit]);
 
         // A planilha: a conta de cada produto com a quantidade que vale agora
         // — a digitada, se houver, senão a sugerida
@@ -3936,10 +4015,18 @@
         };
 
         const visiveis = useMemo(() => {
-          if (mostrar === 'pedido') return rows.filter((r) => r.noPedido);
-          if (mostrar === 'fora') return rows.filter((r) => !r.noPedido);
-          return rows;
-        }, [rows, mostrar]);
+          let lista = rows;
+          if (mostrar === 'pedido') lista = lista.filter((r) => r.noPedido);
+          else if (mostrar === 'fora') lista = lista.filter((r) => !r.noPedido);
+
+          // O item de todo dia é a rotina da cozinha; o de alguns dias é o
+          // que muda de acordo com o movimento. Ver um sem o outro ajuda a
+          // enxergar o que é fixo na semana.
+          if (frequencia === 'todo-dia') lista = lista.filter((r) => r.todoDia);
+          else if (frequencia === 'alguns') lista = lista.filter((r) => !r.todoDia);
+
+          return lista;
+        }, [rows, mostrar, frequencia]);
 
         // Os blocos da planilha. Por vitrine, é a vitrine do dia em lista:
         // os móveis na ordem da loja e, dentro deles, os espaços em ordem.
@@ -4064,16 +4151,17 @@
         // no Google Planilhas, do mesmo jeito que a tabela da semana
         const copiarPlanilha = () => {
           const cabecalho = [
-            'Produto', 'Prioridade', 'Vitrine', 'Espaços', 'Padrão', 'Na loja',
+            'Produto', 'Prioridade', 'Frequência', 'Dias', 'Vitrine', 'Espaços', 'Padrão', 'Na loja',
             'Vencido', 'Falta', 'Mínimo', 'Produzir', 'Unidade', 'Responsável', 'Situação'
           ];
 
           const linhas = ordemNaTela.map((r) => [
-            r.productName, r.priority, r.showcaseTitle, r.espacosLabel, r.idealQty, r.currentQty,
-            r.expiredQty, r.neededQty, r.minQty, r.orderQty, r.unitOfMeasure, r.responsible, r.situacao
+            r.productName, r.priority, r.freqLabel, r.freqTitle, r.showcaseTitle, r.espacosLabel,
+            r.idealQty, r.currentQty, r.expiredQty, r.neededQty, r.minQty, r.orderQty,
+            r.unitOfMeasure, r.responsible, r.situacao
           ].join('\t'));
 
-          const total = ['Total', '', '', '',
+          const total = ['Total', '', '', '', '', '',
             somaDe(ordemNaTela, 'idealQty'), somaDe(ordemNaTela, 'currentQty'),
             somaDe(ordemNaTela, 'expiredQty'), somaDe(ordemNaTela, 'neededQty'), '',
             somaDe(ordemNaTela, 'orderQty'), '', '', ''
@@ -4129,7 +4217,17 @@
             <td className="text-center text-[#6e6e73] font-bold" title={getPriority(row.priority).hint}>
               {row.priority}
             </td>
-            <td className="text-[#6e6e73] max-w-[160px] overflow-hidden text-ellipsis" title={row.localLabel}>
+            {/* Em quantos dias da semana o item entra no padrão: o de todo
+                dia fica escrito em preto, o resto em cinza */}
+            <td
+              className={`overflow-hidden text-ellipsis ${
+                row.todoDia ? 'text-[#1d1d1f] font-semibold' : 'text-[#86868b]'
+              }`}
+              title={`${row.productName} entra em: ${row.freqTitle}`}
+            >
+              {row.freqLabel}
+            </td>
+            <td className="text-[#6e6e73] overflow-hidden text-ellipsis" title={row.localLabel}>
               {agrupar === 'vitrine' ? row.espacosLabel : row.localLabel}
             </td>
 
@@ -4268,6 +4366,20 @@
                 </select>
               </label>
 
+              <label className="flex items-center gap-2">
+                <span className="t-caption">Frequência</span>
+                <select
+                  value={frequencia}
+                  onChange={(e) => setFrequencia(e.target.value)}
+                  title="Em quantos dias da semana o item entra no padrão"
+                  className="field field-sm field-select field-auto"
+                >
+                  <option value="todas">Toda frequência</option>
+                  <option value="todo-dia">Só os de todo dia</option>
+                  <option value="alguns">Só os de alguns dias</option>
+                </select>
+              </label>
+
               <div className="flex flex-wrap items-center gap-2 ml-auto">
                 <span className="t-caption tnum">
                   {noPedido.length} no pedido · {totalUn} un
@@ -4351,6 +4463,7 @@
                               <th data-sticky="true" style={{ left: 0 }} className="w-[34px]" title="Entra no pedido">✓</th>
                               <th data-sticky="true" style={{ left: '34px' }}>Produto</th>
                               <th className="text-center" title="A–D: quando o item é chamado pela conta">P</th>
+                              <th title="Em quantos dias da semana o item entra no padrão">Freq.</th>
                               <th>{agrupar === 'vitrine' ? 'Espaços' : 'Vitrine'}</th>
                               <th className="num" title="Quantidade que o padrão do dia manda ter">Padrão</th>
                               <th className="num" title="Estoque bom, em qualquer vitrine da loja">Na loja</th>
@@ -4376,7 +4489,7 @@
                               <td data-sticky="true" style={{ left: '34px' }}>
                                 {bloco.title ? 'Total do móvel' : 'Total'}
                               </td>
-                              <td colSpan={2} className="t-caption text-[11px]">
+                              <td colSpan={3} className="t-caption text-[11px]">
                                 {bloco.entries.length} {bloco.entries.length === 1 ? 'linha' : 'linhas'}
                               </td>
                               <td className="num">{somaDe(bloco.entries, 'idealQty')}</td>
