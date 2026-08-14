@@ -436,6 +436,93 @@
         box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.16);
       }
 
+      /* ==========================================
+         PLANILHA DO PEDIDO
+         Linhas e colunas de verdade: fio de grade em toda célula, número
+         alinhado à direita, cabeçalho preso no alto, total preso embaixo e as
+         duas primeiras colunas presas na esquerda, para o nome do produto não
+         sumir quando a planilha corre de lado. Cor só onde é aviso.
+         ========================================== */
+      .sheet { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+      .sheet th, .sheet td {
+        border-bottom: 1px solid var(--hairline);
+        border-right: 1px solid var(--hairline);
+        padding: 3px 8px;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .sheet th:last-child, .sheet td:last-child { border-right: 0; }
+      .sheet .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+      /* O fundo da linha mora numa variável: as células presas na esquerda
+         acompanham o realce sem precisar de regra própria */
+      .sheet tbody tr { --row-bg: var(--bg-surface); }
+      .sheet tbody tr[data-fora="true"] { --row-bg: #fafafa; color: var(--ink-4); }
+      .sheet tbody tr[data-grupo="true"] { --row-bg: var(--bg-elevated); font-weight: 700; }
+      .sheet tbody tr:hover { --row-bg: #f1f7fe; }
+      .sheet tbody td { background: var(--row-bg); }
+
+      .sheet thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: var(--bg-canvas);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-4);
+        padding-top: 7px;
+        padding-bottom: 7px;
+      }
+      .sheet tfoot td {
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        background: var(--bg-canvas);
+        font-weight: 800;
+        border-top: 1px solid rgba(0, 0, 0, 0.16);
+      }
+      .sheet th[data-sticky], .sheet td[data-sticky] { position: sticky; z-index: 2; }
+      .sheet thead th[data-sticky], .sheet tfoot td[data-sticky] { z-index: 4; }
+
+      /* A célula que se digita: limpa até a mão chegar nela */
+      .sheet-input {
+        width: 100%;
+        min-width: 54px;
+        height: 26px;
+        padding: 0 5px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
+      }
+      .sheet-input:hover { background: rgba(0, 0, 0, 0.05); }
+      .sheet-input:focus {
+        outline: none;
+        background: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.16);
+      }
+
+      /* Caixinha de marcação da primeira coluna */
+      .sheet-check {
+        width: 17px;
+        height: 17px;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.24);
+        background: #fff;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color .14s ease, border-color .14s ease;
+      }
+      .sheet-check:hover { border-color: var(--accent); }
+      .sheet-check[data-on="true"] { background: var(--accent); border-color: var(--accent); }
+
       /* Divisor fino no padrão das listas do iOS */
       .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
 
@@ -485,6 +572,7 @@
         Coffee: (props) => <IconBase d={["M18 8h1a4 4 0 0 1 0 8h-1", "M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z", "M6 1v3", "M10 1v3", "M14 1v3"]} {...props} />,
         X: (props) => <IconBase d="M18 6L6 18M6 6l12 12" {...props} />,
         CheckSquare: (props) => <IconBase d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} {...props} />,
+        Check: (props) => <IconBase d="M20 6L9 17l-5-5" {...props} />,
         Square: (props) => <IconBase d="M3 3h18v18H3z" {...props} />,
         User: (props) => <IconBase d={["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"]} {...props} />,
         ChevronLeft: (props) => <IconBase d="M15 18l-6-6 6-6" {...props} />,
@@ -3520,21 +3608,87 @@
       };
 
       // ==========================================
-      // PRODUCTION ORDER VIEW
+      // PRODUCTION ORDER VIEW — a planilha do dia
       //
-      // O pedido é feito de véspera: a tela abre no próximo dia, mostra a
-      // vitrine que aquele dia manda montar e deixa a loja escolher, item por
-      // item, o que vai ser produzido. A conta continua fazendo o trabalho de
-      // olhar estoque e validade — mas ela só sugere. Quem decide é quem está
-      // na loja, e nada é lançado sem escolha.
+      // O pedido é uma planilha, não uma pilha de cartões: uma linha por
+      // produto do padrão do dia, as contas em colunas (padrão, loja,
+      // vencido, falta, mínimo) e uma única coluna que se digita — Produzir.
+      // É ela que manda: quantidade acima de zero entra no pedido, zero fica
+      // de fora. A conta preenche a coluna com o que ela chamaria; quem está
+      // na loja corrige por cima, na célula, e o rodapé fecha a soma.
       //
-      // A tela tem três blocos, nesta ordem:
-      //   1. A vitrine do dia, móvel por móvel: dá para tocar em qualquer
-      //      espaço para colocar ou tirar aquele item do pedido;
-      //   2. O pedido escolhido, um cartão por responsável, pronto para copiar;
-      //   3. As sugestões — o que a conta não chamou, ou o que foi tirado do
-      //      pedido — que entram de volta com um toque.
+      // A mesma planilha se lê de dois jeitos: agrupada por vitrine, que é a
+      // vitrine do dia seguinte em lista — móvel por móvel, na ordem dos
+      // espaços —, ou agrupada por responsável, que é a ordem de quem produz.
+      //
+      // Teclado: ↑ ↓ andam pela coluna, Enter desce uma linha, Espaço na
+      // primeira coluna coloca e tira do pedido, e Tab anda pelas células
+      // como em qualquer planilha.
       // ==========================================
+
+      // Célula de quantidade do pedido: número limpo, que vira campo quando a
+      // mão chega nele. Enter e sair da célula gravam, Esc desfaz, e as setas
+      // andam pela coluna sem tirar a mão do teclado.
+      const OrderQtyCell = ({ value, onCommit, onMove, title, cellRef }) => {
+        const [texto, setTexto] = useState('');
+        const [editando, setEditando] = useState(false);
+
+        useEffect(() => {
+          if (!editando) setTexto(value ? String(value) : '');
+        }, [value, editando]);
+
+        const gravar = () => {
+          setEditando(false);
+          const nova = texto.trim() === '' ? 0 : Math.max(0, Math.floor(Number(texto)));
+          if (!Number.isFinite(nova)) {
+            setTexto(value ? String(value) : '');
+            return;
+          }
+          if (nova !== (value || 0)) onCommit(nova);
+        };
+
+        return (
+          <input
+            ref={cellRef}
+            type="text"
+            inputMode="numeric"
+            value={editando ? texto : (value ? String(value) : '')}
+            title={title}
+            placeholder="—"
+            onFocus={(e) => { setEditando(true); setTexto(value ? String(value) : ''); e.target.select(); }}
+            onChange={(e) => setTexto(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={gravar}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); gravar(); onMove(1); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); gravar(); onMove(-1); }
+              else if (e.key === 'Escape') { setTexto(value ? String(value) : ''); setEditando(false); e.currentTarget.blur(); }
+            }}
+            className={`sheet-input ${value ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'}`}
+          />
+        );
+      };
+
+      // Reparte a quantidade digitada entre os espaços que o padrão reservou
+      // para o produto, na mesma proporção do padrão. O que sobra da divisão
+      // vai para o último espaço, para a soma bater exatamente com o pedido.
+      const spreadOrderQty = (total, targets) => {
+        if (total <= 0 || targets.length === 0) return [];
+        if (targets.length === 1) return [{ ...targets[0], qty: total }];
+
+        const base = targets.reduce((acc, t) => acc + t.qty, 0);
+        let resto = total;
+
+        return targets
+          .map((alvo, i) => {
+            if (i === targets.length - 1) return { ...alvo, qty: Math.max(0, resto) };
+            const parte = base > 0 ? Math.round(total * (alvo.qty / base)) : Math.floor(total / targets.length);
+            const qty = Math.max(0, Math.min(parte, resto));
+            resto -= qty;
+            return { ...alvo, qty };
+          })
+          .filter((alvo) => alvo.qty > 0);
+      };
+
       const ProductionOrderView = ({
         currentUnit,
         unitName,
@@ -3546,15 +3700,21 @@
         onSelectDay,
         onApplyProductionToShowcase
       }) => {
-        // A decisão da loja, produto por produto: true entra no pedido, false
-        // fica de fora. Quem não está aqui segue o que a conta sugeriu.
-        const [escolhas, setEscolhas] = useState({});
-        const [responsibleFilter, setResponsibleFilter] = useState('todos');
+        // O que a loja digitou na coluna Produzir, produto por produto. Quem
+        // não está aqui usa o que a conta sugere.
+        const [quantidades, setQuantidades] = useState({});
+        const [agrupar, setAgrupar] = useState('vitrine');
+        const [mostrar, setMostrar] = useState('tudo');
         const [copiado, setCopiado] = useState('');
 
-        // Outro dia (ou outra unidade) é outro pedido: a escolha recomeça do
-        // que a conta sugere, senão a marcação de terça vazava para quarta
-        useEffect(() => { setEscolhas({}); }, [selectedDay, currentUnit]);
+        // Os campos da coluna Produzir, na ordem da tela — é por eles que as
+        // setas e o Enter andam
+        const celulas = useRef([]);
+
+        // Outro dia (ou outra unidade) é outro pedido: a planilha recomeça no
+        // que a conta sugere, senão o que foi digitado na terça vazava para
+        // a quarta
+        useEffect(() => { setQuantidades({}); }, [selectedDay, currentUnit]);
 
         const hoje = getTodayDayOfWeek();
         const amanha = nextWeekDay(hoje);
@@ -3579,7 +3739,7 @@
         //
         // O que está vencido não entra na conta: ele vai sair da vitrine, então
         // precisa ser refeito. O que está no último dia conta como estoque, mas
-        // fica marcado na lista para a loja decidir se adianta a produção.
+        // fica marcado na linha para a loja decidir se adianta a produção.
         const stockByProduct = useMemo(() => {
           const map = {};
           slotItems.forEach((item) => {
@@ -3609,8 +3769,8 @@
             })
             .reduce((acc, item) => acc + item.currentQty, 0);
 
-        // Uma linha por produto na loja, juntando todos os espaços — de todas
-        // as vitrines — que o padrão do dia reservou para ele. Antes havia uma
+        // Uma linha por produto, juntando todos os espaços — de todas as
+        // vitrines — que o padrão do dia reservou para ele. Antes havia uma
         // linha por vitrine, e o mesmo produto era cobrado duas vezes.
         const orderList = useMemo(() => {
           const grupos = [];
@@ -3645,32 +3805,27 @@
               .map((p) => getPriority(p.priority).value)
               .sort((a, b) => priorityRank(a) - priorityRank(b))[0] || DEFAULT_PRIORITY;
 
-            // Sugestão do sistema: o item é chamado quando o estoque bom chega
+            // Sugestão da conta: o item é chamado quando o estoque bom chega
             // no mínimo da prioridade dele, ou quando tem peça vencida para
-            // repor. Assim a lista não vive sugerindo 2 unidades de algo cheio.
-            // Continua sendo sugestão: a loja pode tirar do pedido, e pode
-            // trazer para o pedido o que não foi chamado.
+            // repor. É só o preenchimento inicial da coluna Produzir — a
+            // última palavra é a que for digitada na célula.
             const minQty = Math.max(1, Math.ceil(idealQty * minStockRatio(priority)));
             const belowMin = currentQty <= minQty;
             const suggested = neededQty > 0 && (belowMin || estoque.expired > 0);
 
-            // O QUANTO se produz é sempre a quantidade do padrão do dia —
-            // nunca a diferença. Quem faz empada faz a fornada de empada; o
-            // pedido não manda fazer "mais 1" para completar bandeja.
-            // O estoque decide SE o item é sugerido (o gatilho acima),
-            // não o tamanho da produção.
-            const orderQty = idealQty;
+            // A quantidade sugerida é a do padrão do dia — a fornada inteira,
+            // nunca a diferença: quem faz empada faz a fornada de empada, não
+            // "mais 1" para completar bandeja.
+            const suggestedQty = suggested ? idealQty : 0;
 
-            // Cada espaço planejado recebe a quantidade que o padrão reservou
-            // para ele — é a mesma conta, espalhada do jeito que o padrão manda
-            const targets = grupo.plans
+            // Os espaços que o padrão reservou, na ordem da vitrine. A
+            // quantidade digitada é repartida entre eles nesta proporção.
+            const ordenados = grupo.plans
               .slice()
-              .sort((a, b) => compareShowcase(a.slot, b.slot) || a.slot.slotNumber - b.slot.slotNumber)
-              .map((p) => ({
-                slotId: p.slot.id,
-                slotNumber: p.slot.slotNumber,
-                qty: p.idealQty
-              }))
+              .sort((a, b) => compareShowcase(a.slot, b.slot) || a.slot.slotNumber - b.slot.slotNumber);
+
+            const targets = ordenados
+              .map((p) => ({ slotId: p.slot.id, slotNumber: p.slot.slotNumber, qty: p.idealQty }))
               .filter((alvo) => alvo.qty > 0);
 
             // Onde este produto mora hoje: "Vitrine Salgada 1 #3, #5 ·
@@ -3678,28 +3833,33 @@
             // por mais de um móvel
             const locais = [];
             const porVitrine = {};
-            grupo.plans
-              .slice()
-              .sort((a, b) => compareShowcase(a.slot, b.slot) || a.slot.slotNumber - b.slot.slotNumber)
-              .forEach((p) => {
-                const chave = showcaseKey(p.slot);
-                if (!porVitrine[chave]) {
-                  porVitrine[chave] = { title: p.slot.sectionTitle, espacos: [] };
-                  locais.push(porVitrine[chave]);
-                }
-                porVitrine[chave].espacos.push(p.slot.slotNumber);
-              });
+            ordenados.forEach((p) => {
+              const chave = showcaseKey(p.slot);
+              if (!porVitrine[chave]) {
+                porVitrine[chave] = { title: p.slot.sectionTitle, espacos: [] };
+                locais.push(porVitrine[chave]);
+              }
+              porVitrine[chave].espacos.push(p.slot.slotNumber);
+            });
             const localLabel = locais.map((l) => `${l.title} #${l.espacos.join(', #')}`).join(' · ');
+            const espacosLabel = locais.map((l) => `#${l.espacos.join(', #')}`).join(' · ');
+
+            // Em que móvel a linha entra quando a planilha é lida na ordem da
+            // vitrine: o primeiro espaço reservado para o produto
+            const primeiro = ordenados[0].slot;
 
             // Estoque bom que está na loja, mas fora dos espaços que o padrão
             // reservou — é o que segurava o pedido sem aparecer em lugar
-            // nenhum, então a lista avisa quanto é
-            const noPlano = grupo.plans.reduce((acc, p) => acc + qtyInSlot(p.slot.id, grupo.productId), 0);
+            // nenhum, então a planilha avisa quanto é
+            const noPlano = ordenados.reduce((acc, p) => acc + qtyInSlot(p.slot.id, grupo.productId), 0);
             const foraDoPlano = Math.max(0, currentQty - noPlano);
 
             return {
               key: grupo.key,
               localLabel,
+              espacosLabel,
+              showcaseTitle: primeiro.sectionTitle,
+              showcaseSort: primeiro,
               foraDoPlano,
               productId: grupo.productId,
               productName: product?.name || 'Produto',
@@ -3712,154 +3872,175 @@
               minQty,
               belowMin,
               suggested,
+              suggestedQty,
               neededQty,
-              orderQty,
               targets,
               unitOfMeasure: grupo.unitOfMeasure
             };
           });
         }, [dayPlans, slotById, slotItems, products, stockByProduct, currentUnit]);
 
-        // A lista do dia com a decisão da loja em cima da sugestão da conta
+        // A planilha: a conta de cada produto com a quantidade que vale agora
+        // — a digitada, se houver, senão a sugerida
         const rows = useMemo(
-          () => orderList.map((item) => ({
-            ...item,
-            escolhido: escolhas[item.key] === undefined ? item.suggested : escolhas[item.key]
-          })),
-          [orderList, escolhas]
+          () => orderList.map((item) => {
+            const orderQty = quantidades[item.key] === undefined ? item.suggestedQty : quantidades[item.key];
+            const situacao = orderQty > 0
+              ? (item.suggested ? 'Chamado' : 'Escolhido')
+              : item.suggested
+                ? 'Tirado do pedido'
+                : item.neededQty > 0
+                  ? 'Acima do mínimo'
+                  : 'Abastecido';
+            return { ...item, orderQty, noPedido: orderQty > 0, situacao };
+          }),
+          [orderList, quantidades]
         );
 
-        const rowByProduct = useMemo(() => {
-          const map = {};
-          rows.forEach((r) => { map[r.productId] = r; });
-          return map;
-        }, [rows]);
+        const definirQtd = (key, qtd) =>
+          setQuantidades((prev) => ({ ...prev, [key]: Math.max(0, Math.floor(qtd) || 0) }));
 
-        const alternar = (key) =>
-          setEscolhas((prev) => {
-            const item = orderList.find((i) => i.key === key);
-            if (!item) return prev;
-            const atual = prev[key] === undefined ? item.suggested : prev[key];
-            return { ...prev, [key]: !atual };
-          });
+        // A caixinha da primeira coluna é um atalho da célula: liga com a
+        // quantidade do padrão do dia, desliga zerando
+        const alternar = (row) =>
+          definirQtd(row.key, row.orderQty > 0 ? 0 : (row.idealQty > 0 ? row.idealQty : 1));
 
-        // Volta tudo para o que a conta sugere — o botão de desfazer da escolha
-        const voltarAoSugerido = () => setEscolhas({});
-
-        const marcarTodos = (valor) => {
+        const voltarAoSugerido = () => setQuantidades({});
+        const preencherTudo = () => {
           const novo = {};
-          orderList.forEach((item) => { novo[item.key] = valor; });
-          setEscolhas(novo);
+          orderList.forEach((item) => { novo[item.key] = item.idealQty; });
+          setQuantidades(novo);
+        };
+        const zerarTudo = () => {
+          const novo = {};
+          orderList.forEach((item) => { novo[item.key] = 0; });
+          setQuantidades(novo);
         };
 
-        const chosenItems = rows.filter((item) => item.escolhido);
+        const visiveis = useMemo(() => {
+          if (mostrar === 'pedido') return rows.filter((r) => r.noPedido);
+          if (mostrar === 'fora') return rows.filter((r) => !r.noPedido);
+          return rows;
+        }, [rows, mostrar]);
 
-        // O que ficou de fora: primeiro o que tem falta de verdade, depois o
-        // que está abastecido. É a lista de sugestões — de onde se puxa o que
-        // a conta não chamou, ou o que foi tirado do pedido sem querer.
-        const suggestionItems = rows
-          .filter((item) => !item.escolhido)
-          .sort(
-            (a, b) =>
-              (b.neededQty > 0) - (a.neededQty > 0) ||
-              priorityRank(a.priority) - priorityRank(b.priority) ||
-              a.productName.localeCompare(b.productName, 'pt-BR')
-          );
+        // Os blocos da planilha. Por vitrine, é a vitrine do dia em lista:
+        // os móveis na ordem da loja e, dentro deles, os espaços em ordem.
+        // Por responsável, é a ordem de quem produz — o que não pode faltar
+        // primeiro. "Nenhum" deixa a planilha corrida, em ordem alfabética.
+        const blocos = useMemo(() => {
+          const porOrdemDaVitrine = (a, b) =>
+            compareShowcase(a.showcaseSort, b.showcaseSort) ||
+            (a.targets[0]?.slotNumber || 0) - (b.targets[0]?.slotNumber || 0) ||
+            a.productName.localeCompare(b.productName, 'pt-BR');
 
-        // Só entram nomes que a loja cadastrou no produto — nada de nome
-        // inventado. Quem está sem responsável cai no bloco "Sem responsável".
-        const responsibleOptions = Array.from(new Set(chosenItems.map((item) => item.responsible)))
-          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+          const porOrdemDaProducao = (a, b) =>
+            priorityRank(a.priority) - priorityRank(b.priority) ||
+            a.productName.localeCompare(b.productName, 'pt-BR');
 
-        // Se o responsável escolhido não tem mais nada a produzir, volta para "todos"
-        const activeResponsible = responsibleOptions.includes(responsibleFilter) ? responsibleFilter : 'todos';
+          if (agrupar === 'nenhum') {
+            return [{
+              key: '__tudo__',
+              title: '',
+              entries: [...visiveis].sort((a, b) => a.productName.localeCompare(b.productName, 'pt-BR'))
+            }];
+          }
 
-        const itemsNeedingProduction = activeResponsible === 'todos'
-          ? chosenItems
-          : chosenItems.filter((item) => item.responsible === activeResponsible);
+          const lista = [];
+          const porChave = {};
 
-        // O pedido é entregue por pessoa: cada responsável recebe a lista do
-        // que ele tem para produzir, na ordem da prioridade — o que não pode
-        // faltar aparece primeiro. É uma lista corrida de produtos: quem
-        // produz quer saber o quê e quanto, não em que móvel vai parar.
-        const responsibleBlocks = useMemo(() => {
-          const blocos = [];
-          const porNome = {};
+          [...visiveis]
+            .sort(agrupar === 'vitrine' ? porOrdemDaVitrine : porOrdemDaProducao)
+            .forEach((row) => {
+              const chave = agrupar === 'vitrine' ? row.showcaseTitle : row.responsible;
+              if (!porChave[chave]) {
+                porChave[chave] = { key: chave, title: chave, entries: [] };
+                lista.push(porChave[chave]);
+              }
+              porChave[chave].entries.push(row);
+            });
 
-          itemsNeedingProduction.forEach((item) => {
-            if (!porNome[item.responsible]) {
-              porNome[item.responsible] = { key: item.responsible, title: item.responsible, entries: [] };
-              blocos.push(porNome[item.responsible]);
-            }
-            porNome[item.responsible].entries.push(item);
-          });
+          if (agrupar === 'responsavel') {
+            lista.sort((a, b) => {
+              if (a.title === NO_RESPONSIBLE_LABEL) return 1;
+              if (b.title === NO_RESPONSIBLE_LABEL) return -1;
+              return a.title.localeCompare(b.title, 'pt-BR');
+            });
+          }
 
-          blocos.forEach((bloco) => {
-            bloco.total = bloco.entries.reduce((acc, i) => acc + i.orderQty, 0);
-            bloco.entries.sort(
-              (a, b) =>
-                priorityRank(a.priority) - priorityRank(b.priority) ||
-                a.productName.localeCompare(b.productName, 'pt-BR')
-            );
-          });
+          return lista;
+        }, [visiveis, agrupar]);
 
-          return blocos.sort((a, b) => {
-            if (a.title === NO_RESPONSIBLE_LABEL) return 1;
-            if (b.title === NO_RESPONSIBLE_LABEL) return -1;
-            return a.title.localeCompare(b.title, 'pt-BR');
-          });
-        }, [itemsNeedingProduction]);
+        // A ordem em que as células da coluna Produzir aparecem na tela — é
+        // por ela que ↑ ↓ e Enter andam
+        const ordemNaTela = useMemo(() => blocos.flatMap((b) => b.entries), [blocos]);
+
+        const irPara = (indice) => {
+          const alvo = celulas.current[indice];
+          if (alvo) { alvo.focus(); alvo.select(); }
+        };
+
+        const noPedido = rows.filter((r) => r.noPedido);
+        const totalUn = noPedido.reduce((acc, r) => acc + r.orderQty, 0);
+        const chamados = rows.filter((r) => r.suggested).length;
+        const mexido = Object.keys(quantidades).length > 0;
+
+        const somaDe = (entries, campo) => entries.reduce((acc, r) => acc + (r[campo] || 0), 0);
 
         // ------------------------------------------
-        // A vitrine do dia escolhido, móvel por móvel
-        //
-        // É o padrão daquele dia desenhado em lista: um cartão por vitrine e,
-        // dentro dele, uma linha por espaço reservado. Cada linha diz o que o
-        // padrão manda ter ali, o que já está na loja e o que o pedido vai
-        // produzir — e é um botão: tocar coloca ou tira aquele item do pedido.
-        // É daqui que se monta a vitrine de amanhã sem abrir outra aba.
+        // Sai em texto, do jeito que vai para o WhatsApp ou para o papel
         // ------------------------------------------
-        const showcaseBlocks = useMemo(() => {
-          const entradas = dayPlans
-            .map((plan) => ({ plan, slot: slotById[plan.slotId] }))
-            .filter((e) => e.slot && e.slot.unit === currentUnit);
+        const listaPorResponsavel = () => {
+          const porResponsavel = new Map();
+          noPedido.forEach((item) => {
+            if (!porResponsavel.has(item.responsible)) porResponsavel.set(item.responsible, []);
+            porResponsavel.get(item.responsible).push(item);
+          });
 
-          return groupByShowcase(entradas, (e) => e.slot).map((bloco) => {
-            const linhas = bloco.entries
+          // Quem está sem responsável cadastrado fica por último
+          return [...porResponsavel.keys()]
+            .sort((a, b) => {
+              if (a === NO_RESPONSIBLE_LABEL) return 1;
+              if (b === NO_RESPONSIBLE_LABEL) return -1;
+              return a.localeCompare(b, 'pt-BR');
+            })
+            .map((nome) => ({ nome, itens: porResponsavel.get(nome) }));
+        };
+
+        const copiarTexto = async (chave, texto) => {
+          const ok = await copyTextToClipboard(texto);
+          if (!ok) {
+            alert('Não consegui copiar sozinho. Selecione o texto da planilha e copie na mão.');
+            return;
+          }
+          setCopiado(chave);
+          setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
+        };
+
+        // O nome de quem produz e, embaixo, quantidade e item. Sem espaço, sem
+        // vitrine, sem prioridade — esse detalhe está na planilha.
+        const copiarTudo = () => {
+          if (noPedido.length === 0) return;
+
+          const blocosTexto = listaPorResponsavel().map(({ nome, itens }) => {
+            const linhas = itens
               .slice()
-              .sort((a, b) => a.slot.slotNumber - b.slot.slotNumber)
-              .map(({ plan, slot }) => {
-                const row = rowByProduct[plan.productId];
-                return {
-                  key: `${slot.id}:${plan.productId}`,
-                  slotNumber: slot.slotNumber,
-                  productName: row ? row.productName : 'Produto',
-                  idealQty: plan.idealQty,
-                  unitOfMeasure: plan.unitOfMeasure,
-                  naLoja: qtyInSlot(slot.id, plan.productId),
-                  row
-                };
-              });
-
-            const padrao = linhas.reduce((acc, l) => acc + l.idealQty, 0);
-            const produzir = linhas.reduce((acc, l) => acc + (l.row && l.row.escolhido ? l.idealQty : 0), 0);
-            const naLoja = linhas.reduce((acc, l) => acc + l.naLoja, 0);
-
-            return { ...bloco, linhas, padrao, produzir, naLoja };
+              .sort((a, b) => a.productName.localeCompare(b.productName, 'pt-BR'))
+              .map((p) => `${p.orderQty} ${p.unitOfMeasure} — ${p.productName}`);
+            return [nome.toUpperCase(), ...linhas].join('\n');
           });
-        }, [dayPlans, slotById, currentUnit, rowByProduct, slotItems, products]);
 
-        // ------------------------------------------
-        // Lista em texto puro, do jeito que vai para o WhatsApp ou para o papel
-        // ------------------------------------------
-        const blockToText = (bloco) => {
+          copiarTexto('__tudo__', blocosTexto.join('\n\n'));
+        };
+
+        // A lista de uma pessoa só, com o detalhe que a planilha mostra
+        const copiarBloco = (bloco) => {
           const linhas = [
             `PEDIDO DE PRODUÇÃO — ${getDayNameBR(selectedDay)}`,
-            `${unitName} · ${bloco.title}`,
+            `${unitName}${bloco.title ? ` · ${bloco.title}` : ''}`,
             ''
           ];
 
-          bloco.entries.forEach((item) => {
+          bloco.entries.filter((item) => item.noPedido).forEach((item) => {
             const avisos = [];
             if (item.expiredQty > 0) avisos.push(`${item.expiredQty} vencido(s) para repor`);
             if (item.lastDayQty > 0) avisos.push(`${item.lastDayQty} no último dia`);
@@ -3870,61 +4051,40 @@
             );
           });
 
+          const total = bloco.entries.filter((i) => i.noPedido).reduce((acc, i) => acc + i.orderQty, 0);
           linhas.push('');
-          linhas.push(`Total: ${bloco.total} un em ${bloco.entries.length} item(ns)`);
-          return linhas.join('\n');
+          linhas.push(`Total: ${total} un em ${bloco.entries.filter((i) => i.noPedido).length} item(ns)`);
+          copiarTexto(bloco.key, linhas.join('\n'));
         };
 
-        const copiarTexto = async (chave, texto) => {
-          const ok = await copyTextToClipboard(texto);
-          if (!ok) {
-            alert('Não consegui copiar sozinho. Selecione o texto da lista e copie na mão.');
-            return;
-          }
-          setCopiado(chave);
-          setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
-        };
+        // A planilha inteira separada por tabulação: cola direto no Excel ou
+        // no Google Planilhas, do mesmo jeito que a tabela da semana
+        const copiarPlanilha = () => {
+          const cabecalho = [
+            'Produto', 'Prioridade', 'Vitrine', 'Espaços', 'Padrão', 'Na loja',
+            'Vencido', 'Falta', 'Mínimo', 'Produzir', 'Unidade', 'Responsável', 'Situação'
+          ];
 
-        // "Copiar tudo" é a lista de produzir separada por responsável: o nome
-        // de quem produz e, embaixo, quantidade e item. Sem espaço, sem
-        // vitrine, sem prioridade — quem quer esse detalhe usa o "Copiar
-        // lista" de cada pessoa. A quantidade é a do padrão do dia.
-        const copiarTudo = () => {
-          if (itemsNeedingProduction.length === 0) return;
+          const linhas = ordemNaTela.map((r) => [
+            r.productName, r.priority, r.showcaseTitle, r.espacosLabel, r.idealQty, r.currentQty,
+            r.expiredQty, r.neededQty, r.minQty, r.orderQty, r.unitOfMeasure, r.responsible, r.situacao
+          ].join('\t'));
 
-          const porResponsavel = new Map();
-          itemsNeedingProduction.forEach((item) => {
-            if (!porResponsavel.has(item.responsible)) porResponsavel.set(item.responsible, new Map());
-            const porProduto = porResponsavel.get(item.responsible);
-            const chave = `${item.productName}|${item.unitOfMeasure}`;
-            const atual = porProduto.get(chave);
-            if (atual) atual.qty += item.orderQty;
-            else porProduto.set(chave, { name: item.productName, unit: item.unitOfMeasure, qty: item.orderQty });
-          });
+          const total = ['Total', '', '', '',
+            somaDe(ordemNaTela, 'idealQty'), somaDe(ordemNaTela, 'currentQty'),
+            somaDe(ordemNaTela, 'expiredQty'), somaDe(ordemNaTela, 'neededQty'), '',
+            somaDe(ordemNaTela, 'orderQty'), '', '', ''
+          ].join('\t');
 
-          // Quem está sem responsável cadastrado fica por último
-          const nomes = [...porResponsavel.keys()].sort((a, b) => {
-            if (a === NO_RESPONSIBLE_LABEL) return 1;
-            if (b === NO_RESPONSIBLE_LABEL) return -1;
-            return a.localeCompare(b, 'pt-BR');
-          });
-
-          const blocos = nomes.map((nome) => {
-            const linhas = [...porResponsavel.get(nome).values()]
-              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-              .map((p) => `${p.qty} ${p.unit} — ${p.name}`);
-            return [nome.toUpperCase(), ...linhas].join('\n');
-          });
-
-          copiarTexto('__tudo__', blocos.join('\n\n'));
+          copiarTexto('__planilha__', [cabecalho.join('\t'), ...linhas, total].join('\n'));
         };
 
         const handleApplyAll = () => {
-          if (itemsNeedingProduction.length === 0) return;
-          // Cada espaço do padrão recebe a quantidade que ele pede — é a
-          // fornada inteira indo para a vitrine, não um complemento
-          const payload = itemsNeedingProduction.flatMap((item) =>
-            item.targets.map((alvo) => ({
+          if (noPedido.length === 0) return;
+          // A quantidade digitada é repartida entre os espaços do padrão, na
+          // proporção que ele manda
+          const payload = noPedido.flatMap((item) =>
+            spreadOrderQty(item.orderQty, item.targets).map((alvo) => ({
               slotId: alvo.slotId,
               productId: item.productId,
               qty: alvo.qty,
@@ -3936,422 +4096,300 @@
           alert('Produção lançada na vitrine com sucesso!');
         };
 
-        const totalNeeded = itemsNeedingProduction.reduce((a, b) => a + b.orderQty, 0);
-        const escolhaAlterada = Object.keys(escolhas).length > 0;
-        const sugeridosFora = suggestionItems.filter((item) => item.suggested).length;
+        // Uma linha da planilha. O índice é a posição dela na coluna
+        // Produzir, para as setas saberem para onde ir.
+        const renderLinha = (row, indice) => (
+          <tr key={row.key} data-fora={!row.noPedido}>
+            <td data-sticky="true" style={{ left: 0 }} className="px-1.5 text-center">
+              <button
+                type="button"
+                onClick={() => alternar(row)}
+                title={row.noPedido
+                  ? `Tirar ${row.productName} do pedido`
+                  : `Colocar ${row.productName} no pedido — ${row.idealQty} ${row.unitOfMeasure}`}
+                data-on={row.noPedido}
+                className="sheet-check"
+              >
+                {row.noPedido && <Icons.Check className="w-3 h-3" />}
+              </button>
+            </td>
 
-        // Selo de estado de uma linha, na vitrine e na lista de sugestões
-        const chipEscolhido = 'bg-[#0071e3] text-white';
-        const chipEstoque = 'bg-black/[0.05] text-[#6e6e73]';
+            <td
+              data-sticky="true"
+              style={{ left: '34px' }}
+              className="max-w-[150px] sm:max-w-[230px] overflow-hidden text-ellipsis font-semibold text-[#1d1d1f]"
+              title={`${row.productName} · ${row.localLabel}`}
+            >
+              {row.productName}
+            </td>
+
+            <td className="text-center text-[#6e6e73] font-bold" title={getPriority(row.priority).hint}>
+              {row.priority}
+            </td>
+            <td className="text-[#6e6e73] max-w-[160px] overflow-hidden text-ellipsis" title={row.localLabel}>
+              {agrupar === 'vitrine' ? row.espacosLabel : row.localLabel}
+            </td>
+
+            <td className="num">{row.idealQty}</td>
+            <td className="num" title={`${row.currentQty} ${row.unitOfMeasure} bons na loja, em qualquer vitrine`}>
+              {row.currentQty}
+            </td>
+            <td className={`num ${row.expiredQty > 0 ? 'text-[#c9271d] font-bold' : 'text-[#c7c7cc]'}`}
+                title={row.expiredQty > 0 ? `${row.expiredQty} vencido(s) para repor` : 'Nada vencido'}>
+              {row.expiredQty || '—'}
+            </td>
+            <td className="num">{row.neededQty || '—'}</td>
+            <td className="num text-[#86868b]" title={`Ponto de reposição da prioridade ${row.priority}`}>
+              {row.minQty}
+            </td>
+
+            <td className="p-0">
+              <OrderQtyCell
+                value={row.orderQty}
+                cellRef={(el) => { celulas.current[indice] = el; }}
+                onMove={(passo) => irPara(indice + passo)}
+                onCommit={(nova) => definirQtd(row.key, nova)}
+                title={`Quanto produzir de ${row.productName} — o padrão do dia pede ${row.idealQty} ${row.unitOfMeasure}. 0 tira do pedido.`}
+              />
+            </td>
+            <td className="text-[#86868b]">{row.unitOfMeasure}</td>
+            <td className="text-[#6e6e73] max-w-[130px] overflow-hidden text-ellipsis" title={row.responsible}>
+              {row.responsible}
+            </td>
+
+            <td className="text-[11px]">
+              <span className={
+                row.situacao === 'Chamado' ? 'text-[#0058b0] font-semibold'
+                  : row.situacao === 'Escolhido' ? 'text-[#1d1d1f] font-semibold'
+                    : 'text-[#86868b]'
+              }>
+                {row.situacao}
+              </span>
+              {row.lastDayQty > 0 && (
+                <span className="text-[#a35e00] ml-1.5 tnum">· {row.lastDayQty} no último dia</span>
+              )}
+              {row.foraDoPlano > 0 && (
+                <span className="text-[#86868b] ml-1.5 tnum">· {row.foraDoPlano} em outro espaço</span>
+              )}
+            </td>
+          </tr>
+        );
+
+        let indice = -1;
 
         return (
-          <div className="space-y-5">
-            <div className="card p-6 sm:p-7">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                  <div className="t-overline flex items-center gap-1.5 mb-2">
-                    <Icons.ChefHat className="w-3.5 h-3.5" />
-                    Cozinha e padaria
-                  </div>
-                  <h2 className="t-display">Pedido de produção</h2>
-                  <p className="t-body mt-1.5 max-w-lg">
-                    {getDayNameBR(selectedDay)}
-                    {selectedDay === amanha && ' (amanhã)'}
-                    {selectedDay === hoje && ' (hoje)'} · {unitName} — a tela abre no próximo dia.
-                    A vitrine daquele dia aparece móvel por móvel: toque no espaço para colocar ou
-                    tirar o item do pedido. O que a conta acha que falta já vem marcado; o resto fica
-                    em <strong className="text-[#1d1d1f] font-semibold">Sugestões</strong>, logo abaixo,
-                    e entra com um toque. A quantidade é sempre a do padrão do dia — a fornada
-                    inteira, nunca "mais 1" para completar bandeja.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    onClick={copiarTudo}
-                    disabled={itemsNeedingProduction.length === 0}
-                    title="Responsável, quantidade e item — sem espaço e sem vitrine"
-                    className="btn btn-secondary btn-md disabled:opacity-40 disabled:pointer-events-none"
-                  >
-                    <Icons.Copy className="w-4 h-4" />
-                    {copiado === '__tudo__' ? 'Copiado!' : 'Copiar tudo'}
-                  </button>
-                  <button
-                    onClick={handleApplyAll}
-                    disabled={itemsNeedingProduction.length === 0}
-                    className="btn btn-primary btn-md disabled:opacity-40 disabled:pointer-events-none"
-                  >
-                    <Icons.Plus className="w-4 h-4" />
-                    Lançar na vitrine
-                    {totalNeeded > 0 && <span className="tnum opacity-80">{totalNeeded} un</span>}
-                  </button>
-                </div>
-              </div>
-
-              {/* O dia do pedido: mesmo gesto da vitrine padrão, mas aqui ele
-                  abre no dia seguinte — o pedido de hoje é para amanhã */}
-              <div className="mt-6 overflow-x-auto pb-1 scrollbar-none">
-                <div className="segmented w-full min-w-max">
-                  {WEEK_DAYS.map((day) => {
-                    const count = standardPlans.filter(
-                      (sp) => sp.unit === currentUnit && sp.dayOfWeek === day
-                    ).length;
-                    const marca = day === hoje ? 'hoje' : day === amanha ? 'amanhã' : '';
-
-                    return (
-                      <button
-                        key={day}
-                        onClick={() => onSelectDay(day)}
-                        data-active={selectedDay === day}
-                        title={`Pedido de ${getDayNameBR(day)} · ${count} ${count === 1 ? 'item' : 'itens'} no padrão`}
-                        className="flex-1 flex items-center justify-center gap-1.5"
-                      >
-                        <span>{getDayNameBR(day)}</span>
-                        {marca && (
-                          <span className="text-[10px] font-semibold text-[#86868b] hidden sm:inline">{marca}</span>
-                        )}
-                        <span className={`tnum text-[11px] font-bold ${
-                          selectedDay === day ? 'text-[#0071e3]' : 'text-[#86868b]'
-                        }`}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* ---------- 1. A vitrine do dia ---------- */}
-            {showcaseBlocks.length === 0 ? (
-              <div className="card text-center py-14 space-y-2">
-                <Icons.Calendar className="w-11 h-11 text-[#c7c7cc] mx-auto" />
-                <h4 className="t-title text-[#1d1d1f]">Sem padrão para {getDayNameBR(selectedDay)}</h4>
-                <p className="t-callout">
-                  Monte a vitrine deste dia na aba Vitrine padrão para o pedido ter o que sugerir
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="card-flat p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="t-headline text-[#1d1d1f]">
-                      Vitrine de {getDayNameBR(selectedDay)}
-                    </h3>
-                    <p className="t-caption mt-0.5">
-                      Como o padrão manda montar · toque no espaço para colocar ou tirar do pedido
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <span className="pill bg-[#0071e3]/[0.12] text-[#0058b0] tnum">
-                      {chosenItems.length} no pedido
-                    </span>
-                    {escolhaAlterada && (
-                      <button onClick={voltarAoSugerido} className="btn btn-secondary btn-sm" title="Desfazer as marcações e voltar ao que a conta sugere">
-                        Voltar ao sugerido
-                      </button>
-                    )}
-                    <button onClick={() => marcarTodos(true)} className="btn btn-secondary btn-sm" title="Colocar todos os itens do dia no pedido">
-                      Marcar tudo
-                    </button>
-                    <button onClick={() => marcarTodos(false)} className="btn btn-secondary btn-sm" title="Tirar todos os itens do pedido">
-                      Limpar
-                    </button>
-                  </div>
-                </div>
-
-                {/* Vitrines lado a lado, uma coluna por móvel — o mesmo
-                    desenho da aba Vitrine padrão, aqui só para escolher */}
-                <div className="flex gap-4 overflow-x-auto pb-2 items-start snap-x">
-                  {showcaseBlocks.map((bloco) => (
-                    <div key={bloco.key} className="card p-4 flex-1 min-w-[290px] snap-start">
-                      <div className="flex items-start justify-between gap-2 pb-3 border-b hairline">
-                        <div className="min-w-0">
-                          <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
-                          <p className="t-caption tnum mt-0.5">
-                            {bloco.linhas.length} {bloco.linhas.length === 1 ? 'espaço' : 'espaços'} ·
-                            {' '}{bloco.padrao} un no padrão · {bloco.naLoja} na loja
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className={`tnum text-[19px] font-extrabold leading-none ${
-                            bloco.produzir > 0 ? 'text-[#0071e3]' : 'text-[#c7c7cc]'
-                          }`}>
-                            {bloco.produzir}
-                          </p>
-                          <p className="t-caption text-[11px] mt-0.5">un a produzir</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 mt-3">
-                        {bloco.linhas.map((linha) => {
-                          const row = linha.row;
-                          const escolhido = !!(row && row.escolhido);
-                          const prio = getPriority(row?.priority);
-
-                          return (
-                            <button
-                              key={linha.key}
-                              type="button"
-                              onClick={() => row && alternar(row.key)}
-                              title={escolhido
-                                ? `Tirar ${linha.productName} do pedido`
-                                : `Colocar ${linha.productName} no pedido — ${linha.idealQty} ${linha.unitOfMeasure}`}
-                              className={`w-full text-left rounded-xl px-2.5 py-2 border transition-all ${
-                                escolhido
-                                  ? 'bg-[#0071e3]/[0.06] border-[#0071e3]/30'
-                                  : 'bg-[var(--bg-surface)] border-black/[0.09] hover:border-black/[0.16]'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="t-caption tnum w-3.5 shrink-0 text-center">{linha.slotNumber}</span>
-                                {escolhido
-                                  ? <Icons.CheckSquare className="w-4 h-4 shrink-0 text-[#0071e3]" />
-                                  : <Icons.Square className="w-4 h-4 shrink-0 text-[#c7c7cc]" />}
-                                <span className={`t-headline text-[13px] truncate min-w-0 flex-1 ${
-                                  escolhido ? 'text-[#1d1d1f]' : 'text-[#6e6e73]'
-                                }`}>
-                                  {linha.productName}
-                                </span>
-                                <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`} title={prio.title}>
-                                  {row ? row.priority : '—'}
-                                </span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pl-[26px]">
-                                <span className={`pill text-[10px] tnum ${escolhido ? chipEscolhido : chipEstoque}`}>
-                                  {escolhido
-                                    ? `+${linha.idealQty} ${linha.unitOfMeasure} produzir`
-                                    : `${linha.idealQty} ${linha.unitOfMeasure} no padrão`}
-                                </span>
-                                <span className="t-caption text-[11px] tnum">
-                                  {linha.naLoja > 0 ? `${linha.naLoja} na loja` : 'espaço vazio'}
-                                </span>
-                                {row && row.expiredQty > 0 && (
-                                  <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
-                                    <Icons.AlertTriangle className="w-3 h-3" />
-                                    {row.expiredQty} vencido(s)
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ---------- 2. O pedido escolhido ---------- */}
-            <div className="card-flat p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-3">
+            {/* Barra do pedido: dia, leitura e os botões. Sem cartão grande —
+                a tela é a planilha, o resto é moldura */}
+            <div className="card-flat px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="t-headline text-[#1d1d1f]">O que vai ser produzido</h3>
+                <h2 className="t-title text-[#1d1d1f]">Pedido de produção</h2>
                 <p className="t-caption mt-0.5">
-                  Só o que está marcado — desmarque aqui para tirar do pedido
+                  {unitName} · {rows.length} {rows.length === 1 ? 'produto' : 'produtos'} no padrão de{' '}
+                  {getDayNameBR(selectedDay).toLowerCase()} · {chamados} chamado(s) pela conta ·
+                  digite na coluna <strong className="text-[#1d1d1f] font-semibold">Produzir</strong>;
+                  0 tira do pedido
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <select
-                  value={activeResponsible}
-                  onChange={(e) => setResponsibleFilter(e.target.value)}
+                  value={selectedDay}
+                  onChange={(e) => onSelectDay(e.target.value)}
+                  title="O dia que o pedido monta — abre no dia seguinte ao de hoje"
                   className="field field-sm field-select field-auto"
                 >
-                  <option value="todos">Todos os responsáveis</option>
-                  {responsibleOptions.map((name) => (
-                    <option key={name} value={name}>{name}</option>
+                  {WEEK_DAYS.map((day) => (
+                    <option key={day} value={day}>
+                      {getDayNameBR(day)}
+                      {day === hoje ? ' (hoje)' : day === amanha ? ' (amanhã)' : ''}
+                    </option>
                   ))}
                 </select>
-                <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0">
-                  {itemsNeedingProduction.length} a produzir
-                </span>
+
+                <button
+                  onClick={copiarPlanilha}
+                  disabled={rows.length === 0}
+                  title="A planilha inteira separada por tabulação — cola direto no Excel"
+                  className="btn btn-secondary btn-sm disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <Icons.Copy className="w-3.5 h-3.5" />
+                  {copiado === '__planilha__' ? 'Copiado!' : 'Copiar planilha'}
+                </button>
+                <button
+                  onClick={copiarTudo}
+                  disabled={noPedido.length === 0}
+                  title="Responsável, quantidade e item — para mandar no WhatsApp"
+                  className="btn btn-secondary btn-sm disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <Icons.Copy className="w-3.5 h-3.5" />
+                  {copiado === '__tudo__' ? 'Copiado!' : 'Copiar pedido'}
+                </button>
+                <button
+                  onClick={handleApplyAll}
+                  disabled={noPedido.length === 0}
+                  className="btn btn-primary btn-sm disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <Icons.Plus className="w-3.5 h-3.5" />
+                  Lançar na vitrine
+                  {totalUn > 0 && <span className="tnum opacity-80">{totalUn} un</span>}
+                </button>
               </div>
             </div>
 
-            {itemsNeedingProduction.length === 0 ? (
-              <div className="card text-center py-14 space-y-2">
-                <Icons.CheckCircle2 className="w-11 h-11 text-[#34c759] mx-auto" />
-                <h4 className="t-title text-[#1d1d1f]">Nada marcado para produzir</h4>
+            {/* Os controles da planilha: como ler e o que mostrar */}
+            <div className="card-flat px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <label className="flex items-center gap-2">
+                <span className="t-caption">Agrupar</span>
+                <select
+                  value={agrupar}
+                  onChange={(e) => setAgrupar(e.target.value)}
+                  className="field field-sm field-select field-auto"
+                >
+                  <option value="vitrine">Por vitrine (a vitrine do dia)</option>
+                  <option value="responsavel">Por responsável (quem produz)</option>
+                  <option value="nenhum">Sem grupo (A-Z)</option>
+                </select>
+              </label>
+
+              <label className="flex items-center gap-2">
+                <span className="t-caption">Mostrar</span>
+                <select
+                  value={mostrar}
+                  onChange={(e) => setMostrar(e.target.value)}
+                  className="field field-sm field-select field-auto"
+                >
+                  <option value="tudo">Todo o padrão do dia</option>
+                  <option value="pedido">Só o que vai ser produzido</option>
+                  <option value="fora">Só o que ficou de fora</option>
+                </select>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2 ml-auto">
+                <span className="t-caption tnum">
+                  {noPedido.length} no pedido · {totalUn} un
+                </span>
+                <button onClick={preencherTudo} className="btn btn-secondary btn-sm" title="Colocar a quantidade do padrão em todas as linhas">
+                  Preencher com o padrão
+                </button>
+                <button onClick={zerarTudo} className="btn btn-secondary btn-sm" title="Zerar a coluna Produzir">
+                  Zerar
+                </button>
+                {mexido && (
+                  <button onClick={voltarAoSugerido} className="btn btn-secondary btn-sm" title="Desfazer o que foi digitado e voltar ao que a conta sugere">
+                    Voltar ao sugerido
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {rows.length === 0 ? (
+              <div className="card-flat text-center py-14 px-4 space-y-2">
+                <h4 className="t-title text-[#1d1d1f]">Sem padrão para {getDayNameBR(selectedDay)}</h4>
                 <p className="t-callout">
-                  {suggestionItems.length > 0
-                    ? 'Escolha os itens na vitrine acima ou nas sugestões abaixo'
-                    : 'Nada no mínimo nem vencido — não precisa produzir agora'}
+                  Monte a vitrine deste dia na aba Vitrine padrão para o pedido ter o que calcular
                 </p>
               </div>
             ) : (
-              // Um cartão por pessoa: é o pedido que vai para a mão dela
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-                {responsibleBlocks.map((bloco) => (
-                  <div key={bloco.key} className="card p-5">
-                    <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
-                      <span className="w-8 h-8 shrink-0 rounded-full bg-[#0071e3]/10 text-[#0058b0] text-[11px] font-extrabold flex items-center justify-center tracking-tight">
-                        {getResponsibleInitials(bloco.title === NO_RESPONSIBLE_LABEL ? '' : bloco.title)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h4>
-                        <p className="t-caption tnum mt-0.5">
-                          {bloco.entries.length} item(ns) · {bloco.total} un
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => copiarTexto(bloco.key, blockToText(bloco))}
-                        className="btn btn-secondary btn-sm shrink-0"
-                        title="Copiar a lista desta pessoa"
-                      >
-                        <Icons.Copy className="w-3.5 h-3.5" />
-                        {copiado === bloco.key ? 'Copiado!' : 'Copiar lista'}
-                      </button>
-                    </div>
+              <div className="card-flat overflow-x-auto">
+                <table className="sheet">
+                  <thead>
+                    <tr>
+                      <th data-sticky="true" style={{ left: 0 }} className="w-[34px]" title="Entra no pedido">✓</th>
+                      <th data-sticky="true" style={{ left: '34px' }}>Produto</th>
+                      <th className="text-center" title="A–D: quando o item é chamado pela conta">P</th>
+                      <th>{agrupar === 'vitrine' ? 'Espaços' : 'Vitrine'}</th>
+                      <th className="num" title="Quantidade que o padrão do dia manda ter">Padrão</th>
+                      <th className="num" title="Estoque bom, em qualquer vitrine da loja">Na loja</th>
+                      <th className="num" title="Peças vencidas, que vão sair da vitrine">Venc.</th>
+                      <th className="num" title="Padrão menos o que está na loja">Falta</th>
+                      <th className="num" title="Ponto de reposição da prioridade">Mín.</th>
+                      <th className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
+                      <th>Un</th>
+                      <th>Responsável</th>
+                      {/* A última coluna estica: é ela que come a sobra da
+                          largura, e não a célula que se digita */}
+                      <th style={{ width: '99%' }}>Situação</th>
+                    </tr>
+                  </thead>
 
-                    {bloco.entries.map((item) => {
-                      const prio = getPriority(item.priority);
-                      return (
-                        <div key={item.key} className="py-2.5 flex items-center justify-between gap-3 border-b hairline last:border-0">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {/* A caixinha decide se o item é produzido — não
-                                é marcação de "já fiz". Desmarcar tira do
-                                pedido e joga o item nas sugestões. */}
-                            <button
-                              type="button"
-                              onClick={() => alternar(item.key)}
-                              title={`Tirar ${item.productName} do pedido`}
-                              className="text-[#0071e3] hover:opacity-70 transition-opacity shrink-0"
-                            >
-                              <Icons.CheckSquare className="w-5 h-5" />
-                            </button>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`} title={prio.title}>
-                                  {item.priority}
-                                </span>
-                                <h5 className="t-headline truncate text-[#1d1d1f]">
-                                  {item.productName}
-                                </h5>
-                              </div>
-                              <p className="t-caption mt-0.5 truncate" title={item.localLabel}>
-                                {item.localLabel} · na loja {item.currentQty}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                {!item.suggested && (
-                                  <span className="pill bg-[#0071e3]/[0.12] text-[#0058b0] text-[10px]">
-                                    Escolhido por você
-                                  </span>
+                  <tbody>
+                    {visiveis.length === 0 ? (
+                      <tr>
+                        <td colSpan={13} className="text-center py-8 t-callout">
+                          {mostrar === 'pedido'
+                            ? 'Nada marcado para produzir — digite a quantidade na coluna Produzir'
+                            : 'Todo o padrão do dia está no pedido'}
+                        </td>
+                      </tr>
+                    ) : (
+                      blocos.map((bloco) => (
+                        <React.Fragment key={bloco.key}>
+                          {bloco.title && (
+                            <tr data-grupo="true">
+                              <td data-sticky="true" style={{ left: 0 }} />
+                              <td data-sticky="true" style={{ left: '34px' }} className="truncate" title={bloco.title}>
+                                {bloco.title}
+                              </td>
+                              <td colSpan={2} className="t-caption text-[11px]">
+                                {bloco.entries.length} {bloco.entries.length === 1 ? 'item' : 'itens'}
+                              </td>
+                              <td className="num">{somaDe(bloco.entries, 'idealQty')}</td>
+                              <td className="num">{somaDe(bloco.entries, 'currentQty')}</td>
+                              <td className="num">{somaDe(bloco.entries, 'expiredQty') || '—'}</td>
+                              <td className="num">{somaDe(bloco.entries, 'neededQty') || '—'}</td>
+                              <td />
+                              <td className="num text-[#0058b0]">{somaDe(bloco.entries, 'orderQty')}</td>
+                              <td colSpan={3}>
+                                {bloco.entries.some((i) => i.noPedido) && (
+                                  <button
+                                    onClick={() => copiarBloco(bloco)}
+                                    className="t-caption text-[11px] underline underline-offset-2 hover:text-[#1d1d1f]"
+                                    title={`Copiar a lista de ${bloco.title}`}
+                                  >
+                                    {copiado === bloco.key ? 'Copiado!' : 'Copiar lista'}
+                                  </button>
                                 )}
-                                {item.expiredQty > 0 && (
-                                  <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
-                                    <Icons.AlertTriangle className="w-3 h-3" />
-                                    {item.expiredQty} vencido(s) · repor
-                                  </span>
-                                )}
-                                {item.lastDayQty > 0 && (
-                                  <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px] tnum">
-                                    {item.lastDayQty} no último dia
-                                  </span>
-                                )}
-                                {item.foraDoPlano > 0 && (
-                                  <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
-                                    {item.foraDoPlano} em outro espaço
-                                  </span>
-                                )}
-                                {item.belowMin && (
-                                  <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
-                                    No mínimo · {item.minQty} {item.unitOfMeasure}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                              </td>
+                            </tr>
+                          )}
+                          {bloco.entries.map((row) => { indice += 1; return renderLinha(row, indice); })}
+                        </React.Fragment>
+                      ))
+                    )}
+                  </tbody>
 
-                          <div
-                            className="tnum bg-[#ff9f0a]/12 text-[#8a5200] font-extrabold text-[13px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0"
-                            title="Quantidade do padrão do dia"
-                          >
-                            {item.orderQty} {item.unitOfMeasure}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                  <tfoot>
+                    <tr>
+                      <td data-sticky="true" style={{ left: 0 }} />
+                      <td data-sticky="true" style={{ left: '34px' }}>Total</td>
+                      <td colSpan={2} className="t-caption text-[11px]">
+                        {visiveis.length} {visiveis.length === 1 ? 'linha' : 'linhas'}
+                      </td>
+                      <td className="num">{somaDe(visiveis, 'idealQty')}</td>
+                      <td className="num">{somaDe(visiveis, 'currentQty')}</td>
+                      <td className="num">{somaDe(visiveis, 'expiredQty') || '—'}</td>
+                      <td className="num">{somaDe(visiveis, 'neededQty') || '—'}</td>
+                      <td />
+                      <td className="num text-[#0058b0]">{somaDe(visiveis, 'orderQty')}</td>
+                      <td colSpan={3} className="t-caption text-[11px]">
+                        {noPedido.length} item(ns) no pedido
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             )}
 
-            {/* ---------- 3. Sugestões ---------- */}
-            {suggestionItems.length > 0 && (
-              <div className="card p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-1 border-b hairline">
-                  <div className="min-w-0">
-                    <h3 className="t-headline text-[#1d1d1f]">Sugestões · fora do pedido</h3>
-                    <p className="t-caption mt-0.5">
-                      O resto do padrão de {getDayNameBR(selectedDay)} — toque em "Produzir" para
-                      colocar no pedido
-                    </p>
-                  </div>
-                  <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0 self-start sm:self-auto">
-                    {suggestionItems.length} item(ns)
-                    {sugeridosFora > 0 && ` · ${sugeridosFora} que a conta chamou`}
-                  </span>
-                </div>
-
-                {suggestionItems.map((item) => {
-                  const prio = getPriority(item.priority);
-                  const falta = item.neededQty > 0;
-
-                  return (
-                    <div key={item.key} className="py-2.5 flex items-center justify-between gap-3 border-b hairline last:border-0">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`} title={prio.title}>
-                            {item.priority}
-                          </span>
-                          <h5 className="t-headline truncate text-[#6e6e73]">{item.productName}</h5>
-                        </div>
-                        <p className="t-caption mt-0.5 tnum truncate" title={item.localLabel}>
-                          na loja {item.currentQty} de {item.idealQty} {item.unitOfMeasure} · {item.localLabel}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          {item.suggested ? (
-                            <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px]">
-                              A conta chamou — você tirou do pedido
-                            </span>
-                          ) : falta ? (
-                            <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px] tnum">
-                              Falta {item.neededQty}, ainda acima do mínimo de {item.minQty}
-                            </span>
-                          ) : (
-                            <span className="pill bg-black/[0.05] text-[#6e6e73] text-[10px]">
-                              Abastecido
-                            </span>
-                          )}
-                          {item.expiredQty > 0 && (
-                            <span className="pill bg-[#ff3b30]/10 text-[#c9271d] text-[10px] tnum">
-                              <Icons.AlertTriangle className="w-3 h-3" />
-                              {item.expiredQty} vencido(s)
-                            </span>
-                          )}
-                          {item.lastDayQty > 0 && (
-                            <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] text-[10px] tnum">
-                              {item.lastDayQty} no último dia
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => alternar(item.key)}
-                        className="btn btn-secondary btn-sm shrink-0"
-                        title={`Colocar ${item.productName} no pedido — ${item.orderQty} ${item.unitOfMeasure}`}
-                      >
-                        <Icons.Plus className="w-3.5 h-3.5" />
-                        Produzir
-                        <span className="tnum opacity-70">{item.orderQty}</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <p className="t-caption px-1">
+              A quantidade sugerida é a do padrão do dia — a fornada inteira, nunca "mais 1" para
+              completar bandeja. A conta chama o item quando o estoque bom chega no mínimo da
+              prioridade (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
+              C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão)
+              ou quando tem peça vencida para repor; o vencido não conta como estoque. Quando o produto
+              ocupa mais de um espaço, a quantidade digitada é repartida entre eles na proporção do padrão.
+              No teclado: ↑ ↓ andam pela coluna, Enter desce, Tab vai para a próxima célula.
+            </p>
           </div>
         );
       };
