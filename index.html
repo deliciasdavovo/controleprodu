@@ -443,7 +443,14 @@
          duas primeiras colunas presas na esquerda, para o nome do produto não
          sumir quando a planilha corre de lado. Cor só onde é aviso.
          ========================================== */
-      .sheet { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+      .sheet {
+        width: 100%;
+        min-width: 1000px;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+      }
       .sheet th, .sheet td {
         border-bottom: 1px solid var(--hairline);
         border-right: 1px solid var(--hairline);
@@ -458,7 +465,6 @@
          acompanham o realce sem precisar de regra própria */
       .sheet tbody tr { --row-bg: var(--bg-surface); }
       .sheet tbody tr[data-fora="true"] { --row-bg: #fafafa; color: var(--ink-4); }
-      .sheet tbody tr[data-grupo="true"] { --row-bg: var(--bg-elevated); font-weight: 700; }
       .sheet tbody tr:hover { --row-bg: #f1f7fe; }
       .sheet tbody td { background: var(--row-bg); }
 
@@ -3668,6 +3674,18 @@
         );
       };
 
+      // A largura de cada coluna da planilha. Ela é fixa para as tabelas de
+      // todos os blocos ficarem alinhadas entre si: sem isso, cada vitrine
+      // media as colunas pelo próprio conteúdo e a leitura de cima para baixo
+      // se perdia. A última fica com a sobra.
+      const SHEET_COLS = ['34px', '220px', '34px', '112px', '64px', '64px', '58px', '58px', '54px', '88px', '48px', '132px', 'auto'];
+
+      const SheetCols = () => (
+        <colgroup>
+          {SHEET_COLS.map((largura, i) => <col key={i} style={{ width: largura }} />)}
+        </colgroup>
+      );
+
       // Reparte a quantidade digitada entre os espaços que o padrão reservou
       // para o produto, na mesma proporção do padrão. O que sobra da divisão
       // vai para o último espaço, para a soma bater exatamente com o pedido.
@@ -3987,23 +4005,35 @@
         const somaDe = (entries, campo) => entries.reduce((acc, r) => acc + (r[campo] || 0), 0);
 
         // ------------------------------------------
-        // Sai em texto, do jeito que vai para o WhatsApp ou para o papel
+        // Sai em texto, do jeito que vai para o WhatsApp ou para o papel:
+        // o nome de quem produz em cima e, embaixo, quantidade e item. Sem
+        // espaço, sem vitrine, sem prioridade — esse detalhe está na planilha.
+        // É o mesmo texto no "Copiar pedido" e no "Copiar lista" de cada
+        // bloco; muda só quais itens entram.
         // ------------------------------------------
-        const listaPorResponsavel = () => {
+        const textoPorResponsavel = (itens) => {
           const porResponsavel = new Map();
-          noPedido.forEach((item) => {
+          itens.forEach((item) => {
             if (!porResponsavel.has(item.responsible)) porResponsavel.set(item.responsible, []);
             porResponsavel.get(item.responsible).push(item);
           });
 
           // Quem está sem responsável cadastrado fica por último
-          return [...porResponsavel.keys()]
-            .sort((a, b) => {
-              if (a === NO_RESPONSIBLE_LABEL) return 1;
-              if (b === NO_RESPONSIBLE_LABEL) return -1;
-              return a.localeCompare(b, 'pt-BR');
+          const nomes = [...porResponsavel.keys()].sort((a, b) => {
+            if (a === NO_RESPONSIBLE_LABEL) return 1;
+            if (b === NO_RESPONSIBLE_LABEL) return -1;
+            return a.localeCompare(b, 'pt-BR');
+          });
+
+          return nomes
+            .map((nome) => {
+              const linhas = porResponsavel.get(nome)
+                .slice()
+                .sort((a, b) => a.productName.localeCompare(b.productName, 'pt-BR'))
+                .map((p) => `${p.orderQty} ${p.unitOfMeasure} — ${p.productName}`);
+              return [nome.toUpperCase(), ...linhas].join('\n');
             })
-            .map((nome) => ({ nome, itens: porResponsavel.get(nome) }));
+            .join('\n\n');
         };
 
         const copiarTexto = async (chave, texto) => {
@@ -4016,45 +4046,18 @@
           setTimeout(() => setCopiado((atual) => (atual === chave ? '' : atual)), 2000);
         };
 
-        // O nome de quem produz e, embaixo, quantidade e item. Sem espaço, sem
-        // vitrine, sem prioridade — esse detalhe está na planilha.
+        // O pedido inteiro, separado por quem produz
         const copiarTudo = () => {
           if (noPedido.length === 0) return;
-
-          const blocosTexto = listaPorResponsavel().map(({ nome, itens }) => {
-            const linhas = itens
-              .slice()
-              .sort((a, b) => a.productName.localeCompare(b.productName, 'pt-BR'))
-              .map((p) => `${p.orderQty} ${p.unitOfMeasure} — ${p.productName}`);
-            return [nome.toUpperCase(), ...linhas].join('\n');
-          });
-
-          copiarTexto('__tudo__', blocosTexto.join('\n\n'));
+          copiarTexto('__tudo__', textoPorResponsavel(noPedido));
         };
 
-        // A lista de uma pessoa só, com o detalhe que a planilha mostra
+        // A lista de um bloco só — a vitrine, ou a pessoa — no mesmo formato:
+        // responsável em cima, quantidade e item embaixo
         const copiarBloco = (bloco) => {
-          const linhas = [
-            `PEDIDO DE PRODUÇÃO — ${getDayNameBR(selectedDay)}`,
-            `${unitName}${bloco.title ? ` · ${bloco.title}` : ''}`,
-            ''
-          ];
-
-          bloco.entries.filter((item) => item.noPedido).forEach((item) => {
-            const avisos = [];
-            if (item.expiredQty > 0) avisos.push(`${item.expiredQty} vencido(s) para repor`);
-            if (item.lastDayQty > 0) avisos.push(`${item.lastDayQty} no último dia`);
-            linhas.push(
-              `[ ] ${item.productName} — ${item.orderQty} ${item.unitOfMeasure}` +
-              ` (${item.priority} · ${item.localLabel} · na loja ${item.currentQty})` +
-              (avisos.length ? ` · ${avisos.join(', ')}` : '')
-            );
-          });
-
-          const total = bloco.entries.filter((i) => i.noPedido).reduce((acc, i) => acc + i.orderQty, 0);
-          linhas.push('');
-          linhas.push(`Total: ${total} un em ${bloco.entries.filter((i) => i.noPedido).length} item(ns)`);
-          copiarTexto(bloco.key, linhas.join('\n'));
+          const itens = bloco.entries.filter((item) => item.noPedido);
+          if (itens.length === 0) return;
+          copiarTexto(bloco.key, textoPorResponsavel(itens));
         };
 
         // A planilha inteira separada por tabulação: cola direto no Excel ou
@@ -4290,49 +4293,91 @@
                   Monte a vitrine deste dia na aba Vitrine padrão para o pedido ter o que calcular
                 </p>
               </div>
+            ) : visiveis.length === 0 ? (
+              <div className="card-flat text-center py-12 px-4">
+                <p className="t-callout">
+                  {mostrar === 'pedido'
+                    ? 'Nada marcado para produzir — digite a quantidade na coluna Produzir'
+                    : 'Todo o padrão do dia está no pedido'}
+                </p>
+              </div>
             ) : (
-              <div className="card-flat overflow-x-auto">
-                <table className="sheet">
-                  <thead>
-                    <tr>
-                      <th data-sticky="true" style={{ left: 0 }} className="w-[34px]" title="Entra no pedido">✓</th>
-                      <th data-sticky="true" style={{ left: '34px' }}>Produto</th>
-                      <th className="text-center" title="A–D: quando o item é chamado pela conta">P</th>
-                      <th>{agrupar === 'vitrine' ? 'Espaços' : 'Vitrine'}</th>
-                      <th className="num" title="Quantidade que o padrão do dia manda ter">Padrão</th>
-                      <th className="num" title="Estoque bom, em qualquer vitrine da loja">Na loja</th>
-                      <th className="num" title="Peças vencidas, que vão sair da vitrine">Venc.</th>
-                      <th className="num" title="Padrão menos o que está na loja">Falta</th>
-                      <th className="num" title="Ponto de reposição da prioridade">Mín.</th>
-                      <th className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
-                      <th>Un</th>
-                      <th>Responsável</th>
-                      {/* A última coluna estica: é ela que come a sobra da
-                          largura, e não a célula que se digita */}
-                      <th style={{ width: '99%' }}>Situação</th>
-                    </tr>
-                  </thead>
+              // Uma planilha por bloco: cada vitrine (ou cada responsável) tem
+              // a sua, com o nome do móvel em cima, o subtotal no rodapé dela e
+              // o "Copiar lista" ao lado do título. Antes era tudo uma tabela
+              // só, com uma linha cinza separando — e a vitrine se perdia no
+              // meio das linhas.
+              <div className="space-y-4">
+                {blocos.map((bloco) => {
+                  const base = indice + 1;
+                  indice += bloco.entries.length;
+                  const temPedido = bloco.entries.some((i) => i.noPedido);
 
-                  <tbody>
-                    {visiveis.length === 0 ? (
-                      <tr>
-                        <td colSpan={13} className="text-center py-8 t-callout">
-                          {mostrar === 'pedido'
-                            ? 'Nada marcado para produzir — digite a quantidade na coluna Produzir'
-                            : 'Todo o padrão do dia está no pedido'}
-                        </td>
-                      </tr>
-                    ) : (
-                      blocos.map((bloco) => (
-                        <React.Fragment key={bloco.key}>
-                          {bloco.title && (
-                            <tr data-grupo="true">
+                  return (
+                    <div key={bloco.key} className="card-flat overflow-hidden">
+                      {bloco.title && (
+                        <div className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b hairline bg-[var(--bg-elevated)]">
+                          <div className="min-w-0">
+                            <h3 className="t-headline text-[#1d1d1f] truncate" title={bloco.title}>
+                              {bloco.title}
+                            </h3>
+                            <p className="t-caption tnum mt-0.5">
+                              {bloco.entries.length} {bloco.entries.length === 1 ? 'item' : 'itens'} ·
+                              {' '}{somaDe(bloco.entries, 'idealQty')} un no padrão ·
+                              {' '}{somaDe(bloco.entries, 'currentQty')} na loja ·
+                              {' '}<strong className="text-[#0058b0] font-bold">
+                                {somaDe(bloco.entries, 'orderQty')} un a produzir
+                              </strong>
+                            </p>
+                          </div>
+                          {temPedido && (
+                            <button
+                              onClick={() => copiarBloco(bloco)}
+                              className="btn btn-secondary btn-sm shrink-0 self-start sm:self-auto"
+                              title={`Copiar a lista de ${bloco.title} — responsável e itens`}
+                            >
+                              <Icons.Copy className="w-3.5 h-3.5" />
+                              {copiado === bloco.key ? 'Copiado!' : 'Copiar lista'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="overflow-x-auto">
+                        <table className="sheet">
+                          <SheetCols />
+                          <thead>
+                            <tr>
+                              <th data-sticky="true" style={{ left: 0 }} className="w-[34px]" title="Entra no pedido">✓</th>
+                              <th data-sticky="true" style={{ left: '34px' }}>Produto</th>
+                              <th className="text-center" title="A–D: quando o item é chamado pela conta">P</th>
+                              <th>{agrupar === 'vitrine' ? 'Espaços' : 'Vitrine'}</th>
+                              <th className="num" title="Quantidade que o padrão do dia manda ter">Padrão</th>
+                              <th className="num" title="Estoque bom, em qualquer vitrine da loja">Na loja</th>
+                              <th className="num" title="Peças vencidas, que vão sair da vitrine">Venc.</th>
+                              <th className="num" title="Padrão menos o que está na loja">Falta</th>
+                              <th className="num" title="Ponto de reposição da prioridade">Mín.</th>
+                              <th className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
+                              <th>Un</th>
+                              <th>Responsável</th>
+                              {/* A última coluna estica: é ela que come a sobra
+                                  da largura, e não a célula que se digita */}
+                              <th style={{ width: '99%' }}>Situação</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {bloco.entries.map((row, i) => renderLinha(row, base + i))}
+                          </tbody>
+
+                          <tfoot>
+                            <tr>
                               <td data-sticky="true" style={{ left: 0 }} />
-                              <td data-sticky="true" style={{ left: '34px' }} className="truncate" title={bloco.title}>
-                                {bloco.title}
+                              <td data-sticky="true" style={{ left: '34px' }}>
+                                {bloco.title ? 'Total do móvel' : 'Total'}
                               </td>
                               <td colSpan={2} className="t-caption text-[11px]">
-                                {bloco.entries.length} {bloco.entries.length === 1 ? 'item' : 'itens'}
+                                {bloco.entries.length} {bloco.entries.length === 1 ? 'linha' : 'linhas'}
                               </td>
                               <td className="num">{somaDe(bloco.entries, 'idealQty')}</td>
                               <td className="num">{somaDe(bloco.entries, 'currentQty')}</td>
@@ -4340,44 +4385,31 @@
                               <td className="num">{somaDe(bloco.entries, 'neededQty') || '—'}</td>
                               <td />
                               <td className="num text-[#0058b0]">{somaDe(bloco.entries, 'orderQty')}</td>
-                              <td colSpan={3}>
-                                {bloco.entries.some((i) => i.noPedido) && (
-                                  <button
-                                    onClick={() => copiarBloco(bloco)}
-                                    className="t-caption text-[11px] underline underline-offset-2 hover:text-[#1d1d1f]"
-                                    title={`Copiar a lista de ${bloco.title}`}
-                                  >
-                                    {copiado === bloco.key ? 'Copiado!' : 'Copiar lista'}
-                                  </button>
-                                )}
+                              <td colSpan={3} className="t-caption text-[11px]">
+                                {bloco.entries.filter((i) => i.noPedido).length} item(ns) no pedido
                               </td>
                             </tr>
-                          )}
-                          {bloco.entries.map((row) => { indice += 1; return renderLinha(row, indice); })}
-                        </React.Fragment>
-                      ))
-                    )}
-                  </tbody>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
 
-                  <tfoot>
-                    <tr>
-                      <td data-sticky="true" style={{ left: 0 }} />
-                      <td data-sticky="true" style={{ left: '34px' }}>Total</td>
-                      <td colSpan={2} className="t-caption text-[11px]">
-                        {visiveis.length} {visiveis.length === 1 ? 'linha' : 'linhas'}
-                      </td>
-                      <td className="num">{somaDe(visiveis, 'idealQty')}</td>
-                      <td className="num">{somaDe(visiveis, 'currentQty')}</td>
-                      <td className="num">{somaDe(visiveis, 'expiredQty') || '—'}</td>
-                      <td className="num">{somaDe(visiveis, 'neededQty') || '—'}</td>
-                      <td />
-                      <td className="num text-[#0058b0]">{somaDe(visiveis, 'orderQty')}</td>
-                      <td colSpan={3} className="t-caption text-[11px]">
-                        {noPedido.length} item(ns) no pedido
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                {/* O fecho do dia, somando todos os blocos */}
+                <div className="card-flat px-4 py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                  <span className="t-headline text-[#1d1d1f]">Total do dia</span>
+                  <span className="t-callout tnum">
+                    {visiveis.length} {visiveis.length === 1 ? 'linha' : 'linhas'} ·
+                    {' '}{somaDe(visiveis, 'idealQty')} un no padrão ·
+                    {' '}{somaDe(visiveis, 'currentQty')} na loja ·
+                    {' '}{somaDe(visiveis, 'neededQty')} de falta
+                  </span>
+                  <span className="t-headline tnum text-[#0058b0]">
+                    {somaDe(visiveis, 'orderQty')} un a produzir
+                    <span className="t-caption ml-1.5">em {noPedido.length} item(ns)</span>
+                  </span>
+                </div>
               </div>
             )}
 
