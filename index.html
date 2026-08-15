@@ -684,36 +684,38 @@
       // ------------------------------------------
       // Prioridade do item na vitrine padrão
       //
-      // A letra não é só etiqueta: ela decide em que ponto o pedido de produção
-      // chama o item. O que não pode faltar (A) é chamado ainda com meia
-      // vitrine; o que é extra (D) só quando está quase acabando.
+      // A letra é etiqueta de organização, e só. Quem decide quando o pedido
+      // chama o item é a quantidade mínima daquele dia, digitada na vitrine
+      // padrão — antes o mínimo saía de uma porcentagem da letra, e o pedido
+      // acabava chamando item que estava bem e deixando de chamar item que
+      // estava acabando. A letra continua servindo para ordenar e filtrar as
+      // listas: o que não pode faltar aparece primeiro.
       //
       // A cor não é semáforo: vermelho e laranja aqui davam ar de alerta em
       // item que está perfeitamente bem. A escala é uma só — azul do sistema
-      // indo até o cinza — e diz apenas o peso do item: quanto mais forte,
-      // mais cedo ele entra no pedido. Vermelho fica reservado para o que é
-      // problema de verdade (vencido, perda, apagar).
+      // indo até o cinza — e diz apenas o peso do item. Vermelho fica
+      // reservado para o que é problema de verdade (vencido, perda, apagar).
       // ------------------------------------------
       const PRIORITIES = [
         {
-          value: 'A', title: 'A · não pode faltar', ratio: 0.50,
+          value: 'A', title: 'A · não pode faltar',
           pill: 'bg-[#0071e3] text-white', dot: 'bg-[#0071e3]',
-          hint: 'Carro-chefe: entra no pedido assim que cai para metade do padrão'
+          hint: 'Carro-chefe da loja: aparece no topo das listas'
         },
         {
-          value: 'B', title: 'B · importante', ratio: 0.30,
+          value: 'B', title: 'B · importante',
           pill: 'bg-[#0071e3]/[0.12] text-[#0058b0]', dot: 'bg-[#0071e3]/55',
-          hint: 'Entra no pedido com 30% do padrão na vitrine'
+          hint: 'Item de peso, logo depois dos carros-chefes'
         },
         {
-          value: 'C', title: 'C · complementar', ratio: 0.20,
+          value: 'C', title: 'C · complementar',
           pill: 'bg-black/[0.06] text-[#6e6e73]', dot: 'bg-[#c7c7cc]',
-          hint: 'Entra no pedido com 20% do padrão na vitrine'
+          hint: 'Acompanha a vitrine, sem ser o destaque dela'
         },
         {
-          value: 'D', title: 'D · extra', ratio: 0.10,
+          value: 'D', title: 'D · extra',
           pill: 'bg-white text-[#6e6e73] ring-1 ring-inset ring-black/[0.12]', dot: 'bg-black/[0.16]',
-          hint: 'Só é chamado quando está quase acabando (10% do padrão)'
+          hint: 'Entra quando dá — fica no fim das listas'
         }
       ];
 
@@ -810,10 +812,17 @@
       const productsForShowcaseType = (products, showcaseType) =>
         products.filter((p) => showcaseTypeOfCategory(p.category) === showcaseType);
 
-      // Ponto de reposição: o pedido de produção só chama o item quando o
-      // estoque bom dele cai nesta fatia do que o padrão do dia manda ter.
-      // A fatia vem da prioridade do item (A repõe cedo, D repõe no fim).
-      const minStockRatio = (priority) => getPriority(priority).ratio;
+      // Quantidade mínima de um produto em um dia: a soma do mínimo dos espaços
+      // que o padrão daquele dia reservou para ele. É o ponto de reposição do
+      // pedido de produção — quando o estoque bom da loja fica igual ou abaixo
+      // dele, o item é chamado. Zero quer dizer "só quando acabar".
+      const planMinQty = (planos) => planos.reduce((soma, p) => soma + (p.minQty || 0), 0);
+
+      // Mínimo sugerido para um item que está entrando no padrão agora: o
+      // mínimo de reposição do catálogo do produto. É só o ponto de partida —
+      // a loja digita o número dela na vitrine padrão.
+      const defaultMinQty = (product, idealQty) =>
+        Math.max(0, Math.min(Number(product?.minReplenishmentQty) || 0, idealQty || 0));
 
       // Ordem em que as vitrines aparecem nas listas
       const SHOWCASE_TYPE_ORDER = { salgada: 0, doce: 1, sobremesa: 2 };
@@ -1046,6 +1055,7 @@
         slotId: row.slot_code,
         productId: row.product_id,
         idealQty: row.ideal_qty,
+        minQty: row.min_qty || 0,
         unitOfMeasure: row.unit_of_measure,
         priority: row.priority || DEFAULT_PRIORITY,
         frequency: row.frequency || 'dias'
@@ -1143,7 +1153,10 @@
           productionRecords: (production || []).map(fromProduction),
           productionReady: production !== null,
           // Banco antigo: as linhas do padrão vêm sem prioridade e frequência
-          planExtrasReady: (plans || []).length === 0 || (plans || [])[0].priority !== undefined
+          planExtrasReady: (plans || []).length === 0 || (plans || [])[0].priority !== undefined,
+          // A quantidade mínima por dia chegou depois: um banco que ainda não
+          // rodou a versão nova do schema.sql continua salvando o padrão sem ela
+          planMinReady: (plans || []).length === 0 || (plans || [])[0].min_qty !== undefined
         };
       };
 
@@ -2842,15 +2855,16 @@
       // ==========================================
       // ORGANIZAR ITEM DA VITRINE PADRÃO
       //
-      // Uma janelinha por espaço: prioridade (A a D), em que dias o item entra
-      // e a quantidade ideal. É aqui que "todo dia" vira as sete linhas da
-      // semana sem precisar copiar dia por dia.
+      // Uma janelinha por espaço: prioridade (A a D), em que dias o item entra,
+      // a quantidade ideal e o mínimo. É aqui que "todo dia" vira as sete
+      // linhas da semana sem precisar copiar dia por dia.
       // ==========================================
-      const PlanOrganizeModal = ({ slot, product, priority, days, idealQty, onClose, onSave, onRemove }) => {
+      const PlanOrganizeModal = ({ slot, product, priority, days, idealQty, minQty, onClose, onSave, onRemove }) => {
         if (!slot) return null;
         const [prio, setPrio] = useState(priority || DEFAULT_PRIORITY);
         const [selectedDays, setSelectedDays] = useState(days && days.length ? days : []);
         const [qty, setQty] = useState(idealQty || 1);
+        const [min, setMin] = useState(minQty || 0);
 
         const todoDia = selectedDays.length === WEEK_DAYS.length;
 
@@ -2867,7 +2881,15 @@
             alert('Marque pelo menos um dia — ou use "Tirar do padrão" para remover o item.');
             return;
           }
-          onSave({ priority: prio, days: selectedDays, idealQty: Math.max(1, Number(qty) || 1) });
+          const ideal = Math.max(1, Number(qty) || 1);
+          onSave({
+            priority: prio,
+            days: selectedDays,
+            idealQty: ideal,
+            // Mínimo acima do padrão chamaria o item para sempre: o teto é o
+            // próprio padrão do dia
+            minQty: Math.max(0, Math.min(Math.floor(Number(min) || 0), ideal))
+          });
           onClose();
         };
 
@@ -2946,16 +2968,35 @@
                 </p>
               </div>
 
-              <div>
-                <label className="t-caption block mb-1.5">Quantidade ideal por dia</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  className="field field-md text-center font-extrabold tnum"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="t-caption block mb-1.5">Quantidade ideal por dia</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    title="Quanto este espaço deve ter no dia"
+                    className="field field-md text-center font-extrabold tnum"
+                  />
+                </div>
+                <div>
+                  <label className="t-caption block mb-1.5">Quantidade mínima</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={min}
+                    onChange={(e) => setMin(e.target.value)}
+                    title="O pedido de produção chama o item quando o estoque da loja chega neste número. 0 = só quando acabar"
+                    className="field field-md text-center font-extrabold tnum"
+                  />
+                </div>
               </div>
+              <p className="t-caption -mt-1">
+                O mínimo vale para os dias marcados acima e é ele que chama o item no pedido de
+                produção: quando a loja chega nele, o pedido manda fazer a fornada do padrão.
+                0 = só quando acabar.
+              </p>
 
               <div className="flex justify-between gap-2 pt-1">
                 <button
@@ -2986,7 +3027,34 @@
       //
       // A quantidade é digitada na própria célula: dá para montar a semana
       // inteira de um produto sem trocar de dia.
+      //
+      // A mesma grade edita duas coisas, uma de cada vez: o PADRÃO do dia
+      // (quanto a vitrine deve ter) e o MÍNIMO do dia (em que ponto o pedido
+      // de produção chama o item). São as duas quantidades que a cozinha
+      // precisa por item e por dia, e cada uma tem a sua leitura da semana.
       // ==========================================
+
+      // Os dois números que a grade da semana edita
+      const WEEK_FIELDS = [
+        {
+          value: 'padrao', label: 'Padrão',
+          title: 'Quantidade por dia',
+          heading: 'A semana inteira',
+          hint: 'Clique na quantidade para mudar — 0 tira o produto do dia.',
+          cellHint: 'digite a quantidade (0 tira do dia)',
+          columnLabel: 'Padrão'
+        },
+        {
+          value: 'minimo', label: 'Mínimo',
+          title: 'Quantidade mínima por dia',
+          heading: 'O mínimo da semana',
+          hint: 'O pedido chama o item quando o estoque da loja chega neste número — 0 é só quando acabar.',
+          cellHint: 'digite o mínimo (0 = só quando acabar)',
+          columnLabel: 'Mínimo'
+        }
+      ];
+
+      const getWeekField = (value) => WEEK_FIELDS.find((f) => f.value === value) || WEEK_FIELDS[0];
 
       // Uma célula da tabela: mostra a quantidade e vira campo ao clicar.
       // Enter e sair do campo gravam, Esc desfaz.
@@ -3034,12 +3102,17 @@
         standardPlans,
         selectedDay,
         onSelectDay,
-        onSetWeeklyQty
+        onSetWeeklyQty,
+        onSetWeeklyMin
       }) => {
         const [aberto, setAberto] = useState(true);
         const [busca, setBusca] = useState('');
         const [ordem, setOrdem] = useState('total');
+        const [campo, setCampo] = useState('padrao');
         const [copiado, setCopiado] = useState(false);
+
+        const editandoMinimo = campo === 'minimo';
+        const campoAtual = getWeekField(campo);
 
         const slotById = useMemo(() => {
           const map = {};
@@ -3061,9 +3134,11 @@
                   nome: produto?.name || 'Produto removido',
                   vitrines: [],
                   dias: {},
+                  minimos: {},
                   espacos: {},
                   prioridade: null,
-                  total: 0
+                  total: 0,
+                  totalMinimo: 0
                 };
               }
 
@@ -3073,8 +3148,10 @@
                 linha.vitrines.push(slot.sectionTitle);
               }
               linha.dias[sp.dayOfWeek] = (linha.dias[sp.dayOfWeek] || 0) + (sp.idealQty || 0);
+              linha.minimos[sp.dayOfWeek] = (linha.minimos[sp.dayOfWeek] || 0) + (sp.minQty || 0);
               linha.espacos[sp.dayOfWeek] = (linha.espacos[sp.dayOfWeek] || 0) + 1;
               linha.total += sp.idealQty || 0;
+              linha.totalMinimo += sp.minQty || 0;
 
               // Quando o produto entra com letras diferentes em dias ou
               // espaços diferentes, vale a mais urgente. A primeira letra que
@@ -3096,7 +3173,8 @@
               freqLabel: frequencyLabel(diasDoItem),
               freqTitle: frequencyTitle(diasDoItem),
               todoDia: diasAtivos >= WEEK_DAYS.length,
-              media: diasAtivos ? linha.total / diasAtivos : 0
+              media: diasAtivos ? linha.total / diasAtivos : 0,
+              mediaMinimo: diasAtivos ? linha.totalMinimo / diasAtivos : 0
             };
           });
         }, [standardPlans, currentUnit, products, slotById]);
@@ -3122,28 +3200,39 @@
           });
         }, [linhas, busca, ordem]);
 
+        // A leitura de baixo acompanha o que está sendo editado: somar padrão
+        // com a grade do mínimo na tela daria um total que não é de nada
+        const valorDoDia = (linha, day) =>
+          (editandoMinimo ? linha.minimos[day] : linha.dias[day]) || 0;
+
         const totalPorDia = useMemo(() => {
           const contas = {};
           WEEK_DAYS.forEach((d) => {
-            contas[d] = visiveis.reduce((acc, l) => acc + (l.dias[d] || 0), 0);
+            contas[d] = visiveis.reduce((acc, l) => acc + valorDoDia(l, d), 0);
           });
           return contas;
-        }, [visiveis]);
+        }, [visiveis, editandoMinimo]);
 
         const totalSemana = useMemo(
-          () => visiveis.reduce((acc, l) => acc + l.total, 0),
-          [visiveis]
+          () => visiveis.reduce((acc, l) => acc + (editandoMinimo ? l.totalMinimo : l.total), 0),
+          [visiveis, editandoMinimo]
         );
 
         const formatarMedia = (valor) =>
           (Math.round(valor * 10) / 10).toString().replace('.', ',');
 
-        // Sai com tabulação: cola direto no Excel ou no Google Planilhas
+        // Sai com tabulação: cola direto no Excel ou no Google Planilhas. Vai a
+        // grade que está na tela — padrão ou mínimo —, dita já na primeira
+        // coluna para a planilha colada não virar número sem nome
         const handleCopy = async () => {
           const linhasTexto = [
-            ['Produto', 'Prioridade', 'Frequência', ...WEEK_DAYS.map(getDayShortBR), 'Total semana'].join('\t'),
+            [campoAtual.columnLabel, 'Prioridade', 'Frequência', ...WEEK_DAYS.map(getDayShortBR), 'Total semana'].join('\t'),
             ...visiveis.map((l) =>
-              [l.nome, l.prioridade, l.freqLabel, ...WEEK_DAYS.map((d) => l.dias[d] || 0), l.total].join('\t')
+              [
+                l.nome, l.prioridade, l.freqLabel,
+                ...WEEK_DAYS.map((d) => valorDoDia(l, d)),
+                editandoMinimo ? l.totalMinimo : l.total
+              ].join('\t')
             ),
             ['Total', '', '', ...WEEK_DAYS.map((d) => totalPorDia[d]), totalSemana].join('\t')
           ];
@@ -3161,14 +3250,14 @@
               <div className="min-w-0">
                 <div className="t-overline flex items-center gap-1.5 mb-1.5">
                   <Icons.ClipboardList className="w-3.5 h-3.5" />
-                  Quantidade por dia
+                  {campoAtual.title}
                 </div>
-                <h3 className="t-title text-[#1d1d1f]">A semana inteira</h3>
+                <h3 className="t-title text-[#1d1d1f]">{campoAtual.heading}</h3>
                 <p className="t-caption mt-1">
                   {linhas.length} produtos no padrão · {WEEK_DAYS.reduce((acc, d) => acc + (totalPorDia[d] || 0), 0)} un na semana
                 </p>
                 <p className="t-caption mt-0.5">
-                  Clique na quantidade para mudar — 0 tira o produto do dia.
+                  {campoAtual.hint}
                 </p>
               </div>
 
@@ -3187,8 +3276,8 @@
 
             {aberto && (
               <>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-4">
-                  <div className="relative flex-1 max-w-xs">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mt-4">
+                  <div className="relative flex-1 min-w-[180px] max-w-xs">
                     <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
                     <input
                       type="text"
@@ -3198,6 +3287,25 @@
                       className="field field-sm field-search"
                     />
                   </div>
+                  {/* O que a grade edita. São duas quantidades por item e por
+                      dia — quanto a vitrine deve ter e em que ponto o pedido
+                      chama o item — e cada uma tem a sua leitura da semana */}
+                  <div className="flex items-center gap-2">
+                    <span className="t-caption">Editando</span>
+                    <div className="segmented">
+                      {WEEK_FIELDS.map((f) => (
+                        <button
+                          key={f.value}
+                          onClick={() => setCampo(f.value)}
+                          data-active={campo === f.value}
+                          title={f.hint}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <span className="t-caption">Ordenar</span>
                     <div className="segmented">
@@ -3238,7 +3346,7 @@
                             Produto
                           </th>
                           <th className="text-center t-overline font-bold px-1.5 py-2 border-b border-r hairline"
-                              title="A–D: a importância do item, que decide quando ele é chamado no pedido">
+                              title="A–D: a importância do item, para ordenar e filtrar a lista">
                             P
                           </th>
                           <th className="text-left t-overline font-bold px-2.5 py-2 border-b border-r hairline whitespace-nowrap"
@@ -3303,8 +3411,26 @@
                             </td>
 
                             {WEEK_DAYS.map((day) => {
-                              const qtd = linha.dias[day] || 0;
+                              const valor = valorDoDia(linha, day);
                               const espacos = linha.espacos[day] || 0;
+                              const noDia = (linha.dias[day] || 0) > 0 || espacos > 0;
+
+                              // Mínimo de um dia em que o item não entra não
+                              // existe: a célula fica apagada em vez de abrir
+                              // um campo que não teria onde gravar
+                              if (editandoMinimo && !noDia) {
+                                return (
+                                  <td
+                                    key={day}
+                                    data-hoje={selectedDay === day}
+                                    className="px-1 py-1 text-center text-[#d2d2d7]"
+                                    title={`${linha.nome} não entra em ${getDayNameBR(day)} — coloque no padrão do dia primeiro`}
+                                  >
+                                    ·
+                                  </td>
+                                );
+                              }
+
                               return (
                                 <td
                                   key={day}
@@ -3312,23 +3438,27 @@
                                   className="px-1 py-1"
                                 >
                                   <WeeklyQtyCell
-                                    value={qtd}
+                                    value={valor}
                                     title={
                                       espacos > 1
-                                        ? `${linha.nome} · ${getDayNameBR(day)} — ${espacos} espaços; a quantidade é repartida entre eles`
-                                        : `${linha.nome} · ${getDayNameBR(day)} — digite a quantidade (0 tira do dia)`
+                                        ? `${linha.nome} · ${getDayNameBR(day)} — ${espacos} espaços; o número é repartido entre eles`
+                                        : `${linha.nome} · ${getDayNameBR(day)} — ${campoAtual.cellHint}`
                                     }
-                                    onCommit={(nova) => onSetWeeklyQty(day, linha.id, nova)}
+                                    onCommit={(nova) => (editandoMinimo
+                                      ? onSetWeeklyMin(day, linha.id, nova)
+                                      : onSetWeeklyQty(day, linha.id, nova))}
                                   />
                                 </td>
                               );
                             })}
 
                             <td className="text-right px-2.5 py-1.5 whitespace-nowrap">
-                              <span className="tnum font-extrabold text-[#1d1d1f]">{linha.total}</span>
+                              <span className="tnum font-extrabold text-[#1d1d1f]">
+                                {editandoMinimo ? linha.totalMinimo : linha.total}
+                              </span>
                               {linha.diasAtivos > 1 && (
                                 <span className="t-caption tnum text-[11px] block">
-                                  {formatarMedia(linha.media)}/dia
+                                  {formatarMedia(editandoMinimo ? linha.mediaMinimo : linha.media)}/dia
                                 </span>
                               )}
                             </td>
@@ -3392,6 +3522,7 @@
         onRemovePlanItem,
         onUpdatePlanSchedule,
         onSetWeeklyQty,
+        onSetWeeklyMin,
         onCopyDayPlan,
         onClearDayPlan,
         onGenerateProductionOrder
@@ -3470,9 +3601,9 @@
                   <h2 className="t-display">Vitrine padrão</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     Defina como a vitrine deve ser montada em cada dia — {unitName}.
-                    Toque na etiqueta A–D do item para dar prioridade e escolher os dias
-                    em que ele entra: quanto mais forte a marca, mais cedo ele é chamado
-                    no pedido de produção.
+                    Cada item tem dois números por dia: a quantidade do padrão e a
+                    quantidade mínima, que é a que chama o item no pedido de produção.
+                    Os dois se digitam na tabela da semana, aqui embaixo.
                   </p>
                 </div>
 
@@ -3516,7 +3647,7 @@
               <div className="flex flex-wrap items-center gap-2">
                 <span className="t-callout mr-0.5" title={
                   priorityFilter === 'todas'
-                    ? 'A prioridade diz quando o item entra no pedido de produção'
+                    ? 'A prioridade organiza a lista — quem decide o pedido é a quantidade mínima'
                     : getPriority(priorityFilter).hint
                 }>
                   Prioridade
@@ -3700,10 +3831,29 @@
                                   <div className="h-1 rounded-full bg-[#0071e3]/45" style={{ width: `${fatia}%` }} />
                                 </div>
 
-                                <p className="t-caption text-[11px] mt-1.5 flex items-center gap-1 truncate">
-                                  <Icons.User className="w-3 h-3 shrink-0" />
-                                  <span className="truncate">{getResponsibleName(product)}</span>
-                                </p>
+                                <div className="flex items-center justify-between gap-2 mt-1.5">
+                                  <p className="t-caption text-[11px] flex items-center gap-1 truncate min-w-0">
+                                    <Icons.User className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{getResponsibleName(product)}</span>
+                                  </p>
+                                  {/* O mínimo é o que chama o item no pedido:
+                                      fica à vista no espaço, sem precisar abrir
+                                      a janelinha para conferir */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
+                                    title={
+                                      (planItem.minQty || 0) > 0
+                                        ? `Mínimo de ${planItem.minQty} neste espaço — o pedido chama o item quando a loja chega nele. Clique para mudar`
+                                        : 'Sem mínimo — o item só é chamado quando acaba. Clique para dar um mínimo'
+                                    }
+                                    className="t-caption text-[11px] tnum shrink-0 hover:text-[#1d1d1f] transition-colors"
+                                  >
+                                    mín. <span className={(planItem.minQty || 0) > 0 ? 'font-bold text-[#1d1d1f]' : ''}>
+                                      {planItem.minQty || 0}
+                                    </span>
+                                  </button>
+                                </div>
                               </>
                             )}
                           </div>
@@ -3723,6 +3873,7 @@
               selectedDay={selectedDay}
               onSelectDay={onSelectDay}
               onSetWeeklyQty={onSetWeeklyQty}
+              onSetWeeklyMin={onSetWeeklyMin}
             />
 
             {organizing && (
@@ -3732,9 +3883,10 @@
                 priority={organizing.plan.priority}
                 days={organizing.dias}
                 idealQty={organizing.plan.idealQty}
+                minQty={organizing.plan.minQty}
                 onClose={() => setOrganizing(null)}
-                onSave={({ priority, days, idealQty }) =>
-                  onUpdatePlanSchedule(organizing.slot.id, organizing.plan.productId, { priority, days, idealQty })
+                onSave={({ priority, days, idealQty, minQty }) =>
+                  onUpdatePlanSchedule(organizing.slot.id, organizing.plan.productId, { priority, days, idealQty, minQty })
                 }
                 onRemove={() => onRemovePlanItem(organizing.plan.id)}
               />
@@ -3938,7 +4090,9 @@
               };
               grupos.push(porProduto[plan.productId]);
             }
-            porProduto[plan.productId].plans.push({ slot, idealQty: plan.idealQty, priority: plan.priority });
+            porProduto[plan.productId].plans.push({
+              slot, idealQty: plan.idealQty, minQty: plan.minQty || 0, priority: plan.priority
+            });
           });
 
           return grupos.map((grupo) => {
@@ -3954,11 +4108,13 @@
               .map((p) => getPriority(p.priority).value)
               .sort((a, b) => priorityRank(a) - priorityRank(b))[0] || DEFAULT_PRIORITY;
 
-            // Sugestão da conta: o item é chamado quando o estoque bom chega
-            // no mínimo da prioridade dele, ou quando tem peça vencida para
-            // repor. É só o preenchimento inicial da coluna Produzir — a
-            // última palavra é a que for digitada na célula.
-            const minQty = Math.max(1, Math.ceil(idealQty * minStockRatio(priority)));
+            // Sugestão da conta: o item é chamado quando o estoque bom da loja
+            // fica igual ou abaixo da quantidade mínima que a vitrine padrão
+            // guarda para este produto NESTE dia, ou quando tem peça vencida
+            // para repor. Mínimo zero é "só quando acabar". É só o
+            // preenchimento inicial da coluna Produzir — a última palavra é a
+            // que for digitada na célula.
+            const minQty = planMinQty(grupo.plans);
             const belowMin = currentQty <= minQty;
             const suggested = neededQty > 0 && (belowMin || estoque.expired > 0);
 
@@ -4306,8 +4462,19 @@
               {row.expiredQty || '—'}
             </td>
             <td className="num">{row.neededQty || '—'}</td>
-            <td className="num text-[#86868b]" title={`Ponto de reposição da prioridade ${row.priority}`}>
-              {row.minQty}
+            <td
+              className={`num ${row.belowMin ? 'text-[#0058b0] font-bold' : 'text-[#86868b]'}`}
+              title={
+                row.minQty > 0
+                  ? `Mínimo de ${row.productName} em ${getDayNameBR(selectedDay).toLowerCase()}: ${row.minQty} ${row.unitOfMeasure}`
+                    + ` — na loja tem ${row.currentQty}.`
+                    + ` ${row.belowMin ? 'Está no mínimo, por isso é chamado.' : 'Acima do mínimo.'}`
+                    + ' Para mudar, digite na tabela da semana, na aba Vitrine padrão.'
+                  : 'Sem mínimo neste dia — o item só é chamado quando acaba.'
+                    + ' Para dar um mínimo, digite na tabela da semana, na aba Vitrine padrão.'
+              }
+            >
+              {row.minQty || '—'}
             </td>
 
             <td className="p-0">
@@ -4528,14 +4695,14 @@
                             <tr>
                               <th data-sticky="true" style={{ left: 0 }} className="w-[34px]" title="Entra no pedido">✓</th>
                               <th data-sticky="true" style={{ left: '34px' }}>Produto</th>
-                              <th className="text-center" title="A–D: quando o item é chamado pela conta">P</th>
+                              <th className="text-center" title="A–D: a importância do item, para ordenar e filtrar a lista">P</th>
                               <th title="Em quantos dias da semana o item entra no padrão">Freq.</th>
                               <th>{agrupar === 'vitrine' ? 'Espaços' : 'Vitrine'}</th>
                               <th className="num" title="Quantidade que o padrão do dia manda ter">Padrão</th>
                               <th className="num" title="Estoque bom, em qualquer vitrine da loja">Na loja</th>
                               <th className="num" title="Peças vencidas, que vão sair da vitrine">Venc.</th>
                               <th className="num" title="Padrão menos o que está na loja">Falta</th>
-                              <th className="num" title="Ponto de reposição da prioridade">Mín.</th>
+                              <th className="num" title="Quantidade mínima do item neste dia — o item é chamado quando o estoque bom chega nela. Digite na tabela da semana, na aba Vitrine padrão">Mín.</th>
                               <th className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
                               <th>Un</th>
                               <th>Responsável</th>
@@ -4593,13 +4760,15 @@
             )}
 
             <p className="t-caption px-1">
-              A quantidade sugerida é a do padrão do dia — a fornada inteira, nunca "mais 1" para
-              completar bandeja. A conta chama o item quando o estoque bom chega no mínimo da
-              prioridade (A {Math.round(getPriority('A').ratio * 100)}% · B {Math.round(getPriority('B').ratio * 100)}% ·
-              C {Math.round(getPriority('C').ratio * 100)}% · D {Math.round(getPriority('D').ratio * 100)}% do padrão)
-              ou quando tem peça vencida para repor; o vencido não conta como estoque. Quando o produto
-              ocupa mais de um espaço, a quantidade digitada é repartida entre eles na proporção do padrão.
-              No teclado: ↑ ↓ andam pela coluna, Enter desce, Tab vai para a próxima célula.
+              A conta chama o item quando o estoque bom da loja fica igual ou abaixo da
+              <strong className="text-[#1d1d1f] font-semibold"> quantidade mínima
+              de {getDayNameBR(selectedDay).toLowerCase()}</strong> — a que está digitada na tabela da
+              semana, na aba Vitrine padrão — ou quando tem peça vencida para repor; o vencido não conta
+              como estoque e mínimo zero é "só quando acabar". A quantidade sugerida é a do padrão do
+              dia — a fornada inteira, nunca "mais 1" para completar bandeja. A letra A–D não entra na
+              conta: ela só organiza as listas. Quando o produto ocupa mais de um espaço, a quantidade
+              digitada é repartida entre eles na proporção do padrão. No teclado: ↑ ↓ andam pela coluna,
+              Enter desce, Tab vai para a próxima célula.
             </p>
           </div>
         );
@@ -6675,6 +6844,8 @@
         const [productionReady, setProductionReady] = useState(true);
         // Falso enquanto standard_plans não tiver prioridade e frequência
         const [planExtrasReady, setPlanExtrasReady] = useState(true);
+        // Falso enquanto standard_plans não tiver a quantidade mínima por dia
+        const [planMinReady, setPlanMinReady] = useState(true);
 
         // { item, mode } — o modo diz se a janela abre em venda ou em perda
         const [decreaseTarget, setDecreaseTarget] = useState(null);
@@ -6735,6 +6906,7 @@
           setProductionRecords(data.productionRecords);
           setProductionReady(data.productionReady);
           setPlanExtrasReady(data.planExtrasReady);
+          setPlanMinReady(data.planMinReady);
           setCurrentUnit((atual) => (data.units.some((u) => u.code === atual) ? atual : data.units[0]?.code || ''));
           setLastSync(new Date());
         };
@@ -7144,6 +7316,16 @@
         const withPlanExtras = (linha, priority, frequency) =>
           planExtrasReady ? { ...linha, priority, frequency } : linha;
 
+        // O mesmo cuidado com a quantidade mínima por dia: banco que ainda não
+        // rodou a versão nova do schema.sql grava o padrão sem ela
+        const withPlanMin = (linha, minQty) =>
+          planMinReady ? { ...linha, min_qty: Math.max(0, Math.floor(minQty) || 0) } : linha;
+
+        // O mínimo nunca passa do padrão daquele espaço: acima disso o item
+        // seria chamado no pedido todo dia, com a vitrine cheia
+        const limitarMin = (minQty, idealQty) =>
+          Math.max(0, Math.min(Math.floor(Number(minQty) || 0), Math.max(0, idealQty || 0)));
+
         // Em quantos dias o produto deste espaço fica, contando o dia que
         // acabou de entrar — é o que a coluna "frequency" guarda
         const frequencyFor = (slotId, productId, extraDay) => {
@@ -7161,28 +7343,38 @@
           const prioridade = getPriority(priority).value;
           const frequencia = frequencyFor(slotId, productId, selectedDay);
 
+          // Trocar o produto do espaço zera o mínimo do que estava lá: ele era
+          // do outro item. Item novo começa com o mínimo de reposição do
+          // catálogo, e a loja ajusta na tabela da semana
+          const minimo = existing && existing.productId === productId
+            ? limitarMin(existing.minQty, idealQty)
+            : limitarMin(defaultMinQty(prod, idealQty), idealQty);
+
           write('Salvar vitrine padrão', async () => {
             if (existing) {
               await run('standard_plans', sb.from('standard_plans')
-                .update(withPlanExtras({ product_id: productId, ideal_qty: idealQty }, prioridade, frequencia))
+                .update(withPlanMin(
+                  withPlanExtras({ product_id: productId, ideal_qty: idealQty }, prioridade, frequencia),
+                  minimo
+                ))
                 .eq('id', existing.id));
               setStandardPlans((prev) => prev.map((sp) =>
                 sp.id === existing.id
-                  ? { ...sp, productId, idealQty, priority: prioridade, frequency: frequencia }
+                  ? { ...sp, productId, idealQty, minQty: minimo, priority: prioridade, frequency: frequencia }
                   : sp
               ));
               return;
             }
 
             const linhas = await run('standard_plans', sb.from('standard_plans').insert(
-              withPlanExtras({
+              withPlanMin(withPlanExtras({
                 unit_code: currentUnit,
                 day_of_week: selectedDay,
                 slot_code: slotId,
                 product_id: productId,
                 ideal_qty: idealQty,
                 unit_of_measure: prod.defaultUnit || 'un'
-              }, prioridade, frequencia)
+              }, prioridade, frequencia), minimo)
             ).select());
             setStandardPlans((prev) => [...prev, fromPlan(linhas[0])]);
           });
@@ -7194,10 +7386,11 @@
         // item só dele. Se o espaço já tinha outro produto em um dia marcado,
         // esse dia passa a ser deste produto.
         // ------------------------------------------
-        const handleUpdatePlanSchedule = (slotId, productId, { priority, days, idealQty }) => {
+        const handleUpdatePlanSchedule = (slotId, productId, { priority, days, idealQty, minQty }) => {
           const prod = products.find((p) => p.id === productId);
           if (!prod || !days || days.length === 0) return;
 
+          const minimo = limitarMin(minQty, idealQty);
           const prioridade = getPriority(priority).value;
           const frequencia = days.length >= WEEK_DAYS.length ? 'todo_dia' : 'dias';
           const medida = prod.defaultUnit || 'un';
@@ -7227,25 +7420,25 @@
 
             if (aAtualizar.length > 0) {
               await run('standard_plans', sb.from('standard_plans')
-                .update(withPlanExtras({
+                .update(withPlanMin(withPlanExtras({
                   product_id: productId,
                   ideal_qty: idealQty,
                   unit_of_measure: medida
-                }, prioridade, frequencia))
+                }, prioridade, frequencia), minimo))
                 .in('id', aAtualizar));
             }
 
             let novos = [];
             if (aInserir.length > 0) {
               const linhas = await run('standard_plans', sb.from('standard_plans').insert(
-                aInserir.map((day) => withPlanExtras({
+                aInserir.map((day) => withPlanMin(withPlanExtras({
                   unit_code: currentUnit,
                   day_of_week: day,
                   slot_code: slotId,
                   product_id: productId,
                   ideal_qty: idealQty,
                   unit_of_measure: medida
-                }, prioridade, frequencia))
+                }, prioridade, frequencia), minimo))
               ).select());
               novos = linhas.map(fromPlan);
             }
@@ -7254,7 +7447,10 @@
               ...prev
                 .filter((sp) => !aApagar.includes(sp.id))
                 .map((sp) => aAtualizar.includes(sp.id)
-                  ? { ...sp, productId, idealQty, priority: prioridade, frequency: frequencia, unitOfMeasure: medida }
+                  ? {
+                    ...sp, productId, idealQty, minQty: minimo,
+                    priority: prioridade, frequency: frequencia, unitOfMeasure: medida
+                  }
                   : sp),
               ...novos
             ]);
@@ -7294,16 +7490,21 @@
             const ordenados = [...doDia].sort((a, b) => (b.idealQty || 0) - (a.idealQty || 0));
             const base = Math.floor(qtd / ordenados.length);
             const resto = qtd % ordenados.length;
-            const fatias = ordenados.map((sp, i) => ({ id: sp.id, qtd: base + (i < resto ? 1 : 0) }));
+            // Baixar o padrão abaixo do mínimo deixaria o item sendo chamado
+            // com a vitrine cheia: o mínimo desce junto
+            const fatias = ordenados.map((sp, i) => {
+              const nova = base + (i < resto ? 1 : 0);
+              return { id: sp.id, qtd: nova, min: limitarMin(sp.minQty, nova) };
+            });
 
             write('Salvar quantidade da semana', async () => {
               for (const fatia of fatias) {
                 await run('standard_plans', sb.from('standard_plans')
-                  .update({ ideal_qty: fatia.qtd }).eq('id', fatia.id));
+                  .update(withPlanMin({ ideal_qty: fatia.qtd }, fatia.min)).eq('id', fatia.id));
               }
               setStandardPlans((prev) => prev.map((sp) => {
                 const fatia = fatias.find((f) => f.id === sp.id);
-                return fatia ? { ...sp, idealQty: fatia.qtd } : sp;
+                return fatia ? { ...sp, idealQty: fatia.qtd, minQty: fatia.min } : sp;
               }));
             });
             return;
@@ -7346,19 +7547,80 @@
 
           const prioridade = getPriority(outrosDias[0]?.priority).value;
           const frequencia = frequencyFor(alvo, productId, day);
+          // O mínimo do dia novo é o que o produto já usa nos outros dias —
+          // a loja não precisa redigitar item por item quando ele entra em
+          // mais um dia. Sem outros dias, vale o mínimo do catálogo.
+          const minimo = limitarMin(
+            outrosDias.length > 0
+              ? Math.max(...outrosDias.map((sp) => sp.minQty || 0))
+              : defaultMinQty(prod, qtd),
+            qtd
+          );
 
           write('Colocar o produto no dia', async () => {
             const linhas = await run('standard_plans', sb.from('standard_plans').insert(
-              withPlanExtras({
+              withPlanMin(withPlanExtras({
                 unit_code: currentUnit,
                 day_of_week: day,
                 slot_code: alvo,
                 product_id: productId,
                 ideal_qty: qtd,
                 unit_of_measure: prod.defaultUnit || 'un'
-              }, prioridade, frequencia)
+              }, prioridade, frequencia), minimo)
             ).select());
             setStandardPlans((prev) => [...prev, fromPlan(linhas[0])]);
+          });
+        };
+
+        // ------------------------------------------
+        // Editar a quantidade MÍNIMA direto na tabela da semana.
+        //
+        // É o número que manda no pedido de produção: quando o estoque bom da
+        // loja fica igual ou abaixo dele naquele dia, o item é chamado e o
+        // pedido pede a fornada do padrão. Zero é "só quando acabar".
+        //
+        // A célula é o produto em um dia, como a do padrão, e o mesmo produto
+        // pode estar em mais de um espaço: o mínimo é repartido entre eles, sem
+        // passar do padrão de cada um. Um produto que não entra naquele dia não
+        // tem onde guardar mínimo — a célula nem abre para digitar.
+        // ------------------------------------------
+        const handleSetWeeklyMin = (day, productId, novoMin) => {
+          if (!planMinReady) {
+            alert(
+              'O banco ainda não tem a coluna da quantidade mínima. Rode o arquivo ' +
+              'supabase/schema.sql no SQL Editor do Supabase e recarregue a página.'
+            );
+            return;
+          }
+
+          const doDia = standardPlans.filter(
+            (sp) => sp.unit === currentUnit && sp.dayOfWeek === day && sp.productId === productId
+          );
+          if (doDia.length === 0) return;
+
+          const padraoDoDia = doDia.reduce((acc, sp) => acc + (sp.idealQty || 0), 0);
+          let restante = limitarMin(novoMin, padraoDoDia);
+
+          // Do espaço mais cheio para o mais vazio, cada um leva o quanto o
+          // padrão dele aguenta — assim o mínimo do produto no dia fecha
+          // exatamente com o número digitado
+          const fatias = [...doDia]
+            .sort((a, b) => (b.idealQty || 0) - (a.idealQty || 0))
+            .map((sp) => {
+              const parte = Math.min(restante, sp.idealQty || 0);
+              restante -= parte;
+              return { id: sp.id, min: parte };
+            });
+
+          write('Salvar o mínimo da semana', async () => {
+            for (const fatia of fatias) {
+              await run('standard_plans', sb.from('standard_plans')
+                .update({ min_qty: fatia.min }).eq('id', fatia.id));
+            }
+            setStandardPlans((prev) => prev.map((sp) => {
+              const fatia = fatias.find((f) => f.id === sp.id);
+              return fatia ? { ...sp, minQty: fatia.min } : sp;
+            }));
           });
         };
 
@@ -7379,14 +7641,15 @@
             let novos = [];
             if (origem.length > 0) {
               const linhas = await run('standard_plans', sb.from('standard_plans').insert(
-                origem.map((sp) => withPlanExtras({
+                origem.map((sp) => withPlanMin(withPlanExtras({
                   unit_code: currentUnit,
                   day_of_week: toDay,
                   slot_code: sp.slotId,
                   product_id: sp.productId,
                   ideal_qty: sp.idealQty,
                   unit_of_measure: sp.unitOfMeasure
-                }, getPriority(sp.priority).value, frequencyFor(sp.slotId, sp.productId, toDay)))
+                }, getPriority(sp.priority).value, frequencyFor(sp.slotId, sp.productId, toDay)),
+                limitarMin(sp.minQty, sp.idealQty)))
               ).select());
               novos = linhas.map(fromPlan);
             }
@@ -7779,6 +8042,7 @@
                   onRemovePlanItem={handleRemovePlanItem}
                   onUpdatePlanSchedule={handleUpdatePlanSchedule}
                   onSetWeeklyQty={handleSetWeeklyQty}
+                  onSetWeeklyMin={handleSetWeeklyMin}
                   onCopyDayPlan={handleCopyDayPlan}
                   onClearDayPlan={handleClearDayPlan}
                   onGenerateProductionOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
