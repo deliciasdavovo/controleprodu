@@ -404,27 +404,59 @@
       /* ==========================================
          MEDIDOR DE QUANTIDADE DA VITRINE
          O quanto o móvel tem, do lado do nome dele: uma tirinha curta que
-         enche da esquerda para a direita com o total de unidades sobre o que
-         o móvel deveria ter. É a leitura de longe — vitrine vazia, pela
-         metade ou cheia — sem precisar ler o número.
+         enche da esquerda para a direita com o total de unidades.
+         O padrão do dia não fica no fim da tirinha, e sim em um risquinho
+         antes dele: assim a tinta tem para onde passar. Vitrine no ponto
+         para na marca; vitrine com mais do que devia atravessa a marca e
+         entra na sobra, em âmbar. É o que a porcentagem sozinha não mostra —
+         100% e 112% desenhavam a mesma tirinha cheia.
          ========================================== */
       .meter { display: inline-flex; align-items: center; gap: 5px; }
       .meter-track {
-        width: 46px;
-        height: 6px;
+        position: relative;
+        width: 80px;
+        height: 7px;
         border-radius: 980px;
-        background: rgba(0, 0, 0, 0.09);
+        /* A sobra, depois da marca, fica mais clara que o caminho até ela */
+        background: rgba(0, 0, 0, 0.04);
         overflow: hidden;
       }
-      .meter-fill {
-        display: block;
-        height: 100%;
-        border-radius: 980px;
-        background: rgba(0, 113, 227, 0.45);
+      /* O caminho até o padrão do dia */
+      .meter-room {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.09);
+      }
+      .meter-fill,
+      .meter-over {
+        position: absolute;
+        top: 0;
+        bottom: 0;
         transition: width .3s ease;
       }
-      /* Móvel no ponto (ou passando dele) fica com a tinta cheia */
+      .meter-fill {
+        left: 0;
+        border-radius: 980px;
+        background: rgba(0, 113, 227, 0.45);
+      }
+      /* Móvel no ponto do padrão fica com a tinta cheia */
       .meter-fill[data-full="true"] { background: var(--accent); }
+      /* O que passou do padrão, encostado na marca e correndo para a direita */
+      .meter-over {
+        border-radius: 0 980px 980px 0;
+        background: #ff9f0a;
+      }
+      /* O risquinho do padrão do dia, por cima da tinta */
+      .meter-mark {
+        position: absolute;
+        top: -1px;
+        bottom: -1px;
+        width: 1.5px;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+      }
       .meter-value {
         font-size: 11px;
         font-weight: 700;
@@ -432,6 +464,7 @@
         color: var(--ink-3);
         font-variant-numeric: tabular-nums;
       }
+      .meter-value[data-over="true"] { color: #a35e00; }
 
       /* ==========================================
          TABELA DA SEMANA
@@ -1395,16 +1428,32 @@
       //
       // O quanto o móvel tem, em uma tirinha curta do lado do nome dele. Não
       // é espaço por espaço: é a vitrine inteira somada — o total de unidades
-      // que está lá contra o total que deveria estar. A tirinha vai enchendo
-      // junto com a vitrine, então de longe se vê se o móvel está vazio, pela
-      // metade ou cheio, sem ler número nenhum.
+      // que está lá contra o total que deveria estar.
       //
-      // Passar de 100% não estoura a tirinha: ela fica cheia e o número ao
-      // lado é que conta o resto.
+      // O padrão do dia não fica no fim da tirinha: fica em um risquinho a
+      // três quartos dela, e o pedaço depois da marca é a sobra. Assim a
+      // vitrine com mais do que devia atravessa a marca e entra na sobra em
+      // âmbar, em vez de desenhar a mesma tirinha cheia de quem está no
+      // ponto. Vitrine lotada tem cara de lotada, que é a leitura que a loja
+      // faz de longe.
+      //
+      // A sobra desenhada vai até um terço acima do padrão: dali para cima o
+      // âmbar já está no fim e quem conta o resto é a porcentagem. O primeiro
+      // pedaço da sobra cresce depressa (raiz, e não reta), senão passar 10%
+      // do padrão pintaria um fiapo de âmbar que ninguém enxerga — e é
+      // justamente esse tanto que a loja precisa ver.
       // ==========================================
+      const MEDIDOR_MARCA = 70;      // onde fica o padrão do dia, em % da tirinha
+      const MEDIDOR_SOBRA = 30;      // quanto acima do padrão a sobra desenha, em %
+
       const FillMeter = ({ percent, title, className = '' }) => {
         if (percent === null || percent === undefined) return null;
+        const passou = percent > 100;
         const cheio = percent >= 100;
+        const ateAMarca = (Math.min(percent, 100) / 100) * MEDIDOR_MARCA;
+        const sobra = passou
+          ? Math.sqrt(Math.min((percent - 100) / MEDIDOR_SOBRA, 1)) * (100 - MEDIDOR_MARCA)
+          : 0;
 
         return (
           <span
@@ -1414,13 +1463,14 @@
             aria-label={title || `${percent}% do padrão`}
           >
             <span className="meter-track">
-              <span
-                className="meter-fill"
-                data-full={cheio}
-                style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-              />
+              <span className="meter-room" style={{ width: `${MEDIDOR_MARCA}%` }} />
+              <span className="meter-fill" data-full={cheio} style={{ width: `${ateAMarca}%` }} />
+              {passou && (
+                <span className="meter-over" style={{ left: `${MEDIDOR_MARCA}%`, width: `${sobra}%` }} />
+              )}
+              <span className="meter-mark" style={{ left: `${MEDIDOR_MARCA}%` }} />
             </span>
-            <span className="meter-value">{percent}%</span>
+            <span className="meter-value" data-over={passou}>{percent}%</span>
           </span>
         );
       };
@@ -2461,7 +2511,9 @@
               livres,
               destino,
               totalUn,
+              totalAtual,
               totalRef,
+              acima: totalRef > 0 ? Math.max(0, totalAtual - totalRef) : 0,
               percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
             };
           });
@@ -2509,13 +2561,23 @@
                           <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
                           <FillMeter
                             percent={bloco.percent}
-                            title={`${bloco.totalUn} de ${bloco.totalRef} un do padrão de hoje`}
+                            title={
+                              bloco.acima > 0
+                                ? `${bloco.totalAtual} un na vitrine · ${bloco.acima} un acima do padrão de hoje, que é ${bloco.totalRef} un`
+                                : `${bloco.totalAtual} de ${bloco.totalRef} un do padrão de hoje`
+                            }
                             className="shrink-0"
                           />
                         </div>
+                        {/* Passar do padrão é a conta que interessa quando
+                            passa: quantas unidades a mais estão no móvel */}
                         <p className="t-caption tnum mt-0.5">
                           {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'} · {bloco.totalUn} un
-                          {bloco.percent !== null && ` de ${bloco.totalRef} un do padrão de hoje`}
+                          {bloco.percent !== null && (
+                            bloco.acima > 0
+                              ? ` · ${bloco.acima} un acima do padrão de hoje`
+                              : ` de ${bloco.totalRef} un do padrão de hoje`
+                          )}
                         </p>
                       </div>
                       {bloco.destino && (
