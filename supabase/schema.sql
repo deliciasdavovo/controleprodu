@@ -159,6 +159,40 @@ alter table public.standard_plans
 alter table public.standard_plans
   add column if not exists frequency text not null default 'dias';
 
+-- Quantidade mínima do item naquele dia: é ela que decide quando o pedido de
+-- produção chama o item. Antes o mínimo era uma porcentagem da letra A–D
+-- (A 50%, B 30%, C 20%, D 10% do padrão), calculada só no app. Agora é um
+-- número digitado por item e por dia da semana.
+--
+-- O bloco abaixo só age quando a coluna está entrando: bancos que já a têm
+-- ficam intocados, para que rodar o script de novo não apague um mínimo que a
+-- loja digitou. Na entrada, cada linha recebe o mínimo que a conta antiga
+-- daria, para o pedido não mudar de comportamento de um dia para o outro.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'standard_plans'
+      and column_name = 'min_qty'
+  ) then
+    alter table public.standard_plans add column min_qty integer not null default 0;
+
+    update public.standard_plans
+      set min_qty = greatest(1, ceil(ideal_qty * case priority
+        when 'A' then 0.50
+        when 'B' then 0.30
+        when 'C' then 0.20
+        else 0.10
+      end))::integer;
+  end if;
+end;
+$$;
+
+alter table public.standard_plans drop constraint if exists standard_plans_min_check;
+alter table public.standard_plans
+  add constraint standard_plans_min_check check (min_qty >= 0);
+
 alter table public.standard_plans drop constraint if exists standard_plans_priority_check;
 alter table public.standard_plans
   add constraint standard_plans_priority_check check (priority in ('A', 'B', 'C', 'D'));
@@ -173,9 +207,11 @@ create index if not exists standard_plans_priority_idx
   on public.standard_plans (unit_code, priority);
 
 comment on column public.standard_plans.priority is
-  'A = não pode faltar, B = importante, C = complementar, D = extra. Define quando o pedido de produção chama o item.';
+  'A = não pode faltar, B = importante, C = complementar, D = extra. Etiqueta de organização: ordena e filtra as listas, não entra em nenhuma conta.';
 comment on column public.standard_plans.frequency is
   'todo_dia = o item está nos sete dias; dias = só nos dias marcados na vitrine padrão.';
+comment on column public.standard_plans.min_qty is
+  'Quantidade mínima do item neste dia. O pedido de produção chama o item quando o estoque bom da loja fica igual ou abaixo dela. 0 = só quando acabar.';
 
 drop trigger if exists standard_plans_set_updated_at on public.standard_plans;
 create trigger standard_plans_set_updated_at
@@ -477,7 +513,9 @@ select
   -- colunas novas entram no fim para que o create or replace continue funcionando
   p.responsible,
   sp.priority,
-  sp.frequency
+  sp.frequency,
+  sp.min_qty,
+  (coalesce(atual.qty, 0) <= sp.min_qty) as below_min
 from public.standard_plans sp
 join public.showcase_slots s on s.code = sp.slot_code
 join public.products p on p.id = sp.product_id
