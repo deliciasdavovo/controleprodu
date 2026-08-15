@@ -402,14 +402,14 @@
       }
 
       /* ==========================================
-         MEDIDOR DE QUANTIDADE DA VITRINE
-         O quanto o móvel tem, do lado do nome dele: uma tirinha curta que
-         enche da esquerda para a direita com o total de unidades.
-         O padrão do dia não fica no fim da tirinha, e sim em um risquinho
-         antes dele: assim a tinta tem para onde passar. Vitrine no ponto
-         para na marca; vitrine com mais do que devia atravessa a marca e
-         entra na sobra, em âmbar. É o que a porcentagem sozinha não mostra —
-         100% e 112% desenhavam a mesma tirinha cheia.
+         MEDIDOR DE OCUPAÇÃO DA VITRINE
+         O quanto do móvel está tomado, do lado do nome dele: uma tirinha
+         curta que enche da esquerda para a direita com os produtos que estão
+         nos espaços. O móvel cheio não fica no fim da tirinha, e sim em um
+         risquinho antes dele: assim a tinta tem para onde passar. Móvel no
+         ponto para na marca; móvel com mais produto do que espaço atravessa
+         a marca e entra na sobra, em âmbar. É o que a porcentagem sozinha
+         não mostra — 100% e 112% desenhavam a mesma tirinha cheia.
          ========================================== */
       .meter { display: inline-flex; align-items: center; gap: 5px; }
       .meter-track {
@@ -1430,27 +1430,25 @@
       );
 
       // ==========================================
-      // MEDIDOR DE QUANTIDADE DA VITRINE
+      // MEDIDOR DE OCUPAÇÃO DA VITRINE
       //
-      // O quanto o móvel tem, em uma tirinha curta do lado do nome dele. Não
-      // é espaço por espaço: é a vitrine inteira somada — o total de unidades
-      // que está lá contra o total que deveria estar.
+      // O quanto do móvel está tomado, em uma tirinha curta do lado do nome
+      // dele: os produtos que estão lá contra os espaços que o móvel tem.
       //
-      // O padrão do dia não fica no fim da tirinha: fica em um risquinho a
-      // três quartos dela, e o pedaço depois da marca é a sobra. Assim a
-      // vitrine com mais do que devia atravessa a marca e entra na sobra em
-      // âmbar, em vez de desenhar a mesma tirinha cheia de quem está no
-      // ponto. Vitrine lotada tem cara de lotada, que é a leitura que a loja
-      // faz de longe.
+      // O móvel cheio não fica no fim da tirinha: fica em um risquinho a 70%
+      // dela, e o pedaço depois da marca é a sobra. Assim a vitrine com mais
+      // produto do que espaço atravessa a marca e entra na sobra em âmbar, em
+      // vez de desenhar a mesma tirinha cheia de quem está no ponto. Vitrine
+      // lotada tem cara de lotada, que é a leitura que a loja faz de longe.
       //
-      // A sobra desenhada vai até um terço acima do padrão: dali para cima o
+      // A sobra desenhada vai até um terço acima do cheio: dali para cima o
       // âmbar já está no fim e quem conta o resto é a porcentagem. O primeiro
       // pedaço da sobra cresce depressa (raiz, e não reta), senão passar 10%
-      // do padrão pintaria um fiapo de âmbar que ninguém enxerga — e é
-      // justamente esse tanto que a loja precisa ver.
+      // pintaria um fiapo de âmbar que ninguém enxerga — e é justamente esse
+      // tanto que a loja precisa ver.
       // ==========================================
-      const MEDIDOR_MARCA = 70;      // onde fica o padrão do dia, em % da tirinha
-      const MEDIDOR_SOBRA = 30;      // quanto acima do padrão a sobra desenha, em %
+      const MEDIDOR_MARCA = 70;      // onde fica o móvel cheio, em % da tirinha
+      const MEDIDOR_SOBRA = 30;      // quanto acima do cheio a sobra desenha, em %
 
       const FillMeter = ({ percent, title, className = '' }) => {
         if (percent === null || percent === undefined) return null;
@@ -2495,13 +2493,23 @@
             const livres = espacos.filter((slot) => !ocupados.has(slot.id));
             const totalUn = doBloco.reduce((soma, item) => soma + item.currentQty, 0);
 
-            const leituras = espacos.map((slot) => ({
-              slot,
-              ...readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans)
-            }));
-            const comPadrao = leituras.filter((l) => l.referencia > 0);
-            const totalAtual = comPadrao.reduce((s, l) => s + l.atual, 0);
-            const totalRef = comPadrao.reduce((s, l) => s + l.referencia, 0);
+            // Quantos produtos diferentes o móvel está segurando. Dois lotes
+            // do mesmo produto — o de ontem e o de hoje, lado a lado — são um
+            // produto só: eles dividem o mesmo espaço na vitrine, e contar
+            // dois seria dizer que o móvel está mais apertado do que está.
+            const produtos = new Set(doBloco.map((item) => item.productId || item.productName));
+            // Produto que não coube em espaço próprio está dividindo espaço
+            // com outro. É o que faz o móvel passar de 100%: mais produto do
+            // que lugar para ele.
+            const dividindo = Math.max(0, produtos.size - espacos.length);
+
+            // Quanto o padrão de hoje manda ter neste móvel, somando espaço a
+            // espaço. Continua em texto embaixo do nome: o medidor conta
+            // espaço, e a unidade é conversa do número
+            const totalRef = espacos.reduce(
+              (soma, slot) => soma + readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans).padrao,
+              0
+            );
 
             // Onde entra um produto novo deste móvel: o primeiro espaço livre
             // e, com o móvel cheio, o menos ocupado — a mesma escolha que a
@@ -2517,10 +2525,12 @@
               livres,
               destino,
               totalUn,
-              totalAtual,
               totalRef,
-              acima: totalRef > 0 ? Math.max(0, totalAtual - totalRef) : 0,
-              percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
+              produtos: produtos.size,
+              dividindo,
+              // A régua do medidor é o espaço do móvel, e não a unidade: o
+              // que a loja lê de longe é quanto da vitrine está tomada
+              percent: espacos.length > 0 ? Math.round((produtos.size / espacos.length) * 100) : null
             };
           });
         }, [unitSlots, slotItems, dayPlans]);
@@ -2560,30 +2570,26 @@
                         de hoje está montado */}
                     <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
                       <div className="min-w-0 flex-1">
-                        {/* O quanto o móvel tem vem colado no nome dele: a
-                            tirinha enche com o total de unidades, e é essa a
-                            leitura que se faz de longe */}
+                        {/* O quanto do móvel está tomado vem colado no nome
+                            dele: a tirinha enche com os produtos que estão
+                            nos espaços, e é essa a leitura que se faz de
+                            longe. A quantidade em unidades fica embaixo, em
+                            texto, para quem quer o número */}
                         <div className="flex items-center gap-2 min-w-0">
                           <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
                           <FillMeter
                             percent={bloco.percent}
                             title={
-                              bloco.acima > 0
-                                ? `${bloco.totalAtual} un na vitrine · ${bloco.acima} un acima do padrão de hoje, que é ${bloco.totalRef} un`
-                                : `${bloco.totalAtual} de ${bloco.totalRef} un do padrão de hoje`
+                              bloco.dividindo > 0
+                                ? `${bloco.produtos} produtos em ${bloco.espacos.length} espaços · ${bloco.dividindo} sem espaço próprio, dividindo com outro`
+                                : `${bloco.produtos} de ${bloco.espacos.length} espaços com produto · ${bloco.livres.length} ${bloco.livres.length === 1 ? 'livre' : 'livres'}`
                             }
                             className="shrink-0"
                           />
                         </div>
-                        {/* Passar do padrão é a conta que interessa quando
-                            passa: quantas unidades a mais estão no móvel */}
                         <p className="t-caption tnum mt-0.5">
-                          {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'} · {bloco.totalUn} un
-                          {bloco.percent !== null && (
-                            bloco.acima > 0
-                              ? ` · ${bloco.acima} un acima do padrão de hoje`
-                              : ` de ${bloco.totalRef} un do padrão de hoje`
-                          )}
+                          {bloco.produtos} {bloco.produtos === 1 ? 'produto' : 'produtos'} em {bloco.espacos.length} {bloco.espacos.length === 1 ? 'espaço' : 'espaços'} · {bloco.totalUn} un
+                          {bloco.totalRef > 0 && ` de ${bloco.totalRef} un do padrão de hoje`}
                         </p>
                       </div>
                       {bloco.destino && (
