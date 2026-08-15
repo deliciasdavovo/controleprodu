@@ -934,6 +934,21 @@
         return blocos.sort(compareShowcase);
       };
 
+      // Tudo que está exposto em um móvel, com o número do espaço junto.
+      // Serve para saber se o produto já tem lugar ali: lote novo de produto
+      // que já está na vitrine entra na bandeja dele, e não em espaço novo.
+      const itemsOfShowcase = (slots, slotItems, slot) => {
+        if (!slot) return [];
+        const chave = showcaseKey(slot);
+        const doMovel = {};
+        slots.forEach((s) => {
+          if (s.unit === slot.unit && showcaseKey(s) === chave) doMovel[s.id] = s;
+        });
+        return slotItems
+          .filter((i) => doMovel[i.slotId])
+          .map((i) => ({ ...i, slotNumber: doMovel[i.slotId].slotNumber }));
+      };
+
       const calculateDaysInShowcase = (mDateStr) => {
         if (!mDateStr) return 0;
         const mDate = new Date(mDateStr);
@@ -6614,7 +6629,7 @@
       // Quando o espaço já tem alguém, a janela diz com quem o produto vai
       // dividir o lugar, para não ser surpresa na hora de procurar.
       // ==========================================
-      const SlotAddModal = ({ slot, itemsInSlot, products, onClose, onConfirm }) => {
+      const SlotAddModal = ({ slot, itemsInSlot, itemsInShowcase = [], products, onClose, onConfirm }) => {
         if (!slot) return null;
         const [productName, setProductName] = useState('');
         const [qty, setQty] = useState(10);
@@ -6626,6 +6641,14 @@
         const productOptions = productsForShowcaseType(products, slot.showcaseType)
           .map((p) => ({ value: p.name, label: p.name }));
         const dividindo = itemsInSlot.length > 0;
+
+        // Produto que já está neste móvel não ganha espaço novo: o lote entra
+        // na mesma bandeja do que já está exposto. A janela avisa antes de
+        // confirmar, senão a pessoa escolhe um espaço vazio e o item aparece
+        // em outro lugar sem explicação.
+        const jaNoMovel = itemsInShowcase.find(
+          (i) => i.productName.toLowerCase().trim() === productName.toLowerCase().trim()
+        );
 
         const handleSubmit = (e) => {
           e.preventDefault();
@@ -6677,6 +6700,15 @@
                   emptyLabel={`Nenhum produto de ${categoriaDaVitrine} com esse nome — ao colocar, ele entra no catálogo`}
                   className="field field-md font-semibold"
                 />
+                {jaNoMovel && (
+                  <p className="t-caption text-[11px] mt-1.5 flex items-start gap-1">
+                    <Icons.Layers className="w-3 h-3 shrink-0 mt-[2px]" />
+                    <span>
+                      Já tem <strong className="text-[#1d1d1f]">{jaNoMovel.productName}</strong> no espaço{' '}
+                      {jaNoMovel.slotNumber} desta vitrine — o lote novo vai junto com ele, na mesma bandeja.
+                    </span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -7412,10 +7444,25 @@
               throw new Error(`nenhum espaço de ${showcaseType} cadastrado na unidade ${getUnitName(units, currentUnit)}`);
             }
 
+            // Produto que já está na vitrine volta para o espaço dele: o lote
+            // de ontem e o de hoje ficam na mesma bandeja, como ficam no móvel
+            // de verdade. Dar um espaço novo para o mesmo produto tomaria
+            // lugar de quem ainda não tem nenhum.
+            //
+            // Quando a pessoa escolheu um móvel — a janela de colocar produto
+            // é por móvel, e não por espaço —, a procura fica dentro dele.
+            const espacosDaProcura = escolhido
+              ? unitSlots.filter((s) => showcaseKey(s) === showcaseKey(escolhido))
+              : unitSlots;
+            const mesmoProduto = espacosDaProcura.find((s) =>
+              slotItems.some((i) => i.slotId === s.id && i.productId === product.id)
+            );
+
             // Com a vitrine cheia, entra no espaço menos ocupado em vez de
             // empilhar tudo no primeiro
             const ocupacao = (slot) => slotItems.filter((i) => i.slotId === slot.id).length;
-            const targetSlot = escolhido
+            const targetSlot = mesmoProduto
+              || escolhido
               || unitSlots.find((s) => ocupacao(s) === 0)
               || unitSlots.reduce((menos, s) => (ocupacao(s) < ocupacao(menos) ? s : menos), unitSlots[0]);
 
@@ -8281,6 +8328,9 @@
             <SlotAddModal
               slot={slotToFill}
               itemsInSlot={slotToFill ? slotItems.filter((i) => i.slotId === slotToFill.id) : []}
+              /* O móvel inteiro, e não só o espaço sugerido: é ele que diz se
+                 o produto digitado já está exposto em algum lugar daqui */
+              itemsInShowcase={slotToFill ? itemsOfShowcase(slots, slotItems, slotToFill) : []}
               products={products}
               onClose={() => setSlotToFill(null)}
               onConfirm={handleQuickAllocate}
