@@ -402,42 +402,36 @@
       }
 
       /* ==========================================
-         BARRA DE ESPAÇOS DA VITRINE
-         O móvel inteiro em uma tirinha: um retângulo por espaço, na mesma
-         ordem em que eles estão na loja. O que tem dentro sobe de baixo para
-         cima, então a vitrine vai enchendo na tela do mesmo jeito que enche
-         no balcão — de longe já se vê se ela está vazia, pela metade ou
-         lotada. Espaço sem nada fica só com o contorno tracejado, o mesmo
-         desenho que a vitrine padrão usa para espaço vazio.
+         MEDIDOR DE QUANTIDADE DA VITRINE
+         O quanto o móvel tem, do lado do nome dele: uma tirinha curta que
+         enche da esquerda para a direita com o total de unidades sobre o que
+         o móvel deveria ter. É a leitura de longe — vitrine vazia, pela
+         metade ou cheia — sem precisar ler o número.
          ========================================== */
-      .slotbar { display: flex; align-items: stretch; gap: 3px; width: 100%; }
-      .slotbar-cell {
-        position: relative;
-        flex: 1 1 0;
-        min-width: 5px;
-        height: 24px;
-        border-radius: 5px;
-        border: 1px solid transparent;
-        background: rgba(0, 0, 0, 0.05);
+      .meter { display: inline-flex; align-items: center; gap: 5px; }
+      .meter-track {
+        width: 46px;
+        height: 6px;
+        border-radius: 980px;
+        background: rgba(0, 0, 0, 0.09);
         overflow: hidden;
       }
-      .slotbar-cell[data-empty="true"] {
-        background: transparent;
-        border: 1px dashed rgba(0, 0, 0, 0.16);
+      .meter-fill {
+        display: block;
+        height: 100%;
+        border-radius: 980px;
+        background: rgba(0, 113, 227, 0.45);
+        transition: width .3s ease;
       }
-      .slotbar-fill {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 113, 227, 0.34);
-        transition: height .28s ease;
+      /* Móvel no ponto (ou passando dele) fica com a tinta cheia */
+      .meter-fill[data-full="true"] { background: var(--accent); }
+      .meter-value {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-3);
+        font-variant-numeric: tabular-nums;
       }
-      /* Espaço que chegou no que o padrão manda ter fica com a tinta cheia:
-         é o sinal de espaço montado */
-      .slotbar-cell[data-full="true"] .slotbar-fill { background: rgba(0, 113, 227, 0.7); }
-      /* Versão baixa, para caber no alto dos cartões da vitrine padrão */
-      .slotbar-sm .slotbar-cell { height: 14px; border-radius: 4px; }
 
       /* ==========================================
          TABELA DA SEMANA
@@ -1397,45 +1391,37 @@
       );
 
       // ==========================================
-      // BARRA DE ESPAÇOS DA VITRINE
+      // MEDIDOR DE QUANTIDADE DA VITRINE
       //
-      // O móvel inteiro em uma tirinha, um retângulo por espaço, na ordem em
-      // que eles estão na loja. Cada retângulo enche de baixo para cima com o
-      // que tem dentro dele, então a tirinha vai ficando cheia junto com a
-      // vitrine: de relance dá para ver se o móvel está no ponto ou se ainda
-      // tem buraco para montar — sem precisar ler número nenhum.
+      // O quanto o móvel tem, em uma tirinha curta do lado do nome dele. Não
+      // é espaço por espaço: é a vitrine inteira somada — o total de unidades
+      // que está lá contra o total que deveria estar. A tirinha vai enchendo
+      // junto com a vitrine, então de longe se vê se o móvel está vazio, pela
+      // metade ou cheio, sem ler número nenhum.
       //
-      // cells: [{ key, fill, title }], com fill de 0 (vazio) a 1 (no ponto).
-      // Um fio de tinta fica de pé mesmo no espaço quase vazio, senão o pouco
-      // que tem some e o espaço parece vazio.
+      // Passar de 100% não estoura a tirinha: ela fica cheia e o número ao
+      // lado é que conta o resto.
       // ==========================================
-      const ShowcaseFillBar = ({ cells, size = 'md', className = '' }) => {
-        if (!cells || cells.length === 0) return null;
-        const cheios = cells.filter((c) => (c.fill || 0) > 0).length;
+      const FillMeter = ({ percent, title, className = '' }) => {
+        if (percent === null || percent === undefined) return null;
+        const cheio = percent >= 100;
 
         return (
-          <div
-            className={`slotbar ${size === 'sm' ? 'slotbar-sm' : ''} ${className}`}
+          <span
+            className={`meter ${className}`}
+            title={title}
             role="img"
-            aria-label={`${cheios} de ${cells.length} ${cells.length === 1 ? 'espaço ocupado' : 'espaços ocupados'}`}
+            aria-label={title || `${percent}% do padrão`}
           >
-            {cells.map((cell) => {
-              const fill = Math.max(0, Math.min(1, cell.fill || 0));
-              return (
-                <div
-                  key={cell.key}
-                  className="slotbar-cell"
-                  data-empty={fill <= 0}
-                  data-full={fill >= 1}
-                  title={cell.title}
-                >
-                  {fill > 0 && (
-                    <div className="slotbar-fill" style={{ height: `${Math.max(10, Math.round(fill * 100))}%` }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            <span className="meter-track">
+              <span
+                className="meter-fill"
+                data-full={cheio}
+                style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+              />
+            </span>
+            <span className="meter-value">{percent}%</span>
+          </span>
         );
       };
 
@@ -2461,16 +2447,6 @@
             const totalAtual = comPadrao.reduce((s, l) => s + l.atual, 0);
             const totalRef = comPadrao.reduce((s, l) => s + l.referencia, 0);
 
-            // O móvel desenhado em cima do cartão: um retângulo por espaço,
-            // cheio na medida do que tem dentro dele agora
-            const barra = leituras.map((l) => ({
-              key: l.slot.id,
-              fill: l.percent,
-              title: l.vazio
-                ? `Espaço ${l.slot.slotNumber} · vazio`
-                : `Espaço ${l.slot.slotNumber} · ${l.atual}${l.referencia > 0 ? ` de ${l.referencia}` : ''} un`
-            }));
-
             // Onde entra um produto novo deste móvel: o primeiro espaço livre
             // e, com o móvel cheio, o menos ocupado — a mesma escolha que a
             // lista de apoio faz ao alocar
@@ -2485,8 +2461,7 @@
               livres,
               destino,
               totalUn,
-              barra,
-              ocupados: espacos.length - livres.length,
+              totalRef,
               percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
             };
           });
@@ -2525,12 +2500,22 @@
                   <div key={bloco.key} className="card p-5">
                     {/* O nome do móvel, o que tem dentro e o quanto do padrão
                         de hoje está montado */}
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
                       <div className="min-w-0 flex-1">
-                        <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
+                        {/* O quanto o móvel tem vem colado no nome dele: a
+                            tirinha enche com o total de unidades, e é essa a
+                            leitura que se faz de longe */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
+                          <FillMeter
+                            percent={bloco.percent}
+                            title={`${bloco.totalUn} de ${bloco.totalRef} un do padrão de hoje`}
+                            className="shrink-0"
+                          />
+                        </div>
                         <p className="t-caption tnum mt-0.5">
                           {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'} · {bloco.totalUn} un
-                          {bloco.percent !== null && ` · ${bloco.percent}% do padrão de hoje`}
+                          {bloco.percent !== null && ` de ${bloco.totalRef} un do padrão de hoje`}
                         </p>
                       </div>
                       {bloco.destino && (
@@ -2544,18 +2529,6 @@
                         </button>
                       )}
                     </div>
-
-                    {/* O móvel visto de fora: cada retângulo é um espaço e a
-                        tinta sobe com o que tem dentro. É a leitura que se faz
-                        de longe, antes de descer para a lista de itens */}
-                    {bloco.espacos.length > 0 && (
-                      <div className="flex items-center gap-2.5 mt-3 pb-3 mb-1 border-b hairline">
-                        <ShowcaseFillBar cells={bloco.barra} className="flex-1 min-w-0" />
-                        <span className="t-caption text-[11px] tnum shrink-0">
-                          {bloco.ocupados}/{bloco.espacos.length} espaços
-                        </span>
-                      </div>
-                    )}
 
                     {bloco.linhas.length === 0 ? (
                       <p className="t-body text-[#86868b] text-center py-7 px-4">Nada montado neste móvel</p>
@@ -3817,20 +3790,6 @@
                 const maiorQtd = planejados.reduce(
                   (maior, s) => Math.max(maior, planOf(s.id)?.idealQty || 0), 0
                 );
-                // A mesma tirinha da vitrine física, agora com o que está
-                // planejado: o móvel do dia visto de uma vez só, para saber
-                // se ainda sobra espaço para montar
-                const barra = vitrine.slots.map((s) => {
-                  const plano = planOf(s.id);
-                  const qtd = plano?.idealQty || 0;
-                  return {
-                    key: s.id,
-                    fill: maiorQtd > 0 ? qtd / maiorQtd : 0,
-                    title: plano
-                      ? `Espaço ${s.slotNumber} · ${productOf(plano.productId)?.name || 'produto'} · ${qtd} un`
-                      : `Espaço ${s.slotNumber} · vazio`
-                  };
-                });
                 // O espaço da vitrine salgada só oferece produto salgado
                 const productOptions = [
                   { value: '', label: 'Espaço vazio', muted: true },
@@ -3851,8 +3810,6 @@
                         <p className="t-caption text-[11px] mt-0.5">un no dia</p>
                       </div>
                     </div>
-
-                    <ShowcaseFillBar cells={barra} size="sm" className="mt-3" />
 
                     <div className="space-y-2 mt-3">
                       {vitrine.slots.map((slot) => {
