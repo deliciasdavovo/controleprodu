@@ -3588,8 +3588,12 @@
       //
       // Uma tabela por vitrine, uma embaixo da outra: cada linha é um espaço
       // e as colunas mostram o que importa para organizar o item — produto,
-      // prioridade, dias e quantidade. O mesmo desenho da tabela da semana,
-      // para o olho não precisar trocar de formato no meio da tela.
+      // prioridade, dias, padrão e mínimo. O mesmo desenho da tabela da
+      // semana, para o olho não precisar trocar de formato no meio da tela.
+      //
+      // Nada de cartão por espaço: as duas quantidades são colunas que se
+      // digitam na própria célula, como em qualquer planilha, e a leitura
+      // desce na ordem dos espaços do móvel.
       // ==========================================
       const StandardShowcaseView = ({
         currentUnit,
@@ -3602,6 +3606,7 @@
         onUpdatePlanItem,
         onRemovePlanItem,
         onUpdatePlanSchedule,
+        onSetPlanMin,
         onSetWeeklyQty,
         onSetWeeklyMin,
         onCopyDayPlan,
@@ -3684,7 +3689,8 @@
                     Defina como a vitrine deve ser montada em cada dia — {unitName}.
                     Cada item tem dois números por dia: a quantidade do padrão e a
                     quantidade mínima, que é a que chama o item no pedido de produção.
-                    Os dois se digitam na tabela da semana, aqui embaixo.
+                    Os dois se digitam na célula — na lista de cada vitrine, espaço
+                    por espaço, ou na tabela da semana, aqui embaixo.
                   </p>
                 </div>
 
@@ -3781,15 +3787,14 @@
               </div>
             </div>
 
-            {/* Vitrines lado a lado, uma coluna por móvel da loja */}
-            <div className="flex gap-4 overflow-x-auto pb-2 items-start snap-x">
+            {/* Uma lista por vitrine, uma embaixo da outra: linha por espaço,
+                coluna por informação. As duas quantidades se digitam na
+                célula, do mesmo jeito da tabela da semana */}
+            <div className="space-y-4">
               {showcases.map((vitrine) => {
                 const planejados = vitrine.slots.filter((s) => planOf(s.id));
                 const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
-                // O espaço mais cheio da vitrine é a régua das barrinhas
-                const maiorQtd = planejados.reduce(
-                  (maior, s) => Math.max(maior, planOf(s.id)?.idealQty || 0), 0
-                );
+                const totalMinimo = planejados.reduce((acc, s) => acc + (planOf(s.id)?.minQty || 0), 0);
                 // O espaço da vitrine salgada só oferece produto salgado
                 const productOptions = [
                   { value: '', label: 'Espaço vazio', muted: true },
@@ -3797,8 +3802,8 @@
                 ];
 
                 return (
-                  <div key={vitrine.key} className="card p-4 flex-1 min-w-[290px] snap-start">
-                    <div className="flex items-start justify-between gap-2 pb-3 border-b hairline">
+                  <div key={vitrine.key} className="card p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3 pb-2">
                       <div className="min-w-0">
                         <h3 className="t-headline text-[#1d1d1f] truncate">{vitrine.title}</h3>
                         <p className="t-caption tnum mt-0.5">
@@ -3811,135 +3816,176 @@
                       </div>
                     </div>
 
-                    <div className="space-y-2 mt-3">
-                      {vitrine.slots.map((slot) => {
-                        const planItem = planOf(slot.id);
-                        const product = planItem ? productOf(planItem.productId) : null;
-                        const dias = planItem
-                          ? planDaysOf(standardPlans, currentUnit, slot.id, planItem.productId)
-                          : [];
-                        const prio = getPriority(planItem?.priority);
-                        const apagado = planItem && !matchesFilter(planItem);
-                        const fatia = maiorQtd > 0 ? Math.round(((planItem?.idealQty || 0) / maiorQtd) * 100) : 0;
-                        // Produto de outra categoria que já estava aqui continua
-                        // aparecendo, senão o campo ficaria em branco com o
-                        // espaço ocupado
-                        const opcoes = product && !productOptions.some((o) => o.value === product.id)
-                          ? [...productOptions, { value: product.id, label: product.name }]
-                          : productOptions;
+                    <div className="overflow-x-auto">
+                      <table className="week-table">
+                        <thead>
+                          <tr>
+                            <th className="text-center t-overline font-bold px-1.5 py-2 border-b hairline w-8"
+                                title="Número do espaço no móvel">
+                              Nº
+                            </th>
+                            <th className="text-left t-overline font-bold px-2 py-2 border-b hairline">
+                              Produto
+                            </th>
+                            <th className="text-center t-overline font-bold px-1.5 py-2 border-b hairline"
+                                title="A–D: a importância do item — clique na letra para mudar">
+                              P
+                            </th>
+                            <th className="text-left t-overline font-bold px-2 py-2 border-b hairline whitespace-nowrap"
+                                title="Em quantos dias da semana o item entra no padrão">
+                              Dias
+                            </th>
+                            <th className="text-center t-overline font-bold px-1 py-2 border-b hairline"
+                                title="Quantidade que a vitrine deve ter neste espaço no dia">
+                              Padrão
+                            </th>
+                            <th className="text-center t-overline font-bold px-1 py-2 border-b hairline"
+                                title="O pedido chama o item quando o estoque da loja chega neste número">
+                              Mín.
+                            </th>
+                            <th className="text-left t-overline font-bold px-2 py-2 border-b hairline whitespace-nowrap hidden sm:table-cell">
+                              Responsável
+                            </th>
+                          </tr>
+                        </thead>
 
-                        return (
-                          <div
-                            key={slot.id}
-                            className={`relative overflow-hidden rounded-xl px-2.5 py-2 border transition-all ${
-                              planItem
-                                ? 'bg-[var(--bg-surface)] border-black/[0.09] shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
-                                : 'border-dashed border-black/[0.14] bg-black/[0.015]'
-                            } ${apagado ? 'opacity-35' : ''}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="t-caption tnum w-3.5 shrink-0 text-center">{slot.slotNumber}</span>
-                              <PickerField
-                                value={planItem?.productId || ''}
-                                options={opcoes}
-                                placeholder="Espaço vazio"
-                                emptyLabel="Nenhum produto desta vitrine com esse nome"
-                                onPick={(opt) => {
-                                  if (!opt.value) {
-                                    if (planItem) onRemovePlanItem(planItem.id);
-                                    return;
-                                  }
-                                  const prod = products.find((p) => p.id === opt.value);
-                                  const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
-                                  onUpdatePlanItem(slot.id, opt.value, qty, planItem?.priority || DEFAULT_PRIORITY);
-                                }}
-                                className="field field-sm font-semibold flex-1 min-w-0"
-                              />
-                            </div>
+                        <tbody>
+                          {vitrine.slots.map((slot) => {
+                            const planItem = planOf(slot.id);
+                            const product = planItem ? productOf(planItem.productId) : null;
+                            const dias = planItem
+                              ? planDaysOf(standardPlans, currentUnit, slot.id, planItem.productId)
+                              : [];
+                            const prio = getPriority(planItem?.priority);
+                            const apagado = planItem && !matchesFilter(planItem);
+                            // Produto de outra categoria que já estava aqui continua
+                            // aparecendo, senão o campo ficaria em branco com o
+                            // espaço ocupado
+                            const opcoes = product && !productOptions.some((o) => o.value === product.id)
+                              ? [...productOptions, { value: product.id, label: product.name }]
+                              : productOptions;
+                            const organizar = () => setOrganizing({ slot, plan: planItem, product, dias });
 
-                            {planItem && (
-                              <>
-                                <div className="flex items-center justify-between gap-2 mt-2">
-                                  {/* Bolinhas da semana: os dias em que o item
-                                      entra, sem precisar ler texto */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
-                                    title={`${prio.title} · ${frequencyTitle(dias)} — clique para mudar`}
-                                    className="flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity"
-                                  >
-                                    <span className={`pill text-[10px] font-extrabold shrink-0 ${prio.pill}`}>
+                            return (
+                              <tr key={slot.id} className={`border-b hairline ${apagado ? 'opacity-35' : ''}`}>
+                                <td className="text-center t-caption tnum px-1.5 py-1">
+                                  {slot.slotNumber}
+                                </td>
+
+                                <td className="px-2 py-1 min-w-[180px]">
+                                  <PickerField
+                                    value={planItem?.productId || ''}
+                                    options={opcoes}
+                                    placeholder="Espaço vazio"
+                                    emptyLabel="Nenhum produto desta vitrine com esse nome"
+                                    onPick={(opt) => {
+                                      if (!opt.value) {
+                                        if (planItem) onRemovePlanItem(planItem.id);
+                                        return;
+                                      }
+                                      const prod = products.find((p) => p.id === opt.value);
+                                      const qty = planItem?.idealQty || (prod ? prod.minReplenishmentQty * 2 : 10);
+                                      onUpdatePlanItem(slot.id, opt.value, qty, planItem?.priority || DEFAULT_PRIORITY);
+                                    }}
+                                    className="field field-sm font-semibold w-full"
+                                  />
+                                </td>
+
+                                {/* A letra e os dias abrem a mesma janelinha de
+                                    organizar — em texto, na coluna, sem selo */}
+                                <td className="text-center px-1.5 py-1">
+                                  {planItem ? (
+                                    <button
+                                      type="button"
+                                      onClick={organizar}
+                                      title={`${prio.title} — clique para mudar`}
+                                      className="font-bold text-[#6e6e73] hover:text-[#1d1d1f] transition-colors"
+                                    >
                                       {prio.value}
-                                    </span>
-                                    <span className="flex items-center gap-[3px]">
-                                      {WEEK_DAYS.map((day) => (
-                                        <span
-                                          key={day}
-                                          title={getDayNameBR(day)}
-                                          className={`w-1.5 h-1.5 rounded-full ${
-                                            dias.includes(day)
-                                              ? (day === selectedDay ? 'bg-[#0071e3]' : 'bg-[#0071e3]/40')
-                                              : 'bg-black/[0.10]'
-                                          }`}
-                                        />
-                                      ))}
-                                    </span>
-                                  </button>
-
-                                  {/* Stepper do iOS: menos, número e mais em um
-                                      bloco só, com o mesmo peso visual */}
-                                  <div className="stepper shrink-0">
-                                    <button
-                                      onClick={() => onUpdatePlanItem(slot.id, planItem.productId, Math.max(1, planItem.idealQty - 1), planItem.priority)}
-                                      title="Tirar uma unidade"
-                                    >
-                                      −
                                     </button>
-                                    <span className="stepper-value tnum">{planItem.idealQty}</span>
+                                  ) : (
+                                    <span className="text-[#d2d2d7]">·</span>
+                                  )}
+                                </td>
+
+                                <td className="px-2 py-1 whitespace-nowrap text-[12px]">
+                                  {planItem ? (
                                     <button
-                                      onClick={() => onUpdatePlanItem(slot.id, planItem.productId, planItem.idealQty + 1, planItem.priority)}
-                                      title="Colocar uma unidade"
+                                      type="button"
+                                      onClick={organizar}
+                                      title={`${product?.name || 'Item'} entra em: ${frequencyTitle(dias)} — clique para mudar`}
+                                      className={`hover:text-[#1d1d1f] transition-colors ${
+                                        dias.length >= WEEK_DAYS.length
+                                          ? 'text-[#1d1d1f] font-semibold'
+                                          : 'text-[#86868b]'
+                                      }`}
                                     >
-                                      +
+                                      {frequencyLabel(dias)}
                                     </button>
-                                  </div>
-                                </div>
+                                  ) : (
+                                    <span className="text-[#d2d2d7]">·</span>
+                                  )}
+                                </td>
 
-                                {/* Barrinha: o tamanho do item dentro da vitrine.
-                                    Sem cor de prioridade — ela só compara este
-                                    espaço com o mais cheio do móvel */}
-                                <div className="h-1 rounded-full bg-black/[0.06] mt-2 overflow-hidden">
-                                  <div className="h-1 rounded-full bg-[#0071e3]/45" style={{ width: `${fatia}%` }} />
-                                </div>
+                                <td className="px-1 py-1">
+                                  {planItem ? (
+                                    <WeeklyQtyCell
+                                      value={planItem.idealQty}
+                                      title={`${product?.name || 'Item'} · espaço ${slot.slotNumber} — digite a quantidade do dia (0 esvazia o espaço)`}
+                                      onCommit={(nova) => {
+                                        if (nova <= 0) {
+                                          onRemovePlanItem(planItem.id);
+                                          return;
+                                        }
+                                        onUpdatePlanItem(slot.id, planItem.productId, nova, planItem.priority);
+                                      }}
+                                    />
+                                  ) : (
+                                    <p className="text-center text-[#d2d2d7]">·</p>
+                                  )}
+                                </td>
 
-                                <div className="flex items-center justify-between gap-2 mt-1.5">
-                                  <p className="t-caption text-[11px] flex items-center gap-1 truncate min-w-0">
-                                    <Icons.User className="w-3 h-3 shrink-0" />
-                                    <span className="truncate">{getResponsibleName(product)}</span>
-                                  </p>
-                                  {/* O mínimo é o que chama o item no pedido:
-                                      fica à vista no espaço, sem precisar abrir
-                                      a janelinha para conferir */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setOrganizing({ slot, plan: planItem, product, dias })}
-                                    title={
-                                      (planItem.minQty || 0) > 0
-                                        ? `Mínimo de ${planItem.minQty} neste espaço — o pedido chama o item quando a loja chega nele. Clique para mudar`
-                                        : 'Sem mínimo — o item só é chamado quando acaba. Clique para dar um mínimo'
-                                    }
-                                    className="t-caption text-[11px] tnum shrink-0 hover:text-[#1d1d1f] transition-colors"
-                                  >
-                                    mín. <span className={(planItem.minQty || 0) > 0 ? 'font-bold text-[#1d1d1f]' : ''}>
-                                      {planItem.minQty || 0}
+                                <td className="px-1 py-1">
+                                  {planItem ? (
+                                    <WeeklyQtyCell
+                                      value={planItem.minQty || 0}
+                                      title={`${product?.name || 'Item'} · espaço ${slot.slotNumber} — digite o mínimo (0 = só quando acabar)`}
+                                      onCommit={(nova) => onSetPlanMin(slot.id, nova)}
+                                    />
+                                  ) : (
+                                    <p className="text-center text-[#d2d2d7]">·</p>
+                                  )}
+                                </td>
+
+                                <td className="px-2 py-1 t-caption text-[12px] max-w-[150px] hidden sm:table-cell">
+                                  {planItem ? (
+                                    <span className="block truncate" title={getResponsibleName(product)}>
+                                      {getResponsibleName(product)}
                                     </span>
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
+                                  ) : (
+                                    <span className="text-[#d2d2d7]">·</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+
+                        <tfoot>
+                          <tr>
+                            <td colSpan={4} className="px-2 py-2 t-overline font-bold">
+                              Total do dia
+                            </td>
+                            <td className="text-center tnum font-extrabold px-1 py-2 text-[#1d1d1f]">
+                              {total}
+                            </td>
+                            <td className="text-center tnum font-extrabold px-1 py-2 text-[#6e6e73]">
+                              {totalMinimo}
+                            </td>
+                            <td className="hidden sm:table-cell" />
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
                 );
@@ -7705,6 +7751,37 @@
           });
         };
 
+        // ------------------------------------------
+        // Mínimo digitado na lista da vitrine: é o mínimo daquele espaço no dia
+        // aberto, e não do produto na semana inteira. Nunca passa do padrão do
+        // espaço — acima disso o item seria chamado com a vitrine cheia.
+        // ------------------------------------------
+        const handleSetPlanMin = (slotId, novoMin) => {
+          if (!planMinReady) {
+            alert(
+              'O banco ainda não tem a coluna da quantidade mínima. Rode o arquivo ' +
+              'supabase/schema.sql no SQL Editor do Supabase e recarregue a página.'
+            );
+            return;
+          }
+
+          const plano = standardPlans.find(
+            (sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay && sp.slotId === slotId
+          );
+          if (!plano) return;
+
+          const minimo = limitarMin(novoMin, plano.idealQty);
+          if (minimo === (plano.minQty || 0)) return;
+
+          write('Salvar o mínimo do espaço', async () => {
+            await run('standard_plans', sb.from('standard_plans')
+              .update({ min_qty: minimo }).eq('id', plano.id));
+            setStandardPlans((prev) => prev.map((sp) =>
+              sp.id === plano.id ? { ...sp, minQty: minimo } : sp
+            ));
+          });
+        };
+
         const handleRemovePlanItem = (planId) => {
           write('Remover do padrão', async () => {
             await run('standard_plans', sb.from('standard_plans').delete().eq('id', planId));
@@ -8122,6 +8199,7 @@
                   onUpdatePlanItem={handleUpdatePlanItem}
                   onRemovePlanItem={handleRemovePlanItem}
                   onUpdatePlanSchedule={handleUpdatePlanSchedule}
+                  onSetPlanMin={handleSetPlanMin}
                   onSetWeeklyQty={handleSetWeeklyQty}
                   onSetWeeklyMin={handleSetWeeklyMin}
                   onCopyDayPlan={handleCopyDayPlan}
