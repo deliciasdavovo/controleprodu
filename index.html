@@ -402,6 +402,38 @@
       }
 
       /* ==========================================
+         MEDIDOR DE QUANTIDADE DA VITRINE
+         O quanto o móvel tem, do lado do nome dele: uma tirinha curta que
+         enche da esquerda para a direita com o total de unidades sobre o que
+         o móvel deveria ter. É a leitura de longe — vitrine vazia, pela
+         metade ou cheia — sem precisar ler o número.
+         ========================================== */
+      .meter { display: inline-flex; align-items: center; gap: 5px; }
+      .meter-track {
+        width: 46px;
+        height: 6px;
+        border-radius: 980px;
+        background: rgba(0, 0, 0, 0.09);
+        overflow: hidden;
+      }
+      .meter-fill {
+        display: block;
+        height: 100%;
+        border-radius: 980px;
+        background: rgba(0, 113, 227, 0.45);
+        transition: width .3s ease;
+      }
+      /* Móvel no ponto (ou passando dele) fica com a tinta cheia */
+      .meter-fill[data-full="true"] { background: var(--accent); }
+      .meter-value {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-3);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ==========================================
          TABELA DA SEMANA
          Uma tabela para ler de relance: linha inteira acende ao passar, a
          coluna do dia aberto fica de fundo azul lavado e a célula só ganha
@@ -1357,6 +1389,41 @@
           </span>
         </span>
       );
+
+      // ==========================================
+      // MEDIDOR DE QUANTIDADE DA VITRINE
+      //
+      // O quanto o móvel tem, em uma tirinha curta do lado do nome dele. Não
+      // é espaço por espaço: é a vitrine inteira somada — o total de unidades
+      // que está lá contra o total que deveria estar. A tirinha vai enchendo
+      // junto com a vitrine, então de longe se vê se o móvel está vazio, pela
+      // metade ou cheio, sem ler número nenhum.
+      //
+      // Passar de 100% não estoura a tirinha: ela fica cheia e o número ao
+      // lado é que conta o resto.
+      // ==========================================
+      const FillMeter = ({ percent, title, className = '' }) => {
+        if (percent === null || percent === undefined) return null;
+        const cheio = percent >= 100;
+
+        return (
+          <span
+            className={`meter ${className}`}
+            title={title}
+            role="img"
+            aria-label={title || `${percent}% do padrão`}
+          >
+            <span className="meter-track">
+              <span
+                className="meter-fill"
+                data-full={cheio}
+                style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+              />
+            </span>
+            <span className="meter-value">{percent}%</span>
+          </span>
+        );
+      };
 
       // ==========================================
       // DATA DA BAIXA + LOTE DE ORIGEM
@@ -2372,7 +2439,10 @@
             const livres = espacos.filter((slot) => !ocupados.has(slot.id));
             const totalUn = doBloco.reduce((soma, item) => soma + item.currentQty, 0);
 
-            const leituras = espacos.map((slot) => readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans));
+            const leituras = espacos.map((slot) => ({
+              slot,
+              ...readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans)
+            }));
             const comPadrao = leituras.filter((l) => l.referencia > 0);
             const totalAtual = comPadrao.reduce((s, l) => s + l.atual, 0);
             const totalRef = comPadrao.reduce((s, l) => s + l.referencia, 0);
@@ -2391,6 +2461,7 @@
               livres,
               destino,
               totalUn,
+              totalRef,
               percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
             };
           });
@@ -2431,10 +2502,20 @@
                         de hoje está montado */}
                     <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
                       <div className="min-w-0 flex-1">
-                        <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
+                        {/* O quanto o móvel tem vem colado no nome dele: a
+                            tirinha enche com o total de unidades, e é essa a
+                            leitura que se faz de longe */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
+                          <FillMeter
+                            percent={bloco.percent}
+                            title={`${bloco.totalUn} de ${bloco.totalRef} un do padrão de hoje`}
+                            className="shrink-0"
+                          />
+                        </div>
                         <p className="t-caption tnum mt-0.5">
                           {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'} · {bloco.totalUn} un
-                          {bloco.percent !== null && ` · ${bloco.percent}% do padrão de hoje`}
+                          {bloco.percent !== null && ` de ${bloco.totalRef} un do padrão de hoje`}
                         </p>
                       </div>
                       {bloco.destino && (
