@@ -889,11 +889,24 @@
       const defaultMinQty = (product, idealQty) =>
         Math.max(0, Math.min(Number(product?.minReplenishmentQty) || 0, idealQty || 0));
 
-      // Quantos produtos cabem lado a lado em uma fileira da vitrine. É o
-      // desenho do móvel de verdade: a loja vê quatro colunas de produto, e o
-      // número de fileiras vem do tamanho de cada vitrine — 12 espaços dão
-      // três fileiras, 16 dão quatro, 8 dão duas.
-      const SHOWCASE_GRID_COLUMNS = 4;
+      // ------------------------------------------
+      // O desenho dos móveis da loja: quantos produtos ficam lado a lado em
+      // uma fileira de cada vitrine. É o que se vê no balcão, e é assim que a
+      // tela desenha os espaços — o número de fileiras vem do tamanho da
+      // vitrine (12 espaços em 4 colunas dão três fileiras; 8 em 3 colunas dão
+      // três, sendo a última com um espaço só).
+      //
+      // Vitrine que não estiver aqui desenha em quatro colunas.
+      // ------------------------------------------
+      const SHOWCASE_COLUMNS = {
+        matriz: { salgada: 4, doce: 4, sobremesa: 4 },
+        vilanova: { salgada: 4, doce: 3, sobremesa: 3 }
+      };
+
+      const DEFAULT_SHOWCASE_COLUMNS = 4;
+
+      const showcaseColumnsFor = (unit, showcaseType) =>
+        (SHOWCASE_COLUMNS[unit] || {})[showcaseType] || DEFAULT_SHOWCASE_COLUMNS;
 
       // Ordem em que as vitrines aparecem nas listas
       const SHOWCASE_TYPE_ORDER = { salgada: 0, doce: 1, sobremesa: 2 };
@@ -2516,6 +2529,8 @@
               linhas,
               livres,
               destino,
+              // O desenho do móvel: quantos espaços ficam lado a lado nele
+              colunas: showcaseColumnsFor(currentUnit, bloco.showcaseType),
               totalUn,
               totalAtual,
               totalRef,
@@ -2531,8 +2546,8 @@
               <div className="min-w-0">
                 <h2 className="t-headline text-[#1d1d1f]">Vitrine física</h2>
                 <p className="t-caption mt-0.5">
-                  A quantidade vem na frente do produto, do mais velho para o mais novo ·
-                  segure um botão de perda para escolher o motivo
+                  Cada móvel no desenho dele, espaço por espaço · a quantidade vem na
+                  frente do produto · segure um botão de perda para escolher o motivo
                 </p>
               </div>
               <div className="segmented shrink-0">
@@ -2551,8 +2566,8 @@
                 </p>
               </div>
             ) : (
-              // Um cartão por móvel, como o pedido de produção faz com cada
-              // responsável
+              // Um cartão por móvel e, dentro dele, o desenho da vitrine: os
+              // espaços nas colunas que aquele móvel tem no balcão
               <div className="space-y-4">
                 {blocos.map((bloco) => (
                   <div key={bloco.key} className="card p-5">
@@ -2598,67 +2613,103 @@
                       )}
                     </div>
 
-                    {bloco.linhas.length === 0 ? (
-                      <p className="t-body text-[#86868b] text-center py-7 px-4">Nada montado neste móvel</p>
-                    ) : (
-                      bloco.linhas.map(({ item }) => {
-                        const prod = products.find((p) => p.id === item.productId);
-                        const statusInfo = getSlotItemStatus(item, prod);
+                    {/* O móvel desenhado: cada espaço no lugar em que ele está
+                        no balcão, nas colunas daquela vitrine. Espaço vazio
+                        fica apagado e chama o produto que falta */}
+                    <div className="overflow-x-auto mt-3">
+                      <div
+                        className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
+                        style={{
+                          gridTemplateColumns: `repeat(${bloco.colunas}, minmax(0, 1fr))`,
+                          minWidth: `${bloco.colunas * 168}px`
+                        }}
+                      >
+                        {bloco.espacos.map((slot) => {
+                          const doEspaco = bloco.linhas.filter((l) => l.slot.id === slot.id);
 
-                        return (
-                          // No celular o nome fica com a linha inteira e os
-                          // botões descem para baixo dele: espremer os dois na
-                          // mesma linha cortava o nome do produto
-                          <div key={item.id} className="py-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b hairline last:border-0">
-                            <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-                              {/* Quanto tem e de quê — nesta ordem, porque é
-                                  assim que se confere de olho no balcão */}
-                              <div className="flex items-baseline gap-2 min-w-0">
-                                <span
-                                  className="shrink-0"
-                                  title={item.producedQty > 0
-                                    ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
-                                    : `${item.currentQty} ${item.unit} na vitrine`}
-                                >
-                                  <QtyOfBatch
-                                    qty={item.currentQty}
-                                    produced={item.producedQty || 0}
-                                    unit={item.unit}
-                                    big
-                                  />
-                                </span>
-                                <h5 className="t-headline truncate min-w-0">
-                                  <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
-                                </h5>
+                          return (
+                            <div
+                              key={slot.id}
+                              className={`px-2.5 py-2 bg-[var(--bg-surface)] transition-opacity ${
+                                doEspaco.length === 0 ? 'opacity-45 hover:opacity-100' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="t-caption tnum">{slot.slotNumber}</span>
+                                {doEspaco.length === 0 && (
+                                  <button
+                                    onClick={() => onOpenSlot(slot)}
+                                    title={`Colocar produto no espaço ${slot.slotNumber} da ${bloco.title}`}
+                                    className="t-caption text-[11px] flex items-center gap-1 hover:text-[#1d1d1f] transition-colors"
+                                  >
+                                    <Icons.Plus className="w-3 h-3" />
+                                    Vazio
+                                  </button>
+                                )}
                               </div>
 
-                              {/* Quem responde pelo item e o tempo de vitrine.
-                                  Dia a dia é texto miúdo; selo mesmo, só no
-                                  último dia e no vencido */}
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                                <p className="t-caption text-[11px] flex items-center gap-1 min-w-0">
-                                  <Icons.User className="w-3 h-3 shrink-0" />
-                                  <span className="truncate">{getResponsibleName(prod)}</span>
-                                </p>
-                                <span className={statusInfo.alerta ? `pill text-[10px] ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption text-[11px] tnum'}>
-                                  {statusInfo.label}
-                                </span>
-                              </div>
+                              {/* Dois produtos no mesmo espaço ficam um embaixo
+                                  do outro, separados por um fio */}
+                              {doEspaco.map(({ item }, i) => {
+                                const prod = products.find((p) => p.id === item.productId);
+                                const statusInfo = getSlotItemStatus(item, prod);
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={i === 0 ? 'mt-0.5' : 'mt-1.5 pt-1.5 border-t hairline'}
+                                  >
+                                    {/* Quanto tem e de quê — nesta ordem, porque
+                                        é assim que se confere de olho no balcão */}
+                                    <div className="flex items-baseline gap-1.5 min-w-0">
+                                      <span
+                                        className="shrink-0"
+                                        title={item.producedQty > 0
+                                          ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
+                                          : `${item.currentQty} ${item.unit} na vitrine`}
+                                      >
+                                        <QtyOfBatch
+                                          qty={item.currentQty}
+                                          produced={item.producedQty || 0}
+                                          unit={item.unit}
+                                          big
+                                        />
+                                      </span>
+                                      <h5 className="t-headline text-[14px] truncate min-w-0" title={item.productName}>
+                                        <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                                      </h5>
+                                    </div>
+
+                                    {/* Quem responde pelo item e o tempo de
+                                        vitrine. Dia a dia é texto miúdo; selo
+                                        mesmo, só no último dia e no vencido */}
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                                      <p className="t-caption text-[11px] flex items-center gap-1 min-w-0">
+                                        <Icons.User className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">{getResponsibleName(prod)}</span>
+                                      </p>
+                                      <span className={statusInfo.alerta ? `pill text-[10px] ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption text-[11px] tnum'}>
+                                        {statusInfo.label}
+                                      </span>
+                                    </div>
+
+                                    <ItemActions
+                                      item={item}
+                                      onQuickSale={onQuickSale}
+                                      onRecordSellAll={onRecordSellAll}
+                                      onQuickLoss={onQuickLoss}
+                                      onOpenDecreaseModal={onOpenDecreaseModal}
+                                      className="mt-1.5"
+                                      buttonClass="flex-1 h-7 px-0"
+                                    />
+                                  </div>
+                                );
+                              })}
                             </div>
-
-                            <ItemActions
-                              item={item}
-                              onQuickSale={onQuickSale}
-                              onRecordSellAll={onRecordSellAll}
-                              onQuickLoss={onQuickLoss}
-                              onOpenDecreaseModal={onOpenDecreaseModal}
-                              className="shrink-0 ml-auto"
-                              buttonClass="w-9 h-8 px-0"
-                            />
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -3655,9 +3706,9 @@
       // STANDARD SHOWCASE VIEW (Vitrine Padrão)
       //
       // Uma grade por vitrine, uma embaixo da outra, no desenho do móvel de
-      // verdade: quatro colunas de produto e as fileiras que o tamanho da
-      // vitrine pedir. Quem monta a vitrine na loja olha para a tela e vê a
-      // mesma coisa que vai ver no balcão.
+      // verdade: as colunas de produto daquela vitrine (SHOWCASE_COLUMNS) e as
+      // fileiras que o tamanho dela pedir. Quem monta a vitrine na loja olha
+      // para a tela e vê a mesma coisa que vai ver no balcão.
       //
       // Nada de cartão em volta de cada espaço: o que separa um do outro é o
       // fio fino da grade. O espaço vazio fica apagado, e as duas quantidades
@@ -3855,16 +3906,16 @@
               </div>
             </div>
 
-            {/* Cada vitrine no desenho dela: os espaços em quatro colunas de
-                produto, na ordem em que estão no móvel da loja. O número de
-                fileiras vem do tamanho da vitrine — 12 espaços dão três
-                fileiras, 16 dão quatro, 8 dão duas. Espaço vazio fica apagado,
+            {/* Cada vitrine no desenho dela: os espaços em colunas de produto,
+                na ordem em que estão no móvel da loja, com o número de colunas
+                que aquela vitrine tem de verdade. Espaço vazio fica apagado,
                 para o olho cair primeiro no que já está montado. */}
             <div className="space-y-4">
               {showcases.map((vitrine) => {
                 const planejados = vitrine.slots.filter((s) => planOf(s.id));
                 const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
                 const totalMinimo = planejados.reduce((acc, s) => acc + (planOf(s.id)?.minQty || 0), 0);
+                const colunas = showcaseColumnsFor(currentUnit, vitrine.showcaseType);
                 // O espaço da vitrine salgada só oferece produto salgado
                 const productOptions = [
                   { value: '', label: 'Espaço vazio', muted: true },
@@ -3891,8 +3942,11 @@
                         desenho da vitrine, sem cartão em volta de cada um */}
                     <div className="overflow-x-auto">
                       <div
-                        className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden min-w-[760px]"
-                        style={{ gridTemplateColumns: `repeat(${SHOWCASE_GRID_COLUMNS}, minmax(0, 1fr))` }}
+                        className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
+                        style={{
+                          gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))`,
+                          minWidth: `${colunas * 190}px`
+                        }}
                       >
                         {vitrine.slots.map((slot) => {
                           const planItem = planOf(slot.id);
