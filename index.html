@@ -402,14 +402,14 @@
       }
 
       /* ==========================================
-         MEDIDOR DE QUANTIDADE DA VITRINE
-         O quanto o móvel tem, do lado do nome dele: uma tirinha curta que
-         enche da esquerda para a direita com o total de unidades.
-         O padrão do dia não fica no fim da tirinha, e sim em um risquinho
-         antes dele: assim a tinta tem para onde passar. Vitrine no ponto
-         para na marca; vitrine com mais do que devia atravessa a marca e
-         entra na sobra, em âmbar. É o que a porcentagem sozinha não mostra —
-         100% e 112% desenhavam a mesma tirinha cheia.
+         MEDIDOR DE OCUPAÇÃO DA VITRINE
+         O quanto do móvel está tomado, do lado do nome dele: uma tirinha
+         curta que enche da esquerda para a direita com os produtos que estão
+         nos espaços. O móvel cheio não fica no fim da tirinha, e sim em um
+         risquinho antes dele: assim a tinta tem para onde passar. Móvel no
+         ponto para na marca; móvel com mais produto do que espaço atravessa
+         a marca e entra na sobra, em âmbar. É o que a porcentagem sozinha
+         não mostra — 100% e 112% desenhavam a mesma tirinha cheia.
          ========================================== */
       .meter { display: inline-flex; align-items: center; gap: 5px; }
       .meter-track {
@@ -947,6 +947,21 @@
         return blocos.sort(compareShowcase);
       };
 
+      // Tudo que está exposto em um móvel, com o número do espaço junto.
+      // Serve para saber se o produto já tem lugar ali: lote novo de produto
+      // que já está na vitrine entra na bandeja dele, e não em espaço novo.
+      const itemsOfShowcase = (slots, slotItems, slot) => {
+        if (!slot) return [];
+        const chave = showcaseKey(slot);
+        const doMovel = {};
+        slots.forEach((s) => {
+          if (s.unit === slot.unit && showcaseKey(s) === chave) doMovel[s.id] = s;
+        });
+        return slotItems
+          .filter((i) => doMovel[i.slotId])
+          .map((i) => ({ ...i, slotNumber: doMovel[i.slotId].slotNumber }));
+      };
+
       const calculateDaysInShowcase = (mDateStr) => {
         if (!mDateStr) return 0;
         const mDate = new Date(mDateStr);
@@ -1443,27 +1458,25 @@
       );
 
       // ==========================================
-      // MEDIDOR DE QUANTIDADE DA VITRINE
+      // MEDIDOR DE OCUPAÇÃO DA VITRINE
       //
-      // O quanto o móvel tem, em uma tirinha curta do lado do nome dele. Não
-      // é espaço por espaço: é a vitrine inteira somada — o total de unidades
-      // que está lá contra o total que deveria estar.
+      // O quanto do móvel está tomado, em uma tirinha curta do lado do nome
+      // dele: os produtos que estão lá contra os espaços que o móvel tem.
       //
-      // O padrão do dia não fica no fim da tirinha: fica em um risquinho a
-      // três quartos dela, e o pedaço depois da marca é a sobra. Assim a
-      // vitrine com mais do que devia atravessa a marca e entra na sobra em
-      // âmbar, em vez de desenhar a mesma tirinha cheia de quem está no
-      // ponto. Vitrine lotada tem cara de lotada, que é a leitura que a loja
-      // faz de longe.
+      // O móvel cheio não fica no fim da tirinha: fica em um risquinho a 70%
+      // dela, e o pedaço depois da marca é a sobra. Assim a vitrine com mais
+      // produto do que espaço atravessa a marca e entra na sobra em âmbar, em
+      // vez de desenhar a mesma tirinha cheia de quem está no ponto. Vitrine
+      // lotada tem cara de lotada, que é a leitura que a loja faz de longe.
       //
-      // A sobra desenhada vai até um terço acima do padrão: dali para cima o
+      // A sobra desenhada vai até um terço acima do cheio: dali para cima o
       // âmbar já está no fim e quem conta o resto é a porcentagem. O primeiro
       // pedaço da sobra cresce depressa (raiz, e não reta), senão passar 10%
-      // do padrão pintaria um fiapo de âmbar que ninguém enxerga — e é
-      // justamente esse tanto que a loja precisa ver.
+      // pintaria um fiapo de âmbar que ninguém enxerga — e é justamente esse
+      // tanto que a loja precisa ver.
       // ==========================================
-      const MEDIDOR_MARCA = 70;      // onde fica o padrão do dia, em % da tirinha
-      const MEDIDOR_SOBRA = 30;      // quanto acima do padrão a sobra desenha, em %
+      const MEDIDOR_MARCA = 70;      // onde fica o móvel cheio, em % da tirinha
+      const MEDIDOR_SOBRA = 30;      // quanto acima do cheio a sobra desenha, em %
 
       const FillMeter = ({ percent, title, className = '' }) => {
         if (percent === null || percent === undefined) return null;
@@ -2508,13 +2521,23 @@
             const livres = espacos.filter((slot) => !ocupados.has(slot.id));
             const totalUn = doBloco.reduce((soma, item) => soma + item.currentQty, 0);
 
-            const leituras = espacos.map((slot) => ({
-              slot,
-              ...readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans)
-            }));
-            const comPadrao = leituras.filter((l) => l.referencia > 0);
-            const totalAtual = comPadrao.reduce((s, l) => s + l.atual, 0);
-            const totalRef = comPadrao.reduce((s, l) => s + l.referencia, 0);
+            // Quantos produtos diferentes o móvel está segurando. Dois lotes
+            // do mesmo produto — o de ontem e o de hoje, lado a lado — são um
+            // produto só: eles dividem o mesmo espaço na vitrine, e contar
+            // dois seria dizer que o móvel está mais apertado do que está.
+            const produtos = new Set(doBloco.map((item) => item.productId || item.productName));
+            // Produto que não coube em espaço próprio está dividindo espaço
+            // com outro. É o que faz o móvel passar de 100%: mais produto do
+            // que lugar para ele.
+            const dividindo = Math.max(0, produtos.size - espacos.length);
+
+            // Quanto o padrão de hoje manda ter neste móvel, somando espaço a
+            // espaço. Continua em texto embaixo do nome: o medidor conta
+            // espaço, e a unidade é conversa do número
+            const totalRef = espacos.reduce(
+              (soma, slot) => soma + readSlotFill(slot, slotItems.filter((i) => i.slotId === slot.id), dayPlans).padrao,
+              0
+            );
 
             // Onde entra um produto novo deste móvel: o primeiro espaço livre
             // e, com o móvel cheio, o menos ocupado — a mesma escolha que a
@@ -2532,10 +2555,12 @@
               // O desenho do móvel: quantos espaços ficam lado a lado nele
               colunas: showcaseColumnsFor(currentUnit, bloco.showcaseType),
               totalUn,
-              totalAtual,
               totalRef,
-              acima: totalRef > 0 ? Math.max(0, totalAtual - totalRef) : 0,
-              percent: totalRef > 0 ? Math.round((totalAtual / totalRef) * 100) : null
+              produtos: produtos.size,
+              dividindo,
+              // A régua do medidor é o espaço do móvel, e não a unidade: o
+              // que a loja lê de longe é quanto da vitrine está tomada
+              percent: espacos.length > 0 ? Math.round((produtos.size / espacos.length) * 100) : null
             };
           });
         }, [unitSlots, slotItems, dayPlans]);
@@ -2575,30 +2600,26 @@
                         de hoje está montado */}
                     <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
                       <div className="min-w-0 flex-1">
-                        {/* O quanto o móvel tem vem colado no nome dele: a
-                            tirinha enche com o total de unidades, e é essa a
-                            leitura que se faz de longe */}
+                        {/* O quanto do móvel está tomado vem colado no nome
+                            dele: a tirinha enche com os produtos que estão
+                            nos espaços, e é essa a leitura que se faz de
+                            longe. A quantidade em unidades fica embaixo, em
+                            texto, para quem quer o número */}
                         <div className="flex items-center gap-2 min-w-0">
                           <h3 className="t-headline text-[#1d1d1f] truncate">{bloco.title}</h3>
                           <FillMeter
                             percent={bloco.percent}
                             title={
-                              bloco.acima > 0
-                                ? `${bloco.totalAtual} un na vitrine · ${bloco.acima} un acima do padrão de hoje, que é ${bloco.totalRef} un`
-                                : `${bloco.totalAtual} de ${bloco.totalRef} un do padrão de hoje`
+                              bloco.dividindo > 0
+                                ? `${bloco.produtos} produtos em ${bloco.espacos.length} espaços · ${bloco.dividindo} sem espaço próprio, dividindo com outro`
+                                : `${bloco.produtos} de ${bloco.espacos.length} espaços com produto · ${bloco.livres.length} ${bloco.livres.length === 1 ? 'livre' : 'livres'}`
                             }
                             className="shrink-0"
                           />
                         </div>
-                        {/* Passar do padrão é a conta que interessa quando
-                            passa: quantas unidades a mais estão no móvel */}
                         <p className="t-caption tnum mt-0.5">
-                          {bloco.linhas.length} {bloco.linhas.length === 1 ? 'item' : 'itens'} · {bloco.totalUn} un
-                          {bloco.percent !== null && (
-                            bloco.acima > 0
-                              ? ` · ${bloco.acima} un acima do padrão de hoje`
-                              : ` de ${bloco.totalRef} un do padrão de hoje`
-                          )}
+                          {bloco.produtos} {bloco.produtos === 1 ? 'produto' : 'produtos'} em {bloco.espacos.length} {bloco.espacos.length === 1 ? 'espaço' : 'espaços'} · {bloco.totalUn} un
+                          {bloco.totalRef > 0 && ` de ${bloco.totalRef} un do padrão de hoje`}
                         </p>
                       </div>
                       {bloco.destino && (
@@ -6662,7 +6683,7 @@
       // Quando o espaço já tem alguém, a janela diz com quem o produto vai
       // dividir o lugar, para não ser surpresa na hora de procurar.
       // ==========================================
-      const SlotAddModal = ({ slot, itemsInSlot, products, onClose, onConfirm }) => {
+      const SlotAddModal = ({ slot, itemsInSlot, itemsInShowcase = [], products, onClose, onConfirm }) => {
         if (!slot) return null;
         const [productName, setProductName] = useState('');
         const [qty, setQty] = useState(10);
@@ -6674,6 +6695,14 @@
         const productOptions = productsForShowcaseType(products, slot.showcaseType)
           .map((p) => ({ value: p.name, label: p.name }));
         const dividindo = itemsInSlot.length > 0;
+
+        // Produto que já está neste móvel não ganha espaço novo: o lote entra
+        // na mesma bandeja do que já está exposto. A janela avisa antes de
+        // confirmar, senão a pessoa escolhe um espaço vazio e o item aparece
+        // em outro lugar sem explicação.
+        const jaNoMovel = itemsInShowcase.find(
+          (i) => i.productName.toLowerCase().trim() === productName.toLowerCase().trim()
+        );
 
         const handleSubmit = (e) => {
           e.preventDefault();
@@ -6725,6 +6754,15 @@
                   emptyLabel={`Nenhum produto de ${categoriaDaVitrine} com esse nome — ao colocar, ele entra no catálogo`}
                   className="field field-md font-semibold"
                 />
+                {jaNoMovel && (
+                  <p className="t-caption text-[11px] mt-1.5 flex items-start gap-1">
+                    <Icons.Layers className="w-3 h-3 shrink-0 mt-[2px]" />
+                    <span>
+                      Já tem <strong className="text-[#1d1d1f]">{jaNoMovel.productName}</strong> no espaço{' '}
+                      {jaNoMovel.slotNumber} desta vitrine — o lote novo vai junto com ele, na mesma bandeja.
+                    </span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -7460,10 +7498,25 @@
               throw new Error(`nenhum espaço de ${showcaseType} cadastrado na unidade ${getUnitName(units, currentUnit)}`);
             }
 
+            // Produto que já está na vitrine volta para o espaço dele: o lote
+            // de ontem e o de hoje ficam na mesma bandeja, como ficam no móvel
+            // de verdade. Dar um espaço novo para o mesmo produto tomaria
+            // lugar de quem ainda não tem nenhum.
+            //
+            // Quando a pessoa escolheu um móvel — a janela de colocar produto
+            // é por móvel, e não por espaço —, a procura fica dentro dele.
+            const espacosDaProcura = escolhido
+              ? unitSlots.filter((s) => showcaseKey(s) === showcaseKey(escolhido))
+              : unitSlots;
+            const mesmoProduto = espacosDaProcura.find((s) =>
+              slotItems.some((i) => i.slotId === s.id && i.productId === product.id)
+            );
+
             // Com a vitrine cheia, entra no espaço menos ocupado em vez de
             // empilhar tudo no primeiro
             const ocupacao = (slot) => slotItems.filter((i) => i.slotId === slot.id).length;
-            const targetSlot = escolhido
+            const targetSlot = mesmoProduto
+              || escolhido
               || unitSlots.find((s) => ocupacao(s) === 0)
               || unitSlots.reduce((menos, s) => (ocupacao(s) < ocupacao(menos) ? s : menos), unitSlots[0]);
 
@@ -8329,6 +8382,9 @@
             <SlotAddModal
               slot={slotToFill}
               itemsInSlot={slotToFill ? slotItems.filter((i) => i.slotId === slotToFill.id) : []}
+              /* O móvel inteiro, e não só o espaço sugerido: é ele que diz se
+                 o produto digitado já está exposto em algum lugar daqui */
+              itemsInShowcase={slotToFill ? itemsOfShowcase(slots, slotItems, slotToFill) : []}
               products={products}
               onClose={() => setSlotToFill(null)}
               onConfirm={handleQuickAllocate}
