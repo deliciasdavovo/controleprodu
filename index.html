@@ -4,10 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
-    <!-- Fonts & Tailwind CSS -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -15,7 +12,7 @@
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Manrope', '-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'sans-serif'],
+              sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', 'sans-serif'],
             },
             colors: {
               blue: {
@@ -48,26 +45,33 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       :root {
-        /* Superfícies — cinzas quentes no estilo iOS/macOS */
-        --bg-canvas: #f5f5f7;
+        /* Superfícies no estilo das interfaces do iOS/macOS */
+        --bg-canvas: #f2f2f7;
         --bg-surface: #ffffff;
-        --bg-elevated: #fbfbfd;
+        --bg-elevated: #f9f9fb;
         --ink-1: #1d1d1f;   /* Títulos */
         --ink-2: #424245;   /* Corpo */
         --ink-3: #6e6e73;   /* Secundário */
         --ink-4: #86868b;   /* Terciário / legendas */
-        --hairline: rgba(0, 0, 0, 0.08);
-        --accent: #0071e3;
-        --radius-lg: 20px;
-        --radius-md: 14px;
-        --radius-sm: 10px;
+        --hairline: rgba(60, 60, 67, 0.12);
+        --accent: #007aff;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+        --radius-sm: 12px;
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.025), 0 10px 30px rgba(0, 0, 0, 0.045);
       }
 
-      html { -webkit-text-size-adjust: 100%; }
+      html {
+        -webkit-text-size-adjust: 100%;
+        background: var(--bg-canvas);
+      }
 
       body {
-        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-        background-color: var(--bg-canvas);
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.72) 0, rgba(255,255,255,0) 320px),
+          var(--bg-canvas);
         color: var(--ink-1);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -136,7 +140,7 @@
         background: var(--bg-surface);
         border: 1px solid var(--hairline);
         border-radius: var(--radius-lg);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.04);
+        box-shadow: var(--shadow-card);
       }
       .card-flat {
         background: var(--bg-surface);
@@ -152,9 +156,9 @@
 
       /* Vidro fosco — barra de navegação e modais */
       .glass {
-        background: rgba(255, 255, 255, 0.72);
-        backdrop-filter: saturate(180%) blur(20px);
-        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        background: rgba(248, 248, 250, 0.78);
+        backdrop-filter: saturate(190%) blur(24px);
+        -webkit-backdrop-filter: saturate(190%) blur(24px);
       }
       .glass-dark {
         background: rgba(22, 22, 24, 0.72);
@@ -175,8 +179,15 @@
         border-radius: 980px;
         transition: background-color .18s ease, transform .12s ease, opacity .18s ease, box-shadow .18s ease;
         white-space: nowrap;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
       .btn:active { transform: scale(0.97); }
+      .btn:focus-visible,
+      button:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.22);
+      }
       .btn-primary {
         background: var(--accent);
         color: #fff;
@@ -201,6 +212,57 @@
       .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
       .btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
       .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
+
+      /* Baixa rápida: só duas decisões. Toque tira uma unidade e a barra que
+         cresce ao segurar deixa claro que o lote inteiro será baixado. */
+      .item-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+      }
+      .item-action {
+        position: relative;
+        isolation: isolate;
+        min-width: 0;
+        height: 38px;
+        padding: 0 7px;
+        gap: 5px;
+        overflow: hidden;
+        border-radius: 12px;
+        font-size: 12.5px;
+        font-weight: 700;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+      .item-action::before {
+        content: '';
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        width: 0;
+        border-radius: inherit;
+        opacity: 0;
+      }
+      .item-action[data-holding="true"]::before {
+        opacity: 1;
+        animation: long-press-fill 600ms linear forwards;
+      }
+      .item-action-sale {
+        color: #176b2d;
+        background: rgba(52, 199, 89, 0.12);
+        border: 1px solid rgba(52, 199, 89, 0.16);
+      }
+      .item-action-sale:hover { background: rgba(52, 199, 89, 0.18); }
+      .item-action-sale::before { background: rgba(52, 199, 89, 0.20); }
+      .item-action-loss {
+        color: #c9271d;
+        background: rgba(255, 59, 48, 0.10);
+        border: 1px solid rgba(255, 59, 48, 0.14);
+      }
+      .item-action-loss:hover { background: rgba(255, 59, 48, 0.16); }
+      .item-action-loss::before { background: rgba(255, 59, 48, 0.18); }
+      @keyframes long-press-fill { from { width: 0; } to { width: 100%; } }
 
       /* Segmented control (iOS) */
       .segmented {
@@ -272,7 +334,7 @@
       .field {
         width: 100%;
         background: var(--bg-surface);
-        border: 1px solid rgba(0, 0, 0, 0.12);
+        border: 1px solid rgba(60, 60, 67, 0.15);
         border-radius: var(--radius-sm);
         font-size: 13px;
         font-weight: 500;
@@ -597,6 +659,86 @@
       /* Divisor fino no padrão das listas do iOS */
       .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
 
+      /* Lista de apoio: lista agrupada de verdade, com cabeçalhos presos e
+         linhas contínuas como nos painéis de Ajustes do iOS. */
+      .support-panel {
+        box-shadow: var(--shadow-card);
+      }
+      .support-add-panel {
+        background: rgba(118, 118, 128, 0.055);
+      }
+      .support-list {
+        background: var(--bg-surface);
+        overscroll-behavior: contain;
+      }
+      .support-section-header {
+        background: rgba(248, 248, 250, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      .support-row {
+        position: relative;
+        padding: 13px 16px 14px;
+        background: var(--bg-surface);
+        border-bottom: 1px solid var(--hairline);
+        transition: background-color .16s ease;
+      }
+      .support-row:last-child { border-bottom: 0; }
+      .support-row:hover { background: rgba(0, 122, 255, 0.028); }
+      .support-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        border-radius: 9px;
+        background: rgba(118, 118, 128, 0.10);
+        color: var(--ink-3);
+        font-size: 10.5px;
+        font-weight: 750;
+        font-variant-numeric: tabular-nums;
+      }
+      .support-qty {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        color: var(--ink-1);
+        white-space: nowrap;
+      }
+      .support-qty strong {
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 750;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+      }
+      .support-fields {
+        display: grid;
+        grid-template-columns: minmax(112px, 1fr) 62px 66px;
+        gap: 7px;
+        margin-top: 11px;
+        padding: 9px;
+        border-radius: 14px;
+        background: rgba(118, 118, 128, 0.065);
+      }
+      .support-fields .field {
+        background: rgba(255, 255, 255, 0.82);
+        border-color: transparent;
+      }
+      .support-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 32px;
+        gap: 7px;
+        margin-top: 9px;
+      }
+      .app-navbar {
+        box-shadow: 0 1px 0 rgba(255,255,255,0.72), 0 8px 30px rgba(0,0,0,0.025);
+      }
+      .showcase-card {
+        box-shadow: var(--shadow-card);
+      }
+
       .scrollbar-none::-webkit-scrollbar { display: none; }
       .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -622,6 +764,13 @@
 
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+      }
+
+      @media (max-width: 640px) {
+        :root { --radius-lg: 18px; }
+        .support-row { padding-left: 14px; padding-right: 14px; }
+        .support-fields { grid-template-columns: minmax(105px, 1fr) 58px 62px; }
+        .item-action { height: 40px; font-size: 13px; }
       }
     </style>
   </head>
@@ -1538,7 +1687,7 @@
         ];
 
         return (
-          <header className="glass sticky top-0 z-40 border-b hairline">
+          <header className="app-navbar glass sticky top-0 z-40 border-b hairline">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-14 gap-4">
                 <div className="flex items-center gap-4">
@@ -1654,9 +1803,9 @@
       // ==========================================
       // SEGURAR O BOTÃO
       //
-      // O clique curto dá a baixa rápida; segurar por um instante abre a
-      // janela completa, com motivo, detalhes e quantidade. Serve para a
-      // perda de avaria ou quebra, que é rara perto da perda de vencido.
+      // O clique curto dá a baixa rápida; segurar por um instante dá baixa no
+      // lote inteiro. O próprio botão mostra o tempo do gesto enquanto o dedo
+      // fica parado nele.
       // ==========================================
       const LONG_PRESS_MS = 600;
 
@@ -1664,19 +1813,24 @@
         const timerRef = useRef(null);
         const disparouRef = useRef(false);
         const origemRef = useRef(null);
+        const [segurando, setSegurando] = useState(false);
 
         const soltar = () => {
           if (timerRef.current) clearTimeout(timerRef.current);
           timerRef.current = null;
           origemRef.current = null;
+          setSegurando(false);
         };
 
         return {
+          'data-holding': segurando,
           onPointerDown: (e) => {
             disparouRef.current = false;
             origemRef.current = { x: e.clientX, y: e.clientY };
+            setSegurando(true);
             timerRef.current = setTimeout(() => {
               disparouRef.current = true;
+              setSegurando(false);
               onLongPress();
             }, LONG_PRESS_MS);
           },
@@ -1705,62 +1859,40 @@
       // ==========================================
       // BOTÕES DE BAIXA DE UM ITEM
       //
-      // Os mesmos quatro botões na vitrine física e na lista de apoio, para
-      // o gesto ser o mesmo nas duas telas:
-      //   🛒 carrinho  → vendeu 1
-      //   ✓ certo      → vendeu tudo
-      //   ⚠ aviso      → perdeu 1
-      //   ⚠ vermelho   → perdeu tudo
-      // Segurar um dos ⚠ abre a janela de perda com motivo.
-      //
-      // Nenhum deles tem fundo cheio: os dois que zeram o espaço ficam em
-      // cor lavada — verde e vermelho — porque são os toques que não dá para
-      // errar, e os de uma unidade ficam em cinza, para a tela não virar um
-      // semáforo.
+      // Os mesmos dois botões na vitrine física e na lista de apoio:
+      //   Venda → toque vende 1; segure para vender tudo
+      //   Perda → toque perde 1; segure para perder tudo
+      // O gesto fica igual ao da conferência e reduz quatro decisões a duas.
       // ==========================================
-      const ItemActions = ({ item, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, className = '', buttonClass = 'flex-1 h-7 px-0' }) => {
-        const perdeuUm = useLongPress(
-          () => onOpenDecreaseModal(item, 'perda'),
-          () => onQuickLoss(item.id, 1)
+      const ItemActions = ({ item, onQuickSale, onRecordSellAll, onQuickLoss, className = '' }) => {
+        const venda = useLongPress(
+          () => onRecordSellAll(item.id),
+          () => onQuickSale(item.id)
         );
-        const perdeuTudo = useLongPress(
-          () => onOpenDecreaseModal(item, 'perda'),
-          () => onQuickLoss(item.id, item.currentQty)
+        const perda = useLongPress(
+          () => onQuickLoss(item.id, item.currentQty),
+          () => onQuickLoss(item.id, 1)
         );
 
         return (
-          <div className={`flex items-center gap-1.5 ${className}`}>
+          <div className={`item-actions ${className}`}>
             <button
-              onClick={() => onQuickSale(item.id)}
-              title="Vendeu 1"
-              aria-label="Vendeu 1"
-              className={`btn btn-secondary text-[#1d1d1f] ${buttonClass}`}
+              {...venda}
+              title={`Venda 1 · segure para vender tudo (${item.currentQty})`}
+              aria-label={`Venda uma unidade. Segure para vender todas as ${item.currentQty} unidades`}
+              className="btn item-action item-action-sale"
             >
               <Icons.ShoppingCart className="w-3.5 h-3.5" />
+              <span>Venda</span>
             </button>
             <button
-              onClick={() => onRecordSellAll(item.id)}
-              title={`Vendeu tudo (${item.currentQty})`}
-              aria-label={`Vendeu tudo, ${item.currentQty} unidades`}
-              className={`btn btn-success-quiet ${buttonClass}`}
-            >
-              <Icons.CheckCircle2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              {...perdeuUm}
-              title="Perdeu 1 — segure para escolher o motivo"
-              aria-label="Perdeu 1"
-              className={`btn btn-secondary text-[#6e6e73] ${buttonClass}`}
+              {...perda}
+              title={`Perda de 1 · segure para perder tudo (${item.currentQty})`}
+              aria-label={`Registre a perda de uma unidade. Segure para perder todas as ${item.currentQty} unidades`}
+              className="btn item-action item-action-loss"
             >
               <Icons.AlertTriangle className="w-3.5 h-3.5" />
-            </button>
-            <button
-              {...perdeuTudo}
-              title={`Perdeu tudo (${item.currentQty}) — segure para escolher o motivo`}
-              aria-label={`Perdeu tudo, ${item.currentQty} unidades`}
-              className={`btn btn-danger-quiet ${buttonClass}`}
-            >
-              <Icons.AlertTriangle className="w-3.5 h-3.5" />
+              <span>Perda</span>
             </button>
           </div>
         );
@@ -2266,26 +2398,26 @@
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           {...vendeu}
-                          title={`Vendeu 1 (seta esquerda) — segure para vender as ${item.currentQty}`}
-                          aria-label="Vendeu 1, segure para vender tudo"
+                          title={`Venda 1 (seta esquerda) — segure para vender as ${item.currentQty}`}
+                          aria-label="Venda uma unidade, segure para vender tudo"
                           className="btn btn-lg btn-success-quiet text-[14px] px-3"
                         >
                           <Icons.ShoppingCart className="w-4 h-4 shrink-0" />
-                          Vendeu 1
+                          Venda
                         </button>
                         <button
                           {...perdeu}
-                          title={`Perdeu 1 (seta direita) — segure para perder as ${item.currentQty}`}
-                          aria-label="Perdeu 1, segure para perder tudo"
+                          title={`Perda de 1 (seta direita) — segure para perder as ${item.currentQty}`}
+                          aria-label="Registre uma perda, segure para perder tudo"
                           className="btn btn-lg btn-danger-quiet text-[14px] px-3"
                         >
                           <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
-                          Perdeu 1
+                          Perda
                         </button>
                       </div>
 
                       <p className="t-caption text-[11px] text-center">
-                        Segure para dar baixa nas <span className="tnum">{item.currentQty}</span> de uma vez ·
+                        Toque baixa 1 · segure para baixar as <span className="tnum">{item.currentQty}</span> de uma vez ·
                         a perda de 1 entra como vencida
                       </p>
 
@@ -2487,7 +2619,7 @@
       // A quantidade é de leitura: nesta tela ela só muda por venda ou perda,
       // que é o que de fato acontece no balcão. Acerto de contagem é conversa
       // da lista de apoio, ao lado.
-      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, standardPlans, filterType, onChangeFilterType, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onOpenSlot }) => {
+      const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, standardPlans, filterType, onChangeFilterType, onQuickSale, onRecordSellAll, onQuickLoss, onOpenSlot }) => {
         const dayOfWeek = getTodayDayOfWeek();
 
         const dayPlans = useMemo(
@@ -2571,8 +2703,7 @@
               <div className="min-w-0">
                 <h2 className="t-headline text-[#1d1d1f]">Vitrine física</h2>
                 <p className="t-caption mt-0.5">
-                  Cada móvel no desenho dele, espaço por espaço · a quantidade vem na
-                  frente do produto · segure um botão de perda para escolher o motivo
+                  Toque em Venda ou Perda para baixar 1 · segure para baixar tudo
                 </p>
               </div>
               <div className="segmented shrink-0">
@@ -2595,7 +2726,7 @@
               // espaços nas colunas que aquele móvel tem no balcão
               <div className="space-y-4">
                 {blocos.map((bloco) => (
-                  <div key={bloco.key} className="card p-5">
+                  <div key={bloco.key} className="card showcase-card p-4 sm:p-5">
                     {/* O nome do móvel, o que tem dentro e o quanto do padrão
                         de hoje está montado */}
                     <div className="flex items-center gap-2.5 pb-3 mb-1 border-b hairline">
@@ -2719,9 +2850,7 @@
                                       onQuickSale={onQuickSale}
                                       onRecordSellAll={onRecordSellAll}
                                       onQuickLoss={onQuickLoss}
-                                      onOpenDecreaseModal={onOpenDecreaseModal}
-                                      className="mt-1.5"
-                                      buttonClass="flex-1 h-7 px-0"
+                                      className="mt-2"
                                     />
                                   </div>
                                 );
@@ -2742,7 +2871,7 @@
       // ==========================================
       // TACTICAL SUPPORT LIST COMPONENT
       // ==========================================
-      const SupportList = ({ currentUnit, slotItems, products, slots, showcaseType, onChangeShowcaseType, onUpdateItem, onSetQty, onQuickAllocate, onQuickSale, onRecordSellAll, onQuickLoss, onOpenDecreaseModal, onRemoveItem }) => {
+      const SupportList = ({ currentUnit, slotItems, products, slots, showcaseType, onChangeShowcaseType, onUpdateItem, onSetQty, onQuickAllocate, onQuickSale, onRecordSellAll, onQuickLoss, onRemoveItem }) => {
         const [filterText, setFilterText] = useState('');
         const [quickProductName, setQuickProductName] = useState('');
         const [quickQty, setQuickQty] = useState(10);
@@ -2833,12 +2962,12 @@
         };
 
         return (
-          <div className="card flex flex-col h-full overflow-hidden">
+          <div className="card support-panel flex flex-col h-full overflow-hidden">
             <div className="px-4 py-3.5 border-b hairline space-y-2.5">
               <div className="flex justify-between items-center gap-2">
                 <div className="min-w-0">
                   <h2 className="t-headline text-[#1d1d1f]">Lista de apoio</h2>
-                  <p className="t-caption mt-0.5">A mesma vitrine, em forma de lista</p>
+                  <p className="t-caption mt-0.5">Toque baixa 1 · segure baixa tudo</p>
                 </div>
                 <span className="pill bg-black/[0.05] text-[#6e6e73] tnum shrink-0">{filteredItems.length} itens</span>
               </div>
@@ -2858,7 +2987,7 @@
               </div>
             </div>
 
-            <div className="px-4 py-4 bg-[#fbfbfd] border-b hairline space-y-3">
+            <div className="support-add-panel px-4 py-4 border-b hairline space-y-3">
               <form onSubmit={handleQuickSubmit} className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="t-overline truncate">Adicionar item</span>
@@ -2962,7 +3091,7 @@
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto max-h-[560px]">
+            <div role="list" aria-label={`Itens da vitrine ${typeLabel}`} className="support-list flex-1 overflow-y-auto max-h-[620px]">
               {filteredItems.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <p className="t-body text-[#86868b]">Nada na vitrine {typeLabel.toLowerCase()}</p>
@@ -2970,8 +3099,8 @@
                 </div>
               ) : (
                 showcaseBlocks.map((bloco) => (
-                  <div key={bloco.key}>
-                    <div className="px-4 py-2 bg-[#fbfbfd] border-b hairline sticky top-0 z-10 flex items-center justify-between gap-2">
+                  <section key={bloco.key} aria-label={bloco.title}>
+                    <div className="support-section-header px-4 py-2 border-b hairline sticky top-0 z-10 flex items-center justify-between gap-2">
                       <span className="t-overline">{bloco.title}</span>
                       <span className="t-caption tnum">{bloco.entries.length}</span>
                     </div>
@@ -2982,35 +3111,48 @@
                       const statusInfo = getSlotItemStatus(item, product);
 
                       return (
-                        <div key={item.id} className="px-4 py-3 border-b hairline last:border-0 hover:bg-black/[0.015] transition-colors">
-                          {/* O número do espaço vem na frente, do mesmo jeito
-                              que aparece na lista da vitrine física */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 min-w-0">
-                              <span className="shrink-0 mt-[2px] h-5 px-1.5 rounded-md bg-black/[0.05] text-[#6e6e73] text-[10px] font-extrabold flex items-center tnum">
-                                {slot ? `#${slot.slotNumber}` : 'Apoio'}
-                              </span>
-                              <div className="min-w-0">
-                                <h4 className="text-[13px] font-bold leading-[1.45] tracking-[-0.015em]">
-                                  <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
-                                </h4>
-                                <p className="t-caption text-[11px] mt-0.5 flex items-center gap-1 truncate">
-                                  <Icons.User className="w-3 h-3 shrink-0" />
-                                  <span className="truncate">{getResponsibleName(product)}</span>
-                                  {slot && companheiros(item) > 0 && (
-                                    <span className="shrink-0">· dividido</span>
-                                  )}
-                                </p>
+                        <div key={item.id} role="listitem" className="support-row">
+                          {/* Cabeçalho de uma linha: espaço, produto e saldo */}
+                          <div className="flex items-start gap-2.5">
+                            <span
+                              className="support-slot"
+                              title={slot ? `Espaço ${slot.slotNumber}` : 'Item de apoio'}
+                              aria-label={slot ? `Espaço ${slot.slotNumber}` : 'Item de apoio'}
+                            >
+                              {slot ? `#${slot.slotNumber}` : 'A'}
+                            </span>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h4 className="text-[14px] font-semibold leading-[1.35] tracking-[-0.012em] truncate">
+                                    <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                                  </h4>
+                                  <p className="t-caption text-[11px] mt-1 flex items-center gap-1 truncate">
+                                    <Icons.User className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{getResponsibleName(product)}</span>
+                                    {slot && companheiros(item) > 0 && (
+                                      <span className="shrink-0">· espaço dividido</span>
+                                    )}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                  <div className="support-qty" title={`${item.currentQty} ${item.unit} na vitrine`}>
+                                    <strong>{item.currentQty}</strong>
+                                    <span className="t-caption text-[10px]">{item.unit}</span>
+                                  </div>
+                                  <span className={`text-[10px] ${statusInfo.alerta ? `pill ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption tnum'}`}>
+                                    {statusInfo.label}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <span className={`text-[10px] shrink-0 ${statusInfo.alerta ? `pill ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption tnum'}`}>
-                              {statusInfo.label}
-                            </span>
                           </div>
 
-                          {/* Contagem e data: o que mais se mexe na conferência */}
-                          <div className="flex flex-wrap items-end gap-2 mt-2.5">
-                            <label className="flex-1 min-w-[104px]">
+                          {/* Edição compacta, dentro da linha da lista */}
+                          <div className="support-fields">
+                            <label className="min-w-0">
                               <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
                               <input
                                 type="date"
@@ -3019,7 +3161,7 @@
                                 className="field h-8 px-1.5 text-[11px] text-center tnum"
                               />
                             </label>
-                            <label className="w-12 shrink-0">
+                            <label className="min-w-0">
                               <span className="t-caption text-[10px] block mb-0.5 text-center">Produzido</span>
                               <input
                                 type="number"
@@ -3031,7 +3173,7 @@
                                 className="field h-8 px-1 text-[12px] font-bold text-center tnum no-spin"
                               />
                             </label>
-                            <div className="w-14 shrink-0">
+                            <div className="min-w-0">
                               <span className="t-caption text-[10px] block mb-0.5 text-center">Na vitrine</span>
                               <QtyField
                                 value={item.currentQty}
@@ -3044,20 +3186,18 @@
 
                           {/* Baixas: sai do estoque e vai para o relatório. É
                               outra coisa da contagem acima, que só corrige. */}
-                          <div className="flex items-center gap-1.5 mt-2">
+                          <div className="support-actions">
                             <ItemActions
                               item={item}
                               onQuickSale={onQuickSale}
                               onRecordSellAll={onRecordSellAll}
                               onQuickLoss={onQuickLoss}
-                              onOpenDecreaseModal={onOpenDecreaseModal}
-                              className="flex-1"
                             />
                             <button
                               onClick={() => onRemoveItem(item.id)}
                               title="Remover item da vitrine"
                               aria-label="Remover item da vitrine"
-                              className="btn w-7 h-7 px-0 shrink-0 bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73]"
+                              className="btn w-8 h-[38px] px-0 shrink-0 rounded-xl bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73]"
                             >
                               <Icons.Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -3065,7 +3205,7 @@
                         </div>
                       );
                     })}
-                  </div>
+                  </section>
                 ))
               )}
             </div>
@@ -7437,9 +7577,8 @@
           if (baixa) setUndoBaixa(baixa);
         };
 
-        // Perda de um clique: o ⚠ amarelo tira uma unidade, o vermelho tira o
-        // que sobrou. O motivo entra como "vencido", que é a perda do dia a dia
-        // da vitrine — segurar o botão abre a janela para escolher outro.
+        // Perda rápida: tocar tira uma unidade e segurar tira o que sobrou.
+        // O motivo entra como "vencido", que é a perda do dia a dia da vitrine.
         const handleQuickLoss = async (itemId, qty) => {
           const target = slotItemsRef.current.find((i) => i.id === itemId);
           if (!target || target.currentQty <= 0) return;
@@ -8230,7 +8369,7 @@
               </div>
             )}
 
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 sm:py-9">
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-9">
               {activeTab === 'vitrine' && (
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-end justify-between gap-3">
@@ -8272,7 +8411,6 @@
                       onQuickSale={handleQuickSale}
                       onRecordSellAll={handleRecordSellAll}
                       onQuickLoss={handleQuickLoss}
-                      onOpenDecreaseModal={abrirBaixa}
                       onOpenSlot={setSlotToFill}
                     />
                   </div>
@@ -8290,7 +8428,6 @@
                       onQuickSale={handleQuickSale}
                       onRecordSellAll={handleRecordSellAll}
                       onQuickLoss={handleQuickLoss}
-                      onOpenDecreaseModal={abrirBaixa}
                       onRemoveItem={handleRemoveItem}
                     />
                   </div>
