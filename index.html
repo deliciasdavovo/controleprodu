@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-17-manrope-3" />
+    <meta name="app-version" content="2026-08-17-navy-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,17 +20,17 @@
             },
             colors: {
               blue: {
-                50: '#f0f7ff',
-                100: '#e0efff',
-                200: '#b9dcff',
-                300: '#7cbeff',
-                400: '#409cff',
-                500: '#0a84ff',
-                600: '#0071e3',
-                700: '#0068d1',
-                800: '#0058b0',
-                900: '#003f7e',
-                950: '#002a54',
+                50: '#f3f2f8',
+                100: '#e7e6ef',
+                200: '#cfccd9',
+                300: '#aaa6be',
+                400: '#7a7595',
+                500: '#3e386b',
+                600: '#0e0937',
+                700: '#0c082f',
+                800: '#090623',
+                900: '#07051b',
+                950: '#040210',
               },
             },
             boxShadow: {
@@ -58,7 +58,7 @@
         --ink-3: #6e6e73;   /* Secundário */
         --ink-4: #86868b;   /* Terciário / legendas */
         --hairline: rgba(60, 60, 67, 0.12);
-        --accent: #007aff;
+        --accent: #0E0937;
         --radius-lg: 22px;
         --radius-md: 16px;
         --radius-sm: 12px;
@@ -190,13 +190,13 @@
       .btn:focus-visible,
       button:focus-visible {
         outline: none;
-        box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.22);
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.22);
       }
       .btn-primary {
         background: var(--accent);
         color: #fff;
       }
-      .btn-primary:hover { background: #0077ed; }
+      .btn-primary:hover { background: #211A58; }
       .btn-secondary {
         background: rgba(0, 0, 0, 0.05);
         color: var(--ink-1);
@@ -350,7 +350,7 @@
       .field:focus {
         outline: none;
         border-color: var(--accent);
-        box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.16);
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.16);
       }
       .field-sm { height: 32px; padding: 0 10px; }
       .field-md { height: 38px; padding: 0 12px; }
@@ -505,7 +505,7 @@
       .meter-fill {
         left: 0;
         border-radius: 980px;
-        background: rgba(0, 113, 227, 0.45);
+        background: rgba(14, 9, 55, 0.45);
       }
       /* Móvel no ponto do padrão fica com a tinta cheia */
       .meter-fill[data-full="true"] { background: var(--accent); }
@@ -545,7 +545,7 @@
       /* A coluna sticky do produto acompanha o realce da linha */
       .week-table tbody tr:hover > td[data-sticky="true"] { background: #fafafa !important; }
       .week-table td[data-hoje="true"], .week-table th[data-hoje="true"] {
-        background: rgba(0, 113, 227, 0.045);
+        background: rgba(14, 9, 55, 0.045);
       }
 
       /* Célula de quantidade: campo invisível até você chegar perto */
@@ -564,7 +564,7 @@
         outline: none;
         background: #fff;
         border-color: var(--accent);
-        box-shadow: 0 0 0 3.5px rgba(0, 113, 227, 0.16);
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.16);
       }
 
       /* ==========================================
@@ -596,7 +596,7 @@
          acompanham o realce sem precisar de regra própria */
       .sheet tbody tr { --row-bg: var(--bg-surface); }
       .sheet tbody tr[data-fora="true"] { --row-bg: #fafafa; color: var(--ink-4); }
-      .sheet tbody tr:hover { --row-bg: #f1f7fe; }
+      .sheet tbody tr:hover { --row-bg: #f5f4f8; }
       .sheet tbody td { background: var(--row-bg); }
 
       .sheet thead th {
@@ -641,7 +641,7 @@
         outline: none;
         background: #fff;
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.16);
+        box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.16);
       }
 
       /* Caixinha de marcação da primeira coluna */
@@ -688,7 +688,7 @@
         transition: background-color .16s ease;
       }
       .support-row:last-child { border-bottom: 0; }
-      .support-row:hover { background: rgba(0, 122, 255, 0.028); }
+      .support-row:hover { background: rgba(14, 9, 55, 0.035); }
       .support-slot {
         display: inline-flex;
         align-items: center;
@@ -917,12 +917,12 @@
       const PRIORITIES = [
         {
           value: 'A', title: 'A · não pode faltar',
-          pill: 'bg-[#0071e3] text-white', dot: 'bg-[#0071e3]',
+          pill: 'bg-[#0E0937] text-white', dot: 'bg-[#0E0937]',
           hint: 'Carro-chefe da loja: aparece no topo das listas'
         },
         {
           value: 'B', title: 'B · importante',
-          pill: 'bg-[#0071e3]/[0.12] text-[#0058b0]', dot: 'bg-[#0071e3]/55',
+          pill: 'bg-[#0E0937]/[0.12] text-[#0E0937]', dot: 'bg-[#0E0937]/55',
           hint: 'Item de peso, logo depois dos carros-chefes'
         },
         {
@@ -1696,7 +1696,7 @@
               <div className="flex items-center justify-between h-14 gap-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-[10px] bg-[#0071e3] flex items-center justify-center text-white text-[13px] font-extrabold tracking-tight">
+                    <div className="w-8 h-8 rounded-[10px] bg-[#0E0937] flex items-center justify-center text-white text-[13px] font-extrabold tracking-tight">
                       DV
                     </div>
                     <div className="leading-none">
@@ -1756,7 +1756,7 @@
                     key={tab.id}
                     onClick={() => onTabChange(tab.id)}
                     className={`px-3 h-8 rounded-full text-[12px] font-semibold whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors ${
-                      isActive ? 'bg-[#0071e3] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
+                      isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
                     }`}
                   >
                     <IconComp className="w-3.5 h-3.5 shrink-0" />
@@ -1933,7 +1933,7 @@
         igual: { label: 'Continua igual', dot: 'bg-[#c7c7cc]', text: 'text-[#6e6e73]' },
         venda: { label: 'Vendeu', dot: 'bg-[#34c759]', text: 'text-[#1d7a35]' },
         perda: { label: 'Perdeu', dot: 'bg-[#ff3b30]', text: 'text-[#c9271d]' },
-        ajuste: { label: 'Contagem acertada', dot: 'bg-[#0071e3]', text: 'text-[#0058b0]' },
+        ajuste: { label: 'Contagem acertada', dot: 'bg-[#0E0937]', text: 'text-[#0E0937]' },
         pulado: { label: 'Pulado', dot: 'bg-[#c7c7cc]', text: 'text-[#86868b]' }
       };
 
@@ -2275,7 +2275,7 @@
                     </div>
                     <div className="h-1.5 rounded-full bg-black/[0.07] overflow-hidden">
                       <div
-                        className="h-full bg-[#0071e3] rounded-full transition-all"
+                        className="h-full bg-[#0E0937] rounded-full transition-all"
                         style={{ width: `${Math.min(100, (index / total) * 100)}%` }}
                       />
                     </div>
@@ -3017,7 +3017,7 @@
                   {/* Sem isto, lançar doce com a salgada aberta parece erro:
                       o item some da lista porque foi para o móvel dele */}
                   <p className={`t-caption text-[11px] mt-1 ${
-                    tipoDestino === showcaseType ? '' : 'text-[#0058b0] font-semibold'
+                    tipoDestino === showcaseType ? '' : 'text-[#0E0937] font-semibold'
                   }`}>
                     Vai para a vitrine {SHOWCASE_TYPE_LABELS[tipoDestino]}
                   </p>
@@ -3281,7 +3281,7 @@
                       title={p.hint}
                       className={`h-11 rounded-xl border text-[15px] font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
                         prio === p.value
-                          ? 'border-[#0071e3] bg-[#0071e3]/[0.06] text-[#0058b0]'
+                          ? 'border-[#0E0937] bg-[#0E0937]/[0.06] text-[#0E0937]'
                           : 'border-black/[0.08] bg-white text-[#6e6e73] hover:bg-black/[0.03]'
                       }`}
                     >
@@ -3313,7 +3313,7 @@
                       title={getDayNameBR(day)}
                       className={`h-10 rounded-xl border text-[12px] font-bold transition-all ${
                         selectedDays.includes(day)
-                          ? 'border-[#0071e3] bg-[#0071e3] text-white'
+                          ? 'border-[#0E0937] bg-[#0E0937] text-white'
                           : 'border-black/[0.08] bg-white text-[#6e6e73] hover:bg-black/[0.03]'
                       }`}
                     >
@@ -3725,7 +3725,7 @@
                                 title={`Editar a vitrine de ${getDayNameBR(day)}`}
                                 className={`w-full min-w-11 rounded-lg px-2 py-1.5 text-[12px] font-bold transition-colors ${
                                   selectedDay === day
-                                    ? 'text-[#0071e3]'
+                                    ? 'text-[#0E0937]'
                                     : 'text-[#86868b] hover:text-[#1d1d1f] hover:bg-black/[0.04]'
                                 }`}
                               >
@@ -3843,7 +3843,7 @@
                               key={day}
                               data-hoje={selectedDay === day}
                               className={`text-center tnum font-extrabold px-1 py-2 ${
-                                selectedDay === day ? 'text-[#0071e3]' : 'text-[#1d1d1f]'
+                                selectedDay === day ? 'text-[#0E0937]' : 'text-[#1d1d1f]'
                               }`}
                             >
                               {totalPorDia[day] || 0}
@@ -3999,7 +3999,7 @@
                       >
                         <span>{getDayNameBR(day)}</span>
                         <span className={`tnum text-[11px] font-bold ${
-                          selectedDay === day ? 'text-[#0071e3]' : 'text-[#86868b]'
+                          selectedDay === day ? 'text-[#0E0937]' : 'text-[#86868b]'
                         }`}>
                           {count}
                         </span>
@@ -4809,7 +4809,7 @@
             </td>
             <td className="num">{row.neededQty || '—'}</td>
             <td
-              className={`num ${row.belowMin ? 'text-[#0058b0] font-bold' : 'text-[#86868b]'}`}
+              className={`num ${row.belowMin ? 'text-[#0E0937] font-bold' : 'text-[#86868b]'}`}
               title={
                 row.minQty > 0
                   ? `Mínimo de ${row.productName} em ${getDayNameBR(selectedDay).toLowerCase()}: ${row.minQty} ${row.unitOfMeasure}`
@@ -4839,7 +4839,7 @@
 
             <td className="text-[11px]">
               <span className={
-                row.situacao === 'Chamado' ? 'text-[#0058b0] font-semibold'
+                row.situacao === 'Chamado' ? 'text-[#0E0937] font-semibold'
                   : row.situacao === 'Escolhido' ? 'text-[#1d1d1f] font-semibold'
                     : 'text-[#86868b]'
               }>
@@ -5016,7 +5016,7 @@
                               {bloco.entries.length} {bloco.entries.length === 1 ? 'item' : 'itens'} ·
                               {' '}{somaDe(bloco.entries, 'idealQty')} un no padrão ·
                               {' '}{somaDe(bloco.entries, 'currentQty')} na loja ·
-                              {' '}<strong className="text-[#0058b0] font-bold">
+                              {' '}<strong className="text-[#0E0937] font-bold">
                                 {somaDe(bloco.entries, 'orderQty')} un a produzir
                               </strong>
                             </p>
@@ -5076,7 +5076,7 @@
                               <td className="num">{somaDe(bloco.entries, 'expiredQty') || '—'}</td>
                               <td className="num">{somaDe(bloco.entries, 'neededQty') || '—'}</td>
                               <td />
-                              <td className="num text-[#0058b0]">{somaDe(bloco.entries, 'orderQty')}</td>
+                              <td className="num text-[#0E0937]">{somaDe(bloco.entries, 'orderQty')}</td>
                               <td colSpan={3} className="t-caption text-[11px]">
                                 {bloco.entries.filter((i) => i.noPedido).length} item(ns) no pedido
                               </td>
@@ -5097,7 +5097,7 @@
                     {' '}{somaDe(visiveis, 'currentQty')} na loja ·
                     {' '}{somaDe(visiveis, 'neededQty')} de falta
                   </span>
-                  <span className="t-headline tnum text-[#0058b0]">
+                  <span className="t-headline tnum text-[#0E0937]">
                     {somaDe(visiveis, 'orderQty')} un a produzir
                     <span className="t-caption ml-1.5">em {noPedido.length} item(ns)</span>
                   </span>
@@ -5640,7 +5640,7 @@
         const SOURCE_LABELS = { avulso: 'Lançamento avulso', pedido: 'Pedido de produção' };
 
         const TIPOS = {
-          producao: { label: 'Produção', pill: 'bg-[#0071e3]/10 text-[#0058b0]' },
+          producao: { label: 'Produção', pill: 'bg-[#0E0937]/10 text-[#0E0937]' },
           venda: { label: 'Venda', pill: 'bg-[#34c759]/12 text-[#1d7a35]' },
           perda: { label: 'Perda', pill: 'bg-[#ff3b30]/10 text-[#c9271d]' }
         };
@@ -5727,7 +5727,7 @@
           <button
             onClick={() => setEmCorrecao({ ...registro, tipo: tipo || registro.tipo })}
             title={title}
-            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#0071e3]/10 hover:text-[#0058b0] flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#0E0937]/10 hover:text-[#0E0937] flex items-center justify-center transition-colors"
           >
             <Icons.Pencil className="w-4 h-4" />
           </button>
@@ -5819,7 +5819,7 @@
                   <Icons.ChefHat className="w-3.5 h-3.5" />
                   Produzido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#0071e3]">
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#0E0937]">
                   {totalProduzido}
                   <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
                 </div>
@@ -5949,7 +5949,7 @@
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
                               {r.tipo === 'producao' ? (
-                                <QtyOfBatch qty={r.qty} unit={r.unitOfMeasure} sign="+" className="text-[#0071e3]" />
+                                <QtyOfBatch qty={r.qty} unit={r.unitOfMeasure} sign="+" className="text-[#0E0937]" />
                               ) : r.tipo === 'venda' ? (
                                 <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} className="text-[#1d7a35]" />
                               ) : (
@@ -6044,7 +6044,7 @@
                               <td className="py-3 px-3 text-center">
                                 <Numero
                                   valor={lote.base}
-                                  className="text-[#0071e3]"
+                                  className="text-[#0E0937]"
                                   fraco={lote.estimado}
                                   sufixo={lote.unitOfMeasure}
                                 />
@@ -6091,7 +6091,7 @@
                                   <td className="py-3 px-3 text-center">
                                     <Numero
                                       valor={item.base}
-                                      className="text-[#0071e3]"
+                                      className="text-[#0E0937]"
                                       fraco={item.estimado && item.produzido === 0}
                                       sufixo={item.unitOfMeasure}
                                     />
@@ -6123,7 +6123,7 @@
                                         {lote.estimado ? 'fornada anterior' : ''}
                                       </td>
                                       <td className="py-2 px-3 text-center">
-                                        <Numero valor={lote.base} className="text-[#0071e3]" fraco={lote.estimado} />
+                                        <Numero valor={lote.base} className="text-[#0E0937]" fraco={lote.estimado} />
                                       </td>
                                       <td className="py-2 px-3 text-center">
                                         <Numero valor={lote.vendido} className="text-[#1d7a35]" />
@@ -6153,7 +6153,7 @@
                               {agrupamento === 'lote' ? `${lotes.length} lote(s)` : `${itens.length} item(ns)`}
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <Numero valor={totalBase} className="text-[#0071e3]" />
+                              <Numero valor={totalBase} className="text-[#0E0937]" />
                             </td>
                             <td className="py-3 px-3 text-center">
                               <Numero valor={totalVendido} className="text-[#1d7a35]" />
@@ -6214,7 +6214,7 @@
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{p.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(p.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
-                              <QtyOfBatch qty={p.qty} unit={p.unitOfMeasure} sign="+" className="text-[#0071e3]" />
+                              <QtyOfBatch qty={p.qty} unit={p.unitOfMeasure} sign="+" className="text-[#0E0937]" />
                             </td>
                             <td className="py-3 px-3 t-callout tnum whitespace-nowrap">{slotLabel(p.slotId)}</td>
                             <td className="py-3 px-3">
@@ -6412,7 +6412,7 @@
                       </button>
                       <button
                         onClick={() => onUpdateQty(item.id, 1)}
-                        className="w-8 h-8 rounded-full bg-[#0071e3] hover:bg-[#0077ed] text-white font-bold flex items-center justify-center transition-colors"
+                        className="w-8 h-8 rounded-full bg-[#0E0937] hover:bg-[#211A58] text-white font-bold flex items-center justify-center transition-colors"
                       >
                         +
                       </button>
