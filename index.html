@@ -5481,6 +5481,9 @@
         // Na aba de lotes: uma linha por lote, ou tudo somado por produto
         const [agrupamento, setAgrupamento] = useState('lote');
         const [itensAbertos, setItensAbertos] = useState([]);
+        // Lotes abertos na aba "Por lote": abrir mostra os lançamentos que
+        // formaram a linha, para corrigir sem trocar de aba
+        const [lotesAbertos, setLotesAbertos] = useState([]);
         // Lançamento aberto para correção (venda, perda ou produção)
         const [emCorrecao, setEmCorrecao] = useState(null);
 
@@ -5491,6 +5494,16 @@
         const noPeriodo = (dia) => periodo === 'tudo' || (dia >= inicio && dia <= fim);
 
         const shelfLifeDe = (productId) => products.find((p) => p.id === productId)?.shelfLifeDays;
+
+        // Quanto tempo o item ficou na vitrine: da fabricação até a saída.
+        // A venda guarda esse número quando é lançada; a perda a gente refaz
+        // pelas datas, que é a mesma conta.
+        const tempoDeVitrine = (r) => {
+          if (!r) return null;
+          if (r.exposureDays !== null && r.exposureDays !== undefined) return r.exposureDays;
+          const saida = r.dia || toDayKey(r.lossDate || r.timestamp);
+          return daysBetweenKeys(r.manufactureDate, saida);
+        };
 
         // A produção é contada pelo dia de fabricação, não pela hora do lançamento
         const producao = productionRecords
@@ -5548,6 +5561,7 @@
             mapaLotes.set(chave, {
               key: chave,
               productKey: chaveProduto(r),
+              productId: r.productId,
               productName: r.productName,
               unitOfMeasure: r.unitOfMeasure || 'un',
               manufactureDate: diaDoLote(r),
@@ -5556,22 +5570,46 @@
               perdido: 0,
               // Tamanho do lote guardado na baixa: serve de referência quando
               // a fornada foi feita antes do período que está na tela
-              loteRef: 0
+              loteRef: 0,
+              // Dias × unidades de cada baixa: dividido pelas unidades dá o
+              // tempo médio que o lote passou na vitrine antes de sair
+              diasSaida: 0,
+              unidadesSaida: 0,
+              // Os lançamentos que formaram a linha, para corrigir daqui
+              registros: []
             });
           }
           return mapaLotes.get(chave);
         };
 
-        producao.forEach((p) => { doLote(p).produzido += p.qty; });
+        // Cada baixa entra na média de tempo de vitrine do lote pesada pela
+        // quantidade: 10 unidades vendidas no mesmo dia contam mais que 1
+        // vendida no dia seguinte.
+        const somaTempo = (lote, registro) => {
+          const dias = tempoDeVitrine(registro);
+          if (dias === null || dias === undefined) return;
+          lote.diasSaida += dias * registro.qty;
+          lote.unidadesSaida += registro.qty;
+        };
+
+        producao.forEach((p) => {
+          const lote = doLote(p);
+          lote.produzido += p.qty;
+          lote.registros.push({ ...p, tipo: 'producao' });
+        });
         vendas.forEach((s) => {
           const lote = doLote(s);
           lote.vendido += s.qty;
           lote.loteRef = Math.max(lote.loteRef, s.producedQty || 0);
+          lote.registros.push({ ...s, tipo: 'venda' });
+          somaTempo(lote, s);
         });
         perdas.forEach((l) => {
           const lote = doLote(l);
           lote.perdido += l.qty;
           lote.loteRef = Math.max(lote.loteRef, l.producedQty || 0);
+          lote.registros.push({ ...l, tipo: 'perda' });
+          somaTempo(lote, l);
         });
 
         // base = o total do lote. Quando a fornada é mais antiga que o período
@@ -5580,7 +5618,17 @@
         const comBase = (linha) => {
           const estimado = linha.produzido === 0 && linha.loteRef > 0;
           const base = estimado ? linha.loteRef : linha.produzido;
-          return { ...linha, base, estimado, sobra: Math.max(0, base - linha.vendido - linha.perdido) };
+          return {
+            ...linha,
+            base,
+            estimado,
+            sobra: Math.max(0, base - linha.vendido - linha.perdido),
+            // Tempo médio de vitrine do que já saiu e, para o que ficou,
+            // quantos dias a fornada tem hoje
+            tempoMedio: linha.unidadesSaida > 0 ? linha.diasSaida / linha.unidadesSaida : null,
+            idade: linha.manufactureDate ? daysBetweenKeys(linha.manufactureDate, hoje) : null,
+            registros: [...linha.registros].sort((a, b) => (a.dia === b.dia ? 0 : a.dia < b.dia ? 1 : -1))
+          };
         };
 
         const lotes = [...mapaLotes.values()]
@@ -5597,6 +5645,7 @@
           if (!mapaItens.has(lote.productKey)) {
             mapaItens.set(lote.productKey, {
               key: lote.productKey,
+              productId: lote.productId,
               productName: lote.productName,
               unitOfMeasure: lote.unitOfMeasure,
               produzido: 0,
@@ -5605,6 +5654,8 @@
               base: 0,
               sobra: 0,
               estimado: false,
+              diasSaida: 0,
+              unidadesSaida: 0,
               lotes: []
             });
           }
@@ -5615,20 +5666,37 @@
           item.base += lote.base;
           item.sobra += lote.sobra;
           item.estimado = item.estimado || lote.estimado;
+          item.diasSaida += lote.diasSaida;
+          item.unidadesSaida += lote.unidadesSaida;
           item.lotes.push(lote);
         });
 
-        const itens = [...mapaItens.values()].sort(
-          (a, b) => b.base - a.base || a.productName.localeCompare(b.productName, 'pt-BR')
-        );
+        const itens = [...mapaItens.values()]
+          .map((item) => ({
+            ...item,
+            // A média do item é a dos lotes dele, também pesada pelas unidades
+            tempoMedio: item.unidadesSaida > 0 ? item.diasSaida / item.unidadesSaida : null,
+            idade: null
+          }))
+          .sort((a, b) => b.base - a.base || a.productName.localeCompare(b.productName, 'pt-BR'));
 
         // Somas da tabela de lotes: usam a base de cada lote, então o rodapé
         // fecha com a coluna mesmo quando parte dos lotes veio estimada.
         const totalBase = lotes.reduce((acc, l) => acc + l.base, 0);
         const totalSobra = lotes.reduce((acc, l) => acc + l.sobra, 0);
+        // Tempo de vitrine do período inteiro: a média de todas as baixas
+        const totalUnidadesSaida = lotes.reduce((acc, l) => acc + l.unidadesSaida, 0);
+        const tempoMedioGeral = totalUnidadesSaida > 0
+          ? lotes.reduce((acc, l) => acc + l.diasSaida, 0) / totalUnidadesSaida
+          : null;
 
         const alternarItem = (chave) =>
           setItensAbertos((abertos) =>
+            abertos.includes(chave) ? abertos.filter((k) => k !== chave) : [...abertos, chave]
+          );
+
+        const alternarLote = (chave) =>
+          setLotesAbertos((abertos) =>
             abertos.includes(chave) ? abertos.filter((k) => k !== chave) : [...abertos, chave]
           );
 
@@ -5638,6 +5706,18 @@
         };
 
         const SOURCE_LABELS = { avulso: 'Lançamento avulso', pedido: 'Pedido de produção' };
+
+        // A leitura do tempo de vitrine em palavras: a coluna do lado já diz
+        // quantos dias, aqui fica só o que aquilo significa para a validade
+        const EXPOSURE_STATUS_LABELS = {
+          fresco: 'Dentro da validade',
+          limite: 'Último dia de validade',
+          vencido: 'Passou da validade',
+          indefinido: 'Sem validade definida'
+        };
+
+        const rotuloValidade = (r) =>
+          EXPOSURE_STATUS_LABELS[getExposureInfo(tempoDeVitrine(r), shelfLifeDe(r.productId)).status] || '—';
 
         const TIPOS = {
           producao: { label: 'Produção', pill: 'bg-[#0E0937]/10 text-[#0E0937]' },
@@ -5689,6 +5769,49 @@
           );
         };
 
+        // O mesmo tempo de vitrine da venda, em versão curta para caber numa
+        // coluna: só os dias, com a cor que a validade do produto dá.
+        const TempoVitrine = ({ record }) => {
+          const dias = tempoDeVitrine(record);
+          if (dias === null || dias === undefined) {
+            return <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>;
+          }
+          const info = getExposureInfo(dias, shelfLifeDe(record.productId));
+          return (
+            <span className={`pill ${info.bgClass} ${info.textClass} tnum`} title={info.label}>
+              <span className={`w-1.5 h-1.5 rounded-full ${info.dotClass}`} />
+              {dias === 0 ? 'no mesmo dia' : `${dias}d`}
+            </span>
+          );
+        };
+
+        // Tempo de vitrine da linha do resumo: a média do que já saiu do lote.
+        // Lote que ainda não teve baixa mostra a idade da fornada, que é o
+        // tempo que ele está na vitrine agora.
+        const TempoLote = ({ linha }) => {
+          if (linha.tempoMedio === null || linha.tempoMedio === undefined) {
+            if (linha.idade === null || linha.idade === undefined) {
+              return <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>;
+            }
+            return (
+              <span className="t-caption tnum whitespace-nowrap" title="Ainda não saiu nada deste lote">
+                {linha.idade}d de fornada
+              </span>
+            );
+          }
+          const media = Math.round(linha.tempoMedio * 10) / 10;
+          const info = getExposureInfo(Math.round(linha.tempoMedio), shelfLifeDe(linha.productId));
+          return (
+            <span
+              className={`pill ${info.bgClass} ${info.textClass} tnum`}
+              title={`Média do que saiu do lote — ${info.label}`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${info.dotClass}`} />
+              {media === 0 ? 'no mesmo dia' : `${media}d`}
+            </span>
+          );
+        };
+
         // Número do resumo por lote. Zero vira travessão para a coluna que
         // importa saltar aos olhos; "fraco" é o total só estimado pelo lote.
         const Numero = ({ valor, className = 'text-[#1d1d1f]', fraco = false, sufixo }) =>
@@ -5736,6 +5859,56 @@
         // Os botões de cada linha, sempre encostados na direita da coluna
         const Acoes = ({ children }) => (
           <span className="flex items-center justify-end gap-0.5">{children}</span>
+        );
+
+        const excluirDoTipo = {
+          producao: onDeleteProduction,
+          venda: onDeleteSale,
+          perda: onDeleteLoss
+        };
+
+        // O que formou a linha do resumo, aberto embaixo dela: cada produção,
+        // venda e perda daquele lote com os mesmos botões das outras abas.
+        // Assim dá para acertar a fornada sem ir procurar o lançamento na aba
+        // "Tudo".
+        const LancamentosDoLote = ({ lote, colSpan }) => (
+          <tr className="bg-black/[0.02]">
+            <td colSpan={colSpan} className="px-3 pt-1 pb-3">
+              {lote.registros.length === 0 ? (
+                <p className="t-caption">
+                  Nada para corrigir aqui: este lote só aparece pelo tamanho guardado na baixa, e os
+                  lançamentos dele são de outro período.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {lote.registros.map((r) => (
+                    <div
+                      key={`${r.tipo}-${r.id}`}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white border hairline px-3 py-2"
+                    >
+                      <span className={`pill ${TIPOS[r.tipo].pill}`}>{TIPOS[r.tipo].label}</span>
+                      <span className="t-callout tnum whitespace-nowrap">{formatDateBR(r.dia)}</span>
+                      <span className="text-[13px] font-extrabold text-[#1d1d1f] tnum whitespace-nowrap">
+                        {r.qty} <span className="text-[11px] font-medium text-[#86868b]">{r.unitOfMeasure || 'un'}</span>
+                      </span>
+                      {r.tipo !== 'producao' && <TempoVitrine record={r} />}
+                      {r.tipo === 'perda' && (
+                        <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
+                      )}
+                      <span className="t-caption truncate">{cleanResponsible(r.responsible) || NO_RESPONSIBLE_LABEL}</span>
+                      <span className="ml-auto flex items-center gap-0.5">
+                        <BotaoCorrigir registro={r} title={`Corrigir ${TIPOS[r.tipo].label.toLowerCase()}`} />
+                        <BotaoExcluir
+                          onClick={() => excluirDoTipo[r.tipo](r.id)}
+                          title={`Excluir ${TIPOS[r.tipo].label.toLowerCase()}`}
+                        />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </td>
+          </tr>
         );
 
         // Tabela vazia no período escolhido não quer dizer histórico vazio: a
@@ -5924,6 +6097,7 @@
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 px-3 font-bold">Tempo de vitrine</th>
                         <th className="py-3 px-3 font-bold">Detalhe</th>
                         <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
@@ -5931,7 +6105,7 @@
                     <tbody>
                       {tudo.length === 0 ? (
                         <Vazio
-                          colSpan={7}
+                          colSpan={8}
                           titulo="Nenhum lançamento"
                           dica="Produção, vendas e perdas aparecem juntas aqui"
                           fora={foraDoPeriodo.tudo}
@@ -5958,9 +6132,16 @@
                             </td>
                             <td className="py-3 px-3">
                               {r.tipo === 'producao' ? (
+                                <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>
+                              ) : (
+                                <TempoVitrine record={r} />
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {r.tipo === 'producao' ? (
                                 <span className="t-callout tnum">{slotLabel(r.slotId)}</span>
                               ) : r.tipo === 'venda' ? (
-                                <Exposicao record={r} />
+                                <span className="t-callout">{rotuloValidade(r)}</span>
                               ) : (
                                 <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
                               )}
@@ -6012,60 +6193,82 @@
                           <th className="py-3 px-3 text-center font-bold">Vendido</th>
                           <th className="py-3 px-3 text-center font-bold">Perdido</th>
                           <th className="py-3 px-3 text-center font-bold">Sobra</th>
+                          <th className="py-3 px-3 text-center font-bold">Tempo de vitrine</th>
                           <th className="py-3 pl-3 text-center font-bold">Aproveit.</th>
                         </tr>
                       </thead>
                       <tbody>
                         {lotes.length === 0 ? (
                           <Vazio
-                            colSpan={7}
+                            colSpan={8}
                             titulo="Nenhum lote movimentado"
                             dica="Cada fornada aparece aqui com o que foi produzido, vendido e perdido dela"
                             fora={foraDoPeriodo.tudo}
                           />
                         ) : agrupamento === 'lote' ? (
-                          lotes.map((lote) => (
-                            <tr key={lote.key} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                              <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
-                                {lote.manufactureDate ? (
-                                  <>
-                                    {formatDateBR(lote.manufactureDate)}
-                                    <span className="block t-caption text-[10px] capitalize">
-                                      {weekdayName(lote.manufactureDate)}
+                          lotes.map((lote) => {
+                            const aberto = lotesAbertos.includes(lote.key);
+                            return (
+                              <React.Fragment key={lote.key}>
+                                <tr
+                                  onClick={() => alternarLote(lote.key)}
+                                  title="Abrir os lançamentos deste lote para corrigir"
+                                  className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                                >
+                                  <td className="py-3 pr-3 t-callout tnum whitespace-nowrap">
+                                    <span className="flex items-center gap-1.5">
+                                      <Icons.ChevronRight
+                                        className={`w-3.5 h-3.5 shrink-0 text-[#86868b] transition-transform ${aberto ? 'rotate-90' : ''}`}
+                                      />
+                                      <span>
+                                        {lote.manufactureDate ? (
+                                          <>
+                                            {formatDateBR(lote.manufactureDate)}
+                                            <span className="block t-caption text-[10px] capitalize">
+                                              {weekdayName(lote.manufactureDate)}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="text-[#86868b]">Sem data de fabricação</span>
+                                        )}
+                                      </span>
                                     </span>
-                                  </>
-                                ) : (
-                                  <span className="text-[#86868b]">Sem data de fabricação</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">
-                                {lote.productName}
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                <Numero
-                                  valor={lote.base}
-                                  className="text-[#0E0937]"
-                                  fraco={lote.estimado}
-                                  sufixo={lote.unitOfMeasure}
-                                />
-                                {lote.estimado && (
-                                  <span className="block t-caption text-[10px]">fornada anterior</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                <Numero valor={lote.vendido} className="text-[#1d7a35]" />
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                <Numero valor={lote.perdido} className="text-[#c9271d]" />
-                              </td>
-                              <td className="py-3 px-3 text-center">
-                                <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
-                              </td>
-                              <td className="py-3 pl-3 text-center">
-                                <Aproveitamento vendido={lote.vendido} perdido={lote.perdido} />
-                              </td>
-                            </tr>
-                          ))
+                                  </td>
+                                  <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">
+                                    {lote.productName}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Numero
+                                      valor={lote.base}
+                                      className="text-[#0E0937]"
+                                      fraco={lote.estimado}
+                                      sufixo={lote.unitOfMeasure}
+                                    />
+                                    {lote.estimado && (
+                                      <span className="block t-caption text-[10px]">fornada anterior</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Numero valor={lote.vendido} className="text-[#1d7a35]" />
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Numero valor={lote.perdido} className="text-[#c9271d]" />
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <TempoLote linha={lote} />
+                                  </td>
+                                  <td className="py-3 pl-3 text-center">
+                                    <Aproveitamento vendido={lote.vendido} perdido={lote.perdido} />
+                                  </td>
+                                </tr>
+
+                                {aberto && <LancamentosDoLote lote={lote} colSpan={8} />}
+                              </React.Fragment>
+                            );
+                          })
                         ) : (
                           itens.map((item) => {
                             const aberto = itensAbertos.includes(item.key);
@@ -6105,6 +6308,9 @@
                                   <td className="py-3 px-3 text-center">
                                     <Numero valor={item.sobra} className="text-[#1d1d1f]" />
                                   </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <TempoLote linha={item} />
+                                  </td>
                                   <td className="py-3 pl-3 text-center">
                                     <Aproveitamento vendido={item.vendido} perdido={item.perdido} />
                                   </td>
@@ -6112,33 +6318,52 @@
 
                                 {/* Os lotes do produto, um a um */}
                                 {aberto &&
-                                  item.lotes.map((lote) => (
-                                    <tr key={lote.key} className="bg-black/[0.015]">
-                                      <td className="py-2 pr-3 pl-5 t-caption tnum whitespace-nowrap">
-                                        {lote.manufactureDate
-                                          ? `lote de ${formatDateBR(lote.manufactureDate)}`
-                                          : 'sem data de fabricação'}
-                                      </td>
-                                      <td className="py-2 px-3 t-caption">
-                                        {lote.estimado ? 'fornada anterior' : ''}
-                                      </td>
-                                      <td className="py-2 px-3 text-center">
-                                        <Numero valor={lote.base} className="text-[#0E0937]" fraco={lote.estimado} />
-                                      </td>
-                                      <td className="py-2 px-3 text-center">
-                                        <Numero valor={lote.vendido} className="text-[#1d7a35]" />
-                                      </td>
-                                      <td className="py-2 px-3 text-center">
-                                        <Numero valor={lote.perdido} className="text-[#c9271d]" />
-                                      </td>
-                                      <td className="py-2 px-3 text-center">
-                                        <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
-                                      </td>
-                                      <td className="py-2 pl-3 text-center">
-                                        <Aproveitamento vendido={lote.vendido} perdido={lote.perdido} />
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  item.lotes.map((lote) => {
+                                    const loteAberto = lotesAbertos.includes(lote.key);
+                                    return (
+                                      <React.Fragment key={lote.key}>
+                                        <tr
+                                          onClick={() => alternarLote(lote.key)}
+                                          title="Abrir os lançamentos deste lote para corrigir"
+                                          className="bg-black/[0.015] cursor-pointer hover:bg-black/[0.03] transition-colors"
+                                        >
+                                          <td className="py-2 pr-3 pl-5 t-caption tnum whitespace-nowrap">
+                                            <span className="flex items-center gap-1.5">
+                                              <Icons.ChevronRight
+                                                className={`w-3 h-3 shrink-0 text-[#86868b] transition-transform ${loteAberto ? 'rotate-90' : ''}`}
+                                              />
+                                              {lote.manufactureDate
+                                                ? `lote de ${formatDateBR(lote.manufactureDate)}`
+                                                : 'sem data de fabricação'}
+                                            </span>
+                                          </td>
+                                          <td className="py-2 px-3 t-caption">
+                                            {lote.estimado ? 'fornada anterior' : ''}
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <Numero valor={lote.base} className="text-[#0E0937]" fraco={lote.estimado} />
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <Numero valor={lote.vendido} className="text-[#1d7a35]" />
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <Numero valor={lote.perdido} className="text-[#c9271d]" />
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
+                                          </td>
+                                          <td className="py-2 px-3 text-center">
+                                            <TempoLote linha={lote} />
+                                          </td>
+                                          <td className="py-2 pl-3 text-center">
+                                            <Aproveitamento vendido={lote.vendido} perdido={lote.perdido} />
+                                          </td>
+                                        </tr>
+
+                                        {loteAberto && <LancamentosDoLote lote={lote} colSpan={8} />}
+                                      </React.Fragment>
+                                    );
+                                  })}
                               </React.Fragment>
                             );
                           })
@@ -6164,6 +6389,9 @@
                             <td className="py-3 px-3 text-center">
                               <Numero valor={totalSobra} className="text-[#1d1d1f]" />
                             </td>
+                            <td className="py-3 px-3 text-center">
+                              <TempoLote linha={{ tempoMedio: tempoMedioGeral, idade: null, productId: null }} />
+                            </td>
                             <td className="py-3 pl-3 text-center">
                               <Aproveitamento vendido={totalVendido} perdido={totalPerdido} />
                             </td>
@@ -6177,8 +6405,11 @@
                     <Icons.Layers className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     <span>
                       Lote = o produto com a data de fabricação dele. <strong className="text-[#1d1d1f] font-semibold">Sobra</strong> é
-                      o que foi produzido menos o que saiu por venda e por perda. Quando a fornada é mais velha que o
-                      período na tela, o total produzido vem do tamanho do lote guardado na baixa e aparece em cinza.
+                      o que foi produzido menos o que saiu por venda e por perda. <strong className="text-[#1d1d1f] font-semibold">Tempo
+                      de vitrine</strong> é a média de dias entre a fornada e a saída de cada baixa; lote que ainda não teve baixa
+                      mostra os dias que a fornada tem. Toque na linha para abrir os lançamentos do lote e corrigir ou excluir cada um.
+                      Quando a fornada é mais velha que o período na tela, o total produzido vem do tamanho do lote guardado na baixa
+                      e aparece em cinza.
                     </span>
                   </p>
                 </div>
@@ -6244,7 +6475,7 @@
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
-                        <th className="py-3 px-3 font-bold">Como saiu da vitrine</th>
+                        <th className="py-3 px-3 font-bold">Tempo de vitrine</th>
                         <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
                     </thead>
@@ -6287,13 +6518,14 @@
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
                         <th className="py-3 px-3 text-center font-bold">Qtd</th>
+                        <th className="py-3 px-3 font-bold">Tempo de vitrine</th>
                         <th className="py-3 px-3 font-bold">Motivo</th>
                         <th className="py-3 pl-3 text-right font-bold">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
                       {perdas.length === 0 ? (
-                        <Vazio colSpan={6} titulo="Nenhuma perda registrada" fora={foraDoPeriodo.perdas} />
+                        <Vazio colSpan={7} titulo="Nenhuma perda registrada" fora={foraDoPeriodo.perdas} />
                       ) : (
                         perdas.map((l) => (
                           <tr key={l.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -6305,6 +6537,7 @@
                             <td className="py-3 px-3 text-center">
                               <QtyOfBatch qty={l.qty} produced={l.producedQty} unit={l.unitOfMeasure} sign="−" className="text-[#c9271d]" />
                             </td>
+                            <td className="py-3 px-3"><TempoVitrine record={l} /></td>
                             <td className="py-3 px-3">
                               <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{l.reason}</span>
                             </td>
