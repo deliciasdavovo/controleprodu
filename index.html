@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-17-navy-1" />
+    <meta name="app-version" content="2026-08-19-mobile-add-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -736,6 +736,107 @@
         gap: 7px;
         margin-top: 9px;
       }
+      /* ==========================================
+         LANÇAR ITEM PELO CELULAR
+         No computador o formulário de lançar item fica na lista de apoio, ao
+         lado da vitrine. No celular a lista cai embaixo de toda a vitrine, e
+         chegar nela é rolagem demais para a coisa que a loja mais faz. Então
+         no celular o lançamento vira um + preso no canto da tela e uma folha
+         que sobe de baixo, com alvo de dedo.
+
+         Os campos da folha têm 16px de propósito: com menos que isso o iPhone
+         dá zoom sozinho quando o dedo toca no campo e a tela sai do lugar.
+         ========================================== */
+      .fab-add {
+        position: fixed;
+        right: 16px;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        z-index: 45;
+        height: 54px;
+        padding: 0 22px 0 18px;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--accent);
+        box-shadow: 0 10px 30px rgba(14, 9, 55, 0.34), 0 2px 8px rgba(0, 0, 0, 0.16);
+      }
+      .fab-add:hover { background: #211A58; }
+      /* Só existe no celular, e some pela media query, e não pela classe
+         lg:hidden do Tailwind: o .btn desta folha de estilo vem depois do
+         utilitário e ganharia dele no display */
+      .fab-add { display: none; }
+      @media (max-width: 1023px) {
+        .fab-add { display: inline-flex; }
+      }
+
+      .bottom-sheet {
+        width: 100%;
+        max-height: 92vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--bg-surface);
+        border-radius: 26px 26px 0 0;
+        padding-bottom: calc(18px + env(safe-area-inset-bottom));
+        box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.22);
+        animation: bottom-sheet-up .22s ease-out;
+      }
+      @keyframes bottom-sheet-up {
+        from { transform: translateY(26px); opacity: 0.4; }
+        to { transform: none; opacity: 1; }
+      }
+      /* Puxador do topo: no celular ele avisa que a folha é uma folha */
+      .bottom-sheet-grab {
+        width: 38px;
+        height: 5px;
+        margin: 0 auto 12px;
+        border-radius: 980px;
+        background: rgba(60, 60, 67, 0.22);
+      }
+      @media (min-width: 640px) {
+        .bottom-sheet {
+          max-width: 440px;
+          border-radius: var(--radius-lg);
+          padding-bottom: 18px;
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+          animation: none;
+        }
+      }
+
+      .field-lg { height: 46px; padding: 0 14px; font-size: 16px; }
+
+      /* Quantidade no dedo: os sinais são alvo grande e o número no meio
+         continua sendo campo, para quem prefere digitar */
+      .qty-stepper { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; }
+      .qty-stepper > button {
+        height: 46px;
+        border-radius: 14px;
+        background: rgba(120, 120, 128, 0.12);
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ink-1);
+        transition: background-color .16s ease, transform .12s ease;
+        touch-action: manipulation;
+      }
+      .qty-stepper > button:hover { background: rgba(120, 120, 128, 0.2); }
+      .qty-stepper > button:active { transform: scale(0.95); }
+      .qty-stepper input { text-align: center; font-size: 17px; font-weight: 800; }
+      /* Atalho de quantidade e de data: um toque em vez do teclado */
+      .chip {
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 980px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-3);
+        background: rgba(120, 120, 128, 0.12);
+        transition: background-color .16s ease, color .16s ease;
+        touch-action: manipulation;
+      }
+      .chip:hover { color: var(--ink-1); }
+      .chip[data-active="true"] { background: var(--accent); color: #fff; }
+
       .app-navbar {
         box-shadow: 0 1px 0 rgba(255,255,255,0.72), 0 8px 30px rgba(0,0,0,0.025);
       }
@@ -2988,7 +3089,11 @@
             </div>
 
             <div className="support-add-panel px-4 py-4 border-b hairline space-y-3">
-              <form onSubmit={handleQuickSubmit} className="space-y-3">
+              {/* No celular este formulário não aparece: a lista de apoio cai
+                  embaixo de toda a vitrine, e chegar até aqui é rolagem demais
+                  para a coisa que a loja mais faz. Lá quem lança é o + preso no
+                  canto da tela, que abre a folha de colocar item. */}
+              <form onSubmit={handleQuickSubmit} className="hidden lg:block space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="t-overline truncate">Adicionar item</span>
                   <span className="t-caption text-[11px] shrink-0">Enter ↵ avança</span>
@@ -3079,7 +3184,9 @@
                 </div>
               </form>
 
-              <div className="relative pt-3 border-t hairline">
+              {/* O fio separa o filtro do formulário — e no celular, sem
+                  formulário em cima, ele separaria de nada */}
+              <div className="relative lg:pt-3 lg:border-t hairline">
                 <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[18px]" />
                 <input
                   type="text"
@@ -3095,7 +3202,10 @@
               {filteredItems.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <p className="t-body text-[#86868b]">Nada na vitrine {typeLabel.toLowerCase()}</p>
-                  <p className="t-caption mt-1">Use o formulário acima para alocar</p>
+                  <p className="t-caption mt-1">
+                    <span className="hidden lg:inline">Use o formulário acima para alocar</span>
+                    <span className="lg:hidden">Toque no + do canto da tela para colocar o primeiro</span>
+                  </p>
                 </div>
               ) : (
                 showcaseBlocks.map((bloco) => (
@@ -7086,8 +7196,11 @@
         };
 
         return (
-          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+          /* No celular esta janela também sobe de baixo, igual à folha do +:
+             colocar produto é o mesmo trabalho, e a mão faz do mesmo jeito */
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4 z-50">
+            <form onSubmit={handleSubmit} className="bottom-sheet px-4 pt-3 sm:p-6 space-y-4">
+              <div className="bottom-sheet-grab sm:hidden" />
               <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
                 <div className="min-w-0">
                   <span className="t-overline">Colocar na vitrine</span>
@@ -7125,7 +7238,7 @@
                   onType={setProductName}
                   onPick={(opt) => setProductName(opt.label)}
                   emptyLabel={`Nenhum produto de ${categoriaDaVitrine} com esse nome — ao colocar, ele entra no catálogo`}
-                  className="field field-md font-semibold"
+                  className="field field-lg font-semibold"
                 />
                 {jaNoMovel && (
                   <p className="t-caption text-[11px] mt-1.5 flex items-start gap-1">
@@ -7146,7 +7259,7 @@
                     min="1"
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
-                    className="field field-md text-center font-extrabold tnum"
+                    className="field field-lg text-center font-extrabold tnum"
                   />
                 </div>
                 <div>
@@ -7155,18 +7268,239 @@
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="field field-md text-center tnum"
+                    className="field field-lg text-center tnum"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="btn btn-secondary btn-md">Cancelar</button>
-                <button type="submit" className="btn btn-primary btn-md">
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 pt-1">
+                <button type="button" onClick={onClose} className="btn btn-secondary btn-lg">Cancelar</button>
+                <button type="submit" className="btn btn-primary btn-lg">
                   <Icons.Plus className="w-4 h-4" />
                   {dividindo ? 'Dividir espaço' : 'Colocar'}
                 </button>
               </div>
+            </form>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // FOLHA DE LANÇAR ITEM (celular)
+      //
+      // A mesma coisa que o formulário da lista de apoio faz, só que numa
+      // folha que sobe de baixo e cabe na mão: produto, quantidade e data em
+      // alvos grandes. Quem abre ela é o + preso no canto da tela da vitrine.
+      //
+      // A folha não fecha ao lançar: fornada que sai do forno vem em vários
+      // produtos seguidos, e cada lançamento fica no comprovante do fim, para
+      // a pessoa ver o que já entrou sem sair da folha.
+      // ==========================================
+      const QUICK_QTY_PRESETS = [5, 10, 15, 20, 30];
+
+      const QuickAddSheet = ({ open, currentUnit, slots, products, showcaseType, onChangeShowcaseType, onQuickAllocate, onClose }) => {
+        if (!open) return null;
+
+        const [productName, setProductName] = useState('');
+        const [qty, setQty] = useState(10);
+        const [date, setDate] = useState(getTodayDateString());
+        const [lancados, setLancados] = useState([]);
+
+        const hoje = getTodayDateString();
+        const ontem = shiftDayKey(hoje, -1);
+
+        // A mesma regra da lista de apoio: lança-se pelo produto, e não pela
+        // vitrine aberta. Os produtos da vitrine escolhida vêm primeiro; os
+        // das outras vêm depois, com o nome do móvel para onde eles vão.
+        const productOptions = useMemo(() => {
+          const daVitrine = [];
+          const deOutras = [];
+
+          products.forEach((p) => {
+            const tipo = showcaseTypeOfCategory(p.category);
+            const opcao = { value: p.name, label: p.name };
+            if (tipo === showcaseType) daVitrine.push(opcao);
+            else deOutras.push({ ...opcao, hint: SHOWCASE_TYPE_LABELS[tipo] });
+          });
+
+          return [...daVitrine, ...deOutras];
+        }, [products, showcaseType]);
+
+        // Produto já cadastrado vai para a vitrine da categoria dele; nome novo
+        // entra na vitrine escolhida aqui em cima
+        const produtoEscolhido = products.find((p) => normalizeName(p.name) === normalizeName(productName));
+        const tipoDestino = produtoEscolhido ? showcaseTypeOfCategory(produtoEscolhido.category) : showcaseType;
+        const temEspaco = slots.some((s) => s.unit === currentUnit && s.showcaseType === tipoDestino);
+
+        const submeter = (e) => {
+          e.preventDefault();
+          const nome = productName.trim();
+          if (!nome) return;
+
+          const quantidade = Math.max(1, Number(qty) || 1);
+          onQuickAllocate(nome, quantidade, date, null, showcaseType);
+
+          // Comprovante do que acabou de entrar, do mais novo para o mais
+          // velho: sem ele a folha limpa o campo e parece que nada aconteceu
+          const lancado = {
+            chave: `${nome}-${Date.now()}`,
+            nome,
+            qty: quantidade,
+            unidade: produtoEscolhido?.defaultUnit || 'un',
+            tipo: tipoDestino
+          };
+          setLancados((prev) => [lancado, ...prev].slice(0, 5));
+          setProductName('');
+        };
+
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Colocar item na vitrine"
+            onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4"
+          >
+            <form onSubmit={submeter} className="bottom-sheet px-4 pt-3 sm:p-5 space-y-4">
+              <div className="bottom-sheet-grab sm:hidden" />
+
+              <div className="flex items-start justify-between gap-3 pb-3 border-b hairline">
+                <div className="min-w-0">
+                  <span className="t-overline">Colocar na vitrine</span>
+                  <h3 className="t-title text-[#1d1d1f] mt-0.5">Novo item</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  title="Fechar"
+                  aria-label="Fechar"
+                  className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73] flex items-center justify-center shrink-0 transition-colors"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Trocar a vitrine aqui troca a vitrine da tela também: é sempre
+                  a mesma vitrine, como na lista de apoio */}
+              <div className="segmented flex w-full">
+                {SHOWCASE_TYPES.map((tipo) => (
+                  <button
+                    key={tipo}
+                    type="button"
+                    className="flex-1 h-9"
+                    onClick={() => onChangeShowcaseType(tipo)}
+                    data-active={showcaseType === tipo}
+                  >
+                    {SHOWCASE_TYPE_LABELS[tipo]}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">
+                  Produto <span className="font-normal">· de qualquer vitrine</span>
+                </label>
+                <PickerField
+                  placeholder="Digite ou escolha…"
+                  value={productName}
+                  options={productOptions}
+                  onType={setProductName}
+                  onPick={(opt) => setProductName(opt.value)}
+                  emptyLabel={`Produto novo — entra como ${categoryOfShowcaseType(showcaseType)} ao colocar`}
+                  className="field field-lg font-semibold"
+                />
+                <p className={`t-caption text-[11px] mt-1.5 ${tipoDestino === showcaseType ? '' : 'text-[#0E0937] font-semibold'}`}>
+                  Vai para a vitrine {SHOWCASE_TYPE_LABELS[tipoDestino]}
+                </p>
+                {!temEspaco && (
+                  <p className="t-caption text-[11px] mt-1 text-[#c9271d] font-semibold">
+                    Esta unidade não tem espaço de {SHOWCASE_TYPE_LABELS[tipoDestino].toLowerCase()} cadastrado.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">Quantidade</label>
+                <div className="qty-stepper">
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => Math.max(1, (Number(q) || 1) - 1))}
+                    aria-label="Tirar uma unidade"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    className="field field-lg no-spin tnum"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => (Number(q) || 0) + 1)}
+                    aria-label="Somar uma unidade"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {QUICK_QTY_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setQty(n)}
+                      data-active={Number(qty) === n}
+                      className="chip tnum"
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="t-caption block mb-1.5">Fabricação</label>
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  <button type="button" onClick={() => setDate(hoje)} data-active={date === hoje} className="chip">Hoje</button>
+                  <button type="button" onClick={() => setDate(ontem)} data-active={date === ontem} className="chip">Ontem</button>
+                </div>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="field field-lg text-center tnum"
+                />
+              </div>
+
+              <button type="submit" disabled={!productName.trim()} className="btn btn-primary btn-lg w-full disabled:opacity-40">
+                <Icons.Plus className="w-4 h-4" />
+                Colocar na vitrine
+              </button>
+
+              {/* O que já entrou nesta abertura da folha */}
+              {lancados.length > 0 && (
+                <div className="card-quiet p-3 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Icons.CheckCircle2 className="w-3.5 h-3.5 text-[#1d7a35] shrink-0" />
+                    <span className="t-overline">
+                      {lancados.length} {lancados.length === 1 ? 'item colocado agora' : 'itens colocados agora'}
+                    </span>
+                  </div>
+                  {lancados.map((l) => (
+                    <div key={l.chave} className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-semibold text-[#1d1d1f] truncate">{l.nome}</span>
+                      <span className="t-caption tnum shrink-0">
+                        {l.qty} {l.unidade} · {SHOWCASE_TYPE_LABELS[l.tipo]}
+                      </span>
+                    </div>
+                  ))}
+                  <button type="button" onClick={onClose} className="btn btn-secondary btn-md w-full mt-1">
+                    Pronto
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         );
@@ -7449,6 +7783,8 @@
         // ser desfeita
         const [undoBaixa, setUndoBaixa] = useState(null);
         const [slotToFill, setSlotToFill] = useState(null);
+        // O + do canto da tela da vitrine, no celular
+        const [quickAddOpen, setQuickAddOpen] = useState(false);
 
         const [loadState, setLoadState] = useState('loading'); // loading | ready | error
         const [errorMsg, setErrorMsg] = useState('');
@@ -8665,6 +9001,25 @@
                     />
                   </div>
                   </div>
+
+                  {/* O + preso no canto da tela: no celular a lista de apoio
+                      fica embaixo de toda a vitrine, e lançar item é o que a
+                      loja mais faz. O botão anda junto com a rolagem para o
+                      lançamento estar sempre a um toque. No computador o
+                      formulário já está ao lado, e o + só atrapalharia. */}
+                  <button
+                    onClick={() => setQuickAddOpen(true)}
+                    title="Colocar item na vitrine"
+                    aria-label="Colocar item na vitrine"
+                    className="btn fab-add"
+                  >
+                    <Icons.Plus className="w-5 h-5" />
+                    Adicionar item
+                  </button>
+
+                  {/* Folga do fim da página: o + fica por cima do conteúdo, e
+                      sem ela a última linha da lista nunca aparece inteira */}
+                  <div className="h-16 lg:hidden" aria-hidden="true" />
                 </div>
               )}
 
@@ -8749,6 +9104,20 @@
               )}
             </main>
 
+            {/* Fechada, a folha não guarda nada: o open corta ela antes dos
+                estados, então produto, quantidade e data começam do zero a
+                cada abertura */}
+            <QuickAddSheet
+              open={quickAddOpen}
+              currentUnit={currentUnit}
+              slots={slots}
+              products={products}
+              showcaseType={showcaseFilter}
+              onChangeShowcaseType={setShowcaseFilter}
+              onQuickAllocate={handleQuickAllocate}
+              onClose={() => setQuickAddOpen(false)}
+            />
+
             <SlotAddModal
               slot={slotToFill}
               itemsInSlot={slotToFill ? slotItems.filter((i) => i.slotId === slotToFill.id) : []}
@@ -8798,7 +9167,11 @@
             )}
 
             <footer className="mt-auto border-t hairline">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2">
+              {/* No celular da vitrine o + fica preso no canto de baixo: o
+                  rodapé abre espaço para não ficar embaixo dele */}
+              <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2 ${
+                activeTab === 'vitrine' ? 'pb-24 lg:pb-4' : ''
+              }`}>
                 <div className="flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'bg-[#ff9f0a]' : 'bg-[#34c759]'}`} />
                   <span className="t-caption">
