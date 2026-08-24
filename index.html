@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-19-mobile-add-1" />
+    <meta name="app-version" content="2026-08-24-tag-vitrine-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -453,6 +453,93 @@
       }
       .mark-warning { color: var(--ink-1); }
       .mark-expired { color: #c9271d; }
+
+      /* ==========================================
+         CARTÃO DO PRODUTO NA VITRINE
+         O mesmo cartãozinho de papel que o balcão usa, na tela: a data do
+         lote em cima, o nome do produto, quanto sobrou do lote e, embaixo,
+         os dois botões de baixa.
+         A etiqueta colorida na quina é a leitura de longe — verde está
+         fresco, amarela é o último dia e vermelha precisa sair da vitrine
+         agora. Só a amarela e a vermelha pintam o cartão inteiro: o que está
+         em dia não precisa chamar ninguém.
+         ========================================== */
+      .item-card {
+        position: relative;
+        padding: 8px 9px 9px;
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        background: var(--bg-surface);
+      }
+      .item-card[data-tag="verde"] { border-color: rgba(52, 199, 89, 0.30); }
+      .item-card[data-tag="amarela"] {
+        border-color: rgba(255, 159, 10, 0.38);
+        background: rgba(255, 204, 0, 0.07);
+      }
+      .item-card[data-tag="vermelha"] {
+        border-color: rgba(255, 59, 48, 0.38);
+        background: rgba(255, 59, 48, 0.055);
+      }
+
+      .item-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        min-width: 0;
+      }
+      /* A data do lote: a primeira linha do papel, como na vitrine */
+      .item-card-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        min-width: 0;
+        font-size: 11px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-3);
+      }
+      .item-card-name {
+        margin-top: 3px;
+        font-size: 14px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        color: var(--ink-1);
+        overflow-wrap: anywhere;
+      }
+      .item-card-qty { margin-top: 2px; }
+      .item-card-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-top: 2px;
+        min-width: 0;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-4);
+      }
+
+      /* A etiqueta, com o bico virado para o produto — a mesma tirinha de
+         papel colorida que o balcão prende no lote */
+      .item-tag {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px 2px 13px;
+        border-radius: 980px;
+        clip-path: polygon(0 50%, 7px 0, 100% 0, 100% 100%, 7px 100%);
+        font-size: 10px;
+        font-weight: 800;
+        line-height: 1.4;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .item-tag[data-tag="verde"] { background: #34c759; color: #05320f; }
+      .item-tag[data-tag="amarela"] { background: #ffcc00; color: #4a3400; }
+      .item-tag[data-tag="vermelha"] { background: #ff3b30; color: #fff; }
 
       /* Selos de status */
       .pill {
@@ -969,6 +1056,10 @@
 
       const formatCurrencyBR = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
+      // A data curta do lote — dia e mês. É o que cabe na etiqueta do cartão
+      // da vitrine; o ano vai no title, para quem precisar dele.
+      const formatShortDateBR = (dateStr) => formatDateBR(dateStr).slice(0, 5);
+
       const DAYS_MAP = {
         segunda: 'Segunda-feira',
         terca: 'Terça-feira',
@@ -1269,6 +1360,38 @@
           return { status: 'warning', label: `Último dia · ${days}d`, bgClass: 'bg-black/[0.05]', textClass: 'text-[#1d1d1f]', dotClass: 'bg-[#86868b]', markClass: 'mark-warning', alerta: true };
         }
         return { status: 'normal', label: `${days}d na vitrine`, bgClass: 'bg-black/[0.04]', textClass: 'text-[#6e6e73]', dotClass: 'bg-[#c7c7cc]', markClass: '', alerta: false };
+      };
+
+      // ------------------------------------------
+      // A TAG DO CARTÃO DA VITRINE
+      //
+      // A etiqueta colorida que fica na quina do cartão, no mesmo código de
+      // cor que o balcão já usa no papel: verde está fresco, amarela é o
+      // último dia de validade e vermelha precisa sair da vitrine agora.
+      //
+      // É a leitura de longe: quem passa na frente da vitrine vê a cor antes
+      // de ler qualquer número. O tempo em dias continua escrito no cartão,
+      // para quem chegar perto.
+      // ------------------------------------------
+      const SHOWCASE_TAGS = {
+        verde: { label: 'Fresco', hint: 'Dentro da validade' },
+        amarela: { label: 'Último dia', hint: 'Último dia de validade' },
+        vermelha: { label: 'Vencido', hint: 'Passou da validade — tirar da vitrine' }
+      };
+
+      const getShowcaseTag = (item, product) => {
+        const days = calculateDaysInShowcase(item?.manufactureDate);
+        const shelfLife = Number(product?.shelfLifeDays) || 2;
+        const cor = days >= shelfLife ? 'vermelha' : (days >= shelfLife - 1 ? 'amarela' : 'verde');
+        const { label, hint } = SHOWCASE_TAGS[cor];
+
+        return {
+          cor,
+          label,
+          days,
+          shelfLife,
+          title: `${hint} · ${days}d na vitrine, de ${shelfLife}d de validade`
+        };
       };
 
       // ------------------------------------------
@@ -2874,7 +2997,7 @@
                         className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
                         style={{
                           gridTemplateColumns: `repeat(${bloco.colunas}, minmax(0, 1fr))`,
-                          minWidth: `${bloco.colunas * 168}px`
+                          minWidth: `${bloco.colunas * 182}px`
                         }}
                       >
                         {bloco.espacos.map((slot) => {
@@ -2901,48 +3024,67 @@
                                 )}
                               </div>
 
-                              {/* Dois produtos no mesmo espaço ficam um embaixo
-                                  do outro, separados por um fio */}
-                              {doEspaco.map(({ item }, i) => {
+                              {/* Um cartão por lote, na ordem do papel do
+                                  balcão: data, produto, quanto sobrou do lote
+                                  e os dois botões de baixa. Dois produtos no
+                                  mesmo espaço ficam um cartão embaixo do outro */}
+                              {doEspaco.map(({ item }) => {
                                 const prod = products.find((p) => p.id === item.productId);
                                 const statusInfo = getSlotItemStatus(item, prod);
+                                const tag = getShowcaseTag(item, prod);
 
                                 return (
-                                  <div
-                                    key={item.id}
-                                    className={i === 0 ? 'mt-0.5' : 'mt-1.5 pt-1.5 border-t hairline'}
-                                  >
-                                    {/* Quanto tem e de quê — nesta ordem, porque
-                                        é assim que se confere de olho no balcão */}
-                                    <div className="flex items-baseline gap-1.5 min-w-0">
+                                  <div key={item.id} className="item-card mt-1.5" data-tag={tag.cor}>
+                                    {/* A data do lote em cima e, na quina, a
+                                        etiqueta colorida — a cor é o que se lê
+                                        de longe, antes de qualquer número */}
+                                    <div className="item-card-head">
                                       <span
-                                        className="shrink-0"
-                                        title={item.producedQty > 0
-                                          ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
-                                          : `${item.currentQty} ${item.unit} na vitrine`}
+                                        className="item-card-date"
+                                        title={item.manufactureDate
+                                          ? `Fabricado em ${formatDateBR(item.manufactureDate)}`
+                                          : 'Lote sem data de fabricação'}
                                       >
-                                        <QtyOfBatch
-                                          qty={item.currentQty}
-                                          produced={item.producedQty || 0}
-                                          unit={item.unit}
-                                          big
-                                        />
+                                        <Icons.Calendar className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">
+                                          {item.manufactureDate ? formatShortDateBR(item.manufactureDate) : 'sem data'}
+                                        </span>
                                       </span>
-                                      <h5 className="t-headline text-[14px] truncate min-w-0" title={item.productName}>
-                                        <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
-                                      </h5>
+                                      <span className="item-tag" data-tag={tag.cor} title={tag.title}>
+                                        {tag.label}
+                                      </span>
                                     </div>
 
-                                    {/* Quem responde pelo item e o tempo de
-                                        vitrine. Dia a dia é texto miúdo; selo
-                                        mesmo, só no último dia e no vencido */}
-                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                      <p className="t-caption text-[11px] flex items-center gap-1 min-w-0">
+                                    <h5 className="item-card-name" title={item.productName}>
+                                      <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                                    </h5>
+
+                                    {/* Quanto sobrou do lote que foi colocado
+                                        ali: "3/5 un" é a conta que o balcão faz */}
+                                    <div
+                                      className="item-card-qty"
+                                      title={item.producedQty > 0
+                                        ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
+                                        : `${item.currentQty} ${item.unit} na vitrine`}
+                                    >
+                                      <QtyOfBatch
+                                        qty={item.currentQty}
+                                        produced={item.producedQty || 0}
+                                        unit={item.unit}
+                                        big
+                                      />
+                                    </div>
+
+                                    {/* Quem responde pelo item e há quantos dias
+                                        ele está exposto — o número por trás da
+                                        cor da etiqueta */}
+                                    <div className="item-card-meta">
+                                      <span className="inline-flex items-center gap-1 min-w-0">
                                         <Icons.User className="w-3 h-3 shrink-0" />
                                         <span className="truncate">{getResponsibleName(prod)}</span>
-                                      </p>
-                                      <span className={statusInfo.alerta ? `pill text-[10px] ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption text-[11px] tnum'}>
-                                        {statusInfo.label}
+                                      </span>
+                                      <span className="tnum shrink-0" title={statusInfo.label}>
+                                        {tag.days}d
                                       </span>
                                     </div>
 
