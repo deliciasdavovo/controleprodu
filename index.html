@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-tag-vitrine-3" />
+    <meta name="app-version" content="2026-08-24-tag-quina-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -459,26 +459,23 @@
          O mesmo cartãozinho de papel que o balcão usa, na tela: a data do
          lote em cima, o nome do produto, quanto sobrou do lote e, embaixo,
          os dois botões de baixa.
-         A etiqueta colorida na quina é a leitura de longe — verde está
-         fresco, mostarda é o último dia e vinho precisa sair da vitrine
-         agora. A cor fica só na etiqueta: o cartão é branco em todos os
-         casos, e é o contraste com o branco que faz a etiqueta saltar.
-         As cores são as da loja: verde #274133, mostarda #C8B067, vinho
-         #7D2027 e o creme #EDDDC5 no texto que vai sobre elas.
+         A etiqueta fica presa na quina de cima do cartão, meio dentro e
+         meio fora, como a tirinha de papel que o balcão prende no lote. É a
+         leitura de longe — verde está fresco, laranja é o último dia e
+         vinho precisa sair da vitrine agora.
+         A cor fica só na etiqueta: o cartão é branco em todos os casos, e é
+         o contraste com o branco que faz a etiqueta saltar. As cores são as
+         da loja: verde #274133, laranja #CE9042, vinho #7D2027, com o creme
+         #EDDDC5 no texto que vai sobre o verde e o vinho.
          ========================================== */
       .item-card {
         position: relative;
-        padding: 8px 9px 9px;
+        /* Sobra em cima para a etiqueta pousar na quina sem cobrir a data */
+        margin-top: 14px;
+        padding: 9px 9px 9px;
         border: 1px solid var(--hairline);
         border-radius: 14px;
         background: var(--bg-surface);
-      }
-      .item-card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 6px;
-        min-width: 0;
       }
       /* A data do lote: a primeira linha do papel, como na vitrine */
       .item-card-date {
@@ -500,25 +497,33 @@
         color: var(--ink-1);
         overflow-wrap: anywhere;
       }
-      .item-card-qty { margin-top: 2px; }
-      .item-card-meta {
+      /* Quanto sobrou do lote e, na ponta, há quantos dias está exposto */
+      .item-card-qty {
         display: flex;
-        align-items: center;
+        align-items: baseline;
         justify-content: space-between;
         gap: 6px;
-        margin-top: 2px;
+        margin-top: 3px;
         min-width: 0;
+      }
+      .item-card-days {
+        flex-shrink: 0;
         font-size: 11px;
         font-weight: 600;
+        font-variant-numeric: tabular-nums;
         color: var(--ink-4);
       }
 
-      /* A etiqueta, com o bico virado para o produto — a mesma tirinha de
-         papel colorida que o balcão prende no lote */
+      /* A etiqueta pousada na quina de cima, com o bico virado para o
+         produto — metade dela passa por cima da borda do cartão */
       .item-tag {
-        flex-shrink: 0;
+        position: absolute;
+        top: -9px;
+        right: 8px;
+        z-index: 1;
         display: inline-flex;
         align-items: center;
+        max-width: calc(100% - 16px);
         padding: 2px 8px 2px 13px;
         border-radius: 980px;
         clip-path: polygon(0 50%, 7px 0, 100% 0, 100% 100%, 7px 100%);
@@ -530,7 +535,7 @@
         white-space: nowrap;
       }
       .item-tag[data-tag="verde"] { background: #274133; color: #EDDDC5; }
-      .item-tag[data-tag="amarela"] { background: #C8B067; color: #274133; }
+      .item-tag[data-tag="amarela"] { background: #CE9042; color: #2A1A06; }
       .item-tag[data-tag="vermelha"] { background: #7D2027; color: #EDDDC5; }
 
       /* Selos de status */
@@ -1357,9 +1362,11 @@
       // ------------------------------------------
       // A TAG DO CARTÃO DA VITRINE
       //
-      // A etiqueta colorida que fica na quina do cartão, no mesmo código de
-      // cor que o balcão já usa no papel: verde está fresco, amarela é o
-      // último dia de validade e vermelha precisa sair da vitrine agora.
+      // A etiqueta colorida que fica presa na quina do cartão, no mesmo
+      // código de cor que o balcão já usa no papel: verde está fresco,
+      // laranja é o último dia de validade e vinho precisa sair da vitrine
+      // agora. O laranja é bem separado do verde de propósito: de longe,
+      // duas cores parecidas viram a mesma cor.
       //
       // É a leitura de longe: quem passa na frente da vitrine vê a cor antes
       // de ler qualquer número. O tempo em dias continua escrito no cartão,
@@ -3026,56 +3033,49 @@
                                 const tag = getShowcaseTag(item, prod);
 
                                 return (
-                                  <div key={item.id} className="item-card mt-1.5" data-tag={tag.cor}>
-                                    {/* A data do lote em cima e, na quina, a
-                                        etiqueta colorida — a cor é o que se lê
-                                        de longe, antes de qualquer número */}
-                                    <div className="item-card-head">
-                                      <span
-                                        className="item-card-date"
-                                        title={item.manufactureDate
-                                          ? `Fabricado em ${formatDateBR(item.manufactureDate)}`
-                                          : 'Lote sem data de fabricação'}
-                                      >
-                                        <Icons.Calendar className="w-3 h-3 shrink-0" />
-                                        <span className="truncate">
-                                          {item.manufactureDate ? formatShortDateBR(item.manufactureDate) : 'sem data'}
-                                        </span>
+                                  <div key={item.id} className="item-card" data-tag={tag.cor}>
+                                    {/* A etiqueta presa na quina de cima: a cor
+                                        é o que se lê de longe, antes de
+                                        qualquer número */}
+                                    <span className="item-tag" data-tag={tag.cor} title={tag.title}>
+                                      {tag.label}
+                                    </span>
+
+                                    <span
+                                      className="item-card-date"
+                                      title={item.manufactureDate
+                                        ? `Fabricado em ${formatDateBR(item.manufactureDate)}`
+                                        : 'Lote sem data de fabricação'}
+                                    >
+                                      <Icons.Calendar className="w-3 h-3 shrink-0" />
+                                      <span className="truncate">
+                                        {item.manufactureDate ? formatShortDateBR(item.manufactureDate) : 'sem data'}
                                       </span>
-                                      <span className="item-tag" data-tag={tag.cor} title={tag.title}>
-                                        {tag.label}
-                                      </span>
-                                    </div>
+                                    </span>
 
                                     <h5 className="item-card-name" title={item.productName}>
                                       <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                                     </h5>
 
                                     {/* Quanto sobrou do lote que foi colocado
-                                        ali: "3/5 un" é a conta que o balcão faz */}
-                                    <div
-                                      className="item-card-qty"
-                                      title={item.producedQty > 0
-                                        ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
-                                        : `${item.currentQty} ${item.unit} na vitrine`}
-                                    >
-                                      <QtyOfBatch
-                                        qty={item.currentQty}
-                                        produced={item.producedQty || 0}
-                                        unit={item.unit}
-                                        big
-                                      />
-                                    </div>
-
-                                    {/* Quem responde pelo item e há quantos dias
-                                        ele está exposto — o número por trás da
-                                        cor da etiqueta */}
-                                    <div className="item-card-meta">
-                                      <span className="inline-flex items-center gap-1 min-w-0">
-                                        <Icons.User className="w-3 h-3 shrink-0" />
-                                        <span className="truncate">{getResponsibleName(prod)}</span>
+                                        ali — "3/5 un" é a conta que o balcão
+                                        faz — e, na ponta, o tempo de vitrine
+                                        em dias: o número por trás da cor da
+                                        etiqueta */}
+                                    <div className="item-card-qty">
+                                      <span
+                                        title={item.producedQty > 0
+                                          ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
+                                          : `${item.currentQty} ${item.unit} na vitrine`}
+                                      >
+                                        <QtyOfBatch
+                                          qty={item.currentQty}
+                                          produced={item.producedQty || 0}
+                                          unit={item.unit}
+                                          big
+                                        />
                                       </span>
-                                      <span className="tnum shrink-0" title={statusInfo.label}>
+                                      <span className="item-card-days" title={statusInfo.label}>
                                         {tag.days}d
                                       </span>
                                     </div>
