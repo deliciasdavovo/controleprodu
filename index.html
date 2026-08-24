@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-tag-quina-1" />
+    <meta name="app-version" content="2026-08-24-painel-agora-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -951,6 +951,175 @@
         color: #6e6e73;
       }
 
+      /* ==========================================
+         PAINEL DO AGORA — VER, ENTENDER, AGIR
+         O topo da vitrine responde três perguntas, sempre na mesma ordem:
+         como está a vitrine, o que está pedindo atenção e o que fazer agora.
+         Cada resposta vem em camadas — o número que se lê de longe, a leitura
+         dele em uma linha e, só quando a pessoa pede, a lista item a item.
+         ========================================== */
+      .briefing-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--hairline);
+      }
+      @media (max-width: 767px) {
+        .briefing-grid { grid-template-columns: 1fr; }
+      }
+      .briefing-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 14px 16px 16px;
+        background: var(--bg-surface);
+      }
+      /* A pergunta vem antes da resposta, e miúda: quem manda na leitura é o
+         número embaixo dela */
+      .briefing-q {
+        font-size: 11px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--ink-4);
+      }
+      /* Nível 1 — o resultado, lido de longe */
+      .briefing-answer {
+        font-size: 30px;
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--ink-1);
+        font-variant-numeric: tabular-nums;
+      }
+      .briefing-answer-sm {
+        font-size: 18px;
+        line-height: 1.2;
+        letter-spacing: -0.022em;
+      }
+      .briefing-answer-unit {
+        margin-left: 4px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-4);
+      }
+      /* Nível 2 — o que aquele número quer dizer */
+      .briefing-read {
+        font-size: 12.5px;
+        line-height: 1.35;
+        font-weight: 600;
+        color: var(--ink-3);
+      }
+      .briefing-cell[data-tom="perigo"] .briefing-answer { color: #c9271d; }
+      .briefing-cell[data-tom="calmo"] .briefing-answer { color: #1d7a35; }
+      /* A ação fica sempre colada no pé da coluna: o dedo aprende o lugar */
+      .briefing-action { margin-top: auto; padding-top: 12px; }
+
+      /* Nível 3 — a investigação, atrás de um toque */
+      .briefing-more {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 16px;
+        border-top: 1px solid var(--hairline);
+        background: var(--bg-elevated);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+        transition: background-color .16s ease;
+      }
+      .briefing-more:hover { background: rgba(0, 0, 0, 0.045); }
+      .briefing-chevron { transition: transform .18s ease; }
+      .briefing-more[aria-expanded="true"] .briefing-chevron { transform: rotate(90deg); }
+
+      /* ==========================================
+         LISTA DE EXCEÇÕES
+         O sistema não repete o que está normal: aqui entra só o que precisa
+         de alguma coisa, e a ação de resolver vem do lado do item.
+         ========================================== */
+      .exc-group {
+        padding: 9px 16px 4px;
+        border-top: 1px solid var(--hairline);
+        background: var(--bg-elevated);
+      }
+      .exc-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 16px;
+        border-top: 1px solid var(--hairline);
+        transition: background-color .14s ease;
+      }
+      .exc-row:hover { background: rgba(0, 0, 0, 0.015); }
+      .exc-name {
+        font-size: 13.5px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        color: var(--ink-1);
+        overflow-wrap: anywhere;
+      }
+      .exc-where {
+        margin-top: 1px;
+        font-size: 11.5px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-4);
+      }
+      /* Os mesmos dois botões de baixa da vitrine, na largura do lugar */
+      .exc-actions { width: 92px; flex-shrink: 0; }
+      .exc-actions .item-action { height: 32px; }
+
+      /* ==========================================
+         TENDÊNCIA (SPARKLINE)
+         Um número sozinho não diz se está melhorando ou piorando. O risquinho
+         mostra o caminho que ele fez até aqui, e o ponto marca hoje.
+         ========================================== */
+      /* A cor vem de quem está mostrando o desenho: quem lê perda quer o
+         risquinho na cor de perda */
+      .spark {
+        display: block;
+        width: 100%;
+        height: 36px;
+        overflow: visible;
+      }
+      .spark-line {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .spark-area { fill: currentColor; opacity: 0.10; stroke: none; }
+      .spark-dot { stroke: currentColor; stroke-width: 5.5; stroke-linecap: round; }
+
+      /* A cor da variação é o que ela significa, e não a direção da seta:
+         em perda, subir é ruim; em venda, subir é bom */
+      .delta-ruim { color: #c9271d; }
+      .delta-bom { color: #1d7a35; }
+      .delta-flat { color: var(--ink-3); }
+
+      /* ==========================================
+         DENSIDADE SOB DEMANDA
+         A mesma vitrine em dois tamanhos: confortável para o celular do
+         balcão e compacto para ver o móvel inteiro na tela do computador.
+         ========================================== */
+      .showcase-grid[data-density="compacto"] .item-card {
+        margin-top: 11px;
+        padding: 6px 7px;
+        border-radius: 12px;
+      }
+      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 13px; }
+      .showcase-grid[data-density="compacto"] .item-card-date { font-size: 10px; }
+      .showcase-grid[data-density="compacto"] .item-card-qty { margin-top: 2px; }
+      .showcase-grid[data-density="compacto"] .item-actions { gap: 5px; margin-top: 6px !important; }
+      .showcase-grid[data-density="compacto"] .item-action { height: 30px; }
+      .showcase-grid[data-density="compacto"] .item-tag { font-size: 9px; padding: 1px 7px 1px 12px; }
+
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
       }
@@ -1087,6 +1256,68 @@
       };
 
       const getTomorrowDayOfWeek = () => nextWeekDay(getTodayDayOfWeek());
+
+      // ------------------------------------------
+      // O TURNO DA LOJA
+      //
+      // A padaria não faz a mesma coisa o dia inteiro. De manhã se monta a
+      // vitrine, no meio do dia se vende e repõe, e no fim da tarde se tira o
+      // que venceu e se confere o que sobrou. O painel do topo lê a hora e
+      // sugere o trabalho daquele turno, em vez de oferecer sempre a mesma
+      // lista de coisas para fazer.
+      //
+      // A hora só decide o empate: exceção na vitrine — vencido, item no
+      // último dia, produto acabando — passa na frente de qualquer turno.
+      // ------------------------------------------
+      const TURNOS = [
+        { key: 'montagem', ate: 10, label: 'Montagem da vitrine' },
+        { key: 'venda', ate: 16, label: 'Movimento' },
+        { key: 'fechamento', ate: 21, label: 'Fechamento' }
+      ];
+
+      const TURNO_FORA = { key: 'fora', ate: 24, label: 'Fora do horário' };
+
+      const getTurnoDaLoja = (agora = new Date()) => {
+        const hora = agora.getHours();
+        return TURNOS.find((t) => hora < t.ate) || TURNO_FORA;
+      };
+
+      const formatHourBR = (data) =>
+        data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // ------------------------------------------
+      // Preferências de quem está usando a tela — jeito de ver, e não dado da
+      // loja: ficam no navegador daquele aparelho, e o banco não sabe delas.
+      // Navegador que recusa gravar (janela anônima) volta para o padrão em
+      // vez de derrubar a tela.
+      // ------------------------------------------
+      const lerPreferencia = (chave, padrao) => {
+        try {
+          const valor = window.localStorage.getItem(`dv:${chave}`);
+          return valor === null ? padrao : valor;
+        } catch (e) {
+          return padrao;
+        }
+      };
+
+      const guardarPreferencia = (chave, valor) => {
+        try {
+          window.localStorage.setItem(`dv:${chave}`, valor);
+        } catch (e) {
+          /* sem espaço para gravar: a escolha vale só nesta sessão */
+        }
+      };
+
+      // Os últimos N dias em chave AAAA-MM-DD, do mais antigo para o mais novo
+      const lastDayKeys = (n, fim = new Date()) => {
+        const dias = [];
+        for (let i = n - 1; i >= 0; i -= 1) {
+          const d = new Date(fim);
+          d.setDate(d.getDate() - i);
+          dias.push(keyFromDate(d));
+        }
+        return dias;
+      };
 
       // ------------------------------------------
       // Prioridade do item na vitrine padrão
@@ -1879,6 +2110,80 @@
               <span className="meter-mark" style={{ left: `${MEDIDOR_MARCA}%` }} />
             </span>
             <span className="meter-value" data-over={passou}>{percent}%</span>
+          </span>
+        );
+      };
+
+      // ==========================================
+      // TENDÊNCIA — O CAMINHO ATÉ O NÚMERO DE HOJE
+      //
+      // "Perdeu 34 un" sozinho não diz nada: 34 depois de 12 é um problema
+      // novo, 34 depois de 60 é uma melhora. O risquinho desenha os últimos
+      // dias e o ponto marca o de hoje, para a leitura vir junto com o
+      // número em vez de depender de abrir um relatório.
+      //
+      // O desenho é esticado na largura que couber, e por isso o traço e o
+      // ponto usam non-scaling-stroke: eles têm a mesma espessura em um
+      // cartão estreito e em um largo.
+      // ==========================================
+      const Sparkline = ({ values = [], className = '', title }) => {
+        if (values.length === 0) return null;
+
+        const maior = Math.max(...values, 1);
+        const menor = Math.min(...values, 0);
+        const faixa = maior - menor || 1;
+        const passo = values.length > 1 ? 120 / (values.length - 1) : 0;
+        const pontos = values.map((v, i) => [
+          values.length > 1 ? i * passo : 60,
+          28 - ((v - menor) / faixa) * 24
+        ]);
+
+        const linha = pontos
+          .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`)
+          .join(' ');
+        const [ux, uy] = pontos[pontos.length - 1];
+
+        return (
+          <svg
+            className={`spark ${className}`}
+            viewBox="0 0 120 32"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label={title || 'Tendência dos últimos dias'}
+          >
+            {values.length > 1 && (
+              <>
+                <path className="spark-area" d={`${linha} L120 32 L0 32 Z`} />
+                <path className="spark-line" d={linha} vectorEffect="non-scaling-stroke" />
+              </>
+            )}
+            <line
+              className="spark-dot"
+              x1={ux} y1={uy} x2={ux} y2={uy}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        );
+      };
+
+      // ==========================================
+      // A VARIAÇÃO DE UM NÚMERO CONTRA O PERÍODO ANTERIOR
+      //
+      // A camada de interpretação do número grande: "↑ 18% vs. os 7 dias
+      // anteriores". Em perda, subir é ruim — quem chama a cor é o pior,
+      // e não a seta.
+      // ==========================================
+      const Delta = ({ percent, sufixo, subirEhRuim = true, className = '' }) => {
+        if (percent === null || percent === undefined) return null;
+        const subiu = percent > 0;
+        const desceu = percent < 0;
+        const tom = !subiu && !desceu
+          ? 'delta-flat'
+          : (subiu === subirEhRuim ? 'delta-ruim' : 'delta-bom');
+
+        return (
+          <span className={`${tom} tnum ${className}`}>
+            {subiu ? '↑' : desceu ? '↓' : '→'} {Math.abs(percent)}%{sufixo ? ` ${sufixo}` : ''}
           </span>
         );
       };
@@ -2822,6 +3127,397 @@
       };
 
       // ==========================================
+      // PAINEL DO AGORA
+      //
+      // O topo da vitrine operacional. Em vez de abrir com gráfico, ele
+      // responde três perguntas, sempre nesta ordem — que é a ordem em que a
+      // pessoa pensa quando chega no balcão:
+      //
+      //   1. Como está a vitrine?      → VER      (o número, de longe)
+      //   2. O que pede atenção?       → ENTENDER (só a exceção, nunca o normal)
+      //   3. O que fazer agora?        → AGIR     (uma ação, a mais provável)
+      //
+      // Cada resposta vem em camadas: o número grande, a leitura dele em uma
+      // linha e, atrás de um toque, a lista item a item com a ação do lado de
+      // cada um. Vitrine em ordem não abre lista nenhuma — o sistema chama a
+      // pessoa quando existe algo, e cala quando não existe.
+      //
+      // A ação sugerida muda com a hora da loja (montagem, movimento,
+      // fechamento), mas exceção passa na frente do turno: vencido na vitrine
+      // é o trabalho da vez a qualquer hora do dia.
+      // ==========================================
+      // O título de um grupo da lista de exceções: o que aquelas linhas têm
+      // em comum e o que fazer com elas
+      const ExcecaoGrupo = ({ titulo }) => (
+        <div className="exc-group">
+          <span className="t-overline">{titulo}</span>
+        </div>
+      );
+
+      const ShowcaseBriefing = ({
+        currentUnit, slots, slotItems, products, standardPlans,
+        onOpenChecklist, onOpenQuickAdd, onOpenSlot,
+        onQuickSale, onRecordSellAll, onQuickLoss
+      }) => {
+        const [aberto, setAberto] = useState(false);
+
+        // O turno vira sozinho enquanto a tela fica aberta: quem abriu às
+        // 09h50 não continua com "montar a vitrine" às 11h
+        const [agora, setAgora] = useState(() => new Date());
+        useEffect(() => {
+          const t = setInterval(() => setAgora(new Date()), 60000);
+          return () => clearInterval(t);
+        }, []);
+
+        const turno = getTurnoDaLoja(agora);
+        const dayOfWeek = getTodayDayOfWeek();
+
+        const leitura = useMemo(() => {
+          const unitSlots = slots.filter((s) => s.unit === currentUnit);
+          const porId = {};
+          unitSlots.forEach((s) => { porId[s.id] = s; });
+
+          const dayPlans = standardPlans.filter(
+            (sp) => sp.unit === currentUnit && sp.dayOfWeek === dayOfWeek
+          );
+          const itens = slotItems.filter((i) => porId[i.slotId] && (i.currentQty || 0) > 0);
+
+          const totalUn = itens.reduce((soma, i) => soma + (i.currentQty || 0), 0);
+          const padraoUn = dayPlans.reduce((soma, sp) => soma + (sp.idealQty || 0), 0);
+          const percent = padraoUn > 0 ? Math.round((totalUn / padraoUn) * 100) : null;
+
+          const linhas = itens
+            .map((item) => {
+              const produto = products.find((p) => p.id === item.productId);
+              return {
+                chave: item.id,
+                item,
+                slot: porId[item.slotId],
+                produto,
+                status: getSlotItemStatus(item, produto)
+              };
+            })
+            .sort((a, b) =>
+              compareShowcase(a.slot, b.slot)
+              || a.slot.slotNumber - b.slot.slotNumber
+              || a.item.productName.localeCompare(b.item.productName, 'pt-BR')
+            );
+
+          const vencidos = linhas.filter((l) => l.status.status === 'expired');
+          const ultimoDia = linhas.filter((l) => l.status.status === 'warning');
+
+          // Espaço que o padrão de hoje manda ter cheio e está vazio: é o que
+          // falta montar da vitrine de hoje
+          const ocupados = new Set(itens.map((i) => i.slotId));
+          const vazios = unitSlots
+            .filter((s) => !ocupados.has(s.id)
+              && dayPlans.some((sp) => sp.slotId === s.id && (sp.idealQty || 0) > 0))
+            .sort((a, b) => compareShowcase(a, b) || a.slotNumber - b.slotNumber);
+          const vaziosIds = new Set(vazios.map((s) => s.id));
+
+          // Ponto de reposição: o padrão reservou um mínimo para aquele produto
+          // naquele espaço e o que sobrou já chegou nele. Espaço que zerou de
+          // vez não entra aqui — ele já está na lista do que falta montar.
+          //
+          // Produto que já está chamando pela validade também fica de fora: um
+          // aviso por problema. Tirar o vencido da bandeja e repor a bandeja
+          // são o mesmo trabalho, e contar os dois inflaria o número do topo.
+          const jaChamado = new Set(
+            [...vencidos, ...ultimoDia].map((l) => `${l.item.slotId}:${l.item.productId}`)
+          );
+
+          const repor = dayPlans
+            .filter((sp) => (sp.minQty || 0) > 0 && porId[sp.slotId]
+              && !vaziosIds.has(sp.slotId) && !jaChamado.has(`${sp.slotId}:${sp.productId}`))
+            .map((sp) => {
+              const noEspaco = itens.filter((i) => i.slotId === sp.slotId && i.productId === sp.productId);
+              const produto = products.find((p) => p.id === sp.productId);
+              return {
+                chave: `repor:${sp.slotId}:${sp.productId}`,
+                slot: porId[sp.slotId],
+                produto,
+                nome: produto ? produto.name : 'Produto',
+                qty: noEspaco.reduce((soma, i) => soma + (i.currentQty || 0), 0),
+                minQty: sp.minQty || 0,
+                unidade: sp.unitOfMeasure || (produto && produto.unitOfMeasure) || 'un'
+              };
+            })
+            .filter((r) => r.produto && r.qty <= r.minQty)
+            .sort((a, b) => compareShowcase(a.slot, b.slot) || a.slot.slotNumber - b.slot.slotNumber);
+
+          return {
+            totalUn,
+            padraoUn,
+            percent,
+            espacos: unitSlots.length,
+            vencidos,
+            ultimoDia,
+            repor,
+            vazios,
+            atencao: vencidos.length + ultimoDia.length + repor.length + vazios.length
+          };
+        }, [slots, slotItems, products, standardPlans, currentUnit, dayOfWeek]);
+
+        const plural = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
+
+        // O que fazer agora. A ordem é a da urgência real da loja: o que
+        // estraga produto vem antes do que atrasa a vitrine, e o turno só
+        // decide quando nada está pegando fogo.
+        const acao = useMemo(() => {
+          const abrirLista = () => setAberto(true);
+
+          if (leitura.vencidos.length > 0) {
+            return {
+              tom: 'perigo',
+              titulo: 'Tirar o vencido da vitrine',
+              leitura: `${plural(leitura.vencidos.length, 'item passou', 'itens passaram')} da validade`,
+              label: 'Ver o que venceu',
+              executar: abrirLista
+            };
+          }
+          if (turno.key === 'montagem' && leitura.vazios.length > 0) {
+            return {
+              titulo: 'Montar a vitrine de hoje',
+              leitura: `${plural(leitura.vazios.length, 'espaço do padrão', 'espaços do padrão')} ainda sem produto`,
+              label: 'Colocar produto',
+              executar: onOpenQuickAdd
+            };
+          }
+          if (leitura.repor.length > 0) {
+            return {
+              titulo: 'Repor o que está acabando',
+              leitura: `${plural(leitura.repor.length, 'produto chegou', 'produtos chegaram')} no mínimo do padrão`,
+              label: 'Ver o que repor',
+              executar: abrirLista
+            };
+          }
+          if (leitura.ultimoDia.length > 0) {
+            return {
+              titulo: 'Empurrar o último dia',
+              leitura: `${plural(leitura.ultimoDia.length, 'item está', 'itens estão')} no último dia de validade`,
+              label: 'Ver os itens',
+              executar: abrirLista
+            };
+          }
+          if (leitura.vazios.length > 0) {
+            return {
+              titulo: 'Completar a vitrine',
+              leitura: `${plural(leitura.vazios.length, 'espaço do padrão', 'espaços do padrão')} ainda sem produto`,
+              label: 'Colocar produto',
+              executar: onOpenQuickAdd
+            };
+          }
+          if (turno.key === 'fechamento') {
+            return {
+              titulo: 'Conferir antes de fechar',
+              leitura: 'A conferência já registra a venda e a perda de cada item',
+              label: 'Conferir vitrine',
+              executar: onOpenChecklist
+            };
+          }
+          return {
+            tom: 'calmo',
+            titulo: 'Vitrine em ordem',
+            leitura: 'Nada pedindo atenção agora — a conferência mantém a conta em dia',
+            label: 'Conferir vitrine',
+            executar: onOpenChecklist
+          };
+        }, [leitura, turno, onOpenChecklist, onOpenQuickAdd]);
+
+        const resumoAtencao = [
+          leitura.vencidos.length > 0 && `${leitura.vencidos.length} ${leitura.vencidos.length === 1 ? 'vencido' : 'vencidos'}`,
+          leitura.ultimoDia.length > 0 && `${leitura.ultimoDia.length} no último dia`,
+          leitura.repor.length > 0 && `${leitura.repor.length} para repor`,
+          leitura.vazios.length > 0 && `${leitura.vazios.length} ${leitura.vazios.length === 1 ? 'espaço vazio' : 'espaços vazios'}`
+        ].filter(Boolean).join(' · ');
+
+        const ondeFica = (slot) => `${slot.sectionTitle} · espaço ${slot.slotNumber}`;
+
+        return (
+          <div className="card overflow-hidden">
+            {/* A hora e o turno: é o contexto que explica por que a sugestão
+                de agora é essa e não outra */}
+            <div className="px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3 border-b hairline">
+              <span className="t-overline flex items-center gap-1.5 min-w-0">
+                <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{turno.label}</span>
+              </span>
+              <span className="t-caption tnum shrink-0">{formatHourBR(agora)}</span>
+            </div>
+
+            <div className="briefing-grid">
+              {/* 1 — VER */}
+              <div className="briefing-cell">
+                <span className="briefing-q">Como está a vitrine?</span>
+                <span className="briefing-answer">
+                  {leitura.totalUn}
+                  <span className="briefing-answer-unit">un</span>
+                </span>
+                <span className="briefing-read tnum">
+                  {leitura.padraoUn > 0
+                    ? `de ${leitura.padraoUn} un do padrão de hoje`
+                    : `em ${plural(leitura.espacos, 'espaço', 'espaços')} · sem padrão para hoje`}
+                </span>
+                {leitura.percent !== null && (
+                  <div className="mt-2">
+                    <FillMeter
+                      percent={leitura.percent}
+                      title={`${leitura.totalUn} un na vitrine, de ${leitura.padraoUn} un que o padrão de hoje manda ter`}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 2 — ENTENDER */}
+              <div className="briefing-cell" data-tom={leitura.atencao > 0 ? 'perigo' : 'calmo'}>
+                <span className="briefing-q">O que pede atenção?</span>
+                <span className="briefing-answer">
+                  {leitura.atencao > 0 ? leitura.atencao : 'Nada'}
+                  {leitura.atencao > 0 && (
+                    <span className="briefing-answer-unit">
+                      {leitura.atencao === 1 ? 'aviso' : 'avisos'}
+                    </span>
+                  )}
+                </span>
+                <span className="briefing-read">
+                  {resumoAtencao || 'Validade, mínimo e espaços do padrão em dia'}
+                </span>
+              </div>
+
+              {/* 3 — AGIR */}
+              <div className="briefing-cell" data-tom={acao.tom}>
+                <span className="briefing-q">O que fazer agora?</span>
+                <span className="briefing-answer briefing-answer-sm">{acao.titulo}</span>
+                <span className="briefing-read">{acao.leitura}</span>
+                <div className="briefing-action">
+                  <button onClick={acao.executar} className="btn btn-primary btn-md w-full">
+                    {acao.label}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Nível 3 — a lista item a item, só quando a pessoa pede.
+                Vitrine em ordem não tem lista para abrir. */}
+            {leitura.atencao > 0 && (
+              <>
+                <button
+                  onClick={() => setAberto((a) => !a)}
+                  aria-expanded={aberto}
+                  className="briefing-more"
+                >
+                  <span>
+                    {aberto ? 'Esconder' : 'Ver'} {plural(leitura.atencao, 'item que pede', 'itens que pedem')} atenção
+                  </span>
+                  <Icons.ChevronRight className="briefing-chevron w-4 h-4 shrink-0" />
+                </button>
+
+                {aberto && (
+                  <div>
+                    {leitura.vencidos.length > 0 && (
+                      <>
+                        <ExcecaoGrupo titulo="Passou da validade — tirar da vitrine" />
+                        {leitura.vencidos.map(({ chave, item, slot, status }) => (
+                          <div key={chave} className="exc-row">
+                            <div className="min-w-0 flex-1">
+                              <div className="exc-name">
+                                <mark className="mark mark-expired">{item.productName}</mark>
+                              </div>
+                              <div className="exc-where">
+                                {ondeFica(slot)} · {item.currentQty} {item.unit} · {status.label}
+                              </div>
+                            </div>
+                            <ItemActions
+                              item={item}
+                              onQuickSale={onQuickSale}
+                              onRecordSellAll={onRecordSellAll}
+                              onQuickLoss={onQuickLoss}
+                              className="exc-actions"
+                            />
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {leitura.ultimoDia.length > 0 && (
+                      <>
+                        <ExcecaoGrupo titulo="Último dia de validade — vender primeiro" />
+                        {leitura.ultimoDia.map(({ chave, item, slot, status }) => (
+                          <div key={chave} className="exc-row">
+                            <div className="min-w-0 flex-1">
+                              <div className="exc-name">
+                                <mark className="mark mark-warning">{item.productName}</mark>
+                              </div>
+                              <div className="exc-where">
+                                {ondeFica(slot)} · {item.currentQty} {item.unit} · {status.label}
+                              </div>
+                            </div>
+                            <ItemActions
+                              item={item}
+                              onQuickSale={onQuickSale}
+                              onRecordSellAll={onRecordSellAll}
+                              onQuickLoss={onQuickLoss}
+                              className="exc-actions"
+                            />
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {leitura.repor.length > 0 && (
+                      <>
+                        <ExcecaoGrupo titulo="Chegou no mínimo do padrão — repor" />
+                        {leitura.repor.map((r) => (
+                          <div key={r.chave} className="exc-row">
+                            <div className="min-w-0 flex-1">
+                              <div className="exc-name">{r.nome}</div>
+                              <div className="exc-where">
+                                {ondeFica(r.slot)} · restam {r.qty} {r.unidade} do mínimo de {r.minQty}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => onOpenSlot(r.slot)}
+                              title={`Repor ${r.nome} no espaço ${r.slot.slotNumber}`}
+                              className="btn btn-secondary btn-sm shrink-0"
+                            >
+                              <Icons.Plus className="w-3.5 h-3.5" />
+                              Repor
+                            </button>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {leitura.vazios.length > 0 && (
+                      <>
+                        <ExcecaoGrupo titulo="Espaço do padrão de hoje sem produto" />
+                        {leitura.vazios.map((slot) => (
+                          <div key={slot.id} className="exc-row">
+                            <div className="min-w-0 flex-1">
+                              <div className="exc-name">Espaço {slot.slotNumber} vazio</div>
+                              <div className="exc-where">{slot.sectionTitle}</div>
+                            </div>
+                            <button
+                              onClick={() => onOpenSlot(slot)}
+                              title={`Colocar produto no espaço ${slot.slotNumber} da ${slot.sectionTitle}`}
+                              className="btn btn-secondary btn-sm shrink-0"
+                            >
+                              <Icons.Plus className="w-3.5 h-3.5" />
+                              Colocar
+                            </button>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
       // VITRINE FÍSICA
       // ==========================================
       // A vitrine aberta em forma de lista: um cartão por vitrine e, dentro
@@ -2844,6 +3540,21 @@
       // da lista de apoio, ao lado.
       const ShowcaseGrid = ({ currentUnit, slots, slotItems, products, standardPlans, filterType, onChangeFilterType, onQuickSale, onRecordSellAll, onQuickLoss, onOpenSlot }) => {
         const dayOfWeek = getTodayDayOfWeek();
+
+        // Densidade sob demanda: o mesmo móvel em dois tamanhos. No celular do
+        // balcão o cartão confortável é o que o dedo acerta; no computador da
+        // gerência o compacto mostra a vitrine inteira sem rolagem. A escolha
+        // fica no aparelho, porque ela é de quem está olhando — e não da loja.
+        const [densidade, setDensidade] = useState(() =>
+          lerPreferencia('densidade', 'confortavel') === 'compacto' ? 'compacto' : 'confortavel'
+        );
+
+        const escolherDensidade = (valor) => {
+          setDensidade(valor);
+          guardarPreferencia('densidade', valor);
+        };
+
+        const compacto = densidade === 'compacto';
 
         const dayPlans = useMemo(
           () => standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === dayOfWeek),
@@ -2929,12 +3640,25 @@
                   Toque em Venda ou Perda para baixar 1 · segure para baixar tudo
                 </p>
               </div>
-              <div className="segmented shrink-0">
-                {SHOWCASE_TYPES.map((type) => (
-                  <button key={type} onClick={() => onChangeFilterType(type)} data-active={filterType === type}>
-                    {SHOWCASE_TYPE_LABELS[type]}
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <div className="segmented">
+                  {SHOWCASE_TYPES.map((type) => (
+                    <button key={type} onClick={() => onChangeFilterType(type)} data-active={filterType === type}>
+                      {SHOWCASE_TYPE_LABELS[type]}
+                    </button>
+                  ))}
+                </div>
+                {/* O tamanho do cartão fica sempre neste canto, ao lado da
+                    vitrine escolhida: mudar de vitrine e mudar de tamanho são
+                    a mesma família de escolha — o que estou olhando e como */}
+                <div className="segmented" title="Tamanho dos cartões da vitrine">
+                  <button onClick={() => escolherDensidade('confortavel')} data-active={!compacto}>
+                    Confortável
                   </button>
-                ))}
+                  <button onClick={() => escolherDensidade('compacto')} data-active={compacto}>
+                    Compacto
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2993,10 +3717,11 @@
                         fica apagado e chama o produto que falta */}
                     <div className="overflow-x-auto mt-3">
                       <div
-                        className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
+                        className="showcase-grid grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
+                        data-density={densidade}
                         style={{
                           gridTemplateColumns: `repeat(${bloco.colunas}, minmax(0, 1fr))`,
-                          minWidth: `${bloco.colunas * 182}px`
+                          minWidth: `${bloco.colunas * (compacto ? 146 : 182)}px`
                         }}
                       >
                         {bloco.espacos.map((slot) => {
@@ -5391,42 +6116,139 @@
 
         const totalLossQty = unitLosses.reduce((acc, l) => acc + l.qty, 0);
 
+        // A leitura da semana. Um total sozinho não diz se a coisa está
+        // melhorando ou piorando: o que responde isso é a semana contra a
+        // anterior e o desenho dos sete dias. E perda que já aconteceu só vira
+        // decisão quando se sabe por que ela aconteceu e em qual produto — daí
+        // o motivo que mais pesa e o produto que mais perde virem do lado.
+        const semana = useMemo(() => {
+          const dias = lastDayKeys(7);
+          const anteriores = lastDayKeys(14).slice(0, 7);
+
+          const noDia = (chave) => unitLosses.filter((l) => toDayKey(l.lossDate) === chave);
+          const somar = (registros) => registros.reduce((soma, l) => soma + l.qty, 0);
+
+          const serie = dias.map((d) => somar(noDia(d)));
+          const total = serie.reduce((soma, v) => soma + v, 0);
+          const antes = somar(unitLosses.filter((l) => anteriores.includes(toDayKey(l.lossDate))));
+          const daSemana = unitLosses.filter((l) => dias.includes(toDayKey(l.lossDate)));
+
+          // O que mais pesa dentro da semana: motivo e produto campeões
+          const maior = (registros, chave) => {
+            const soma = {};
+            registros.forEach((l) => {
+              const k = chave(l);
+              if (!soma[k]) soma[k] = { chave: k, qty: 0, lancamentos: 0 };
+              soma[k].qty += l.qty;
+              soma[k].lancamentos += 1;
+            });
+            return Object.values(soma).sort((x, y) => y.qty - x.qty)[0] || null;
+          };
+
+          return {
+            serie,
+            total,
+            hoje: serie[serie.length - 1] || 0,
+            media: Math.round((total / 7) * 10) / 10,
+            variacao: antes > 0 ? Math.round(((total - antes) / antes) * 100) : null,
+            antes,
+            motivo: maior(daSemana, (l) => l.reason || 'sem motivo'),
+            produto: maior(daSemana, (l) => l.productName)
+          };
+        }, [unitLosses]);
+
         return (
           <div className="space-y-5">
             <div>
               <h2 className="t-display">Relatório de perdas</h2>
-              <p className="t-body mt-1">{unitName}</p>
+              <p className="t-body mt-1 tnum">
+                {unitName} · {totalLossQty} un em {unitLosses.length} {unitLosses.length === 1 ? 'lançamento' : 'lançamentos'}
+              </p>
             </div>
 
+            {/* A semana em três leituras: quanto se perdeu e para onde isso
+                está indo, por que se perdeu e em que produto. Cada cartão traz
+                o número grande em cima e o que ele significa embaixo. */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="card p-5">
+              <div className="card p-5 flex flex-col">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.Trash2 className="w-3.5 h-3.5" />
-                  Itens perdidos
+                  Perdas · 7 dias
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#ff3b30]">
-                  {totalLossQty}
+                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                  {semana.total}
                   <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> un</span>
                 </div>
-                <p className="t-caption mt-2 tnum">{unitLosses.length} lançamento(s)</p>
+                <p className="t-callout mt-1.5 font-semibold">
+                  {semana.variacao === null ? (
+                    <span className="text-[#86868b]">sem semana anterior para comparar</span>
+                  ) : (
+                    <>
+                      <Delta percent={semana.variacao} />
+                      <span className="text-[#86868b] font-medium"> vs. os 7 dias anteriores ({semana.antes} un)</span>
+                    </>
+                  )}
+                </p>
+                {/* O caminho até o número de hoje, dia a dia */}
+                <div className="mt-3 text-[#c9271d]">
+                  <Sparkline
+                    values={semana.serie}
+                    title={`Perdas dos últimos 7 dias: ${semana.serie.join(', ')} un`}
+                  />
+                </div>
+                <p className="t-caption mt-2 tnum">
+                  hoje {semana.hoje} un · média de {semana.media} un por dia
+                </p>
               </div>
 
-              <div className="card p-5">
+              <div className="card p-5 flex flex-col">
                 <span className="t-overline flex items-center gap-1.5">
                   <Icons.AlertTriangle className="w-3.5 h-3.5" />
-                  Desperdício
+                  Motivo que mais pesa
                 </span>
-                <div className="mt-2 t-title text-[#1d1d1f]">Atenção à validade</div>
-                <p className="t-caption mt-2">Mantenha a rotação de estoque em dia</p>
+                {semana.motivo ? (
+                  <>
+                    <div className="mt-2 t-title text-[#1d1d1f] capitalize">{semana.motivo.chave}</div>
+                    <p className="t-callout mt-1.5 tnum font-semibold text-[#6e6e73]">
+                      {semana.motivo.qty} un · {Math.round((semana.motivo.qty / (semana.total || 1)) * 100)}% das perdas da semana
+                    </p>
+                    <p className="t-caption mt-auto pt-3 tnum">
+                      {semana.motivo.lancamentos} {semana.motivo.lancamentos === 1 ? 'lançamento' : 'lançamentos'} nos últimos 7 dias
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-2 t-title text-[#1d1d1f]">Nenhuma perda</div>
+                    <p className="t-caption mt-1.5">Nada foi lançado nos últimos 7 dias</p>
+                  </>
+                )}
               </div>
 
-              <div className="card p-5">
+              <div className="card p-5 flex flex-col">
                 <span className="t-overline flex items-center gap-1.5">
-                  <Icons.TrendingUp className="w-3.5 h-3.5" />
-                  Recomendação
+                  <Icons.Package className="w-3.5 h-3.5" />
+                  Produto que mais perde
                 </span>
-                <div className="mt-2 t-title text-[#1d1d1f]">Ajustar o padrão</div>
-                <p className="t-caption mt-2">Reduza a quantidade ideal nos dias de menor movimento</p>
+                {semana.produto ? (
+                  <>
+                    <div className="mt-2 t-title text-[#1d1d1f]">{semana.produto.chave}</div>
+                    <p className="t-callout mt-1.5 tnum font-semibold text-[#6e6e73]">
+                      {semana.produto.qty} un · {Math.round((semana.produto.qty / (semana.total || 1)) * 100)}% das perdas da semana
+                    </p>
+                    <button
+                      onClick={() => setFilterText(semana.produto.chave)}
+                      className="btn btn-secondary btn-sm mt-auto self-start"
+                    >
+                      <Icons.Search className="w-3.5 h-3.5" />
+                      Ver os lançamentos
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-2 t-title text-[#1d1d1f]">Nenhum</div>
+                    <p className="t-caption mt-1.5">Nada foi lançado nos últimos 7 dias</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -9082,24 +9904,37 @@
                       </div>
                       <h2 className="t-display">Vitrine operacional</h2>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {totalAlerts > 0 && (
-                        <span className="pill bg-black/[0.05] text-[#6e6e73] h-7 px-3 tnum">
-                          {totalAlerts} {totalAlerts === 1 ? 'item precisa de atenção' : 'itens precisam de atenção'}
-                        </span>
-                      )}
-                      {/* A conferência item a item: a tela pergunta, a pessoa
-                          responde, e a venda ou a perda já fica registrada */}
-                      <button
-                        onClick={() => setChecklistAberto(true)}
-                        title="Conferir a vitrine produto por produto"
-                        className="btn btn-primary btn-md"
-                      >
-                        <Icons.CheckSquare className="w-4 h-4" />
-                        Conferir vitrine
-                      </button>
-                    </div>
+                    {/* A conferência item a item: a tela pergunta, a pessoa
+                        responde, e a venda ou a perda já fica registrada.
+                        Ela fica sempre neste canto — é a porta de entrada que
+                        não muda de lugar. Quem manda no que fazer agora é o
+                        painel logo abaixo, e é lá que mora a ação da vez. */}
+                    <button
+                      onClick={() => setChecklistAberto(true)}
+                      title="Conferir a vitrine produto por produto"
+                      className="btn btn-secondary btn-md"
+                    >
+                      <Icons.CheckSquare className="w-4 h-4" />
+                      Conferir vitrine
+                    </button>
                   </div>
+
+                  {/* Ver, entender e agir antes de qualquer lista: o painel
+                      responde como está a vitrine, o que pede atenção e o que
+                      fazer agora — e só abre a lista item a item se pedirem */}
+                  <ShowcaseBriefing
+                    currentUnit={currentUnit}
+                    slots={slots}
+                    slotItems={slotItems}
+                    products={products}
+                    standardPlans={standardPlans}
+                    onOpenChecklist={() => setChecklistAberto(true)}
+                    onOpenQuickAdd={() => setQuickAddOpen(true)}
+                    onOpenSlot={setSlotToFill}
+                    onQuickSale={handleQuickSale}
+                    onRecordSellAll={handleRecordSellAll}
+                    onQuickLoss={handleQuickLoss}
+                  />
 
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                   <div className="lg:col-span-7 xl:col-span-8">
