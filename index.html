@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-tag-vitrine-2" />
+    <meta name="app-version" content="2026-08-24-tag-vitrine-3" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -461,8 +461,8 @@
          os dois botões de baixa.
          A etiqueta colorida na quina é a leitura de longe — verde está
          fresco, mostarda é o último dia e vinho precisa sair da vitrine
-         agora. Só a mostarda e o vinho pintam o cartão inteiro: o que está
-         em dia não precisa chamar ninguém.
+         agora. A cor fica só na etiqueta: o cartão é branco em todos os
+         casos, e é o contraste com o branco que faz a etiqueta saltar.
          As cores são as da loja: verde #274133, mostarda #C8B067, vinho
          #7D2027 e o creme #EDDDC5 no texto que vai sobre elas.
          ========================================== */
@@ -473,16 +473,6 @@
         border-radius: 14px;
         background: var(--bg-surface);
       }
-      .item-card[data-tag="verde"] { border-color: rgba(39, 65, 51, 0.28); }
-      .item-card[data-tag="amarela"] {
-        border-color: rgba(200, 176, 103, 0.62);
-        background: rgba(200, 176, 103, 0.13);
-      }
-      .item-card[data-tag="vermelha"] {
-        border-color: rgba(125, 32, 39, 0.34);
-        background: rgba(125, 32, 39, 0.06);
-      }
-
       .item-card-head {
         display: flex;
         align-items: center;
