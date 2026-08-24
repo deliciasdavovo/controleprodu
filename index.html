@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-tag-vitrine-1" />
+    <meta name="app-version" content="2026-08-24-tag-vitrine-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -460,9 +460,11 @@
          lote em cima, o nome do produto, quanto sobrou do lote e, embaixo,
          os dois botões de baixa.
          A etiqueta colorida na quina é a leitura de longe — verde está
-         fresco, amarela é o último dia e vermelha precisa sair da vitrine
-         agora. Só a amarela e a vermelha pintam o cartão inteiro: o que está
+         fresco, mostarda é o último dia e vinho precisa sair da vitrine
+         agora. Só a mostarda e o vinho pintam o cartão inteiro: o que está
          em dia não precisa chamar ninguém.
+         As cores são as da loja: verde #274133, mostarda #C8B067, vinho
+         #7D2027 e o creme #EDDDC5 no texto que vai sobre elas.
          ========================================== */
       .item-card {
         position: relative;
@@ -471,14 +473,14 @@
         border-radius: 14px;
         background: var(--bg-surface);
       }
-      .item-card[data-tag="verde"] { border-color: rgba(52, 199, 89, 0.30); }
+      .item-card[data-tag="verde"] { border-color: rgba(39, 65, 51, 0.28); }
       .item-card[data-tag="amarela"] {
-        border-color: rgba(255, 159, 10, 0.38);
-        background: rgba(255, 204, 0, 0.07);
+        border-color: rgba(200, 176, 103, 0.62);
+        background: rgba(200, 176, 103, 0.13);
       }
       .item-card[data-tag="vermelha"] {
-        border-color: rgba(255, 59, 48, 0.38);
-        background: rgba(255, 59, 48, 0.055);
+        border-color: rgba(125, 32, 39, 0.34);
+        background: rgba(125, 32, 39, 0.06);
       }
 
       .item-card-head {
@@ -537,9 +539,9 @@
         text-transform: uppercase;
         white-space: nowrap;
       }
-      .item-tag[data-tag="verde"] { background: #34c759; color: #05320f; }
-      .item-tag[data-tag="amarela"] { background: #ffcc00; color: #4a3400; }
-      .item-tag[data-tag="vermelha"] { background: #ff3b30; color: #fff; }
+      .item-tag[data-tag="verde"] { background: #274133; color: #EDDDC5; }
+      .item-tag[data-tag="amarela"] { background: #C8B067; color: #274133; }
+      .item-tag[data-tag="vermelha"] { background: #7D2027; color: #EDDDC5; }
 
       /* Selos de status */
       .pill {
