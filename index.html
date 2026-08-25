@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-painel-agora-1" />
+    <meta name="app-version" content="2026-08-25-quina-dobrada-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -456,86 +456,70 @@
 
       /* ==========================================
          CARTÃO DO PRODUTO NA VITRINE
-         O mesmo cartãozinho de papel que o balcão usa, na tela: a data do
-         lote em cima, o nome do produto, quanto sobrou do lote e, embaixo,
-         os dois botões de baixa.
-         A etiqueta fica presa na quina de cima do cartão, meio dentro e
-         meio fora, como a tirinha de papel que o balcão prende no lote. É a
-         leitura de longe — verde está fresco, laranja é o último dia e
-         vinho precisa sair da vitrine agora.
-         A cor fica só na etiqueta: o cartão é branco em todos os casos, e é
-         o contraste com o branco que faz a etiqueta saltar. As cores são as
-         da loja: verde #274133, laranja #CE9042, vinho #7D2027, com o creme
-         #EDDDC5 no texto que vai sobre o verde e o vinho.
+         O cartãozinho de papel do balcão, na tela: a data do lote em cima,
+         o nome do produto no meio, quanto sobrou do lote e, embaixo, os
+         dois botões de baixa — tudo centralizado, como no papel.
+         A etiqueta é a quina dobrada do cartão: um triângulo colorido no
+         canto de cima, com os dias de vitrine escritos dentro. Verde está
+         fresco, amarelo é o último dia e vinho precisa sair agora.
+         Fora dela, nada no cartão tem cor: nome, data e número são todos
+         em tinta preta, e é isso que faz a quina saltar. O amarelo e o
+         verde são propositalmente opostos — um bem claro e um bem escuro —
+         para não virarem a mesma cor de longe.
          ========================================== */
       .item-card {
         position: relative;
-        /* Sobra em cima para a etiqueta pousar na quina sem cobrir a data */
-        margin-top: 14px;
-        padding: 9px 9px 9px;
+        /* A quina dobrada é cortada pelo próprio canto do cartão */
+        overflow: hidden;
+        margin-top: 8px;
+        padding: 9px;
         border: 1px solid var(--hairline);
         border-radius: 14px;
         background: var(--bg-surface);
+        text-align: center;
       }
       /* A data do lote: a primeira linha do papel, como na vitrine */
       .item-card-date {
         display: inline-flex;
         align-items: center;
         gap: 3px;
-        min-width: 0;
+        max-width: 100%;
         font-size: 11px;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
         color: var(--ink-3);
       }
       .item-card-name {
-        margin-top: 3px;
-        font-size: 14px;
-        line-height: 1.25;
+        margin-top: 4px;
+        font-size: 16px;
+        line-height: 1.2;
         font-weight: 700;
-        letter-spacing: -0.015em;
+        letter-spacing: -0.018em;
         color: var(--ink-1);
         overflow-wrap: anywhere;
       }
-      /* Quanto sobrou do lote e, na ponta, há quantos dias está exposto */
-      .item-card-qty {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 6px;
-        margin-top: 3px;
-        min-width: 0;
-      }
-      .item-card-days {
-        flex-shrink: 0;
-        font-size: 11px;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        color: var(--ink-4);
-      }
+      .item-card-qty { margin-top: 3px; }
 
-      /* A etiqueta pousada na quina de cima, com o bico virado para o
-         produto — metade dela passa por cima da borda do cartão */
+      /* A quina dobrada: o triângulo de cor no canto de cima, com os dias
+         de vitrine escritos dentro dele */
       .item-tag {
         position: absolute;
-        top: -9px;
-        right: 8px;
+        top: 0;
+        right: 0;
         z-index: 1;
-        display: inline-flex;
-        align-items: center;
-        max-width: calc(100% - 16px);
-        padding: 2px 8px 2px 13px;
-        border-radius: 980px;
-        clip-path: polygon(0 50%, 7px 0, 100% 0, 100% 100%, 7px 100%);
-        font-size: 10px;
+        display: block;
+        width: 46px;
+        height: 46px;
+        padding: 2px 6px 0 0;
+        clip-path: polygon(100% 0, 0 0, 100% 100%);
+        font-size: 12px;
         font-weight: 800;
-        line-height: 1.4;
-        letter-spacing: 0.01em;
-        text-transform: uppercase;
-        white-space: nowrap;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
       }
       .item-tag[data-tag="verde"] { background: #274133; color: #EDDDC5; }
-      .item-tag[data-tag="amarela"] { background: #CE9042; color: #2A1A06; }
+      .item-tag[data-tag="amarela"] { background: #F2C14E; color: #3A2A05; }
       .item-tag[data-tag="vermelha"] { background: #7D2027; color: #EDDDC5; }
 
       /* Selos de status */
@@ -1109,16 +1093,22 @@
          balcão e compacto para ver o móvel inteiro na tela do computador.
          ========================================== */
       .showcase-grid[data-density="compacto"] .item-card {
-        margin-top: 11px;
+        margin-top: 6px;
         padding: 6px 7px;
         border-radius: 12px;
       }
-      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 13px; }
+      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 14px; }
       .showcase-grid[data-density="compacto"] .item-card-date { font-size: 10px; }
       .showcase-grid[data-density="compacto"] .item-card-qty { margin-top: 2px; }
       .showcase-grid[data-density="compacto"] .item-actions { gap: 5px; margin-top: 6px !important; }
       .showcase-grid[data-density="compacto"] .item-action { height: 30px; }
-      .showcase-grid[data-density="compacto"] .item-tag { font-size: 9px; padding: 1px 7px 1px 12px; }
+      /* A quina também encolhe, e o triângulo continua triângulo */
+      .showcase-grid[data-density="compacto"] .item-tag {
+        width: 38px;
+        height: 38px;
+        padding: 1px 5px 0 0;
+        font-size: 11px;
+      }
 
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
@@ -1593,11 +1583,11 @@
       // ------------------------------------------
       // A TAG DO CARTÃO DA VITRINE
       //
-      // A etiqueta colorida que fica presa na quina do cartão, no mesmo
-      // código de cor que o balcão já usa no papel: verde está fresco,
-      // laranja é o último dia de validade e vinho precisa sair da vitrine
-      // agora. O laranja é bem separado do verde de propósito: de longe,
-      // duas cores parecidas viram a mesma cor.
+      // A quina colorida do cartão, no mesmo código de cor que o balcão já
+      // usa no papel: verde está fresco, amarelo é o último dia de validade
+      // e vinho precisa sair da vitrine agora. O amarelo é claro e o verde é
+      // escuro de propósito: de longe, duas cores parecidas viram a mesma
+      // cor. Dentro da quina vão os dias de vitrine.
       //
       // É a leitura de longe: quem passa na frente da vitrine vê a cor antes
       // de ler qualquer número. O tempo em dias continua escrito no cartão,
@@ -3754,16 +3744,20 @@
                                   mesmo espaço ficam um cartão embaixo do outro */}
                               {doEspaco.map(({ item }) => {
                                 const prod = products.find((p) => p.id === item.productId);
-                                const statusInfo = getSlotItemStatus(item, prod);
                                 const tag = getShowcaseTag(item, prod);
 
                                 return (
                                   <div key={item.id} className="item-card" data-tag={tag.cor}>
-                                    {/* A etiqueta presa na quina de cima: a cor
-                                        é o que se lê de longe, antes de
-                                        qualquer número */}
-                                    <span className="item-tag" data-tag={tag.cor} title={tag.title}>
-                                      {tag.label}
+                                    {/* A quina dobrada: a cor é o que se lê de
+                                        longe, antes de qualquer número, e
+                                        dentro dela vão os dias de vitrine */}
+                                    <span
+                                      className="item-tag"
+                                      data-tag={tag.cor}
+                                      title={tag.title}
+                                      aria-label={`${tag.label} · ${tag.days} ${tag.days === 1 ? 'dia' : 'dias'} na vitrine`}
+                                    >
+                                      {tag.days}
                                     </span>
 
                                     <span
@@ -3779,30 +3773,23 @@
                                     </span>
 
                                     <h5 className="item-card-name" title={item.productName}>
-                                      <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                                      {item.productName}
                                     </h5>
 
                                     {/* Quanto sobrou do lote que foi colocado
-                                        ali — "3/5 un" é a conta que o balcão
-                                        faz — e, na ponta, o tempo de vitrine
-                                        em dias: o número por trás da cor da
-                                        etiqueta */}
-                                    <div className="item-card-qty">
-                                      <span
-                                        title={item.producedQty > 0
-                                          ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
-                                          : `${item.currentQty} ${item.unit} na vitrine`}
-                                      >
-                                        <QtyOfBatch
-                                          qty={item.currentQty}
-                                          produced={item.producedQty || 0}
-                                          unit={item.unit}
-                                          big
-                                        />
-                                      </span>
-                                      <span className="item-card-days" title={statusInfo.label}>
-                                        {tag.days}d
-                                      </span>
+                                        ali: "3/5 un" é a conta que o balcão faz */}
+                                    <div
+                                      className="item-card-qty"
+                                      title={item.producedQty > 0
+                                        ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
+                                        : `${item.currentQty} ${item.unit} na vitrine`}
+                                    >
+                                      <QtyOfBatch
+                                        qty={item.currentQty}
+                                        produced={item.producedQty || 0}
+                                        unit={item.unit}
+                                        big
+                                      />
                                     </div>
 
                                     <ItemActions
