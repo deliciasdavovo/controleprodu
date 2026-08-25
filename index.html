@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-24-painel-agora-1" />
+    <meta name="app-version" content="2026-08-25-paleta-e-escala-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,6 +59,53 @@
         --ink-4: #86868b;   /* Terciário / legendas */
         --hairline: rgba(60, 60, 67, 0.12);
         --accent: #0E0937;
+
+        /* ==========================================
+           AS CORES DE ESTADO — UMA PALETA SÓ
+           ==========================================
+           Antes a tela tinha duas famílias disputando o mesmo significado: a
+           etiqueta do cartão usava as cores da loja e o resto usava as cores
+           do sistema do iPhone. "Vencido" saía vinho na etiqueta, vermelho no
+           nome do produto e um terceiro vermelho na pílula da lista — três
+           vermelhos para uma ideia só, e o olho tinha que reaprender a cor em
+           cada componente.
+
+           Agora quem manda são as cores da loja, que são as do papel que o
+           balcão já prende no lote. A tela combina com o balcão:
+
+             verde  #274133 → fresco, e a venda (o que está bom)
+             laranja #CE9042 → último dia, e o que passou do padrão
+             vinho  #7D2027 → vencido, a perda e o erro do sistema
+
+           Cada família tem quatro tons, e é sempre nessa ordem que eles são
+           usados:
+             base  — a cor cheia: etiqueta, botão sólido, bolinha
+             ink   — a mesma cor escurecida o bastante para virar texto sobre
+                     fundo claro (o laranja da loja não passa em contraste,
+                     por isso o ink dele é mais fechado)
+             soft  — o fundo lavado do selo e do botão quieto
+             line  — o fio da borda desse selo
+           E o creme #EDDDC5 é o texto que vai por cima do verde e do vinho. */
+        --fresh: #274133;
+        --fresh-ink: #274133;
+        /* O verde da loja é escuro demais para virar fundo lavado: a 10% ele
+           sai cinza e o botão de venda perde a cor. O fundo usa um verde mais
+           claro da mesma família, e o texto por cima continua no tom cheio. */
+        --fresh-tint: #2E7D51;
+        --fresh-soft: rgba(46, 125, 81, 0.13);
+        --fresh-line: rgba(46, 125, 81, 0.24);
+        --last: #CE9042;
+        --last-ink: #8A5A16;
+        --last-soft: rgba(206, 144, 66, 0.16);
+        --last-line: rgba(206, 144, 66, 0.28);
+        --expired: #7D2027;
+        --expired-ink: #7D2027;
+        --expired-soft: rgba(125, 32, 39, 0.10);
+        --expired-line: rgba(125, 32, 39, 0.18);
+        --cream: #EDDDC5;
+        /* O cinza do que não pede nada: o normal não ganha cor */
+        --quiet: #c7c7cc;
+
         --radius-lg: 22px;
         --radius-md: 16px;
         --radius-sm: 12px;
@@ -134,6 +181,66 @@
         text-transform: uppercase;
         color: var(--ink-4);
       }
+      .t-overline-sm { font-size: 10px; letter-spacing: 0.07em; }
+      /* Dois degraus abaixo da legenda. Eles não existiam, e por isso a tela
+         vivia pedindo a legenda e corrigindo o tamanho em pixel logo em
+         seguida: a escala mandava 12 e o lugar pedia 11. Agora o degrau tem
+         nome, e o próximo ajuste é aqui — e não em pixel solto no JSX. */
+      .t-micro {
+        font-size: 11px;
+        line-height: 1.27;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+      .t-nano {
+        font-size: 10px;
+        line-height: 1.3;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+
+      /* ==========================================
+         OS NÚMEROS QUE SE LEEM DE LONGE
+         O resultado de um cartão não é texto: é número. Antes cada um repetia
+         à mão `tnum leading-none font-extrabold tracking-[-0.03em]` no seu
+         tamanho, e dois cartões vizinhos saíam com pesos diferentes. Agora o
+         tratamento é um só e o que muda é o degrau.
+         ========================================== */
+      .t-metric-lg, .t-metric, .t-metric-sm, .t-metric-xs {
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--ink-1);
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum" 1;
+      }
+      .t-metric-lg { font-size: 34px; }
+      .t-metric    { font-size: 30px; }
+      .t-metric-sm { font-size: 22px; letter-spacing: -0.022em; }
+      .t-metric-xs { font-size: 19px; letter-spacing: -0.022em; }
+      /* A unidade que anda colada no número: ela nunca compete com ele */
+      .t-metric-unit {
+        margin-left: 4px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--ink-4);
+      }
+      .t-unit {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+      /* O tracinho de "aqui não tem nada": mesmo tamanho e mesmo cinza em
+         toda tabela da tela */
+      .t-empty {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--quiet);
+      }
+      .ink-muted { color: var(--quiet); }
       /* Números tabulares: colunas de estoque sempre alinhadas */
       .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
@@ -202,17 +309,17 @@
         color: var(--ink-1);
       }
       .btn-secondary:hover { background: rgba(0, 0, 0, 0.09); }
-      .btn-danger { background: #ff3b30; color: #fff; }
-      .btn-danger:hover { background: #ff544a; }
+      .btn-danger { background: var(--expired); color: var(--cream); }
+      .btn-danger:hover { background: #94262E; }
       /* Cores lavadas: o aviso aparece sem pintar a tela inteira */
-      .btn-danger-quiet { background: rgba(255, 59, 48, 0.1); color: #c9271d; }
-      .btn-danger-quiet:hover { background: rgba(255, 59, 48, 0.16); }
-      .btn-success-quiet { background: rgba(52, 199, 89, 0.14); color: #1d7a35; }
-      .btn-success-quiet:hover { background: rgba(52, 199, 89, 0.22); }
-      .btn-warn { background: #ff9f0a; color: #3a2500; }
-      .btn-warn:hover { background: #ffb02e; }
-      .btn-success { background: #34c759; color: #06300f; }
-      .btn-success:hover { background: #46d46b; }
+      .btn-danger-quiet { background: var(--expired-soft); color: var(--expired-ink); }
+      .btn-danger-quiet:hover { background: rgba(125, 32, 39, 0.17); }
+      .btn-success-quiet { background: var(--fresh-soft); color: var(--fresh-ink); }
+      .btn-success-quiet:hover { background: rgba(46, 125, 81, 0.20); }
+      .btn-warn { background: var(--last); color: #2A1A06; }
+      .btn-warn:hover { background: #D89E56; }
+      .btn-success { background: var(--fresh); color: var(--cream); }
+      .btn-success:hover { background: #34543F; }
       .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
       .btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
       .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
@@ -252,20 +359,23 @@
         opacity: 1;
         animation: long-press-fill 600ms linear forwards;
       }
+      /* Venda leva o produto para o verde e perda para o vinho: os botões
+         usam a mesma família da etiqueta, e não um verde e um vermelho à
+         parte */
       .item-action-sale {
-        color: #176b2d;
-        background: rgba(52, 199, 89, 0.12);
-        border: 1px solid rgba(52, 199, 89, 0.16);
+        color: var(--fresh-ink);
+        background: var(--fresh-soft);
+        border: 1px solid var(--fresh-line);
       }
-      .item-action-sale:hover { background: rgba(52, 199, 89, 0.18); }
-      .item-action-sale::before { background: rgba(52, 199, 89, 0.20); }
+      .item-action-sale:hover { background: rgba(46, 125, 81, 0.20); }
+      .item-action-sale::before { background: rgba(46, 125, 81, 0.26); }
       .item-action-loss {
-        color: #c9271d;
-        background: rgba(255, 59, 48, 0.10);
-        border: 1px solid rgba(255, 59, 48, 0.14);
+        color: var(--expired-ink);
+        background: var(--expired-soft);
+        border: 1px solid var(--expired-line);
       }
-      .item-action-loss:hover { background: rgba(255, 59, 48, 0.16); }
-      .item-action-loss::before { background: rgba(255, 59, 48, 0.18); }
+      .item-action-loss:hover { background: rgba(125, 32, 39, 0.16); }
+      .item-action-loss::before { background: rgba(125, 32, 39, 0.20); }
       @keyframes long-press-fill { from { width: 0; } to { width: 100%; } }
 
       /* Segmented control (iOS) */
@@ -451,8 +561,8 @@
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
       }
-      .mark-warning { color: var(--ink-1); }
-      .mark-expired { color: #c9271d; }
+      .mark-warning { color: var(--last-ink); }
+      .mark-expired { color: var(--expired-ink); }
 
       /* ==========================================
          CARTÃO DO PRODUTO NA VITRINE
@@ -534,9 +644,9 @@
         text-transform: uppercase;
         white-space: nowrap;
       }
-      .item-tag[data-tag="verde"] { background: #274133; color: #EDDDC5; }
-      .item-tag[data-tag="amarela"] { background: #CE9042; color: #2A1A06; }
-      .item-tag[data-tag="vermelha"] { background: #7D2027; color: #EDDDC5; }
+      .item-tag[data-tag="verde"] { background: var(--fresh); color: var(--cream); }
+      .item-tag[data-tag="amarela"] { background: var(--last); color: #2A1A06; }
+      .item-tag[data-tag="vermelha"] { background: var(--expired); color: var(--cream); }
 
       /* Selos de status */
       .pill {
@@ -550,6 +660,49 @@
         padding: 2px 9px;
         white-space: nowrap;
       }
+
+      /* ==========================================
+         AS CLASSES DE ESTADO
+         A tela pede o estado, e não a cor: tone- pinta o selo inteiro, ink-
+         pinta só o texto ou o ícone e dot- pinta a bolinha. Trocar o vinho da
+         loja um dia é mexer no token lá em cima, e não caçar hexadecimal por
+         nove mil linhas.
+         ========================================== */
+      .tone-fresh   { background: var(--fresh-soft);   color: var(--fresh-ink); }
+      .tone-last    { background: var(--last-soft);    color: var(--last-ink); }
+      .tone-expired { background: var(--expired-soft); color: var(--expired-ink); }
+      .tone-quiet   { background: rgba(0, 0, 0, 0.05); color: var(--ink-3); }
+
+      .ink-fresh   { color: var(--fresh-ink); }
+      .ink-last    { color: var(--last-ink); }
+      .ink-expired { color: var(--expired-ink); }
+      .ink-quiet   { color: var(--ink-3); }
+
+      .dot-fresh   { background: var(--fresh); }
+      .dot-last    { background: var(--last); }
+      .dot-expired { background: var(--expired); }
+      .dot-quiet   { background: var(--quiet); }
+
+      /* O contador de avisos da barra de navegação: cor cheia, creme por cima */
+      .badge-expired { background: var(--expired); color: var(--cream); }
+      /* Um bloco inteiro em fundo lavado — a folha que pergunta o motivo da perda */
+      .surface-expired { background: var(--expired-soft); }
+      /* A faixa de erro do sistema. O erro usa o mesmo vinho do vencido: a
+         tela inteira tem um vermelho só, e ele quer dizer "algo deu errado" */
+      .banner-error {
+        background: var(--expired-soft);
+        border-bottom: 1px solid var(--expired-line);
+        color: var(--expired-ink);
+      }
+      /* Botão de excluir: cinza parado, vinho quando a mão chega perto */
+      .icon-danger {
+        color: var(--ink-4);
+        transition: background-color .16s ease, color .16s ease;
+      }
+      .icon-danger:hover { background: var(--expired-soft); color: var(--expired-ink); }
+      /* Dentro da faixa de erro o X já nasce na cor da faixa */
+      .banner-error .icon-danger { color: inherit; }
+      .banner-error .icon-danger:hover { background: rgba(125, 32, 39, 0.14); }
 
       /* ==========================================
          MEDIDOR DE OCUPAÇÃO DA VITRINE
@@ -596,7 +749,7 @@
       /* O que passou do padrão, encostado na marca e correndo para a direita */
       .meter-over {
         border-radius: 0 980px 980px 0;
-        background: #ff9f0a;
+        background: var(--last);
       }
       /* O risquinho do padrão do dia, por cima da tinta */
       .meter-mark {
@@ -614,7 +767,7 @@
         color: var(--ink-3);
         font-variant-numeric: tabular-nums;
       }
-      .meter-value[data-over="true"] { color: #a35e00; }
+      .meter-value[data-over="true"] { color: var(--last-ink); }
 
       /* ==========================================
          TABELA DA SEMANA
@@ -983,7 +1136,8 @@
         letter-spacing: 0.02em;
         color: var(--ink-4);
       }
-      /* Nível 1 — o resultado, lido de longe */
+      /* Nível 1 — o resultado, lido de longe. É o mesmo degrau `t-metric`
+         dos cartões de perda: número grande da tela é sempre este. */
       .briefing-answer {
         font-size: 30px;
         line-height: 1.05;
@@ -992,6 +1146,8 @@
         color: var(--ink-1);
         font-variant-numeric: tabular-nums;
       }
+      /* Quando a resposta é frase e não número, ela desce um degrau: frase em
+         corpo de número vira grito */
       .briefing-answer-sm {
         font-size: 18px;
         line-height: 1.2;
@@ -1011,8 +1167,8 @@
         font-weight: 600;
         color: var(--ink-3);
       }
-      .briefing-cell[data-tom="perigo"] .briefing-answer { color: #c9271d; }
-      .briefing-cell[data-tom="calmo"] .briefing-answer { color: #1d7a35; }
+      .briefing-cell[data-tom="perigo"] .briefing-answer { color: var(--expired-ink); }
+      .briefing-cell[data-tom="calmo"] .briefing-answer { color: var(--fresh-ink); }
       /* A ação fica sempre colada no pé da coluna: o dedo aprende o lugar */
       .briefing-action { margin-top: auto; padding-top: 12px; }
 
@@ -1099,8 +1255,8 @@
 
       /* A cor da variação é o que ela significa, e não a direção da seta:
          em perda, subir é ruim; em venda, subir é bom */
-      .delta-ruim { color: #c9271d; }
-      .delta-bom { color: #1d7a35; }
+      .delta-ruim { color: var(--expired-ink); }
+      .delta-bom { color: var(--fresh-ink); }
       .delta-flat { color: var(--ink-3); }
 
       /* ==========================================
@@ -1347,7 +1503,7 @@
         },
         {
           value: 'C', title: 'C · complementar',
-          pill: 'bg-black/[0.06] text-[#6e6e73]', dot: 'bg-[#c7c7cc]',
+          pill: 'tone-quiet', dot: 'dot-quiet',
           hint: 'Acompanha a vitrine, sem ser o destaque dela'
         },
         {
@@ -1578,16 +1734,16 @@
       // o vencido ganham cor, porque só eles pedem alguma coisa da pessoa.
       // markClass: a cor do nome do item; alerta: se merece selo na tela.
       const getSlotItemStatus = (item, product) => {
-        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'bg-black/5', textClass: 'text-[#86868b]', dotClass: 'bg-[#c7c7cc]', markClass: '', alerta: false };
+        if (!item) return { status: 'empty', label: 'Vazio', bgClass: 'tone-quiet', textClass: 'ink-quiet', dotClass: 'dot-quiet', markClass: '', alerta: false };
         const days = calculateDaysInShowcase(item.manufactureDate);
         const shelfLife = product?.shelfLifeDays || 2;
 
         if (days >= shelfLife) {
-          return { status: 'expired', label: `Vencido · ${days}d`, bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]', markClass: 'mark-expired', alerta: true };
+          return { status: 'expired', label: `Vencido · ${days}d`, bgClass: 'tone-expired', textClass: 'ink-expired', dotClass: 'dot-expired', markClass: 'mark-expired', alerta: true };
         } else if (days === shelfLife - 1) {
-          return { status: 'warning', label: `Último dia · ${days}d`, bgClass: 'bg-black/[0.05]', textClass: 'text-[#1d1d1f]', dotClass: 'bg-[#86868b]', markClass: 'mark-warning', alerta: true };
+          return { status: 'warning', label: `Último dia · ${days}d`, bgClass: 'tone-last', textClass: 'ink-last', dotClass: 'dot-last', markClass: 'mark-warning', alerta: true };
         }
-        return { status: 'normal', label: `${days}d na vitrine`, bgClass: 'bg-black/[0.04]', textClass: 'text-[#6e6e73]', dotClass: 'bg-[#c7c7cc]', markClass: '', alerta: false };
+        return { status: 'normal', label: `${days}d na vitrine`, bgClass: 'tone-quiet', textClass: 'ink-quiet', dotClass: 'dot-quiet', markClass: '', alerta: false };
       };
 
       // ------------------------------------------
@@ -1656,7 +1812,7 @@
       // "vendeu fresquinho" é diferente de "vendeu no último dia"
       // ------------------------------------------
       const getExposureInfo = (days, shelfLife) => {
-        const cinza = { bgClass: 'bg-black/[0.05]', textClass: 'text-[#6e6e73]', dotClass: 'bg-[#c7c7cc]' };
+        const cinza = { bgClass: 'tone-quiet', textClass: 'ink-quiet', dotClass: 'dot-quiet' };
         if (days === null || days === undefined) {
           return { status: 'indefinido', label: 'Sem registro', ...cinza };
         }
@@ -1669,20 +1825,20 @@
           return {
             status: 'vencido',
             label: `${days}d · passou da validade`,
-            bgClass: 'bg-[#ff3b30]/10', textClass: 'text-[#c9271d]', dotClass: 'bg-[#ff3b30]'
+            bgClass: 'tone-expired', textClass: 'ink-expired', dotClass: 'dot-expired'
           };
         }
         if (days === validade - 1) {
           return {
             status: 'limite',
             label: `${days}d · último dia de validade`,
-            bgClass: 'bg-[#ff9f0a]/12', textClass: 'text-[#a35e00]', dotClass: 'bg-[#ff9f0a]'
+            bgClass: 'tone-last', textClass: 'ink-last', dotClass: 'dot-last'
           };
         }
         return {
           status: 'fresco',
           label: days === 0 ? 'Fresquinho · saiu no mesmo dia' : `${days}d · dentro da validade`,
-          bgClass: 'bg-[#34c759]/12', textClass: 'text-[#1d7a35]', dotClass: 'bg-[#34c759]'
+          bgClass: 'tone-fresh', textClass: 'ink-fresh', dotClass: 'dot-fresh'
         };
       };
 
@@ -2199,7 +2355,7 @@
         <>
           {formatDateBR(dia)}
           {manufactureDate && manufactureDate !== dia && (
-            <span className="block t-caption text-[10px] tnum">lote de {formatDateBR(manufactureDate)}</span>
+            <span className="block t-nano tnum">lote de {formatDateBR(manufactureDate)}</span>
           )}
         </>
       );
@@ -2263,7 +2419,7 @@
                         <IconComp className="w-3.5 h-3.5 shrink-0" />
                         <span>{tab.label}</span>
                         {tab.id === 'vitrine' && totalAlerts > 0 && (
-                          <span className="ml-0.5 min-w-4 h-4 px-1 text-[10px] bg-[#ff3b30] text-white font-bold rounded-full flex items-center justify-center tnum">
+                          <span className="ml-0.5 min-w-4 h-4 px-1 text-[10px] badge-expired font-bold rounded-full flex items-center justify-center tnum">
                             {totalAlerts}
                           </span>
                         )}
@@ -2290,7 +2446,7 @@
                     <IconComp className="w-3.5 h-3.5 shrink-0" />
                     <span>{tab.fullLabel}</span>
                     {tab.id === 'vitrine' && totalAlerts > 0 && (
-                      <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${isActive ? 'bg-white/25 text-white' : 'bg-[#ff3b30] text-white'}`}>
+                      <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${isActive ? 'bg-white/25 text-white' : 'badge-expired'}`}>
                         {totalAlerts}
                       </span>
                     )}
@@ -2458,11 +2614,11 @@
       ];
 
       const CHECKLIST_RESULTADOS = {
-        igual: { label: 'Continua igual', dot: 'bg-[#c7c7cc]', text: 'text-[#6e6e73]' },
-        venda: { label: 'Vendeu', dot: 'bg-[#34c759]', text: 'text-[#1d7a35]' },
-        perda: { label: 'Perdeu', dot: 'bg-[#ff3b30]', text: 'text-[#c9271d]' },
+        igual: { label: 'Continua igual', dot: 'dot-quiet', text: 'ink-quiet' },
+        venda: { label: 'Vendeu', dot: 'dot-fresh', text: 'ink-fresh' },
+        perda: { label: 'Perdeu', dot: 'dot-expired', text: 'ink-expired' },
         ajuste: { label: 'Contagem acertada', dot: 'bg-[#0E0937]', text: 'text-[#0E0937]' },
-        pulado: { label: 'Pulado', dot: 'bg-[#c7c7cc]', text: 'text-[#86868b]' }
+        pulado: { label: 'Pulado', dot: 'dot-quiet', text: 'ink-quiet' }
       };
 
       // A resposta de um item guarda o quanto foi vendido e o quanto foi
@@ -2823,8 +2979,8 @@
               {total > 0 && index >= total && (
                 <div className="px-5 py-6 space-y-4">
                   <div className="text-center space-y-2">
-                    <div className="w-14 h-14 rounded-full bg-[#34c759]/12 flex items-center justify-center mx-auto">
-                      <Icons.CheckCircle2 className="w-7 h-7 text-[#1d7a35]" />
+                    <div className="w-14 h-14 rounded-full tone-fresh flex items-center justify-center mx-auto">
+                      <Icons.CheckCircle2 className="w-7 h-7 ink-fresh" />
                     </div>
                     <h3 className="t-title text-[#1d1d1f]">Conferência concluída</h3>
                     <p className="t-callout">
@@ -2848,7 +3004,7 @@
                       {resultados.map((r) => (
                         <div key={r.chave} className="px-3.5 py-2 flex items-center justify-between gap-2">
                           <span className="text-[12.5px] font-semibold truncate">{r.nome}</span>
-                          <span className={`t-caption text-[11px] tnum shrink-0 ${corResposta(r)}`}>
+                          <span className={`t-micro tnum shrink-0 ${corResposta(r)}`}>
                             {descreverResposta(r)}
                           </span>
                         </div>
@@ -2909,12 +3065,12 @@
                   <div className="card-quiet p-3.5 flex items-end justify-between gap-3">
                     <div>
                       <span className="t-overline">Na vitrine agora</span>
-                      <p className="tnum text-[30px] font-extrabold leading-none mt-1.5 text-[#1d1d1f]">
+                      <p className="t-metric mt-1.5">
                         {item.currentQty}
                         <span className="text-[13px] font-semibold text-[#86868b] ml-1">{item.unit}</span>
                       </p>
                     </div>
-                    <div className="t-caption text-[11px] tnum text-right">
+                    <div className="t-micro tnum text-right">
                       <span className="block">lote de {item.producedQty || item.currentQty}</span>
                       {padraoHoje > 0 && <span className="block">padrão de hoje {padraoHoje}</span>}
                     </div>
@@ -2944,14 +3100,14 @@
                         </button>
                       </div>
 
-                      <p className="t-caption text-[11px] text-center">
+                      <p className="t-micro text-center">
                         Toque baixa 1 · segure para baixar as <span className="tnum">{item.currentQty}</span> de uma vez ·
                         a perda de 1 entra como vencida
                       </p>
 
                       {/* Os mesmos três botões no teclado, para quem confere
                           no computador */}
-                      <p className="t-caption text-[11px] text-center so-teclado">
+                      <p className="t-micro text-center so-teclado">
                         <span className="tecla">←</span> vendeu 1 ·
                         <span className="tecla ml-1">→</span> perdeu 1 ·
                         <span className="tecla ml-1">Enter</span> próximo item
@@ -2960,7 +3116,7 @@
                       {/* O que já entrou neste item, enquanto a conferência
                           está nele */}
                       {temBaixa && (
-                        <p className={`t-caption text-[11px] text-center tnum font-semibold ${corResposta(resposta)}`}>
+                        <p className={`t-micro text-center tnum font-semibold ${corResposta(resposta)}`}>
                           {descreverResposta(resposta)} neste item
                         </p>
                       )}
@@ -3740,7 +3896,7 @@
                                   <button
                                     onClick={() => onOpenSlot(slot)}
                                     title={`Colocar produto no espaço ${slot.slotNumber} da ${bloco.title}`}
-                                    className="t-caption text-[11px] flex items-center gap-1 hover:text-[#1d1d1f] transition-colors"
+                                    className="t-micro flex items-center gap-1 hover:text-[#1d1d1f] transition-colors"
                                   >
                                     <Icons.Plus className="w-3 h-3" />
                                     Vazio
@@ -3955,7 +4111,7 @@
               <form onSubmit={handleQuickSubmit} className="hidden lg:block space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="t-overline truncate">Adicionar item</span>
-                  <span className="t-caption text-[11px] shrink-0">Enter ↵ avança</span>
+                  <span className="t-micro shrink-0">Enter ↵ avança</span>
                 </div>
 
                 <div>
@@ -3980,7 +4136,7 @@
                   />
                   {/* Sem isto, lançar doce com a salgada aberta parece erro:
                       o item some da lista porque foi para o móvel dele */}
-                  <p className={`t-caption text-[11px] mt-1 ${
+                  <p className={`t-micro mt-1 ${
                     tipoDestino === showcaseType ? '' : 'text-[#0E0937] font-semibold'
                   }`}>
                     Vai para a vitrine {SHOWCASE_TYPE_LABELS[tipoDestino]}
@@ -4097,7 +4253,7 @@
                                   <h4 className="text-[14px] font-semibold leading-[1.35] tracking-[-0.012em] truncate">
                                     <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
                                   </h4>
-                                  <p className="t-caption text-[11px] mt-1 flex items-center gap-1 truncate">
+                                  <p className="t-micro mt-1 flex items-center gap-1 truncate">
                                     <Icons.User className="w-3 h-3 shrink-0" />
                                     <span className="truncate">{getResponsibleName(product)}</span>
                                     {slot && companheiros(item) > 0 && (
@@ -4109,7 +4265,7 @@
                                 <div className="flex flex-col items-end gap-1 shrink-0">
                                   <div className="support-qty" title={`${item.currentQty} ${item.unit} na vitrine`}>
                                     <strong>{item.currentQty}</strong>
-                                    <span className="t-caption text-[10px]">{item.unit}</span>
+                                    <span className="t-nano">{item.unit}</span>
                                   </div>
                                   <span className={`text-[10px] ${statusInfo.alerta ? `pill ${statusInfo.bgClass} ${statusInfo.textClass}` : 't-caption tnum'}`}>
                                     {statusInfo.label}
@@ -4122,7 +4278,7 @@
                           {/* Edição compacta, dentro da linha da lista */}
                           <div className="support-fields">
                             <label className="min-w-0">
-                              <span className="t-caption text-[10px] block mb-0.5">Fabricação</span>
+                              <span className="t-nano block mb-0.5">Fabricação</span>
                               <input
                                 type="date"
                                 value={item.manufactureDate}
@@ -4131,7 +4287,7 @@
                               />
                             </label>
                             <label className="min-w-0">
-                              <span className="t-caption text-[10px] block mb-0.5 text-center">Produzido</span>
+                              <span className="t-nano block mb-0.5 text-center">Produzido</span>
                               <input
                                 type="number"
                                 min="0"
@@ -4143,7 +4299,7 @@
                               />
                             </label>
                             <div className="min-w-0">
-                              <span className="t-caption text-[10px] block mb-0.5 text-center">Na vitrine</span>
+                              <span className="t-nano block mb-0.5 text-center">Na vitrine</span>
                               <QtyField
                                 value={item.currentQty}
                                 onSet={(valor) => onSetQty(item.id, valor)}
@@ -4420,7 +4576,7 @@
               if (e.key === 'Enter') { e.currentTarget.blur(); }
               if (e.key === 'Escape') { setTexto(value ? String(value) : ''); setEditando(false); e.currentTarget.blur(); }
             }}
-            className={`qty-cell tnum ${value ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'}`}
+            className={`qty-cell tnum ${value ? 'font-bold text-[#1d1d1f]' : 'ink-muted'}`}
           />
         );
       };
@@ -4720,7 +4876,7 @@
                                 {linha.nome}
                               </p>
                               {linha.vitrines.length > 0 && (
-                                <p className="t-caption text-[11px] truncate">{linha.vitrines.join(' · ')}</p>
+                                <p className="t-micro truncate">{linha.vitrines.join(' · ')}</p>
                               )}
                             </td>
 
@@ -4787,7 +4943,7 @@
                                 {editandoMinimo ? linha.totalMinimo : linha.total}
                               </span>
                               {linha.diasAtivos > 1 && (
-                                <span className="t-caption tnum text-[11px] block">
+                                <span className="t-micro tnum block">
                                   {formatarMedia(editandoMinimo ? linha.mediaMinimo : linha.media)}/dia
                                 </span>
                               )}
@@ -5063,8 +5219,8 @@
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="tnum text-[19px] font-extrabold text-[#1d1d1f] leading-none">{total}</p>
-                        <p className="t-caption text-[11px] mt-0.5">un no dia</p>
+                        <p className="t-metric-xs">{total}</p>
+                        <p className="t-micro mt-0.5">un no dia</p>
                       </div>
                     </div>
 
@@ -5156,7 +5312,7 @@
                                           }}
                                         />
                                       </span>
-                                      <span className="t-caption text-[10px] shrink-0">mín.</span>
+                                      <span className="t-nano shrink-0">mín.</span>
                                       <span className="w-11">
                                         <WeeklyQtyCell
                                           value={planItem.minQty || 0}
@@ -5167,7 +5323,7 @@
                                     </div>
                                   </>
                                 ) : (
-                                  <span className="t-caption text-[11px]">Espaço vazio</span>
+                                  <span className="t-micro">Espaço vazio</span>
                                 )}
                               </div>
                             </div>
@@ -5266,7 +5422,7 @@
               else if (e.key === 'ArrowUp') { e.preventDefault(); gravar(); onMove(-1); }
               else if (e.key === 'Escape') { setTexto(value ? String(value) : ''); setEditando(false); e.currentTarget.blur(); }
             }}
-            className={`sheet-input ${value ? 'font-bold text-[#1d1d1f]' : 'text-[#c7c7cc]'}`}
+            className={`sheet-input ${value ? 'font-bold text-[#1d1d1f]' : 'ink-muted'}`}
           />
         );
       };
@@ -5772,7 +5928,7 @@
             <td className="num" title={`${row.currentQty} ${row.unitOfMeasure} bons na loja, em qualquer vitrine`}>
               {row.currentQty}
             </td>
-            <td className={`num ${row.expiredQty > 0 ? 'text-[#c9271d] font-bold' : 'text-[#c7c7cc]'}`}
+            <td className={`num ${row.expiredQty > 0 ? 'ink-expired font-bold' : 'ink-muted'}`}
                 title={row.expiredQty > 0 ? `${row.expiredQty} vencido(s) para repor` : 'Nada vencido'}>
               {row.expiredQty || '—'}
             </td>
@@ -5815,7 +5971,7 @@
                 {row.situacao}
               </span>
               {row.lastDayQty > 0 && (
-                <span className="text-[#a35e00] ml-1.5 tnum">· {row.lastDayQty} no último dia</span>
+                <span className="ink-last ml-1.5 tnum">· {row.lastDayQty} no último dia</span>
               )}
               {row.foraDoPlano > 0 && (
                 <span className="text-[#86868b] ml-1.5 tnum">· {row.foraDoPlano} em outro espaço</span>
@@ -6037,7 +6193,7 @@
                               <td data-sticky="true" style={{ left: '34px' }}>
                                 {bloco.title ? 'Total do móvel' : 'Total'}
                               </td>
-                              <td colSpan={3} className="t-caption text-[11px]">
+                              <td colSpan={3} className="t-micro">
                                 {bloco.entries.length} {bloco.entries.length === 1 ? 'linha' : 'linhas'}
                               </td>
                               <td className="num">{somaDe(bloco.entries, 'idealQty')}</td>
@@ -6046,7 +6202,7 @@
                               <td className="num">{somaDe(bloco.entries, 'neededQty') || '—'}</td>
                               <td />
                               <td className="num text-[#0E0937]">{somaDe(bloco.entries, 'orderQty')}</td>
-                              <td colSpan={3} className="t-caption text-[11px]">
+                              <td colSpan={3} className="t-micro">
                                 {bloco.entries.filter((i) => i.noPedido).length} item(ns) no pedido
                               </td>
                             </tr>
@@ -6175,9 +6331,9 @@
                   <Icons.Trash2 className="w-3.5 h-3.5" />
                   Perdas · 7 dias
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                <div className="mt-2 t-metric-lg">
                   {semana.total}
-                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> un</span>
+                  <span className="t-metric-unit">un</span>
                 </div>
                 <p className="t-callout mt-1.5 font-semibold">
                   {semana.variacao === null ? (
@@ -6190,7 +6346,7 @@
                   )}
                 </p>
                 {/* O caminho até o número de hoje, dia a dia */}
-                <div className="mt-3 text-[#c9271d]">
+                <div className="mt-3 ink-expired">
                   <Sparkline
                     values={semana.serie}
                     title={`Perdas dos últimos 7 dias: ${semana.serie.join(', ')} un`}
@@ -6292,7 +6448,7 @@
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="t-overline text-[10px]">
+                    <tr className="t-overline-sm">
                       <th className="py-3 pr-3 font-bold">Data</th>
                       <th className="py-3 px-3 font-bold">Produto</th>
                       <th className="py-3 px-3 font-bold">Responsável</th>
@@ -6318,7 +6474,7 @@
                           <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{r.productName}</td>
                           <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(r.responsible) || '—'}</td>
                           <td className="py-3 px-3 text-center">
-                            <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="text-[#c9271d]" />
+                            <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="ink-expired" />
                           </td>
                           <td className="py-3 px-3">
                             <span className="pill bg-black/[0.05] text-[#6e6e73] capitalize">{r.reason}</span>
@@ -6328,7 +6484,7 @@
                             <button
                               onClick={() => onDeleteLoss(r.id)}
                               title="Excluir esta perda"
-                              className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                              className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
                             >
                               <Icons.Trash2 className="w-4 h-4" />
                             </button>
@@ -6482,7 +6638,7 @@
               )}
 
               {ehPerda && (
-                <div className="space-y-3 p-4 bg-[#ff3b30]/[0.05] rounded-2xl">
+                <div className="space-y-3 p-4 surface-expired rounded-2xl">
                   <div>
                     <label className="t-caption block mb-1">Motivo</label>
                     <select value={reason} onChange={(e) => setReason(e.target.value)} className="field field-sm">
@@ -6787,8 +6943,8 @@
 
         const TIPOS = {
           producao: { label: 'Produção', pill: 'bg-[#0E0937]/10 text-[#0E0937]' },
-          venda: { label: 'Venda', pill: 'bg-[#34c759]/12 text-[#1d7a35]' },
-          perda: { label: 'Perda', pill: 'bg-[#ff3b30]/10 text-[#c9271d]' }
+          venda: { label: 'Venda', pill: 'tone-fresh' },
+          perda: { label: 'Perda', pill: 'tone-expired' }
         };
 
         const mover = (passo) => setRefDia((atual) => shiftDayKey(atual, periodo === 'semana' ? passo * 7 : passo));
@@ -6840,7 +6996,7 @@
         const TempoVitrine = ({ record }) => {
           const dias = tempoDeVitrine(record);
           if (dias === null || dias === undefined) {
-            return <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>;
+            return <span className="t-empty">—</span>;
           }
           const info = getExposureInfo(dias, shelfLifeDe(record.productId));
           return (
@@ -6857,7 +7013,7 @@
         const TempoLote = ({ linha }) => {
           if (linha.tempoMedio === null || linha.tempoMedio === undefined) {
             if (linha.idade === null || linha.idade === undefined) {
-              return <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>;
+              return <span className="t-empty">—</span>;
             }
             return (
               <span className="t-caption tnum whitespace-nowrap" title="Ainda não saiu nada deste lote">
@@ -6884,21 +7040,21 @@
           valor > 0 ? (
             <span className="tnum whitespace-nowrap">
               <span className={`text-[13px] font-extrabold ${fraco ? 'text-[#86868b]' : className}`}>{valor}</span>
-              {sufixo && <span className="text-[11px] font-medium text-[#86868b]"> {sufixo}</span>}
+              {sufixo && <span className="t-unit"> {sufixo}</span>}
             </span>
           ) : (
-            <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>
+            <span className="t-empty">—</span>
           );
 
         // Quanto do que saiu do lote virou venda, e não perda
         const Aproveitamento = ({ vendido, perdido }) => {
           const saiu = vendido + perdido;
-          if (saiu === 0) return <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>;
+          if (saiu === 0) return <span className="t-empty">—</span>;
           const pct = Math.round((vendido / saiu) * 100);
           const cor =
-            pct >= 90 ? 'bg-[#34c759]/12 text-[#1d7a35]'
-            : pct >= 70 ? 'bg-[#ff9f0a]/12 text-[#a35e00]'
-            : 'bg-[#ff3b30]/10 text-[#c9271d]';
+            pct >= 90 ? 'tone-fresh'
+            : pct >= 70 ? 'tone-last'
+            : 'tone-expired';
           return <span className={`pill ${cor} tnum`}>{pct}%</span>;
         };
 
@@ -6906,7 +7062,7 @@
           <button
             onClick={onClick}
             title={title}
-            className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-full icon-danger flex items-center justify-center"
           >
             <Icons.Trash2 className="w-4 h-4" />
           </button>
@@ -6955,7 +7111,7 @@
                       <span className={`pill ${TIPOS[r.tipo].pill}`}>{TIPOS[r.tipo].label}</span>
                       <span className="t-callout tnum whitespace-nowrap">{formatDateBR(r.dia)}</span>
                       <span className="text-[13px] font-extrabold text-[#1d1d1f] tnum whitespace-nowrap">
-                        {r.qty} <span className="text-[11px] font-medium text-[#86868b]">{r.unitOfMeasure || 'un'}</span>
+                        {r.qty} <span className="t-unit">{r.unitOfMeasure || 'un'}</span>
                       </span>
                       {r.tipo !== 'producao' && <TempoVitrine record={r} />}
                       {r.tipo === 'perda' && (
@@ -7058,9 +7214,9 @@
                   <Icons.ChefHat className="w-3.5 h-3.5" />
                   Produzido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#0E0937]">
+                <div className="mt-2 t-metric-lg text-[#0E0937]">
                   {totalProduzido}
-                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
+                  <span className="t-metric-unit">itens</span>
                 </div>
                 <p className="t-caption mt-2 tnum">{producao.length} lançamento(s)</p>
               </div>
@@ -7070,9 +7226,9 @@
                   <Icons.ShoppingCart className="w-3.5 h-3.5" />
                   Vendido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d7a35]">
+                <div className="mt-2 t-metric-lg ink-fresh">
                   {totalVendido}
-                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
+                  <span className="t-metric-unit">itens</span>
                 </div>
                 <p className="t-caption mt-2 tnum">{vendas.length} baixa(s)</p>
               </div>
@@ -7082,9 +7238,9 @@
                   <Icons.Trash2 className="w-3.5 h-3.5" />
                   Perdido
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#c9271d]">
+                <div className="mt-2 t-metric-lg ink-expired">
                   {totalPerdido}
-                  <span className="text-[15px] font-semibold text-[#86868b] tracking-normal"> itens</span>
+                  <span className="t-metric-unit">itens</span>
                 </div>
                 <p className="t-caption mt-2 tnum">{perdas.length} lançamento(s)</p>
               </div>
@@ -7094,7 +7250,7 @@
                   <Icons.TrendingUp className="w-3.5 h-3.5" />
                   Aproveitamento
                 </span>
-                <div className="mt-2 tnum text-[34px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">
+                <div className="mt-2 t-metric-lg">
                   {eficiencia}
                 </div>
                 <p className="t-caption mt-2">Vendas sobre vendas + perdas</p>
@@ -7117,20 +7273,20 @@
                 <div className="flex flex-wrap items-center gap-2 pt-3.5 pb-1">
                   <span className="t-caption">Saída das vendas:</span>
                   {frescor.fresco > 0 && (
-                    <span className="pill bg-[#34c759]/12 text-[#1d7a35] tnum">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+                    <span className="pill tone-fresh tnum">
+                      <span className="w-1.5 h-1.5 rounded-full dot-fresh" />
                       {frescor.fresco} dentro da validade
                     </span>
                   )}
                   {frescor.limite > 0 && (
-                    <span className="pill bg-[#ff9f0a]/12 text-[#a35e00] tnum">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#ff9f0a]" />
+                    <span className="pill tone-last tnum">
+                      <span className="w-1.5 h-1.5 rounded-full dot-last" />
                       {frescor.limite} no último dia
                     </span>
                   )}
                   {frescor.vencido > 0 && (
-                    <span className="pill bg-[#ff3b30]/10 text-[#c9271d] tnum">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#ff3b30]" />
+                    <span className="pill tone-expired tnum">
+                      <span className="w-1.5 h-1.5 rounded-full dot-expired" />
                       {frescor.vencido} depois da validade
                     </span>
                   )}
@@ -7142,7 +7298,7 @@
 
               {!productionReady && (activeTab === 'producao' || activeTab === 'tudo') && (
                 <div className="card-quiet p-4 flex items-start gap-2.5 mt-3">
-                  <Icons.AlertTriangle className="w-4 h-4 text-[#a35e00] shrink-0 mt-0.5" />
+                  <Icons.AlertTriangle className="w-4 h-4 ink-last shrink-0 mt-0.5" />
                   <p className="t-callout">
                     O histórico de produção ainda não existe neste banco. Abra o Supabase → SQL Editor e rode
                     o arquivo <strong className="text-[#1d1d1f] font-bold">supabase/schema.sql</strong> de novo:
@@ -7157,7 +7313,7 @@
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="t-overline text-[10px]">
+                      <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
                         <th className="py-3 px-3 font-bold">Tipo</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
@@ -7191,14 +7347,14 @@
                               {r.tipo === 'producao' ? (
                                 <QtyOfBatch qty={r.qty} unit={r.unitOfMeasure} sign="+" className="text-[#0E0937]" />
                               ) : r.tipo === 'venda' ? (
-                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} className="text-[#1d7a35]" />
+                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} className="ink-fresh" />
                               ) : (
-                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="text-[#c9271d]" />
+                                <QtyOfBatch qty={r.qty} produced={r.producedQty} unit={r.unitOfMeasure} sign="−" className="ink-expired" />
                               )}
                             </td>
                             <td className="py-3 px-3">
                               {r.tipo === 'producao' ? (
-                                <span className="text-[13px] font-medium text-[#c7c7cc]">—</span>
+                                <span className="t-empty">—</span>
                               ) : (
                                 <TempoVitrine record={r} />
                               )}
@@ -7252,7 +7408,7 @@
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="t-overline text-[10px]">
+                        <tr className="t-overline-sm">
                           <th className="py-3 pr-3 font-bold">{agrupamento === 'lote' ? 'Lote' : 'Produto'}</th>
                           <th className="py-3 px-3 font-bold">{agrupamento === 'lote' ? 'Produto' : 'Lotes'}</th>
                           <th className="py-3 px-3 text-center font-bold">Produzido</th>
@@ -7290,7 +7446,7 @@
                                         {lote.manufactureDate ? (
                                           <>
                                             {formatDateBR(lote.manufactureDate)}
-                                            <span className="block t-caption text-[10px] capitalize">
+                                            <span className="block t-nano capitalize">
                                               {weekdayName(lote.manufactureDate)}
                                             </span>
                                           </>
@@ -7311,14 +7467,14 @@
                                       sufixo={lote.unitOfMeasure}
                                     />
                                     {lote.estimado && (
-                                      <span className="block t-caption text-[10px]">fornada anterior</span>
+                                      <span className="block t-nano">fornada anterior</span>
                                     )}
                                   </td>
                                   <td className="py-3 px-3 text-center">
-                                    <Numero valor={lote.vendido} className="text-[#1d7a35]" />
+                                    <Numero valor={lote.vendido} className="ink-fresh" />
                                   </td>
                                   <td className="py-3 px-3 text-center">
-                                    <Numero valor={lote.perdido} className="text-[#c9271d]" />
+                                    <Numero valor={lote.perdido} className="ink-expired" />
                                   </td>
                                   <td className="py-3 px-3 text-center">
                                     <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
@@ -7366,10 +7522,10 @@
                                     />
                                   </td>
                                   <td className="py-3 px-3 text-center">
-                                    <Numero valor={item.vendido} className="text-[#1d7a35]" />
+                                    <Numero valor={item.vendido} className="ink-fresh" />
                                   </td>
                                   <td className="py-3 px-3 text-center">
-                                    <Numero valor={item.perdido} className="text-[#c9271d]" />
+                                    <Numero valor={item.perdido} className="ink-expired" />
                                   </td>
                                   <td className="py-3 px-3 text-center">
                                     <Numero valor={item.sobra} className="text-[#1d1d1f]" />
@@ -7410,10 +7566,10 @@
                                             <Numero valor={lote.base} className="text-[#0E0937]" fraco={lote.estimado} />
                                           </td>
                                           <td className="py-2 px-3 text-center">
-                                            <Numero valor={lote.vendido} className="text-[#1d7a35]" />
+                                            <Numero valor={lote.vendido} className="ink-fresh" />
                                           </td>
                                           <td className="py-2 px-3 text-center">
-                                            <Numero valor={lote.perdido} className="text-[#c9271d]" />
+                                            <Numero valor={lote.perdido} className="ink-expired" />
                                           </td>
                                           <td className="py-2 px-3 text-center">
                                             <Numero valor={lote.sobra} className="text-[#1d1d1f]" />
@@ -7439,7 +7595,7 @@
                       {lotes.length > 0 && (
                         <tfoot>
                           <tr className="border-t-2 hairline">
-                            <td className="py-3 pr-3 t-overline text-[10px] font-bold">Total</td>
+                            <td className="py-3 pr-3 t-overline-sm font-bold">Total</td>
                             <td className="py-3 px-3 t-caption tnum whitespace-nowrap">
                               {agrupamento === 'lote' ? `${lotes.length} lote(s)` : `${itens.length} item(ns)`}
                             </td>
@@ -7447,10 +7603,10 @@
                               <Numero valor={totalBase} className="text-[#0E0937]" />
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <Numero valor={totalVendido} className="text-[#1d7a35]" />
+                              <Numero valor={totalVendido} className="ink-fresh" />
                             </td>
                             <td className="py-3 px-3 text-center">
-                              <Numero valor={totalPerdido} className="text-[#c9271d]" />
+                              <Numero valor={totalPerdido} className="ink-expired" />
                             </td>
                             <td className="py-3 px-3 text-center">
                               <Numero valor={totalSobra} className="text-[#1d1d1f]" />
@@ -7486,7 +7642,7 @@
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="t-overline text-[10px]">
+                      <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Fabricação</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
@@ -7536,7 +7692,7 @@
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="t-overline text-[10px]">
+                      <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
@@ -7557,7 +7713,7 @@
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{s.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(s.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
-                              <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="text-[#1d7a35]" />
+                              <QtyOfBatch qty={s.qty} produced={s.producedQty} unit={s.unitOfMeasure} className="ink-fresh" />
                             </td>
                             <td className="py-3 px-3"><Exposicao record={s} /></td>
                             <td className="py-3 pl-3 text-right">
@@ -7579,7 +7735,7 @@
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="t-overline text-[10px]">
+                      <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
                         <th className="py-3 px-3 font-bold">Produto</th>
                         <th className="py-3 px-3 font-bold">Responsável</th>
@@ -7601,7 +7757,7 @@
                             <td className="py-3 px-3 text-[13px] font-semibold text-[#1d1d1f] tracking-[-0.01em]">{l.productName}</td>
                             <td className="py-3 px-3 t-callout whitespace-nowrap">{cleanResponsible(l.responsible) || '—'}</td>
                             <td className="py-3 px-3 text-center">
-                              <QtyOfBatch qty={l.qty} produced={l.producedQty} unit={l.unitOfMeasure} sign="−" className="text-[#c9271d]" />
+                              <QtyOfBatch qty={l.qty} produced={l.producedQty} unit={l.unitOfMeasure} sign="−" className="ink-expired" />
                             </td>
                             <td className="py-3 px-3"><TempoVitrine record={l} /></td>
                             <td className="py-3 px-3">
@@ -7697,7 +7853,7 @@
                   <div className="flex items-end justify-between pt-3 border-t hairline">
                     <div>
                       <span className="t-caption block">Estoque</span>
-                      <span className="tnum text-[22px] leading-tight font-extrabold tracking-[-0.02em] text-[#1d1d1f]">
+                      <span className="t-metric-sm">
                         {item.currentQty}
                         <span className="text-[12px] font-semibold text-[#86868b] tracking-normal"> {item.unitOfMeasure}</span>
                       </span>
@@ -7885,7 +8041,7 @@
               <form onSubmit={handleSubmit} className="mt-5 pt-5 border-t hairline">
                 <div className="flex items-center justify-between mb-3">
                   <span className="t-overline">Cadastrar na linha</span>
-                  <span className="t-caption text-[11px]">Enter ↵ avança e salva</span>
+                  <span className="t-micro">Enter ↵ avança e salva</span>
                 </div>
 
                 <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
@@ -7973,7 +8129,7 @@
                   </div>
                 </div>
 
-                <p className="t-caption text-[11px] mt-2">
+                <p className="t-micro mt-2">
                   {matched
                     ? `“${matched.name}” já está no catálogo — os campos acima atualizam o cadastro dele.`
                     : 'Validade em dias contados da fabricação. Um nome já cadastrado abre o produto para edição.'}
@@ -8009,7 +8165,7 @@
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="t-overline text-[10px] border-b hairline">
+                    <tr className="t-overline-sm border-b hairline">
                       <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
                       <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 font-bold">Categoria</th>
@@ -8070,12 +8226,12 @@
                                 title="Validade em dias a partir da fabricação"
                                 className="field h-8 px-2 text-[12px] text-center tnum w-14 sm:w-16"
                               />
-                              <span className="t-caption text-[11px] whitespace-nowrap hidden sm:inline">dia(s)</span>
+                              <span className="t-micro whitespace-nowrap hidden sm:inline">dia(s)</span>
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex items-center justify-end gap-1.5">
-                              <span className="t-caption text-[11px] hidden sm:inline">R$</span>
+                              <span className="t-micro hidden sm:inline">R$</span>
                               <input
                                 type="number"
                                 step="0.01"
@@ -8091,7 +8247,7 @@
                             <button
                               onClick={() => onDeleteProduct(p.id)}
                               title="Excluir produto"
-                              className="w-7 h-7 rounded-full text-[#86868b] hover:bg-[#ff3b30]/10 hover:text-[#c9271d] flex items-center justify-center ml-auto transition-colors"
+                              className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
                             >
                               <Icons.Trash2 className="w-4 h-4" />
                             </button>
@@ -8103,7 +8259,7 @@
                 </table>
               </div>
 
-              <p className="t-caption text-[11px] pt-3">
+              <p className="t-micro pt-3">
                 Toque em qualquer campo da tabela para corrigir o produto — o app salva sozinho.
               </p>
             </div>
@@ -8197,7 +8353,7 @@
                   className="field field-lg font-semibold"
                 />
                 {jaNoMovel && (
-                  <p className="t-caption text-[11px] mt-1.5 flex items-start gap-1">
+                  <p className="t-micro mt-1.5 flex items-start gap-1">
                     <Icons.Layers className="w-3 h-3 shrink-0 mt-[2px]" />
                     <span>
                       Já tem <strong className="text-[#1d1d1f]">{jaNoMovel.productName}</strong> no espaço{' '}
@@ -8365,11 +8521,11 @@
                   emptyLabel={`Produto novo — entra como ${categoryOfShowcaseType(showcaseType)} ao colocar`}
                   className="field field-lg font-semibold"
                 />
-                <p className={`t-caption text-[11px] mt-1.5 ${tipoDestino === showcaseType ? '' : 'text-[#0E0937] font-semibold'}`}>
+                <p className={`t-micro mt-1.5 ${tipoDestino === showcaseType ? '' : 'text-[#0E0937] font-semibold'}`}>
                   Vai para a vitrine {SHOWCASE_TYPE_LABELS[tipoDestino]}
                 </p>
                 {!temEspaco && (
-                  <p className="t-caption text-[11px] mt-1 text-[#c9271d] font-semibold">
+                  <p className="t-micro mt-1 ink-expired font-semibold">
                     Esta unidade não tem espaço de {SHOWCASE_TYPE_LABELS[tipoDestino].toLowerCase()} cadastrado.
                   </p>
                 )}
@@ -8439,7 +8595,7 @@
               {lancados.length > 0 && (
                 <div className="card-quiet p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Icons.CheckCircle2 className="w-3.5 h-3.5 text-[#1d7a35] shrink-0" />
+                    <Icons.CheckCircle2 className="w-3.5 h-3.5 ink-fresh shrink-0" />
                     <span className="t-overline">
                       {lancados.length} {lancados.length === 1 ? 'item colocado agora' : 'itens colocados agora'}
                     </span>
@@ -8504,7 +8660,7 @@
                 <button
                   type="button"
                   onClick={() => setMode('venda')}
-                  className={`btn btn-md ${mode === 'venda' ? 'bg-[#34c759] text-[#06300f]' : 'btn-secondary'}`}
+                  className={`btn btn-md ${mode === 'venda' ? 'btn-success' : 'btn-secondary'}`}
                 >
                   <Icons.ShoppingCart className="w-4 h-4" /> Venda
                 </button>
@@ -8545,7 +8701,7 @@
                 </div>
 
                 {mode === 'perda' && (
-                  <div className="space-y-3 p-4 bg-[#ff3b30]/[0.05] rounded-2xl">
+                  <div className="space-y-3 p-4 surface-expired rounded-2xl">
                     <div>
                       <label className="t-caption block mb-1">Motivo</label>
                       <select value={reason} onChange={(e) => setReason(e.target.value)} className="field field-sm">
@@ -8596,7 +8752,7 @@
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  className={`btn btn-md ${mode === 'venda' ? 'bg-[#34c759] text-[#06300f] hover:bg-[#46d46b]' : 'btn-danger'}`}
+                  className={`btn btn-md ${mode === 'venda' ? 'btn-success' : 'btn-danger'}`}
                 >
                   Confirmar {mode === 'venda' ? 'venda' : 'perda'}
                 </button>
@@ -9883,11 +10039,11 @@
             />
 
             {errorMsg && (
-              <div className="bg-[#ff3b30]/10 border-b border-[#ff3b30]/20">
+              <div className="banner-error">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-2">
-                  <Icons.AlertTriangle className="w-4 h-4 text-[#c9271d] shrink-0" />
-                  <span className="t-callout text-[#c9271d] flex-1">{errorMsg}</span>
-                  <button onClick={() => setErrorMsg('')} className="w-6 h-6 rounded-full hover:bg-[#ff3b30]/15 text-[#c9271d] flex items-center justify-center shrink-0">
+                  <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span className="t-callout ink-expired flex-1">{errorMsg}</span>
+                  <button onClick={() => setErrorMsg('')} className="w-6 h-6 rounded-full icon-danger flex items-center justify-center shrink-0">
                     <Icons.X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -10142,7 +10298,7 @@
                 activeTab === 'vitrine' ? 'pb-24 lg:pb-4' : ''
               }`}>
                 <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'bg-[#ff9f0a]' : 'bg-[#34c759]'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'dot-last' : 'dot-fresh'}`} />
                   <span className="t-caption">
                     {pendingWrites > 0
                       ? 'Salvando no Supabase…'
