@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-25-paleta-e-escala-1" />
+    <meta name="app-version" content="2026-08-26-paleta-e-escala-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,20 +73,24 @@
            Agora quem manda são as cores da loja, que são as do papel que o
            balcão já prende no lote. A tela combina com o balcão:
 
-             verde  #274133 → fresco, e a venda (o que está bom)
-             laranja #CE9042 → último dia, e o que passou do padrão
-             vinho  #7D2027 → vencido, a perda e o erro do sistema
+             verde   #274133 → fresco, e a venda (o que está bom)
+             amarelo #F2C14E → último dia, e o que passou do padrão
+             vinho   #7D2027 → vencido, a perda e o erro do sistema
 
-           Cada família tem quatro tons, e é sempre nessa ordem que eles são
-           usados:
-             base  — a cor cheia: etiqueta, botão sólido, bolinha
+           Cada família tem os mesmos tons, e é sempre nessa ordem que eles
+           são usados:
+             base  — a cor cheia: a quina do cartão, o botão sólido, a bolinha
+             on    — o texto que vai por cima da cor cheia
              ink   — a mesma cor escurecida o bastante para virar texto sobre
-                     fundo claro (o laranja da loja não passa em contraste,
-                     por isso o ink dele é mais fechado)
+                     fundo claro (o amarelo da quina é claro demais e não
+                     passa em contraste, por isso o ink dele é bem mais
+                     fechado — mas continua sendo o mesmo tom de âmbar)
+             tint  — de onde saem os fundos lavados, quando a cor cheia é
+                     clara ou escura demais para lavar bem
              soft  — o fundo lavado do selo e do botão quieto
-             line  — o fio da borda desse selo
-           E o creme #EDDDC5 é o texto que vai por cima do verde e do vinho. */
+             line  — o fio da borda desse selo */
         --fresh: #274133;
+        --fresh-on: var(--cream);
         --fresh-ink: #274133;
         /* O verde da loja é escuro demais para virar fundo lavado: a 10% ele
            sai cinza e o botão de venda perde a cor. O fundo usa um verde mais
@@ -94,11 +98,16 @@
         --fresh-tint: #2E7D51;
         --fresh-soft: rgba(46, 125, 81, 0.13);
         --fresh-line: rgba(46, 125, 81, 0.24);
-        --last: #CE9042;
+        --last: #F2C14E;
+        --last-on: #3A2A05;
         --last-ink: #8A5A16;
-        --last-soft: rgba(206, 144, 66, 0.16);
-        --last-line: rgba(206, 144, 66, 0.28);
+        /* O amarelo da quina é claro demais para lavar: a 16% ele some no
+           branco. O fundo sai de um âmbar do meio da mesma rampa. */
+        --last-tint: #C8901E;
+        --last-soft: rgba(200, 144, 30, 0.18);
+        --last-line: rgba(200, 144, 30, 0.30);
         --expired: #7D2027;
+        --expired-on: var(--cream);
         --expired-ink: #7D2027;
         --expired-soft: rgba(125, 32, 39, 0.10);
         --expired-line: rgba(125, 32, 39, 0.18);
@@ -309,16 +318,16 @@
         color: var(--ink-1);
       }
       .btn-secondary:hover { background: rgba(0, 0, 0, 0.09); }
-      .btn-danger { background: var(--expired); color: var(--cream); }
+      .btn-danger { background: var(--expired); color: var(--expired-on); }
       .btn-danger:hover { background: #94262E; }
       /* Cores lavadas: o aviso aparece sem pintar a tela inteira */
       .btn-danger-quiet { background: var(--expired-soft); color: var(--expired-ink); }
       .btn-danger-quiet:hover { background: rgba(125, 32, 39, 0.17); }
       .btn-success-quiet { background: var(--fresh-soft); color: var(--fresh-ink); }
       .btn-success-quiet:hover { background: rgba(46, 125, 81, 0.20); }
-      .btn-warn { background: var(--last); color: #2A1A06; }
-      .btn-warn:hover { background: #D89E56; }
-      .btn-success { background: var(--fresh); color: var(--cream); }
+      .btn-warn { background: var(--last); color: var(--last-on); }
+      .btn-warn:hover { background: #F6CE72; }
+      .btn-success { background: var(--fresh); color: var(--fresh-on); }
       .btn-success:hover { background: #34543F; }
       .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
       .btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
@@ -548,10 +557,12 @@
       }
 
       /* ==========================================
-         NOME DO ITEM NA VITRINE
-         Item dentro da validade fica em tinta normal — o que chama atenção é
-         só o que precisa sair da vitrine: o do último dia em texto escuro
-         discreto e o vencido em vermelho, sem fundo pintado.
+         NOME DO ITEM NAS LISTAS
+         No cartão da vitrine quem tem cor é a quina dobrada, e mais nada.
+         Já nas listas — a de exceções do painel do agora — não existe quina
+         para olhar, e aí o nome do produto empresta a cor do estado dele:
+         âmbar no último dia, vinho no vencido, tinta normal no resto. Sem
+         fundo pintado: é a mesma cor da quina, só que na letra.
          ========================================== */
       .mark {
         background: transparent;
@@ -566,86 +577,70 @@
 
       /* ==========================================
          CARTÃO DO PRODUTO NA VITRINE
-         O mesmo cartãozinho de papel que o balcão usa, na tela: a data do
-         lote em cima, o nome do produto, quanto sobrou do lote e, embaixo,
-         os dois botões de baixa.
-         A etiqueta fica presa na quina de cima do cartão, meio dentro e
-         meio fora, como a tirinha de papel que o balcão prende no lote. É a
-         leitura de longe — verde está fresco, laranja é o último dia e
-         vinho precisa sair da vitrine agora.
-         A cor fica só na etiqueta: o cartão é branco em todos os casos, e é
-         o contraste com o branco que faz a etiqueta saltar. As cores são as
-         da loja: verde #274133, laranja #CE9042, vinho #7D2027, com o creme
-         #EDDDC5 no texto que vai sobre o verde e o vinho.
+         O cartãozinho de papel do balcão, na tela: a data do lote em cima,
+         o nome do produto no meio, quanto sobrou do lote e, embaixo, os
+         dois botões de baixa — tudo centralizado, como no papel.
+         A etiqueta é a quina dobrada do cartão: um triângulo colorido no
+         canto de cima, com os dias de vitrine escritos dentro. Verde está
+         fresco, amarelo é o último dia e vinho precisa sair agora.
+         Fora dela, nada no cartão tem cor: nome, data e número são todos
+         em tinta preta, e é isso que faz a quina saltar. O amarelo e o
+         verde são propositalmente opostos — um bem claro e um bem escuro —
+         para não virarem a mesma cor de longe.
          ========================================== */
       .item-card {
         position: relative;
-        /* Sobra em cima para a etiqueta pousar na quina sem cobrir a data */
-        margin-top: 14px;
-        padding: 9px 9px 9px;
+        /* A quina dobrada é cortada pelo próprio canto do cartão */
+        overflow: hidden;
+        margin-top: 8px;
+        padding: 9px;
         border: 1px solid var(--hairline);
         border-radius: 14px;
         background: var(--bg-surface);
+        text-align: center;
       }
       /* A data do lote: a primeira linha do papel, como na vitrine */
       .item-card-date {
         display: inline-flex;
         align-items: center;
         gap: 3px;
-        min-width: 0;
+        max-width: 100%;
         font-size: 11px;
         font-weight: 700;
         font-variant-numeric: tabular-nums;
         color: var(--ink-3);
       }
       .item-card-name {
-        margin-top: 3px;
-        font-size: 14px;
-        line-height: 1.25;
+        margin-top: 4px;
+        font-size: 16px;
+        line-height: 1.2;
         font-weight: 700;
-        letter-spacing: -0.015em;
+        letter-spacing: -0.018em;
         color: var(--ink-1);
         overflow-wrap: anywhere;
       }
-      /* Quanto sobrou do lote e, na ponta, há quantos dias está exposto */
-      .item-card-qty {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 6px;
-        margin-top: 3px;
-        min-width: 0;
-      }
-      .item-card-days {
-        flex-shrink: 0;
-        font-size: 11px;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        color: var(--ink-4);
-      }
+      .item-card-qty { margin-top: 3px; }
 
-      /* A etiqueta pousada na quina de cima, com o bico virado para o
-         produto — metade dela passa por cima da borda do cartão */
+      /* A quina dobrada: o triângulo de cor no canto de cima, com os dias
+         de vitrine escritos dentro dele */
       .item-tag {
         position: absolute;
-        top: -9px;
-        right: 8px;
+        top: 0;
+        right: 0;
         z-index: 1;
-        display: inline-flex;
-        align-items: center;
-        max-width: calc(100% - 16px);
-        padding: 2px 8px 2px 13px;
-        border-radius: 980px;
-        clip-path: polygon(0 50%, 7px 0, 100% 0, 100% 100%, 7px 100%);
-        font-size: 10px;
+        display: block;
+        width: 46px;
+        height: 46px;
+        padding: 2px 6px 0 0;
+        clip-path: polygon(100% 0, 0 0, 100% 100%);
+        font-size: 12px;
         font-weight: 800;
-        line-height: 1.4;
-        letter-spacing: 0.01em;
-        text-transform: uppercase;
-        white-space: nowrap;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
       }
       .item-tag[data-tag="verde"] { background: var(--fresh); color: var(--cream); }
-      .item-tag[data-tag="amarela"] { background: var(--last); color: #2A1A06; }
+      .item-tag[data-tag="amarela"] { background: var(--last); color: var(--last-on); }
       .item-tag[data-tag="vermelha"] { background: var(--expired); color: var(--cream); }
 
       /* Selos de status */
@@ -684,7 +679,7 @@
       .dot-quiet   { background: var(--quiet); }
 
       /* O contador de avisos da barra de navegação: cor cheia, creme por cima */
-      .badge-expired { background: var(--expired); color: var(--cream); }
+      .badge-expired { background: var(--expired); color: var(--expired-on); }
       /* Um bloco inteiro em fundo lavado — a folha que pergunta o motivo da perda */
       .surface-expired { background: var(--expired-soft); }
       /* A faixa de erro do sistema. O erro usa o mesmo vinho do vencido: a
@@ -1265,16 +1260,22 @@
          balcão e compacto para ver o móvel inteiro na tela do computador.
          ========================================== */
       .showcase-grid[data-density="compacto"] .item-card {
-        margin-top: 11px;
+        margin-top: 6px;
         padding: 6px 7px;
         border-radius: 12px;
       }
-      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 13px; }
+      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 14px; }
       .showcase-grid[data-density="compacto"] .item-card-date { font-size: 10px; }
       .showcase-grid[data-density="compacto"] .item-card-qty { margin-top: 2px; }
       .showcase-grid[data-density="compacto"] .item-actions { gap: 5px; margin-top: 6px !important; }
       .showcase-grid[data-density="compacto"] .item-action { height: 30px; }
-      .showcase-grid[data-density="compacto"] .item-tag { font-size: 9px; padding: 1px 7px 1px 12px; }
+      /* A quina também encolhe, e o triângulo continua triângulo */
+      .showcase-grid[data-density="compacto"] .item-tag {
+        width: 38px;
+        height: 38px;
+        padding: 1px 5px 0 0;
+        font-size: 11px;
+      }
 
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
@@ -1749,11 +1750,11 @@
       // ------------------------------------------
       // A TAG DO CARTÃO DA VITRINE
       //
-      // A etiqueta colorida que fica presa na quina do cartão, no mesmo
-      // código de cor que o balcão já usa no papel: verde está fresco,
-      // laranja é o último dia de validade e vinho precisa sair da vitrine
-      // agora. O laranja é bem separado do verde de propósito: de longe,
-      // duas cores parecidas viram a mesma cor.
+      // A quina colorida do cartão, no mesmo código de cor que o balcão já
+      // usa no papel: verde está fresco, amarelo é o último dia de validade
+      // e vinho precisa sair da vitrine agora. O amarelo é claro e o verde é
+      // escuro de propósito: de longe, duas cores parecidas viram a mesma
+      // cor. Dentro da quina vão os dias de vitrine.
       //
       // É a leitura de longe: quem passa na frente da vitrine vê a cor antes
       // de ler qualquer número. O tempo em dias continua escrito no cartão,
@@ -3910,16 +3911,20 @@
                                   mesmo espaço ficam um cartão embaixo do outro */}
                               {doEspaco.map(({ item }) => {
                                 const prod = products.find((p) => p.id === item.productId);
-                                const statusInfo = getSlotItemStatus(item, prod);
                                 const tag = getShowcaseTag(item, prod);
 
                                 return (
                                   <div key={item.id} className="item-card" data-tag={tag.cor}>
-                                    {/* A etiqueta presa na quina de cima: a cor
-                                        é o que se lê de longe, antes de
-                                        qualquer número */}
-                                    <span className="item-tag" data-tag={tag.cor} title={tag.title}>
-                                      {tag.label}
+                                    {/* A quina dobrada: a cor é o que se lê de
+                                        longe, antes de qualquer número, e
+                                        dentro dela vão os dias de vitrine */}
+                                    <span
+                                      className="item-tag"
+                                      data-tag={tag.cor}
+                                      title={tag.title}
+                                      aria-label={`${tag.label} · ${tag.days} ${tag.days === 1 ? 'dia' : 'dias'} na vitrine`}
+                                    >
+                                      {tag.days}
                                     </span>
 
                                     <span
@@ -3935,30 +3940,23 @@
                                     </span>
 
                                     <h5 className="item-card-name" title={item.productName}>
-                                      <mark className={`mark ${statusInfo.markClass}`}>{item.productName}</mark>
+                                      {item.productName}
                                     </h5>
 
                                     {/* Quanto sobrou do lote que foi colocado
-                                        ali — "3/5 un" é a conta que o balcão
-                                        faz — e, na ponta, o tempo de vitrine
-                                        em dias: o número por trás da cor da
-                                        etiqueta */}
-                                    <div className="item-card-qty">
-                                      <span
-                                        title={item.producedQty > 0
-                                          ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
-                                          : `${item.currentQty} ${item.unit} na vitrine`}
-                                      >
-                                        <QtyOfBatch
-                                          qty={item.currentQty}
-                                          produced={item.producedQty || 0}
-                                          unit={item.unit}
-                                          big
-                                        />
-                                      </span>
-                                      <span className="item-card-days" title={statusInfo.label}>
-                                        {tag.days}d
-                                      </span>
+                                        ali: "3/5 un" é a conta que o balcão faz */}
+                                    <div
+                                      className="item-card-qty"
+                                      title={item.producedQty > 0
+                                        ? `${item.currentQty} na vitrine, de um lote de ${item.producedQty} ${item.unit}`
+                                        : `${item.currentQty} ${item.unit} na vitrine`}
+                                    >
+                                      <QtyOfBatch
+                                        qty={item.currentQty}
+                                        produced={item.producedQty || 0}
+                                        unit={item.unit}
+                                        big
+                                      />
                                     </div>
 
                                     <ItemActions
