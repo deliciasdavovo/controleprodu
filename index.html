@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-26-validade-amarela-1" />
+    <meta name="app-version" content="2026-08-27-clique-duplo-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2502,6 +2502,51 @@
       };
 
       // ==========================================
+      // O CLIQUE QUE SAIU DUAS VEZES
+      //
+      // A mão acostumada ao computador clica duas vezes em tudo, e o dedo no
+      // celular repete o toque sem querer. Onde um clique já registra venda,
+      // perda ou lançamento, o segundo clique colado no primeiro vira uma
+      // baixa que ninguém fez — e, quando a tela já andou para o próximo item,
+      // ele ainda cai no item errado.
+      //
+      // Meio segundo é o limite: abaixo disso é o mesmo gesto, e não conta;
+      // acima, é a pessoa pedindo de novo, e aí conta.
+      // ==========================================
+      const CLIQUE_REPETIDO_MS = 500;
+
+      // O guarda de cada botão não alcança o clique duplo que cai fora dele:
+      // some a barrinha do desfazer entre um clique e outro, e o segundo vai
+      // parar no botão que ficou embaixo do ponteiro — uma venda que ninguém
+      // pediu, no item que estava ali atrás.
+      //
+      // Por isso o segundo clique de um gesto só vale no mesmo elemento do
+      // primeiro. Caiu em outro, foi a tela que andou, e ele morre aqui, na
+      // captura, antes de chegar a qualquer botão. Clique repetido no mesmo
+      // lugar continua passando: é assim que se sobe a quantidade nos +/−.
+      let ultimoAlvoClicado = null;
+      document.addEventListener('click', (e) => {
+        const mesmoAlvo = e.target === ultimoAlvoClicado;
+        ultimoAlvoClicado = e.target;
+        if (e.detail > 1 && !mesmoAlvo) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }, true);
+
+      // O horário do último clique fica em um ref, e não em estado: o segundo
+      // clique chega antes de qualquer render.
+      const useCliqueUnico = (acao, ms = CLIQUE_REPETIDO_MS) => {
+        const ultimoRef = useRef(0);
+        return (...args) => {
+          const agora = Date.now();
+          if (agora - ultimoRef.current < ms) return;
+          ultimoRef.current = agora;
+          return acao(...args);
+        };
+      };
+
+      // ==========================================
       // SEGURAR O BOTÃO
       //
       // O clique curto dá a baixa rápida; segurar por um instante dá baixa no
@@ -2514,7 +2559,17 @@
         const timerRef = useRef(null);
         const disparouRef = useRef(false);
         const origemRef = useRef(null);
+        const ultimoRef = useRef(0);
         const [segurando, setSegurando] = useState(false);
+
+        // Um gesto por botão: o toque repetido sem querer e o clique duplo do
+        // mouse chegam aqui antes de a tela responder ao primeiro
+        const aceitar = () => {
+          const agora = Date.now();
+          if (agora - ultimoRef.current < CLIQUE_REPETIDO_MS) return false;
+          ultimoRef.current = agora;
+          return true;
+        };
 
         const soltar = () => {
           if (timerRef.current) clearTimeout(timerRef.current);
@@ -2532,7 +2587,7 @@
             timerRef.current = setTimeout(() => {
               disparouRef.current = true;
               setSegurando(false);
-              onLongPress();
+              if (aceitar()) onLongPress();
             }, LONG_PRESS_MS);
           },
           // O dedo que arrasta está rolando a lista, não segurando o botão
@@ -2551,6 +2606,7 @@
               disparouRef.current = false;
               return;
             }
+            if (!aceitar()) return;
             onClick();
           },
           onContextMenu: (e) => e.preventDefault()
@@ -2765,50 +2821,52 @@
         // continua igual; depois de uma baixa, é só fechar o item — e aí o
         // desfazer da última baixa continua na tela, que é onde ela ainda
         // pode ser consertada.
-        const seguir = () => {
+        // Andar na fila também é um clique só: dois seguidos pulariam um item
+        // sem ninguém ver
+        const seguir = useCliqueUnico(() => {
           if (!temBaixa) {
             responder(() => ({ tipo: 'igual' }));
             setUltima(null);
           }
           proximo();
-        };
+        });
 
-        const pular = () => {
+        const pular = useCliqueUnico(() => {
           responder(() => ({ tipo: 'pulado' }));
           setUltima(null);
           proximo();
-        };
+        });
 
-        const voltar = () => {
+        const voltar = useCliqueUnico(() => {
           setPasso('acoes');
           setIndex((i) => Math.max(0, i - 1));
-        };
+        });
 
         // Um toque tira uma unidade. Quando essa unidade é a última do
         // espaço, não sobra nada para responder e a conferência já anda.
-        const venderUm = async () => {
+        const venderUm = useCliqueUnico(async () => {
           const ultimaUnidade = item.currentQty <= 1;
           const baixa = await onRecordSale(item.id, 1);
           guardarBaixa('venda', 1, baixa);
           if (ultimaUnidade) proximo();
-        };
+        });
 
         // O motivo da perda de uma unidade entra como "vencido", que é a
         // perda do dia a dia da vitrine — igual ao toque da vitrine física.
         // Perda do lote inteiro é que pergunta o motivo.
-        const perderUm = async () => {
+        const perderUm = useCliqueUnico(async () => {
           const ultimaUnidade = item.currentQty <= 1;
           const baixa = await onRecordLoss(item.id, 1, 'vencido', '');
           guardarBaixa('perda', 1, baixa);
           if (ultimaUnidade) proximo();
-        };
+        });
 
-        const venderTudo = async () => {
+        const venderTudo = useCliqueUnico(async () => {
           const qty = item.currentQty;
           const baixa = await onRecordSale(item.id, qty);
           guardarBaixa('venda', qty, baixa);
           proximo();
-        };
+        });
 
         const perderTudo = () => {
           setSaiu(item.currentQty);
@@ -2822,7 +2880,7 @@
 
         // O que sobrou na vitrine vira a conta do que saiu — e o que saiu
         // ainda precisa dizer se foi venda ou perda
-        const confirmarContagem = () => {
+        const confirmarContagem = useCliqueUnico(() => {
           const atual = item.currentQty;
           if (restante === atual) return seguir();
           if (restante > atual) {
@@ -2834,24 +2892,24 @@
           }
           setSaiu(atual - restante);
           setPasso('destino');
-        };
+        });
 
-        const confirmarVenda = async () => {
+        const confirmarVenda = useCliqueUnico(async () => {
           const baixa = await onRecordSale(item.id, saiu);
           guardarBaixa('venda', saiu, baixa);
           proximo();
-        };
+        });
 
-        const confirmarPerda = async (motivo) => {
+        const confirmarPerda = useCliqueUnico(async (motivo) => {
           const baixa = await onRecordLoss(item.id, saiu, motivo, '');
           guardarBaixa('perda', saiu, baixa);
           proximo();
-        };
+        });
 
         // Desfazer devolve as unidades, tira a quantidade da conta do item e
         // traz a conferência de volta para ele, para a pessoa responder de
         // novo. Item que ficou sem baixa nenhuma sai da lista do fim.
-        const desfazerUltima = () => {
+        const desfazerUltima = useCliqueUnico(() => {
           if (!ultima) return;
           const alvo = fila[ultima.indice];
           onUndoBaixa(ultima.baixa);
@@ -2865,7 +2923,7 @@
           setIndex(ultima.indice);
           setPasso('acoes');
           setUltima(null);
-        };
+        });
 
         // Venda e perda contam item, não unidade: o que a pessoa quer saber
         // no fim é em quantos espaços ela mexeu
@@ -4073,18 +4131,23 @@
 
         const showcaseBlocks = groupByShowcase(filteredItems, slotOf, 'Fora das vitrines');
 
+        // O guarda fica no miolo, e não no handler: o preventDefault precisa
+        // acontecer sempre, senão o clique barrado recarrega a página
+        const alocar = useCliqueUnico(() => {
+          onQuickAllocate(quickProductName.trim(), Number(quickQty) || 1, quickDate, null, showcaseType);
+          setQuickProductName('');
+          setTimeout(() => {
+            if (productNameRef.current) productNameRef.current.focus();
+          }, 50);
+        });
+
         const handleQuickSubmit = (e) => {
           e.preventDefault();
           if (!quickProductName.trim()) {
             if (productNameRef.current) productNameRef.current.focus();
             return;
           }
-
-          onQuickAllocate(quickProductName.trim(), Number(quickQty) || 1, quickDate, null, showcaseType);
-          setQuickProductName('');
-          setTimeout(() => {
-            if (productNameRef.current) productNameRef.current.focus();
-          }, 50);
+          alocar();
         };
 
         return (
@@ -4371,12 +4434,7 @@
               : WEEK_DAYS.filter((d) => d === day || atual.includes(d))
           );
 
-        const handleSubmit = (e) => {
-          e.preventDefault();
-          if (selectedDays.length === 0) {
-            alert('Marque pelo menos um dia — ou use "Tirar do padrão" para remover o item.');
-            return;
-          }
+        const salvar = useCliqueUnico(() => {
           const ideal = Math.max(1, Number(qty) || 1);
           onSave({
             priority: prio,
@@ -4387,6 +4445,15 @@
             minQty: Math.max(0, Math.min(Math.floor(Number(min) || 0), ideal))
           });
           onClose();
+        });
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (selectedDays.length === 0) {
+            alert('Marque pelo menos um dia — ou use "Tirar do padrão" para remover o item.');
+            return;
+          }
+          salvar();
         };
 
         return (
@@ -6541,14 +6608,7 @@
           return Number.isFinite(n) ? n : NaN;
         };
 
-        const handleSubmit = (e) => {
-          e.preventDefault();
-          const quantidade = numero(qty);
-          if (!(quantidade >= 1)) {
-            alert('A quantidade precisa ser 1 ou mais. Para tirar o lançamento do histórico, use o botão de excluir.');
-            return;
-          }
-
+        const salvar = useCliqueUnico((quantidade) => {
           const tamanhoLote = loteQty.trim() === '' ? null : Math.max(0, numero(loteQty) || 0);
 
           onSave(registro.tipo, registro.id, {
@@ -6561,6 +6621,16 @@
             details: details.trim()
           });
           onClose();
+        });
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          const quantidade = numero(qty);
+          if (!(quantidade >= 1)) {
+            alert('A quantidade precisa ser 1 ou mais. Para tirar o lançamento do histórico, use o botão de excluir.');
+            return;
+          }
+          salvar(quantidade);
         };
 
         return (
@@ -7813,9 +7883,7 @@
 
         const unitItems = separatedProducts.filter((i) => i.unit === currentUnit);
 
-        const handleSubmit = (e) => {
-          e.preventDefault();
-          if (!name.trim()) return;
+        const cadastrar = useCliqueUnico(() => {
           // O id vem do banco; aqui só descrevemos o item
           onAddSeparatedProduct({
             productName: name.trim(),
@@ -7827,6 +7895,12 @@
           });
           setName('');
           setShowModal(false);
+        });
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          cadastrar();
         };
 
         return (
@@ -8007,14 +8081,9 @@
           return matchesText && matchesResponsible;
         });
 
-        const handleSubmit = (e) => {
-          e.preventDefault();
-          const nome = draft.name.trim();
-          if (!nome) {
-            if (nameRef.current) nameRef.current.focus();
-            return;
-          }
-
+        // A linha do cadastro não fecha depois de salvar, então o clique
+        // repetido cadastraria o mesmo produto duas vezes
+        const salvar = useCliqueUnico((nome) => {
           const dados = {
             name: nome,
             responsible: cleanResponsible(draft.responsible),
@@ -8036,6 +8105,16 @@
           setTimeout(() => {
             if (nameRef.current) nameRef.current.focus();
           }, 50);
+        });
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          const nome = draft.name.trim();
+          if (!nome) {
+            if (nameRef.current) nameRef.current.focus();
+            return;
+          }
+          salvar(nome);
         };
 
         return (
@@ -8309,12 +8388,16 @@
           (i) => i.productName.toLowerCase().trim() === productName.toLowerCase().trim()
         );
 
+        const colocar = useCliqueUnico((nome) => {
+          onConfirm(nome, Math.max(1, Number(qty) || 1), date, slot.id);
+          onClose();
+        });
+
         const handleSubmit = (e) => {
           e.preventDefault();
           const nome = productName.trim();
           if (!nome) return;
-          onConfirm(nome, Math.max(1, Number(qty) || 1), date, slot.id);
-          onClose();
+          colocar(nome);
         };
 
         return (
@@ -8454,11 +8537,9 @@
         const tipoDestino = produtoEscolhido ? showcaseTypeOfCategory(produtoEscolhido.category) : showcaseType;
         const temEspaco = slots.some((s) => s.unit === currentUnit && s.showcaseType === tipoDestino);
 
-        const submeter = (e) => {
-          e.preventDefault();
-          const nome = productName.trim();
-          if (!nome) return;
-
+        // A folha continua aberta depois de colocar — fornada sai em vários
+        // produtos seguidos —, então o clique repetido entraria duas vezes
+        const colocar = useCliqueUnico((nome) => {
           const quantidade = Math.max(1, Number(qty) || 1);
           onQuickAllocate(nome, quantidade, date, null, showcaseType);
 
@@ -8473,6 +8554,13 @@
           };
           setLancados((prev) => [lancado, ...prev].slice(0, 5));
           setProductName('');
+        });
+
+        const submeter = (e) => {
+          e.preventDefault();
+          const nome = productName.trim();
+          if (!nome) return;
+          colocar(nome);
         };
 
         return (
@@ -8640,7 +8728,7 @@
         const [reason, setReason] = useState('vencido');
         const [details, setDetails] = useState('');
 
-        const handleConfirm = () => {
+        const handleConfirm = useCliqueUnico(() => {
           if (qty <= 0) return;
           if (mode === 'venda') {
             onRecordSale(item.id, qty);
@@ -8648,7 +8736,7 @@
             onRecordLoss(item.id, qty, reason, details);
           }
           onClose();
-        };
+        });
 
         return (
           <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
@@ -8939,6 +9027,10 @@
           setProductionRecords(proximos);
         };
 
+        // As baixas que já voltaram atrás, para o desfazer não devolver as
+        // mesmas unidades duas vezes
+        const desfeitasRef = useRef(new Set());
+
         // Uma baixa de cada vez: gravações em paralelo poderiam chegar ao
         // banco fora de ordem e deixar o saldo do espaço errado
         const baixaQueueRef = useRef(Promise.resolve());
@@ -9208,8 +9300,13 @@
         // Recebe a baixa por parâmetro porque o desfazer aparece em dois
         // lugares: a barrinha da tela e o checklist, que guarda a última baixa
         // dele mesmo.
+        //
+        // Desfazer é uma vez só por baixa: o segundo clique na barrinha
+        // devolveria as unidades de novo, e a vitrine terminaria com mais do
+        // que tinha antes da venda.
         const desfazerBaixa = (alvo) => {
-          if (!alvo) return;
+          if (!alvo || desfeitasRef.current.has(alvo.recordId)) return;
+          desfeitasRef.current.add(alvo.recordId);
           setUndoBaixa((atual) => (atual && atual.recordId === alvo.recordId ? null : atual));
 
           enfileirarBaixa('Desfazer baixa', async () => {
