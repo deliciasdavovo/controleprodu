@@ -1920,7 +1920,10 @@
         unit: row.unit_of_measure,
         minQty: row.min_qty,
         manufactureDate: row.manufacture_date,
-        entryDate: row.entry_date
+        entryDate: row.entry_date,
+        // A hora exata da entrada: é ela que separa o rastro deste item do
+        // rastro de uma fornada igual que passou pelo espaço antes dele
+        criadoEm: row.created_at
       });
 
       const fromPlan = (row) => ({
@@ -1947,7 +1950,8 @@
         unitOfMeasure: row.unit_of_measure,
         manufactureDate: row.manufacture_date,
         exposureDays: row.exposure_days,
-        timestamp: row.sold_at
+        timestamp: row.sold_at,
+        criadoEm: row.created_at
       });
 
       const fromLoss = (row) => ({
@@ -1963,7 +1967,8 @@
         lossDate: row.loss_date,
         reason: row.reason,
         details: row.details || '',
-        slotId: row.slot_code
+        slotId: row.slot_code,
+        criadoEm: row.created_at
       });
 
       const fromProduction = (row) => ({
@@ -4393,8 +4398,8 @@
                             />
                             <button
                               onClick={() => onRemoveItem(item.id)}
-                              title="Remover item da vitrine"
-                              aria-label="Remover item da vitrine"
+                              title="Remover da vitrine e apagar os lançamentos deste item"
+                              aria-label="Remover da vitrine e apagar os lançamentos deste item"
                               className="btn w-8 h-[38px] px-0 shrink-0 rounded-xl bg-black/[0.05] hover:bg-black/[0.09] text-[#6e6e73]"
                             >
                               <Icons.Trash2 className="w-3.5 h-3.5" />
@@ -9376,14 +9381,118 @@
 
         const abrirBaixa = (item, mode = 'venda') => setDecreaseTarget({ item, mode });
 
+        // A lixeira do item é o "isso nunca aconteceu": além de tirar o produto
+        // do espaço, ela apaga o rastro que a entrada dele deixou — o
+        // lançamento de produção que o colocou na vitrine e as baixas que
+        // saíram dele. Um item lançado por engano que só sumisse da tela
+        // continuaria contando no histórico, no relatório de perdas e na conta
+        // do lote, e a loja teria de caçar lançamento por lançamento à mão.
+        //
+        // O que conta como "dele": o mesmo produto, com a mesma data de
+        // fabricação, na mesma unidade — o lote — e gravado depois que o item
+        // entrou. O corte pela hora da entrada protege a fornada anterior: um
+        // lote igual que já tinha sido vendido antes deste item chegar ao
+        // espaço não vai embora junto.
+        //
+        // A venda não guarda o espaço de onde saiu. Então, quando o mesmo lote
+        // ainda está em outro espaço da loja, as vendas ficam onde estão: não
+        // dá para saber quais eram deste espaço, e apagar as do vizinho seria
+        // pior do que deixar. A perda guarda o espaço, e essa dá para separar.
         const handleRemoveItem = (itemId) => {
           const target = slotItemsRef.current.find((i) => i.id === itemId);
-          if (!target || !window.confirm(`Remover "${target.productName}" da vitrine?`)) return;
+          if (!target) return;
+
+          const lote = toDayKey(target.manufactureDate);
+          const desde = target.criadoEm ? new Date(target.criadoEm).getTime() : 0;
+          const naUnidade = (item) => slots.some((s) => s.id === item.slotId && s.unit === currentUnit);
+
+          const doLote = (r) => r.unit === currentUnit
+            && r.productId === target.productId
+            && toDayKey(r.manufactureDate) === lote;
+          const depoisDaEntrada = (r) => !desde || (r.criadoEm ? new Date(r.criadoEm).getTime() >= desde : true);
+
+          const loteDividido = slotItemsRef.current.some(
+            (i) => i.id !== itemId
+              && i.productId === target.productId
+              && toDayKey(i.manufactureDate) === lote
+              && naUnidade(i)
+          );
+
+          const vendaDoItem = (v) => !loteDividido && doLote(v) && depoisDaEntrada(v);
+          const perdaDoItem = (l) => doLote(l) && depoisDaEntrada(l)
+            && (!loteDividido || l.slotId === target.slotId);
+
+          // O lançamento de produção deste item: mesmo espaço, mesmo lote. Cada
+          // alocação grava um item e um lançamento no mesmo instante, então,
+          // quando o produto entrou duas vezes no dia no mesmo espaço, vale o
+          // lançamento mais perto da hora em que este item entrou.
+          const candidatos = productionRecordsRef.current.filter(
+            (p) => doLote(p) && p.slotId === target.slotId
+          );
+          const distancia = (p) => Math.abs(new Date(p.timestamp || 0).getTime() - desde);
+          const producao = candidatos.length === 0
+            ? null
+            : candidatos.reduce((perto, p) => (distancia(p) < distancia(perto) ? p : perto));
+
+          const vendas = saleRecords.filter(vendaDoItem);
+          const perdas = lossRecords.filter(perdaDoItem);
+          const soma = (lista) => lista.reduce((total, r) => total + r.qty, 0);
+          const conta = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
+
+          const oQueSai = [
+            producao && `o lançamento de ${producao.qty} ${producao.unitOfMeasure} na produção`,
+            vendas.length > 0 && `${conta(vendas.length, 'venda', 'vendas')} de ${soma(vendas)} ${target.unit}`,
+            perdas.length > 0 && `${conta(perdas.length, 'perda', 'perdas')} de ${soma(perdas)} ${target.unit}`
+          ].filter(Boolean);
+
+          const aviso = [`Remover "${target.productName}" da vitrine?`];
+          if (oQueSai.length > 0) {
+            aviso.push(`Sai também do histórico: ${oQueSai.join(', ')}. Fica como se este item nunca tivesse entrado na vitrine.`);
+          }
+          if (loteDividido) {
+            aviso.push('As vendas desta fornada continuam no histórico: o mesmo produto, do mesmo lote, ainda está em outro espaço da loja.');
+          }
+          if (!window.confirm(aviso.join('\n\n'))) return;
 
           aplicarSlotItems(slotItemsRef.current.filter((i) => i.id !== itemId));
-          enfileirarBaixa('Remover item da vitrine', () =>
-            run('slot_items', sb.from('slot_items').delete().eq('id', itemId))
-          );
+          if (producao) aplicarProducao(productionRecordsRef.current.filter((p) => p.id !== producao.id));
+          if (vendas.length > 0) setSaleRecords((prev) => prev.filter((v) => !vendaDoItem(v)));
+          if (perdas.length > 0) setLossRecords((prev) => prev.filter((l) => !perdaDoItem(l)));
+
+          // O "Desfazer" da última baixa não sobrevive ao item: ele devolveria
+          // unidades a um espaço que não existe mais e apagaria um registro que
+          // já foi embora junto com o lote
+          const apagadas = new Set([...vendas, ...perdas].map((r) => r.id));
+          apagadas.forEach((id) => desfeitasRef.current.add(id));
+          setUndoBaixa((atual) => (atual && (atual.item.id === itemId || apagadas.has(atual.recordId)) ? null : atual));
+
+          enfileirarBaixa('Remover item da vitrine', async () => {
+            await run('slot_items', sb.from('slot_items').delete().eq('id', itemId));
+
+            if (producao) {
+              await run('production_records', sb.from('production_records').delete().eq('id', producao.id));
+            }
+
+            // As baixas saem por filtro, e não pela lista da tela: a tela carrega
+            // as últimas 500 de cada tabela, e uma baixa mais velha que isso
+            // continuaria no banco depois de o item ter sido apagado
+            const doLoteNoBanco = (query) => {
+              const filtrado = query
+                .eq('unit_code', currentUnit)
+                .eq('product_id', target.productId)
+                .eq('manufacture_date', target.manufactureDate);
+              return target.criadoEm ? filtrado.gte('created_at', target.criadoEm) : filtrado;
+            };
+
+            if (!loteDividido) {
+              await run('vendas do item', doLoteNoBanco(sb.from('sale_records').delete()));
+            }
+
+            const perdasDoLote = doLoteNoBanco(sb.from('loss_records').delete());
+            await run('perdas do item', loteDividido
+              ? perdasDoLote.eq('slot_code', target.slotId)
+              : perdasDoLote);
+          });
         };
 
         // slotId vindo da vitrine física manda o produto para aquele espaço,
