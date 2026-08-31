@@ -59,6 +59,9 @@
         --ink-4: #86868b;   /* Terciário / legendas */
         --hairline: rgba(60, 60, 67, 0.12);
         --accent: #0E0937;
+        /* O roxo da casa lavado, para o selo quieto que anda na mesma
+           família do cheio */
+        --accent-soft: rgba(14, 9, 55, 0.085);
 
         /* ==========================================
            AS CORES DE ESTADO — UMA PALETA SÓ
@@ -679,6 +682,63 @@
       .dot-last    { background: var(--last); }
       .dot-expired { background: var(--expired); }
       .dot-quiet   { background: var(--quiet); }
+
+      /* ==========================================
+         O SELO DA FREQUÊNCIA — O FIXO E O QUE VARIA
+
+         O padrão tem duas naturezas de item e elas nunca se pareceram na
+         tela: o FIXO, que entra todo dia e é a espinha da semana, e o que
+         VARIA, que entra só em alguns dias e acompanha o movimento. Isso
+         estava escrito em cinza pequeno ("Todo dia", "3 dias"), então quem
+         olhava a grade tinha que parar e ler linha por linha.
+
+         A cor aqui não é de estado: verde, amarelo e vinho continuam falando
+         só de fresco, último dia e perda. A frequência anda na cor da casa —
+         o roxo do --accent — em duas intensidades: cheia no fixo, lavada no
+         que varia. É a mesma família, então o selo não briga com a paleta de
+         estado, e o contraste entre o cheio e o lavado continua de pé em
+         preto e branco.
+         ========================================== */
+      .freq {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        border-radius: 980px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: -0.005em;
+        white-space: nowrap;
+      }
+      .freq[data-fixo="fixo"]  { background: var(--accent); color: #fff; }
+      .freq[data-fixo="varia"] { background: var(--accent-soft); color: var(--accent); }
+      /* Item que não entra em dia nenhum não é nem um nem outro: fica fora
+         da cor, senão a ausência pareceria uma das duas naturezas */
+      .freq[data-fixo="fora"]  { background: rgba(0, 0, 0, 0.05); color: var(--ink-4); }
+      .freq-nome { overflow: hidden; text-overflow: ellipsis; }
+
+      /* A semana em sete traços, na ordem de segunda a domingo: o traço aceso
+         é o dia em que o item entra. O fixo sai com a barra inteira acesa; o
+         que varia sai com o desenho dos dias dele, e dois itens de dias
+         diferentes ficam diferentes à distância, sem precisar ler. */
+      .freq-semana { display: inline-flex; gap: 2px; flex-shrink: 0; }
+      .freq-dia {
+        width: 3px;
+        height: 10px;
+        border-radius: 1.5px;
+        background: currentColor;
+        opacity: 0.26;
+      }
+      .freq-dia[data-on="true"] { opacity: 1; }
+
+      /* Na tabela da semana o fio da esquerda repete a natureza do item, para
+         a linha inteira já chegar classificada ao olho */
+      .week-table td[data-natureza="fixo"]  { box-shadow: inset 3px 0 0 var(--accent); }
+      /* O lavado do selo é claro demais para virar fio de 3px: o fio do que
+         varia sai do mesmo roxo, um pouco mais firme, para as duas naturezas
+         terem fio e a linha sem fio não parecer um item sem classificação */
+      .week-table td[data-natureza="varia"] { box-shadow: inset 3px 0 0 rgba(14, 9, 55, 0.20); }
 
       /* O contador de avisos da barra de navegação: cor cheia, creme por cima */
       .badge-expired { background: var(--expired); color: var(--expired-on); }
@@ -2377,6 +2437,43 @@
           )}
         </>
       );
+
+      // ==========================================
+      // O SELO DA FREQUÊNCIA
+      //
+      // Diz, em um relance, a natureza do item dentro do padrão: FIXO, o que
+      // entra todo dia e a cozinha faz sempre, ou VARIA, o que entra só em
+      // alguns dias. O nome continua escrito — "Todo dia", "Seg · Qua",
+      // "3 dias" —, mas agora chega pintado, e com a semana desenhada em sete
+      // traços quando há espaço para ela.
+      // ==========================================
+      const NATUREZA_TITULO = {
+        fixo: 'Fixo — entra todo dia da semana',
+        fora: 'Fora do padrão — não entra em dia nenhum'
+      };
+
+      const naturezaDeFrequencia = (dias) =>
+        dias.length >= WEEK_DAYS.length ? 'fixo' : dias.length === 0 ? 'fora' : 'varia';
+
+      const SeloFrequencia = ({ dias, semana = false, className = '' }) => {
+        const natureza = naturezaDeFrequencia(dias);
+        return (
+          <span
+            className={`freq ${className}`}
+            data-fixo={natureza}
+            title={NATUREZA_TITULO[natureza] || `Varia — entra em: ${frequencyTitle(dias)}`}
+          >
+            <span className="freq-nome">{frequencyLabel(dias)}</span>
+            {semana && (
+              <span className="freq-semana" aria-hidden="true">
+                {WEEK_DAYS.map((d) => (
+                  <span key={d} className="freq-dia" data-on={dias.includes(d)} />
+                ))}
+              </span>
+            )}
+          </span>
+        );
+      };
 
       // ==========================================
       // NAVBAR COMPONENT
@@ -4677,6 +4774,10 @@
         const [busca, setBusca] = useState('');
         const [ordem, setOrdem] = useState('total');
         const [campo, setCampo] = useState('padrao');
+        // O que a grade mostra: a semana inteira, só os fixos (a rotina que
+        // não muda) ou só os que variam (o que a loja mexe conforme o
+        // movimento). Ver um sem o outro é o jeito de conferir cada natureza
+        const [natureza, setNatureza] = useState('todas');
         const [copiado, setCopiado] = useState(false);
 
         const editandoMinimo = campo === 'minimo';
@@ -4737,6 +4838,7 @@
             return {
               ...linha,
               prioridade: linha.prioridade || DEFAULT_PRIORITY,
+              diasDoItem,
               diasAtivos,
               freqLabel: frequencyLabel(diasDoItem),
               freqTitle: frequencyTitle(diasDoItem),
@@ -4749,7 +4851,9 @@
 
         const visiveis = useMemo(() => {
           const termo = normalizeName(busca);
-          const lista = termo ? linhas.filter((l) => normalizeName(l.nome).includes(termo)) : linhas;
+          let lista = termo ? linhas.filter((l) => normalizeName(l.nome).includes(termo)) : linhas;
+          if (natureza === 'fixos') lista = lista.filter((l) => l.todoDia);
+          else if (natureza === 'variam') lista = lista.filter((l) => !l.todoDia);
           return [...lista].sort((a, b) => {
             if (ordem === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR');
             // Por importância: a letra primeiro e, dentro dela, quem entra em
@@ -4766,7 +4870,12 @@
             }
             return b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR');
           });
-        }, [linhas, busca, ordem]);
+        }, [linhas, busca, ordem, natureza]);
+
+        // Quantos itens de cada natureza o padrão tem — o número que resume a
+        // semana antes de a grade ser lida
+        const totalFixos = useMemo(() => linhas.filter((l) => l.todoDia).length, [linhas]);
+        const totalVariam = linhas.length - totalFixos;
 
         // A leitura de baixo acompanha o que está sendo editado: somar padrão
         // com a grade do mínimo na tela daria um total que não é de nada
@@ -4824,6 +4933,14 @@
                 <p className="t-caption mt-1">
                   {linhas.length} produtos no padrão · {WEEK_DAYS.reduce((acc, d) => acc + (totalPorDia[d] || 0), 0)} un na semana
                 </p>
+                {/* A conta das duas naturezas, na mesma cor dos selos da
+                    grade: o olho aprende a cor aqui em cima e já desce lendo */}
+                {linhas.length > 0 && (
+                  <p className="t-caption mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span className="freq" data-fixo="fixo">{totalFixos} fixos</span>
+                    <span className="freq" data-fixo="varia">{totalVariam} variam</span>
+                  </p>
+                )}
                 <p className="t-caption mt-0.5">
                   {campoAtual.hint}
                 </p>
@@ -4874,6 +4991,26 @@
                     </div>
                   </div>
 
+                  {/* Mostrar só uma das naturezas. O fixo é a rotina que a
+                      cozinha faz sempre; o que varia é o que muda com o
+                      movimento da semana */}
+                  <div className="flex items-center gap-2">
+                    <span className="t-caption">Mostrar</span>
+                    <div className="segmented">
+                      <button onClick={() => setNatureza('todas')} data-active={natureza === 'todas'}>
+                        Tudo
+                      </button>
+                      <button onClick={() => setNatureza('fixos')} data-active={natureza === 'fixos'}
+                              title="Só os itens que entram todo dia da semana">
+                        Fixos
+                      </button>
+                      <button onClick={() => setNatureza('variam')} data-active={natureza === 'variam'}
+                              title="Só os itens que entram em alguns dias">
+                        Variam
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <span className="t-caption">Ordenar</span>
                     <div className="segmented">
@@ -4899,7 +5036,13 @@
                   <p className="t-body text-center py-10">
                     {linhas.length === 0
                       ? 'Nenhum item no padrão ainda — monte a vitrine de um dia para a semana aparecer aqui.'
-                      : 'Nenhum produto com esse nome.'}
+                      : busca.trim()
+                        ? 'Nenhum produto com esse nome.'
+                        : natureza === 'fixos'
+                          ? 'Nenhum item entra todo dia da semana.'
+                          : natureza === 'variam'
+                            ? 'Todos os itens do padrão entram todo dia.'
+                            : 'Nenhum produto com esse nome.'}
                   </p>
                 ) : (
                   <div className="mt-3 overflow-x-auto">
@@ -4918,7 +5061,7 @@
                             P
                           </th>
                           <th className="text-left t-overline font-bold px-2.5 py-2 border-b border-r hairline whitespace-nowrap"
-                              title="Em quantos dias da semana o item entra no padrão">
+                              title="Em que dias da semana o item entra no padrão. Roxo cheio: fixo, entra todo dia. Roxo lavado: varia, entra só em alguns — e os sete traços mostram quais">
                             Freq.
                           </th>
                           {WEEK_DAYS.map((day) => (
@@ -4951,7 +5094,8 @@
                           <tr key={linha.id} className="border-b hairline">
                             <td
                               data-sticky="true"
-                              className="sticky left-0 z-10 px-2.5 py-1.5 border-r hairline w-[136px] sm:w-[240px] max-w-[136px] sm:max-w-[240px]"
+                              data-natureza={linha.todoDia ? 'fixo' : 'varia'}
+                              className="sticky left-0 z-10 pl-3 pr-2.5 py-1.5 border-r hairline w-[136px] sm:w-[240px] max-w-[136px] sm:max-w-[240px]"
                               style={{ background: 'var(--bg-surface)' }}
                             >
                               <p className="font-semibold text-[#1d1d1f] truncate" title={linha.nome}>
@@ -4969,13 +5113,8 @@
                                 title={getPriority(linha.prioridade).title}>
                               {linha.prioridade}
                             </td>
-                            <td
-                              className={`px-2.5 py-1.5 border-r hairline whitespace-nowrap text-[12px] ${
-                                linha.todoDia ? 'text-[#1d1d1f] font-semibold' : 'text-[#86868b]'
-                              }`}
-                              title={`${linha.nome} entra em: ${linha.freqTitle}`}
-                            >
-                              {linha.freqLabel}
+                            <td className="px-2.5 py-1.5 border-r hairline whitespace-nowrap">
+                              <SeloFrequencia dias={linha.diasDoItem} semana />
                             </td>
 
                             {WEEK_DAYS.map((day) => {
@@ -5369,15 +5508,19 @@
                               <div className="flex items-center justify-between gap-1.5 mt-1.5 min-h-[32px]">
                                 {planItem ? (
                                   <>
+                                    {/* A letra e a frequência do espaço. A
+                                        frequência vem pintada: roxo cheio é o
+                                        fixo de todo dia, roxo lavado é o que
+                                        entra só em alguns — dá para varrer a
+                                        vitrine e ver o que é rotina sem ler */}
                                     <button
                                       type="button"
                                       onClick={organizar}
                                       title={`${prio.title} · ${frequencyTitle(dias)} — clique para mudar`}
-                                      className="text-[11px] text-left truncate min-w-0 text-[#86868b] hover:text-[#1d1d1f] transition-colors"
+                                      className="flex items-center gap-1.5 text-[11px] text-left min-w-0 opacity-90 hover:opacity-100 transition-opacity"
                                     >
-                                      <span className="font-bold text-[#6e6e73]">{prio.value}</span>
-                                      {' · '}
-                                      {frequencyLabel(dias)}
+                                      <span className="font-bold text-[#6e6e73] shrink-0">{prio.value}</span>
+                                      <SeloFrequencia dias={dias} />
                                     </button>
 
                                     <div className="flex items-center gap-0.5 shrink-0">
