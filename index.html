@@ -853,6 +853,119 @@
         border: 1px solid transparent;
         transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
       }
+      /* ==========================================
+         O MAPA DAS VITRINES
+
+         A tabela da semana responde "quanto", espaço por espaço não responde
+         "o quê": para saber o desenho da vitrine — o que ocupa o espaço 3 na
+         terça, e se é o mesmo da segunda — era preciso abrir dia por dia e
+         guardar de cabeça.
+
+         O mapa é a planilha que a loja já desenha na mão: uma linha por
+         espaço, uma coluna por dia, o nome do produto dentro. Dias seguidos
+         com o mesmo produto viram uma faixa só, então o espaço que não muda
+         sai como uma barra inteira e o que troca sai picotado — o desenho da
+         semana aparece antes de qualquer leitura.
+
+         As cores aqui são de IDENTIDADE, e não de estado: elas só separam um
+         produto do outro dentro da mesma linha, e por isso ficam longe do
+         verde, do amarelo e do vinho da loja, que continuam querendo dizer
+         fresco, último dia e perda. O primeiro tom é o índigo da casa, que é
+         o que o espaço fixo veste.
+         ========================================== */
+      :root {
+        --mapa-0-bg: rgba(14, 9, 55, 0.10);    --mapa-0-ink: #0E0937;
+        --mapa-1-bg: rgba(11, 107, 112, 0.16); --mapa-1-ink: #075256;
+        --mapa-2-bg: rgba(109, 59, 158, 0.15); --mapa-2-ink: #562C80;
+        --mapa-3-bg: rgba(63, 71, 86, 0.16);   --mapa-3-ink: #333A47;
+      }
+
+      .mapa {
+        display: grid;
+        grid-template-columns: 46px repeat(7, minmax(62px, 1fr));
+        gap: 2px;
+        align-items: stretch;
+        min-width: 600px;
+      }
+
+      .mapa-dia {
+        border-radius: 9px;
+        padding: 5px 4px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--ink-4);
+        text-align: center;
+        transition: background-color .14s ease, color .14s ease;
+      }
+      .mapa-dia:hover { color: var(--ink-1); background: rgba(0, 0, 0, 0.04); }
+      .mapa-dia[data-hoje="true"] { color: #fff; background: var(--accent); }
+
+      /* O número do espaço, com o fio da natureza da linha: índigo cheio no
+         espaço que não muda a semana inteira, apagado no que troca */
+      .mapa-espaco {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 5px;
+        padding-right: 7px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--ink-4);
+        font-variant-numeric: tabular-nums;
+      }
+      .mapa-espaco::before {
+        content: '';
+        width: 3px;
+        align-self: stretch;
+        margin: 3px 0;
+        border-radius: 2px;
+        background: transparent;
+      }
+      .mapa-espaco[data-natureza="fixo"]::before  { background: var(--accent); }
+      .mapa-espaco[data-natureza="varia"]::before { background: rgba(14, 9, 55, 0.20); }
+
+      /* Uma faixa é uma corrida de dias seguidos com o mesmo produto. Ela
+         atravessa as colunas desses dias, do jeito que a planilha da loja
+         junta as células */
+      .mapa-faixa {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 1px;
+        min-width: 0;
+        min-height: 32px;
+        padding: 4px 8px;
+        border-radius: 9px;
+        text-align: left;
+        transition: filter .14s ease;
+      }
+      .mapa-faixa:hover { filter: brightness(0.955); }
+      .mapa-faixa[data-tom="0"] { background: var(--mapa-0-bg); color: var(--mapa-0-ink); }
+      .mapa-faixa[data-tom="1"] { background: var(--mapa-1-bg); color: var(--mapa-1-ink); }
+      .mapa-faixa[data-tom="2"] { background: var(--mapa-2-bg); color: var(--mapa-2-ink); }
+      .mapa-faixa[data-tom="3"] { background: var(--mapa-3-bg); color: var(--mapa-3-ink); }
+      /* Espaço sem produto no dia não ganha cor: o vazio tem que parecer vazio */
+      .mapa-faixa[data-vazio="true"] {
+        background: transparent;
+        border: 1px dashed var(--hairline);
+        color: var(--quiet);
+        font-weight: 600;
+      }
+      .mapa-faixa[data-vazio="true"]:hover { filter: none; background: rgba(0, 0, 0, 0.02); }
+
+      .mapa-nome {
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mapa-qtd { font-size: 10px; font-weight: 700; line-height: 1.15; opacity: 0.6; }
+
+      /* O título da vitrine, atravessando a grade inteira */
+      .mapa-vitrine { grid-column: 1 / -1; padding: 11px 0 2px; }
+
       .qty-cell:hover { background: rgba(0, 0, 0, 0.04); }
       .qty-cell:focus {
         outline: none;
@@ -5210,6 +5323,221 @@
       };
 
       // ==========================================
+      // O MAPA DAS VITRINES
+      //
+      // O desenho da semana inteira em uma folha só: uma linha por espaço,
+      // uma coluna por dia, o nome do produto dentro da célula. É a planilha
+      // que a loja já desenhava na mão para saber o que vai em cada quina do
+      // móvel em cada dia.
+      //
+      // Dias seguidos com o mesmo produto viram uma faixa só, que atravessa
+      // as colunas desses dias. O espaço que não muda a semana inteira sai
+      // como uma barra de ponta a ponta; o que troca sai picotado, cada
+      // produto no seu tom. O desenho aparece antes da leitura.
+      // ==========================================
+      const MAPA_TONS = 4;
+
+      const ShowcaseMap = ({
+        currentUnit,
+        slots,
+        products,
+        standardPlans,
+        selectedDay,
+        onSelectDay
+      }) => {
+        const [aberto, setAberto] = useState(true);
+
+        const productById = useMemo(() => {
+          const mapa = {};
+          products.forEach((p) => { mapa[p.id] = p; });
+          return mapa;
+        }, [products]);
+
+        // O que cada espaço recebe em cada dia: espaço → dia → item do padrão
+        const planoPorEspaco = useMemo(() => {
+          const mapa = {};
+          standardPlans
+            .filter((sp) => sp.unit === currentUnit)
+            .forEach((sp) => {
+              if (!mapa[sp.slotId]) mapa[sp.slotId] = {};
+              mapa[sp.slotId][sp.dayOfWeek] = { productId: sp.productId, qty: sp.idealQty || 0 };
+            });
+          return mapa;
+        }, [standardPlans, currentUnit]);
+
+        const vitrines = useMemo(() => {
+          const unitSlots = slots.filter((s) => s.unit === currentUnit);
+          const blocos = groupByShowcase(unitSlots, (slot) => slot);
+
+          blocos.forEach((bloco) => {
+            bloco.entries.sort((a, b) => a.slotNumber - b.slotNumber);
+
+            bloco.linhas = bloco.entries.map((slot) => {
+              const porDia = planoPorEspaco[slot.id] || {};
+
+              // O tom sai da ordem de quem ocupa mais dias do espaço: o
+              // produto principal da linha fica sempre com o índigo da casa,
+              // e quem entra só de vez em quando é que muda de cor
+              const contagem = new Map();
+              WEEK_DAYS.forEach((day) => {
+                const entrada = porDia[day];
+                if (entrada) contagem.set(entrada.productId, (contagem.get(entrada.productId) || 0) + 1);
+              });
+              const tomDe = {};
+              [...contagem.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([productId], i) => { tomDe[productId] = i % MAPA_TONS; });
+
+              // Dias seguidos com o mesmo produto viram uma faixa só
+              const faixas = [];
+              WEEK_DAYS.forEach((day) => {
+                const entrada = porDia[day];
+                const productId = entrada ? entrada.productId : null;
+                const ultima = faixas[faixas.length - 1];
+                if (ultima && ultima.productId === productId) {
+                  ultima.dias.push(day);
+                  ultima.qtys.push(entrada ? entrada.qty : 0);
+                } else {
+                  faixas.push({ productId, dias: [day], qtys: [entrada ? entrada.qty : 0] });
+                }
+              });
+
+              const diasOcupados = WEEK_DAYS.filter((day) => porDia[day]).length;
+              const natureza = contagem.size === 0
+                ? 'vazio'
+                : (contagem.size === 1 && diasOcupados === WEEK_DAYS.length) ? 'fixo' : 'varia';
+
+              return { slot, faixas, tomDe, natureza, produtos: contagem.size };
+            });
+          });
+
+          return blocos;
+        }, [slots, currentUnit, planoPorEspaco]);
+
+        const linhas = useMemo(() => vitrines.flatMap((v) => v.linhas), [vitrines]);
+        const fixos = linhas.filter((l) => l.natureza === 'fixo').length;
+        const variam = linhas.filter((l) => l.natureza === 'varia').length;
+
+        return (
+          <div className="card p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="t-overline flex items-center gap-1.5 mb-1.5">
+                  <Icons.LayoutGrid className="w-3.5 h-3.5" />
+                  Mapeamento das vitrines
+                </div>
+                <h3 className="t-title text-[#1d1d1f]">O desenho da semana</h3>
+                <p className="t-caption mt-1">
+                  Um espaço por linha, um dia por coluna. Dias seguidos com o mesmo produto viram
+                  uma faixa só — clique nela para editar aquele dia.
+                </p>
+                {linhas.length > 0 && (
+                  <p className="t-caption mt-1.5 flex items-center gap-1.5 flex-wrap">
+                    <span className="freq" data-fixo="fixo">{fixos} espaços fixos</span>
+                    <span className="freq" data-fixo="varia">{variam} trocam na semana</span>
+                  </p>
+                )}
+              </div>
+
+              <button onClick={() => setAberto(!aberto)} className="btn btn-secondary btn-sm shrink-0">
+                {aberto ? 'Esconder' : 'Mostrar'}
+              </button>
+            </div>
+
+            {aberto && (
+              linhas.length === 0 ? (
+                <p className="t-body text-center py-10">
+                  Nenhum espaço cadastrado nesta unidade ainda.
+                </p>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <div className="mapa">
+                    <span />
+                    {WEEK_DAYS.map((day) => (
+                      <button
+                        key={day}
+                        onClick={() => onSelectDay(day)}
+                        data-hoje={selectedDay === day}
+                        className="mapa-dia"
+                        title={`Editar a vitrine de ${getDayNameBR(day)}`}
+                      >
+                        {getDayShortBR(day)}
+                      </button>
+                    ))}
+
+                    {vitrines.map((vitrine) => (
+                      <React.Fragment key={vitrine.key}>
+                        <div className="mapa-vitrine">
+                          <span className="t-overline">{vitrine.title}</span>
+                        </div>
+
+                        {vitrine.linhas.map((linha) => (
+                          <React.Fragment key={linha.slot.id}>
+                            <span
+                              className="mapa-espaco"
+                              data-natureza={linha.natureza}
+                              title={
+                                linha.natureza === 'fixo'
+                                  ? `Espaço ${linha.slot.slotNumber} — o mesmo produto a semana inteira`
+                                  : linha.natureza === 'varia'
+                                    ? `Espaço ${linha.slot.slotNumber} — ${linha.produtos} produtos se revezam na semana`
+                                    : `Espaço ${linha.slot.slotNumber} — livre a semana inteira`
+                              }
+                            >
+                              {linha.slot.slotNumber}
+                            </span>
+
+                            {linha.faixas.map((faixa) => {
+                              const produto = faixa.productId ? productById[faixa.productId] : null;
+                              const nome = faixa.productId
+                                ? (produto?.name || 'Produto removido')
+                                : 'livre';
+                              // A quantidade só aparece quando é a mesma em
+                              // todos os dias da faixa: uma faixa com números
+                              // diferentes por dia mostraria um deles como se
+                              // valesse para todos
+                              const mesmaQtd = faixa.qtys.every((q) => q === faixa.qtys[0]);
+                              const dias = faixa.dias.map(getDayShortBR).join(', ');
+
+                              return (
+                                <button
+                                  key={faixa.dias[0]}
+                                  type="button"
+                                  onClick={() => onSelectDay(faixa.dias[0])}
+                                  style={{ gridColumn: `span ${faixa.dias.length}` }}
+                                  className="mapa-faixa"
+                                  data-tom={faixa.productId ? linha.tomDe[faixa.productId] : undefined}
+                                  data-vazio={!faixa.productId}
+                                  title={
+                                    faixa.productId
+                                      ? `${nome} · espaço ${linha.slot.slotNumber} · ${dias}${
+                                          mesmaQtd
+                                            ? ` — ${faixa.qtys[0]} un por dia`
+                                            : ` — ${faixa.dias.map((d, i) => `${getDayShortBR(d)} ${faixa.qtys[i]}`).join(', ')}`
+                                        }`
+                                      : `Espaço ${linha.slot.slotNumber} livre em ${dias}`
+                                  }
+                                >
+                                  <span className="mapa-nome">{nome}</span>
+                                  {faixa.productId && mesmaQtd && faixa.qtys[0] > 0 && (
+                                    <span className="mapa-qtd tnum">{faixa.qtys[0]} un</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
       // STANDARD SHOWCASE VIEW (Vitrine Padrão)
       //
       // Uma grade por vitrine, uma embaixo da outra, no desenho do móvel de
@@ -5560,6 +5888,15 @@
                 );
               })}
             </div>
+
+            <ShowcaseMap
+              currentUnit={currentUnit}
+              slots={slots}
+              products={products}
+              standardPlans={standardPlans}
+              selectedDay={selectedDay}
+              onSelectDay={onSelectDay}
+            />
 
             <WeeklyPlanTable
               currentUnit={currentUnit}
