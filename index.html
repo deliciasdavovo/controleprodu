@@ -4055,20 +4055,28 @@
       // ==========================================
       // VITRINE FÍSICA
       // ==========================================
-      // A vitrine aberta em forma de lista: um cartão por vitrine e, dentro
-      // dele, uma linha por item — do mais velho para o mais novo. Quem confere
-      // começa por cima e vai descendo, que é a ordem em que o balcão gira: o
-      // que está há mais tempo exposto sai primeiro, e o que venceu nunca fica
-      // escondido no meio.
+      // Um cartão por móvel e, dentro dele, os lotes que estão expostos. O
+      // mesmo móvel se lê de duas maneiras, e a loja escolhe qual:
       //
-      // Em que espaço do móvel o item está não entra aqui: quem procura na
-      // vitrine acha pelo nome, e a lista fica limpa. Do móvel fica só o que
-      // tem dentro e a porcentagem do padrão de hoje, no alto do cartão.
+      //   Por espaço — a vitrine desenhada como ela está no balcão: o espaço 3
+      //   no lugar do espaço 3, o vazio apagado chamando o produto que falta.
+      //   É o mapa: serve para achar o produto e ver onde tem buraco.
       //
-      // O desenho é o mesmo do pedido de produção: um cartão por móvel e, dentro
-      // dele, uma linha por item. Só a quantidade muda de lugar — no pedido ela
-      // é uma bolinha na ponta direita; aqui ela vem escrita na frente do nome,
-      // porque na conferência o número é a primeira coisa que se lê.
+      //   Por idade — os mesmos lotes enfileirados do mais velho para o mais
+      //   novo, com o número do espaço escrito em cada cartão. É a ordem em
+      //   que o balcão gira: o que está há mais tempo exposto sai primeiro.
+      //
+      // A grade por espaço não responde "o que sai primeiro": quem manda na
+      // posição é o número do espaço, então a idade fica espalhada pelo móvel
+      // e só aparece caçando data cartão por cartão. Por isso a fila por idade
+      // existe — e por isso ela não substitui o mapa, porque o mapa é o que
+      // diz onde a mão vai pegar. Nos dois modos o espaço vazio continua na
+      // tela: por espaço no lugar dele, por idade no fim da fila, para colocar
+      // produto seguir a um toque.
+      //
+      // A quantidade vem escrita na frente do nome, e não numa bolinha na
+      // ponta como no pedido de produção: na conferência o número é a primeira
+      // coisa que se lê.
       //
       // A quantidade é de leitura: nesta tela ela só muda por venda ou perda,
       // que é o que de fato acontece no balcão. Acerto de contagem é conversa
@@ -4090,6 +4098,21 @@
         };
 
         const compacto = densidade === 'compacto';
+
+        // Por espaço ou por idade: o mapa do balcão ou a fila de saída. A
+        // escolha fica no aparelho, junto com o tamanho do cartão — as duas
+        // são de quem está olhando, e não da loja: quem repõe quer o mapa,
+        // quem confere validade quer a fila.
+        const [ordem, setOrdem] = useState(() =>
+          lerPreferencia('ordemVitrine', 'espaco') === 'idade' ? 'idade' : 'espaco'
+        );
+
+        const escolherOrdem = (valor) => {
+          setOrdem(valor);
+          guardarPreferencia('ordemVitrine', valor);
+        };
+
+        const porIdade = ordem === 'idade';
 
         const dayPlans = useMemo(
           () => standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === dayOfWeek),
@@ -4166,11 +4189,45 @@
           });
         }, [unitSlots, slotItems, dayPlans]);
 
+        // As células que a grade de um móvel desenha, já na ordem da tela.
+        //
+        // Por espaço, uma célula por espaço, com os lotes daquele espaço
+        // dentro dela — é o balcão como ele é.
+        //
+        // Por idade, uma célula por lote, do mais velho para o mais novo, e
+        // os espaços vazios no fim: eles não têm data para entrar na fila,
+        // mas continuam sendo o buraco que precisa ser preenchido, e sumir
+        // com eles seria tirar da tela o "Vazio" que coloca produto. Lote
+        // que divide espaço com outro ganha célula própria aqui, porque na
+        // fila quem está sendo enfileirado é o lote, e não o espaço.
+        const celulasDo = (bloco) => (
+          porIdade
+            ? [
+                ...bloco.linhas.map(({ item, slot }, i) => ({
+                  key: item.id, slot, itens: [item], posicao: i + 1
+                })),
+                ...bloco.livres.map((slot) => ({ key: slot.id, slot, itens: [] }))
+              ]
+            : bloco.espacos.map((slot) => ({
+                key: slot.id,
+                slot,
+                itens: bloco.linhas.filter((l) => l.slot.id === slot.id).map((l) => l.item)
+              }))
+        );
+
         return (
           <div className="space-y-4">
             <div className="card-flat p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="t-headline text-[#1d1d1f]">Vitrine física</h2>
+                {/* Duas linhas, e não uma frase corrida: a primeira diz em
+                    que ordem se está lendo o móvel, a segunda é o gesto de
+                    baixa, que não muda com a ordem */}
+                <p className="t-caption mt-0.5">
+                  {porIdade
+                    ? 'Do mais velho para o mais novo — o 1º da fila é o 1º a sair'
+                    : 'Cada lote no espaço em que ele está no balcão'}
+                </p>
                 <p className="t-caption mt-0.5">
                   Toque em Venda ou Perda para baixar 1 · segure para baixar tudo
                 </p>
@@ -4183,9 +4240,18 @@
                     </button>
                   ))}
                 </div>
-                {/* O tamanho do cartão fica sempre neste canto, ao lado da
-                    vitrine escolhida: mudar de vitrine e mudar de tamanho são
-                    a mesma família de escolha — o que estou olhando e como */}
+                {/* Neste canto ficam as escolhas de quem está olhando, ao
+                    lado da vitrine escolhida: primeiro em que ordem o móvel
+                    se desenha, depois de que tamanho — o que estou olhando,
+                    em que ordem e como */}
+                <div className="segmented" title="Em que ordem os lotes aparecem no móvel">
+                  <button onClick={() => escolherOrdem('espaco')} data-active={!porIdade}>
+                    Por espaço
+                  </button>
+                  <button onClick={() => escolherOrdem('idade')} data-active={porIdade}>
+                    Por idade
+                  </button>
+                </div>
                 <div className="segmented" title="Tamanho dos cartões da vitrine">
                   <button onClick={() => escolherDensidade('confortavel')} data-active={!compacto}>
                     Confortável
@@ -4247,9 +4313,11 @@
                       )}
                     </div>
 
-                    {/* O móvel desenhado: cada espaço no lugar em que ele está
-                        no balcão, nas colunas daquela vitrine. Espaço vazio
-                        fica apagado e chama o produto que falta */}
+                    {/* O móvel desenhado nas colunas que ele tem no balcão.
+                        Por espaço, cada célula é um espaço e leva dentro os
+                        lotes dele; por idade, cada célula é um lote e a fila
+                        corre pela grade, do mais velho para o mais novo.
+                        Espaço vazio fica apagado e chama o produto que falta */}
                     <div className="rola-x mt-3">
                       <div
                         className="showcase-grid grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
@@ -4259,19 +4327,37 @@
                           minWidth: `${bloco.colunas * (compacto ? 146 : 182)}px`
                         }}
                       >
-                        {bloco.espacos.map((slot) => {
-                          const doEspaco = bloco.linhas.filter((l) => l.slot.id === slot.id);
+                        {celulasDo(bloco).map((celula) => {
+                          const { slot, itens, posicao } = celula;
 
                           return (
                             <div
-                              key={slot.id}
+                              key={celula.key}
                               className={`px-2.5 py-2 bg-[var(--bg-surface)] transition-opacity ${
-                                doEspaco.length === 0 ? 'opacity-45 hover:opacity-100' : ''
+                                itens.length === 0 ? 'opacity-45 hover:opacity-100' : ''
                               }`}
                             >
                               <div className="flex items-center justify-between gap-1">
-                                <span className="t-caption tnum">{slot.slotNumber}</span>
-                                {doEspaco.length === 0 && (
+                                {/* Na fila, o lugar do lote na saída vem na
+                                    frente e o espaço do balcão vai atrás, para
+                                    a mão saber onde pegar. No mapa só existe o
+                                    número do espaço */}
+                                <span
+                                  className="t-caption tnum"
+                                  title={posicao
+                                    ? (posicao === 1
+                                        ? `Primeiro a sair — o lote mais velho da ${bloco.title}`
+                                        : `${posicao}º da fila de saída da ${bloco.title}`)
+                                    : `Espaço ${slot.slotNumber} da ${bloco.title}`}
+                                >
+                                  {posicao ? `${posicao}º` : slot.slotNumber}
+                                </span>
+                                {posicao ? (
+                                  <span className="t-micro tnum" title={`No espaço ${slot.slotNumber} do balcão`}>
+                                    esp. {slot.slotNumber}
+                                  </span>
+                                ) : null}
+                                {itens.length === 0 && (
                                   <button
                                     onClick={() => onOpenSlot(slot)}
                                     title={`Colocar produto no espaço ${slot.slotNumber} da ${bloco.title}`}
@@ -4285,9 +4371,11 @@
 
                               {/* Um cartão por lote, na ordem do papel do
                                   balcão: data, produto, quanto sobrou do lote
-                                  e os dois botões de baixa. Dois produtos no
-                                  mesmo espaço ficam um cartão embaixo do outro */}
-                              {doEspaco.map(({ item }) => {
+                                  e os dois botões de baixa. No mapa, dois
+                                  produtos no mesmo espaço ficam um cartão
+                                  embaixo do outro; na fila cada lote tem a
+                                  célula dele */}
+                              {itens.map((item) => {
                                 const prod = products.find((p) => p.id === item.productId);
                                 const tag = getShowcaseTag(item, prod);
 
