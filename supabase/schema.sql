@@ -356,9 +356,213 @@ create trigger separated_products_set_updated_at
 
 comment on table public.separated_products is 'Bebidas, cafeteria e encomendas — estoque fora da vitrine.';
 
+-- =====================================================================
+-- CMV — Custo da Mercadoria Vendida (seções 11 a 15)
+--
+-- O CMV nasce da compra: o preço pago no insumo vira custo por grama,
+-- a ficha técnica diz quantos gramas entram no produto e o rendimento
+-- diz para quantas unidades aquilo rende. Daí sai o custo de uma
+-- unidade, que dividido pelo preço de venda é o CMV.
+--
+-- Nada aqui mexe na vitrine: são tabelas novas, ao lado das que já
+-- existem. Rodar este arquivo de novo não apaga nenhum lançamento.
+-- =====================================================================
+
 
 -- ---------------------------------------------------------------------
--- 11. Dados iniciais
+-- 11. Insumos
+--
+-- Tudo que é comprado para produzir: ingrediente, embalagem e material
+-- de limpeza. Os três entram no CMV quando usados numa ficha técnica —
+-- a classe serve para organizar a lista, não muda conta nenhuma.
+--
+-- A unidade é sempre a menor (g, ml ou un): é nela que o custo unitário
+-- é calculado. A variação é o jeito como a loja compra ou usa o insumo
+-- ("1 lata = 395 g", "1 un = 12 fatias"), para ninguém precisar
+-- converter de cabeça na hora de montar a ficha.
+-- ---------------------------------------------------------------------
+create table if not exists public.supplies (
+  id                uuid primary key default gen_random_uuid(),
+  name              text not null,
+  unit              text not null default 'g',
+  variation_unit    text,
+  variation_factor  numeric(12,3),
+  supply_class      text not null default 'insumo',
+  is_active         boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  constraint supplies_name_unique unique (name),
+  constraint supplies_unit_check check (unit in ('g', 'ml', 'un')),
+  constraint supplies_class_check
+    check (supply_class in ('insumo', 'embalagem', 'limpeza')),
+  constraint supplies_variation_check
+    check (variation_factor is null or variation_factor > 0)
+);
+
+create index if not exists supplies_class_idx on public.supplies (supply_class);
+
+drop trigger if exists supplies_set_updated_at on public.supplies;
+create trigger supplies_set_updated_at
+  before update on public.supplies
+  for each row execute function public.set_updated_at();
+
+comment on table public.supplies is 'Insumos, embalagens e material de limpeza usados na produção.';
+comment on column public.supplies.unit is 'Unidade base do insumo (g, ml ou un). O custo unitário é calculado nela.';
+comment on column public.supplies.variation_factor is
+  'Quanto vale uma variação na unidade base. Base g/ml: 1 variação = N base (1 lata = 395 g). Base un: 1 un = N variações (1 un = 12 fatias).';
+
+
+-- ---------------------------------------------------------------------
+-- 12. Compras de insumo
+--
+-- Cada compra fica guardada, não só a última. O custo do insumo é
+-- sempre o da compra mais recente — é o que a loja vai pagar para
+-- repor —, e o histórico é o que deixa a tela de fornecedores mostrar
+-- se o preço subiu ou caiu e com quem sai mais barato.
+-- ---------------------------------------------------------------------
+create table if not exists public.supply_purchases (
+  id             uuid primary key default gen_random_uuid(),
+  supply_id      uuid not null references public.supplies (id) on delete cascade,
+  supplier       text not null default '',
+  purchase_date  date,
+  qty            numeric(12,3) not null default 0,
+  cost           numeric(10,2) not null default 0,
+  created_at     timestamptz not null default now(),
+  constraint supply_purchases_qty_check check (qty >= 0),
+  constraint supply_purchases_cost_check check (cost >= 0)
+);
+
+create index if not exists supply_purchases_supply_idx
+  on public.supply_purchases (supply_id, purchase_date desc);
+
+comment on table public.supply_purchases is 'Histórico de compras de cada insumo, com fornecedor e data.';
+comment on column public.supply_purchases.qty is 'Quantidade comprada, na unidade base do insumo.';
+
+
+-- ---------------------------------------------------------------------
+-- 13. Fichas técnicas
+--
+-- Uma ficha por produto: o que entra nele e quanto aquilo rende. O peso
+-- por unidade só é preciso em produto vendido por quilo — é ele que
+-- transforma o custo da fornada em custo por quilo.
+-- ---------------------------------------------------------------------
+create table if not exists public.recipes (
+  id               uuid primary key default gen_random_uuid(),
+  product_id       uuid not null references public.products (id) on delete cascade,
+  yield_qty        numeric(12,3) not null default 1,
+  yield_unit       text not null default 'un',
+  weight_per_unit  numeric(12,3),
+  notes            text not null default '',
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  constraint recipes_yield_check check (yield_qty > 0),
+  constraint recipes_weight_check check (weight_per_unit is null or weight_per_unit > 0),
+  constraint recipes_product_unique unique (product_id)
+);
+
+drop trigger if exists recipes_set_updated_at on public.recipes;
+create trigger recipes_set_updated_at
+  before update on public.recipes
+  for each row execute function public.set_updated_at();
+
+comment on table public.recipes is 'Ficha técnica do produto: rendimento da receita.';
+comment on column public.recipes.yield_qty is 'Quantas unidades a receita inteira rende.';
+comment on column public.recipes.weight_per_unit is 'Peso de uma unidade em gramas. Só usado em produto vendido por quilo.';
+
+
+-- ---------------------------------------------------------------------
+-- 14. Itens da ficha técnica
+--
+-- Cada linha é um insumo dentro da receita. usage_unit vazio significa
+-- que a quantidade está na unidade base do insumo; preenchido, ela está
+-- na variação dele (2 latas, 3 fatias) e o app converte na hora da conta.
+-- ---------------------------------------------------------------------
+create table if not exists public.recipe_items (
+  id          uuid primary key default gen_random_uuid(),
+  recipe_id   uuid not null references public.recipes (id) on delete cascade,
+  supply_id   uuid not null references public.supplies (id) on delete restrict,
+  qty         numeric(12,3) not null default 0,
+  usage_unit  text not null default '',
+  created_at  timestamptz not null default now(),
+  constraint recipe_items_qty_check check (qty >= 0)
+);
+
+create index if not exists recipe_items_recipe_idx on public.recipe_items (recipe_id);
+create index if not exists recipe_items_supply_idx on public.recipe_items (supply_id);
+
+comment on table public.recipe_items is 'Os insumos de cada ficha técnica, com a quantidade usada.';
+comment on column public.recipe_items.usage_unit is 'Vazio = quantidade na unidade base do insumo. Preenchido = na variação dele.';
+
+
+-- ---------------------------------------------------------------------
+-- 15. Compras de revenda
+--
+-- O mesmo histórico dos insumos, para os itens de fora da vitrine
+-- (bebida, cafeteria). Aqui a compra pode vir numa unidade diferente da
+-- de venda — compra-se o fardo, vende-se a lata —, então a unidade da
+-- compra fica gravada junto.
+-- ---------------------------------------------------------------------
+create table if not exists public.resale_purchases (
+  id                    uuid primary key default gen_random_uuid(),
+  separated_product_id  uuid not null references public.separated_products (id) on delete cascade,
+  supplier              text not null default '',
+  purchase_date         date,
+  qty                   numeric(12,3) not null default 0,
+  purchase_unit         text not null default 'un',
+  cost                  numeric(10,2) not null default 0,
+  created_at            timestamptz not null default now(),
+  constraint resale_purchases_qty_check check (qty >= 0),
+  constraint resale_purchases_cost_check check (cost >= 0)
+);
+
+create index if not exists resale_purchases_product_idx
+  on public.resale_purchases (separated_product_id, purchase_date desc);
+
+comment on table public.resale_purchases is 'Histórico de compras dos itens de revenda, com fornecedor e data.';
+
+
+-- ---------------------------------------------------------------------
+-- Colunas do CMV nas tabelas que já existiam
+--
+-- price_unit diz se o preço cadastrado é por unidade ou por quilo — sem
+-- isso o CMV de um produto vendido a peso sai errado por mil.
+-- manual_cost é a saída para o produto que ainda não tem ficha técnica:
+-- a loja digita o custo que conhece e já enxerga o CMV dele.
+-- ---------------------------------------------------------------------
+alter table public.products
+  add column if not exists price_unit text not null default 'un';
+alter table public.products
+  add column if not exists manual_cost numeric(10,2) not null default 0;
+
+alter table public.products drop constraint if exists products_price_unit_check;
+alter table public.products
+  add constraint products_price_unit_check check (price_unit in ('un', 'kg'));
+alter table public.products drop constraint if exists products_manual_cost_check;
+alter table public.products
+  add constraint products_manual_cost_check check (manual_cost >= 0);
+
+comment on column public.products.price_unit is 'Se o preço é por unidade (un) ou por quilo (kg).';
+comment on column public.products.manual_cost is 'Custo digitado à mão, usado no CMV enquanto o produto não tem ficha técnica.';
+
+alter table public.separated_products
+  add column if not exists price_unit text not null default 'un';
+alter table public.separated_products
+  add column if not exists cost numeric(10,2) not null default 0;
+
+alter table public.separated_products drop constraint if exists separated_products_price_unit_check;
+alter table public.separated_products
+  add constraint separated_products_price_unit_check check (price_unit in ('un', 'kg', 'g'));
+alter table public.separated_products drop constraint if exists separated_products_cost_check;
+alter table public.separated_products
+  add constraint separated_products_cost_check check (cost >= 0);
+
+comment on column public.separated_products.price_unit is 'Unidade em que o item é vendido (un, kg ou g).';
+comment on column public.separated_products.cost is 'Custo por unidade de venda. Sai sozinho da última compra registrada.';
+
+
+
+-- ---------------------------------------------------------------------
+-- 16. Dados iniciais
 -- ---------------------------------------------------------------------
 
 -- Unidades
@@ -463,7 +667,7 @@ on conflict (unit_code, name) do nothing;
 
 
 -- ---------------------------------------------------------------------
--- 12. Visões de apoio
+-- 17. Visões de apoio
 -- ---------------------------------------------------------------------
 
 -- Situação de cada item na vitrine, com o status de validade já calculado
@@ -539,7 +743,7 @@ $$;
 
 
 -- ---------------------------------------------------------------------
--- 13. Row Level Security
+-- 18. Row Level Security
 --
 -- ATENÇÃO: o app roda sem tela de login, então as políticas abaixo
 -- liberam leitura e escrita para a chave anon. Qualquer pessoa com essa
@@ -556,6 +760,11 @@ alter table public.sale_records       enable row level security;
 alter table public.loss_records       enable row level security;
 alter table public.production_records enable row level security;
 alter table public.separated_products enable row level security;
+alter table public.supplies           enable row level security;
+alter table public.supply_purchases   enable row level security;
+alter table public.recipes            enable row level security;
+alter table public.recipe_items       enable row level security;
+alter table public.resale_purchases   enable row level security;
 
 do $$
 declare
@@ -564,7 +773,8 @@ begin
   foreach t in array array[
     'units', 'products', 'showcase_slots', 'slot_items',
     'standard_plans', 'sale_records', 'loss_records',
-    'production_records', 'separated_products'
+    'production_records', 'separated_products',
+    'supplies', 'supply_purchases', 'recipes', 'recipe_items', 'resale_purchases'
   ]
   loop
     execute format('drop policy if exists %I on public.%I', t || '_full_access', t);
@@ -578,7 +788,7 @@ $$;
 
 
 -- ---------------------------------------------------------------------
--- 14. Permissões
+-- 19. Permissões
 -- ---------------------------------------------------------------------
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
