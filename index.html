@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-01-picker-revenda-2" />
+    <meta name="app-version" content="2026-09-01-insumo-enter-autocomplete-3" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10145,17 +10145,71 @@
           }));
         };
 
+        const primeiraSugestaoCadastro = (lista, texto, getLabel = (x) => x) => {
+          const termo = normalizeName(String(texto || '').trim());
+          if (!termo) return null;
+          const rotulo = (item) => normalizeName(String(getLabel(item) || ''));
+          return lista.find((item) => rotulo(item) === termo)
+            || lista.find((item) => rotulo(item).startsWith(termo))
+            || lista.find((item) => rotulo(item).includes(termo))
+            || null;
+        };
+
+        const aceitarSugestaoCadastroInsumo = (campo) => {
+          const tipo = campo?.dataset?.insumoField || '';
+
+          if (tipo === 'nome') {
+            const sugestao = primeiraSugestaoCadastro(supplies, campo.value, (s) => s.name);
+            if (!sugestao) return false;
+            setDraft((d) => ({
+              ...d,
+              name: sugestao.name,
+              unit: sugestao.unit || d.unit,
+              supplyClass: sugestao.supplyClass || 'insumo'
+            }));
+            return true;
+          }
+
+          if (tipo === 'fornecedor') {
+            const digitado = String(campo.value || '').trim();
+            const sugestao = digitado
+              ? primeiraSugestaoCadastro(fornecedores, digitado)
+              : (draftUltimaCompra?.supplier || '');
+            if (!sugestao) return false;
+            setDraft((d) => ({ ...d, supplier: String(sugestao) }));
+            return true;
+          }
+
+          if (tipo === 'qtd' && !String(campo.value || '').trim() && draftUltimaCompra?.qty) {
+            setDraft((d) => ({ ...d, qty: String(draftUltimaCompra.qty) }));
+            return true;
+          }
+
+          if (tipo === 'custo' && !String(campo.value || '').trim() && draftUltimaCompra?.cost) {
+            setDraft((d) => ({ ...d, cost: String(draftUltimaCompra.cost) }));
+            return true;
+          }
+
+          return false;
+        };
+
         const avancarCadastroInsumo = (e) => {
           if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
           const form = e.currentTarget.form;
           if (!form) return;
+
+          // Enter primeiro aceita a sugestão visível/autocomplete daquele campo.
+          aceitarSugestaoCadastroInsumo(e.currentTarget);
+
           const campos = Array.from(form.querySelectorAll('[data-insumo-flow]'));
           const idx = campos.indexOf(e.currentTarget);
           if (idx >= 0 && idx < campos.length - 1) {
             e.preventDefault();
             const proximo = campos[idx + 1];
-            proximo.focus();
-            if (proximo.select && proximo.tagName === 'INPUT') proximo.select();
+            requestAnimationFrame(() => {
+              proximo.focus();
+              if (proximo.select && proximo.tagName === 'INPUT') proximo.select();
+            });
           }
         };
 
@@ -10286,6 +10340,7 @@
                           onBlur={(e) => aplicarInsumoExistente(e.target.value)}
                           onKeyDown={avancarCadastroInsumo}
                           data-insumo-flow
+                          data-insumo-field="nome"
                           placeholder="Digite ou escolha um insumo"
                           className="field field-md font-semibold"
                         />
@@ -10336,6 +10391,7 @@
                           onChange={(e) => setDraft((d) => ({ ...d, supplier: e.target.value }))}
                           onKeyDown={avancarCadastroInsumo}
                           data-insumo-flow
+                          data-insumo-field="fornecedor"
                           placeholder={draftUltimaCompra?.supplier || 'Fornecedor'}
                           className="field field-md"
                         />
@@ -10361,6 +10417,7 @@
                           onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
                           onKeyDown={avancarCadastroInsumo}
                           data-insumo-flow
+                          data-insumo-field="qtd"
                           placeholder={draftUltimaCompra?.qty ? String(draftUltimaCompra.qty) : '0'}
                           className="field field-md text-right tnum no-spin"
                         />
@@ -10375,6 +10432,7 @@
                           onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
                           onKeyDown={avancarCadastroInsumo}
                           data-insumo-flow
+                          data-insumo-field="custo"
                           placeholder={draftUltimaCompra?.cost ? String(draftUltimaCompra.cost) : '0,00'}
                           className="field field-md text-right tnum no-spin"
                         />
