@@ -371,23 +371,29 @@
         opacity: 1;
         animation: long-press-fill 600ms linear forwards;
       }
-      /* Venda leva o produto para o verde e perda para o vinho: os botões
-         usam a mesma família da etiqueta, e não um verde e um vermelho à
-         parte */
-      .item-action-sale {
-        color: var(--fresh-ink);
-        background: var(--fresh-soft);
-        border: 1px solid var(--fresh-line);
-      }
-      .item-action-sale:hover { background: rgba(46, 125, 81, 0.20); }
-      .item-action-sale::before { background: rgba(46, 125, 81, 0.26); }
-      .item-action-loss {
-        color: var(--expired-ink);
-        background: var(--expired-soft);
-        border: 1px solid var(--expired-line);
-      }
-      .item-action-loss:hover { background: rgba(125, 32, 39, 0.16); }
-      .item-action-loss::before { background: rgba(125, 32, 39, 0.20); }
+      /* Venda e perda são AÇÕES, e não estados.
+
+         O cartão já diz o estado na quina — fresco, último dia, vencido — e
+         embaixo dela vinham dois retângulos lavados, cada um do tamanho de
+         um quarto do cartão. O tom lavado da loja foi feito para o selo
+         pequeno: esticado nesse tamanho, o verde vira menta e o vinho vira
+         rosa, duas cores que não existem em nenhum outro lugar da tela e que
+         ainda brigavam com a cor da quina logo acima. Eram também os únicos
+         botões do app com borda colorida.
+
+         Agora os dois usam o cinza quieto dos outros botões e a cor fica só
+         no ícone, na tinta cheia da loja. A cor volta a ser área quando é
+         resposta ao dedo: o fundo lavado no hover e o enchimento do segurar.
+         Sobra uma área de cor no cartão, a quina, que é o que a loja lê de
+         longe. */
+      .item-action { background: rgba(0, 0, 0, 0.05); }
+      .item-action:hover { background: rgba(0, 0, 0, 0.09); }
+      .item-action-sale { color: var(--fresh-ink); }
+      .item-action-sale:hover { background: var(--fresh-soft); }
+      .item-action-sale::before { background: rgba(46, 125, 81, 0.28); }
+      .item-action-loss { color: var(--expired-ink); }
+      .item-action-loss:hover { background: var(--expired-soft); }
+      .item-action-loss::before { background: rgba(125, 32, 39, 0.22); }
       @keyframes long-press-fill { from { width: 0; } to { width: 100%; } }
 
       /* Segmented control (iOS) */
@@ -1489,6 +1495,13 @@
         Plus: (props) => <IconBase d="M12 5v14M5 12h14" {...props} />,
         Minus: (props) => <IconBase d="M5 12h14" {...props} />,
         Trash2: (props) => <IconBase d={["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"]} {...props} />,
+        // O saco do descarte: é a perda, o produto que não vendeu e foi
+        // jogado fora. Antes a perda usava o triângulo de alerta, que na
+        // mesma tela também quer dizer "atenção" e "algo deu errado" — um
+        // desenho para três ideias. O triângulo volta a ser só o aviso.
+        // A alça inclinada e a boca larga separam este saco da Trash2 logo
+        // acima, que é outra coisa: apagar o registro.
+        Discard: (props) => <IconBase d={["M4 8h16", "M5.5 8h13l-1.1 12.1A2 2 0 0 1 15.4 22H8.6a2 2 0 0 1-2-1.9L5.5 8z", "M8.5 8V5.5A2.5 2.5 0 0 1 11 3h2a2.5 2.5 0 0 1 2.5 2.5V8"]} {...props} />,
         ShoppingCart: (props) => <IconBase d={["M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6", "M9 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z", "M20 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"]} {...props} />,
         AlertTriangle: (props) => <IconBase d={["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z", "M12 9v4", "M12 17h.01"]} {...props} />,
         CheckCircle2: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M9 12l2 2 4-4"]} {...props} />,
@@ -2862,7 +2875,7 @@
               aria-label={`Registre a perda de uma unidade. Segure para perder todas as ${item.currentQty} unidades`}
               className="btn item-action item-action-loss"
             >
-              <Icons.AlertTriangle className="w-[18px] h-[18px]" />
+              <Icons.Discard className="w-[18px] h-[18px]" />
             </button>
           </div>
         );
@@ -3382,7 +3395,7 @@
                           aria-label="Registre uma perda, segure para perder tudo"
                           className="btn btn-lg btn-danger-quiet text-[14px] px-3"
                         >
-                          <Icons.AlertTriangle className="w-5 h-5 shrink-0" />
+                          <Icons.Discard className="w-5 h-5 shrink-0" />
                         </button>
                       </div>
 
@@ -3516,7 +3529,7 @@
                           Vendidos
                         </button>
                         <button onClick={() => setPasso('motivo')} className="btn btn-lg btn-danger text-[14px] px-3">
-                          <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                          <Icons.Discard className="w-4 h-4 shrink-0" />
                           Perdidos
                         </button>
                       </div>
@@ -6921,7 +6934,7 @@
 
               <div className="card p-5 flex flex-col">
                 <span className="t-overline flex items-center gap-1.5">
-                  <Icons.AlertTriangle className="w-3.5 h-3.5" />
+                  <Icons.Discard className="w-3.5 h-3.5" />
                   Motivo que mais pesa
                 </span>
                 {semana.motivo ? (
@@ -9252,7 +9265,7 @@
                   onClick={() => setMode('perda')}
                   className={`btn btn-md ${mode === 'perda' ? 'btn-danger' : 'btn-secondary'}`}
                 >
-                  <Icons.AlertTriangle className="w-4 h-4" /> Perda
+                  <Icons.Discard className="w-4 h-4" /> Perda
                 </button>
               </div>
 
@@ -9324,7 +9337,7 @@
                     onClick={() => { setMode('perda'); setQty(item.currentQty); }}
                     className="btn btn-danger btn-md px-2"
                   >
-                    <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                    <Icons.Discard className="w-4 h-4 shrink-0" />
                     <span className="tnum">Perdeu tudo ({item.currentQty})</span>
                   </button>
                 </div>
@@ -9353,7 +9366,7 @@
       // ==========================================
       const UndoBaixaBar = ({ info, onUndo, onDismiss }) => {
         const perda = info.tabela === 'loss_records';
-        const IconeBaixa = perda ? Icons.AlertTriangle : Icons.ShoppingCart;
+        const IconeBaixa = perda ? Icons.Discard : Icons.ShoppingCart;
 
         return (
         <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 pointer-events-none">
