@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-01-cmv-insumo-ficha-1" />
+    <meta name="app-version" content="2026-09-01-picker-revenda-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -538,7 +538,7 @@
          ========================================== */
       .picker-panel {
         position: fixed;
-        z-index: 60;
+        z-index: 140;
         padding: 4px;
         background: var(--bg-surface);
         border: 1px solid var(--hairline);
@@ -10105,6 +10105,7 @@
         onAddSupplyPurchase,
         onUpdateSupplyPurchase,
         onDeleteSupplyPurchase,
+        onAddSeparatedProduct,
         onUpdateRecipe,
         onAddRecipeItem,
         onUpdateRecipeItem,
@@ -10123,7 +10124,7 @@
         // Produto cuja ficha está aberta
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
 
-        const BLANK_SUPPLY = { name: '', unit: 'g', supplyClass: 'insumo', supplier: '', purchaseDate: getTodayDateString(), qty: '', cost: '' };
+        const BLANK_SUPPLY = { name: '', unit: 'g', supplyClass: 'insumo', supplier: '', purchaseDate: getTodayDateString(), qty: '', cost: '', resaleAlso: false };
         const [draft, setDraft] = useState(BLANK_SUPPLY);
         const nomeRef = useRef(null);
 
@@ -10160,6 +10161,23 @@
 
         const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
 
+        const revendaDoInsumo = (nome) => revendaDaUnidade.find(
+          (p) => normalizeName(p.productName || p.name) === normalizeName(nome)
+        ) || null;
+
+        const criarRevendaDoInsumo = (nome, unidade = 'un') => {
+          const limpo = String(nome || '').trim();
+          if (!limpo || revendaDoInsumo(limpo) || !onAddSeparatedProduct) return;
+          onAddSeparatedProduct({
+            productName: limpo,
+            category: 'revenda',
+            currentQty: 0,
+            unitOfMeasure: unidade === 'un' ? 'un' : unidade,
+            minQty: 0,
+            price: 0
+          });
+        };
+
         const cadastrar = async (e) => {
           e.preventDefault();
           const nome = draft.name.trim();
@@ -10189,6 +10207,10 @@
               qty,
               cost
             });
+          }
+
+          if (draft.resaleAlso) {
+            criarRevendaDoInsumo(nome, draft.unit);
           }
 
           setDraft({ ...BLANK_SUPPLY, unit: draft.unit, supplyClass: draft.supplyClass, purchaseDate: getTodayDateString() });
@@ -10292,6 +10314,18 @@
                         >
                           {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                         </select>
+                      </div>
+                      <div className="col-span-12 sm:col-span-2">
+                        <label className="t-caption block mb-1">Também é revenda?</label>
+                        <label className="field field-md flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={draft.resaleAlso}
+                            onChange={(e) => setDraft((d) => ({ ...d, resaleAlso: e.target.checked }))}
+                            className="w-4 h-4"
+                          />
+                          <span className="t-callout font-semibold">Revenda também</span>
+                        </label>
                       </div>
                       <div className="col-span-12 sm:col-span-4">
                         <label className="t-caption block mb-1">Fornecedor</label>
@@ -10547,6 +10581,17 @@
                                 >
                                   {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                                 </select>
+                                {revendaDoInsumo(s.name) ? (
+                                  <div className="t-nano mt-1 font-bold text-[#274133]">Revenda ✓</div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => criarRevendaDoInsumo(s.name, s.unit)}
+                                    className="mt-1 t-nano underline underline-offset-2 text-[#0E0937] font-bold"
+                                  >
+                                    + Revenda também
+                                  </button>
+                                )}
                               </td>
                               <td className="py-2.5 pl-3 text-right">
                                 <button
@@ -13757,6 +13802,7 @@
                     onAddSupplyPurchase={handleAddSupplyPurchase}
                     onUpdateSupplyPurchase={handleUpdateSupplyPurchase}
                     onDeleteSupplyPurchase={handleDeleteSupplyPurchase}
+                    onAddSeparatedProduct={handleAddSeparatedProduct}
                     onUpdateRecipe={handleUpdateRecipe}
                     onAddRecipeItem={handleAddRecipeItem}
                     onUpdateRecipeItem={handleUpdateRecipeItem}
