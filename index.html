@@ -1855,6 +1855,181 @@
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
 
+      // ==========================================
+      // CMV — AS CONTAS
+      //
+      // A conta inteira é uma corrente de quatro elos, e cada função abaixo
+      // é um deles:
+      //
+      //   compra do insumo  →  custo por grama   (custoUnitarioInsumo)
+      //   ficha técnica     →  custo da receita  (custoDaFicha)
+      //   rendimento        →  custo de uma un.  (custoPorUnidadeDeVenda)
+      //   preço de venda    →  CMV %             (calcularCmv)
+      //
+      // Em toda a corrente, o custo do insumo é o da ÚLTIMA compra, não uma
+      // média: quem decide preço quer saber quanto vai custar repor aquilo
+      // hoje, e não quanto custava em média no ano passado.
+      // ==========================================
+
+      // Classificação do insumo. As três entram no CMV do mesmo jeito quando
+      // usadas numa ficha — a classe só organiza a lista.
+      const SUPPLY_CLASSES = [
+        { value: 'insumo', label: 'Ingrediente' },
+        { value: 'embalagem', label: 'Embalagem' },
+        { value: 'limpeza', label: 'Limpeza' }
+      ];
+
+      const SUPPLY_UNITS = ['g', 'ml', 'un'];
+
+      // Unidades em que a loja compra ou usa o insumo, além da unidade base
+      const VARIATION_UNITS = ['fatia', 'lata', 'pote', 'caixa', 'colher', 'pacote', 'un', 'g', 'ml'];
+
+      // Metas de CMV, por natureza do produto.
+      //
+      // Fabricação própria e revenda vivem em mundos diferentes: quem produz
+      // transforma matéria-prima e fica com a margem do trabalho, quem revende
+      // só repassa. Por isso 30% de CMV é ótimo num salgado e impossível numa
+      // garrafa de refrigerante — e os dois não podem ser medidos pela mesma
+      // régua. Os alvos de revenda seguem a referência do Sebrae para
+      // alimentação: markup de 100% sobre o custo, que dá CMV de 50%.
+      const CMV_METAS = {
+        fabricacao: { bom: 28, atencao: 35, alvo: 0.40 },
+        revenda: { bom: 45, atencao: 55, alvo: 0.50 }
+      };
+
+      // O CMV vira uma das três faixas: bom, atenção ou alto. É o que pinta a
+      // célula na tabela e o que conta os alertas do topo da tela.
+      const getCmvStatus = (cmv, natureza = 'fabricacao') => {
+        const meta = CMV_METAS[natureza] || CMV_METAS.fabricacao;
+        if (cmv > meta.atencao) return { label: 'Alto', tone: 'tone-expired', ink: 'ink-expired', dot: 'dot-expired' };
+        if (cmv > meta.bom) return { label: 'Atenção', tone: 'tone-last', ink: 'ink-last', dot: 'dot-last' };
+        return { label: 'Bom', tone: 'tone-fresh', ink: 'ink-fresh', dot: 'dot-fresh' };
+      };
+
+      // Preço que deixaria o produto no CMV alvo da sua natureza
+      const precoSugerido = (custo, natureza = 'fabricacao') => {
+        const meta = CMV_METAS[natureza] || CMV_METAS.fabricacao;
+        return custo > 0 ? custo / meta.alvo : 0;
+      };
+
+      const calcularCmv = (custo, preco) =>
+        preco > 0 && custo > 0 ? (custo / preco) * 100 : 0;
+
+      // Compras da mais recente para a mais antiga. A data manda; sem data, ou
+      // com duas no mesmo dia, vale a que foi lançada por último.
+      const comprasOrdenadas = (compras) =>
+        [...(compras || [])].sort((a, b) => {
+          const da = a.purchaseDate || '';
+          const db = b.purchaseDate || '';
+          if (da !== db) return db.localeCompare(da);
+          return (b.criadoEm || '').localeCompare(a.criadoEm || '');
+        });
+
+      const ultimaCompra = (compras) => comprasOrdenadas(compras)[0] || null;
+
+      // Custo de uma unidade base do insumo (um grama, um ml, uma unidade)
+      const custoUnitarioInsumo = (supplyId, purchases) => {
+        const uc = ultimaCompra((purchases || []).filter((c) => c.supplyId === supplyId));
+        if (!uc) return 0;
+        const qtd = Number(uc.qty) || 0;
+        return qtd > 0 ? (Number(uc.cost) || 0) / qtd : 0;
+      };
+
+      // A quantidade da linha da ficha, convertida para a unidade base do
+      // insumo. Sem isso, "2 latas" entraria na conta como 2 gramas.
+      const qtdNaUnidadeBase = (item, supply) => {
+        const qtd = Number(item?.qty) || 0;
+        const uso = item?.usageUnit || '';
+        if (!supply || !uso || uso === supply.unit) return qtd;
+        const fator = Number(supply.variationFactor) || 0;
+        if (!fator) return qtd;
+        // Base un: 1 un = fator variações, então N variações = N / fator un
+        if (supply.unit === 'un') return qtd / fator;
+        // Base g/ml: 1 variação = fator base, então N variações = N * fator
+        return qtd * fator;
+      };
+
+      // Custo de uma linha da ficha — só daquele insumo, na quantidade usada
+      const custoDoItemDaFicha = (item, supplies, purchases) => {
+        const supply = supplies.find((s) => s.id === item.supplyId);
+        if (!supply) return 0;
+        return custoUnitarioInsumo(supply.id, purchases) * qtdNaUnidadeBase(item, supply);
+      };
+
+      // Custo da receita inteira, do jeito que ela é produzida
+      const custoDaFicha = (itens, supplies, purchases) =>
+        (itens || []).reduce((total, item) => total + custoDoItemDaFicha(item, supplies, purchases), 0);
+
+      // Custo de UMA unidade do produto, já na unidade em que ele é vendido.
+      // Produto vendido a quilo precisa do peso da unidade: a receita rende 40
+      // fatias de 120 g, então rende 4,8 kg — e é por kg que o preço é dado.
+      const custoPorUnidadeDeVenda = (product, ficha) => {
+        if (!ficha || !(ficha.custo > 0)) return Number(product?.manualCost) || 0;
+        const rendimento = Number(ficha.yieldQty) || 0;
+        if (rendimento <= 0) return 0;
+        if ((product?.priceUnit || 'un') === 'kg') {
+          const pesoG = Number(ficha.weightPerUnit) || 0;
+          if (pesoG > 0) return ficha.custo / ((rendimento * pesoG) / 1000);
+        }
+        return ficha.custo / rendimento;
+      };
+
+      // Custo por unidade de venda de um item de revenda. A compra pode vir
+      // numa unidade diferente da venda (compra o quilo, vende em gramas), e
+      // é a última compra que manda — o campo de custo é só o espelho dela.
+      const converterQtdRevenda = (qtd, origem, destino) => {
+        const n = Number(qtd) || 0;
+        const de = origem || 'un';
+        const para = destino || 'un';
+        if (!n || de === para) return n;
+        if (de === 'g' && para === 'kg') return n / 1000;
+        if (de === 'kg' && para === 'g') return n * 1000;
+        return n;
+      };
+
+      const custoRevenda = (item, purchases) => {
+        const uc = ultimaCompra((purchases || []).filter((c) => c.separatedProductId === item.id));
+        if (uc) {
+          const qtd = converterQtdRevenda(uc.qty, uc.purchaseUnit, item.priceUnit || 'un');
+          if (qtd > 0 && Number(uc.cost) > 0) return Number(uc.cost) / qtd;
+        }
+        return Number(item.cost) || 0;
+      };
+
+      // Reúne a ficha de um produto num objeto só, com o custo já somado.
+      // Devolve null quando o produto ainda não tem ficha.
+      const fichaDoProduto = (productId, recipes, recipeItems, supplies, purchases) => {
+        const recipe = recipes.find((r) => r.productId === productId);
+        if (!recipe) return null;
+        const itens = recipeItems.filter((i) => i.recipeId === recipe.id);
+        return {
+          ...recipe,
+          itens,
+          custo: custoDaFicha(itens, supplies, purchases)
+        };
+      };
+
+      // O preço do insumo na unidade em que se fala dele: quem compra farinha
+      // pensa em reais por quilo, não por grama.
+      const precoNaUnidadeGrande = (custoUnit, unidade) => {
+        if (unidade === 'g') return { valor: (Number(custoUnit) || 0) * 1000, label: 'kg' };
+        if (unidade === 'ml') return { valor: (Number(custoUnit) || 0) * 1000, label: 'L' };
+        return { valor: Number(custoUnit) || 0, label: unidade || 'un' };
+      };
+
+      const formatPrecoInsumo = (custoUnit, unidade) => {
+        const p = precoNaUnidadeGrande(custoUnit, unidade);
+        return `${formatCurrencyBR(p.valor)}/${p.label}`;
+      };
+
+      // Como a loja escreve a variação do insumo, para conferir de bate-pronto
+      const rotuloVariacao = (supply) => {
+        if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
+        return supply.unit === 'un'
+          ? `1 un = ${supply.variationFactor} ${supply.variationUnit}`
+          : `1 ${supply.variationUnit} = ${supply.variationFactor} ${supply.unit}`;
+      };
+
       // ------------------------------------------
       // Vitrine = um móvel de verdade da loja (Salgada 1, Salgada 2, Doce…).
       // O que identifica cada uma é o par tipo + número da vitrine, e não o
@@ -2164,7 +2339,9 @@
         defaultUnit: row.default_unit,
         minReplenishmentQty: row.min_replenishment_qty,
         shelfLifeDays: row.shelf_life_days,
-        price: Number(row.price) || 0
+        price: Number(row.price) || 0,
+        priceUnit: row.price_unit || 'un',
+        manualCost: Number(row.manual_cost) || 0
       });
 
       const fromSlot = (row) => ({
@@ -2259,7 +2436,56 @@
         currentQty: row.current_qty,
         unitOfMeasure: row.unit_of_measure,
         minQty: row.min_qty,
-        price: Number(row.price) || 0
+        price: Number(row.price) || 0,
+        priceUnit: row.price_unit || 'un',
+        cost: Number(row.cost) || 0
+      });
+
+      const fromSupply = (row) => ({
+        id: row.id,
+        name: row.name,
+        unit: row.unit || 'g',
+        variationUnit: row.variation_unit || '',
+        variationFactor: row.variation_factor === null ? null : Number(row.variation_factor),
+        supplyClass: row.supply_class || 'insumo'
+      });
+
+      const fromSupplyPurchase = (row) => ({
+        id: row.id,
+        supplyId: row.supply_id,
+        supplier: row.supplier || '',
+        purchaseDate: row.purchase_date || '',
+        qty: Number(row.qty) || 0,
+        cost: Number(row.cost) || 0,
+        criadoEm: row.created_at
+      });
+
+      const fromRecipe = (row) => ({
+        id: row.id,
+        productId: row.product_id,
+        yieldQty: Number(row.yield_qty) || 1,
+        yieldUnit: row.yield_unit || 'un',
+        weightPerUnit: row.weight_per_unit === null ? null : Number(row.weight_per_unit),
+        notes: row.notes || ''
+      });
+
+      const fromRecipeItem = (row) => ({
+        id: row.id,
+        recipeId: row.recipe_id,
+        supplyId: row.supply_id,
+        qty: Number(row.qty) || 0,
+        usageUnit: row.usage_unit || ''
+      });
+
+      const fromResalePurchase = (row) => ({
+        id: row.id,
+        separatedProductId: row.separated_product_id,
+        supplier: row.supplier || '',
+        purchaseDate: row.purchase_date || '',
+        qty: Number(row.qty) || 0,
+        purchaseUnit: row.purchase_unit || 'un',
+        cost: Number(row.cost) || 0,
+        criadoEm: row.created_at
       });
 
       const SLOT_ITEM_COLUMNS = '*, products(name)';
@@ -2275,7 +2501,10 @@
       // Leitura: carrega o estado inteiro do banco
       // ------------------------------------------
       const fetchEverything = async () => {
-        const [units, products, slots, slotItems, plans, sales, losses, separated, production] = await Promise.all([
+        const [
+          units, products, slots, slotItems, plans, sales, losses, separated, production,
+          supplies, supplyPurchases, recipes, recipeItems, resalePurchases
+        ] = await Promise.all([
           run('unidades', sb.from('units').select('*').order('name')),
           run('produtos', sb.from('products').select('*').eq('is_active', true).order('name')),
           run('espaços da vitrine', sb.from('showcase_slots').select('*').order('shelf_number').order('slot_number')),
@@ -2284,7 +2513,15 @@
           run('vendas', sb.from('sale_records').select('*').order('sold_at', { ascending: false }).limit(500)),
           run('perdas', sb.from('loss_records').select('*').order('loss_date', { ascending: false }).limit(500)),
           run('itens fora da vitrine', sb.from('separated_products').select('*').eq('is_active', true).order('name')),
-          runSoft(sb.from('production_records').select('*').order('produced_at', { ascending: false }).limit(500))
+          runSoft(sb.from('production_records').select('*').order('produced_at', { ascending: false }).limit(500)),
+          // As cinco tabelas do CMV entram por runSoft: um banco que ainda não
+          // rodou a versão nova do schema.sql continua abrindo a vitrine, e é a
+          // própria aba do CMV que explica o que falta rodar
+          runSoft(sb.from('supplies').select('*').eq('is_active', true).order('name')),
+          runSoft(sb.from('supply_purchases').select('*').order('purchase_date', { ascending: false })),
+          runSoft(sb.from('recipes').select('*')),
+          runSoft(sb.from('recipe_items').select('*')),
+          runSoft(sb.from('resale_purchases').select('*').order('purchase_date', { ascending: false }))
         ]);
 
         return {
@@ -2298,6 +2535,13 @@
           separatedProducts: (separated || []).map(fromSeparated),
           productionRecords: (production || []).map(fromProduction),
           productionReady: production !== null,
+          supplies: (supplies || []).map(fromSupply),
+          supplyPurchases: (supplyPurchases || []).map(fromSupplyPurchase),
+          recipes: (recipes || []).map(fromRecipe),
+          recipeItems: (recipeItems || []).map(fromRecipeItem),
+          resalePurchases: (resalePurchases || []).map(fromResalePurchase),
+          // Falso enquanto as tabelas do CMV não existirem no banco
+          cmvReady: supplies !== null && recipes !== null,
           // Banco antigo: as linhas do padrão vêm sem prioridade e frequência
           planExtrasReady: (plans || []).length === 0 || (plans || [])[0].priority !== undefined,
           // A quantidade mínima por dia chegou depois: um banco que ainda não
@@ -2682,18 +2926,47 @@
       };
 
       // ==========================================
+      // AS ABAS, EM DOIS GRUPOS
+      //
+      // A vitrine é o dia a dia da loja; o CMV é a conta do negócio. São
+      // assuntos e horas do dia diferentes, e cada um tem a sua fileira de
+      // abas — juntas, as dez não caberiam na tela do celular.
+      // ==========================================
+      const NAV_GROUPS = {
+        vitrine: {
+          label: 'Vitrine',
+          title: 'O dia a dia da loja',
+          tabs: [
+            { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
+            { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
+            { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
+            { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
+            { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History },
+            { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee },
+            { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos', icon: Icons.Package }
+          ]
+        },
+        cmv: {
+          label: 'CMV',
+          title: 'Custo, preço e fornecedores',
+          tabs: [
+            { id: 'insumos', label: 'Insumos', fullLabel: 'Insumos & Fichas', icon: Icons.Layers },
+            { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
+            { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart }
+          ]
+        }
+      };
+
+      // De qual grupo é uma aba. Vale para quem chega nela por um botão de
+      // dentro da tela, e não pela fileira de cima.
+      const groupOfTab = (tab) =>
+        NAV_GROUPS.cmv.tabs.some((t) => t.id === tab) ? 'cmv' : 'vitrine';
+
+      // ==========================================
       // NAVBAR COMPONENT
       // ==========================================
       const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts }) => {
-        const navItems = [
-          { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
-          { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
-          { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
-          { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
-          { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History },
-          { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee },
-          { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos', icon: Icons.Package }
-        ];
+        const navItems = NAV_GROUPS[groupOfTab(activeTab)].tabs;
 
         return (
           <header className="app-navbar glass sticky top-0 z-40 border-b hairline">
@@ -2719,6 +2992,27 @@
                         {u.name}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Os dois assuntos da casa. Trocar de grupo troca a fileira
+                      de abas inteira: são sete de cada lado, nunca dez de uma
+                      vez — que é o que faria a fileira estourar no celular.
+                      No celular ele desce para a fileira das abas, senão
+                      disputaria espaço com a marca e o nome da unidade. */}
+                  <div className="hidden lg:flex items-center gap-4">
+                    <div className="h-5 w-px bg-black/10" />
+                    <div className="segmented">
+                      {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
+                        <button
+                          key={id}
+                          onClick={() => onTabChange(grupo.tabs[0].id)}
+                          data-active={groupOfTab(activeTab) === id}
+                          title={grupo.title}
+                        >
+                          {grupo.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -2752,7 +3046,22 @@
             </div>
 
             {/* Navegação em scroll horizontal no mobile */}
-            <div className="lg:hidden flex overflow-x-auto px-4 py-2 border-t hairline gap-1.5 scrollbar-none">
+            <div className="lg:hidden flex items-center px-4 py-2 border-t hairline gap-2">
+              <div className="segmented shrink-0">
+                {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
+                  <button
+                    key={id}
+                    onClick={() => onTabChange(grupo.tabs[0].id)}
+                    data-active={groupOfTab(activeTab) === id}
+                    title={grupo.title}
+                    className="h-7 px-3 text-[12px]"
+                  >
+                    {grupo.label}
+                  </button>
+                ))}
+              </div>
+              <div className="h-5 w-px bg-black/10 shrink-0" />
+              <div className="flex overflow-x-auto gap-1.5 scrollbar-none">
               {navItems.map((tab) => {
                 const IconComp = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -2774,6 +3083,7 @@
                   </button>
                 );
               })}
+              </div>
             </div>
           </header>
         );
@@ -9484,6 +9794,1997 @@
       // ==========================================
       // TELAS DE ESTADO DA CONEXÃO
       // ==========================================
+
+      // ==========================================
+      // CMV — AS TELAS
+      //
+      // Três abas que leem a mesma base e respondem a perguntas diferentes:
+      //
+      //   Insumos & Fichas  →  o que eu compro e o que entra em cada produto
+      //   CMV               →  quanto sobra de cada coisa que eu vendo
+      //   Fornecedores      →  o preço subiu? com quem sai mais barato?
+      //
+      // Quem cadastra é a primeira; as outras duas só mostram.
+      // ==========================================
+
+      // O CMV pintado pela faixa em que caiu. A cor é a informação: quem passa
+      // o olho na tabela precisa achar o produto ruim sem ler número nenhum.
+      const CmvCell = ({ cmv, calculavel, natureza = 'fabricacao', className = '' }) => {
+        if (!calculavel) return <span className="t-body ink-quiet">—</span>;
+        const s = getCmvStatus(cmv, natureza);
+        return (
+          <span className={`pill ${s.tone} ${className}`} title={`Meta de ${natureza}: bom até ${CMV_METAS[natureza].bom}%, atenção até ${CMV_METAS[natureza].atencao}%`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+            <span className="tnum font-bold">{cmv.toFixed(1)}%</span>
+            <span className="font-semibold">{s.label}</span>
+          </span>
+        );
+      };
+
+      // O aviso de que o banco ainda não tem as tabelas do CMV. Mesma ideia do
+      // aviso do histórico de produção: a loja continua trabalhando, e a tela
+      // diz o que falta rodar em vez de dar erro.
+      const CmvSetupNotice = () => (
+        <div className="card p-6 sm:p-7">
+          <div className="t-overline flex items-center gap-1.5 mb-2">
+            <Icons.AlertTriangle className="w-3.5 h-3.5" />
+            Falta rodar o banco
+          </div>
+          <h2 className="t-display">O CMV ainda não está ligado</h2>
+          <p className="t-body mt-2">
+            As tabelas de insumos e fichas técnicas não existem neste banco. Abra o Supabase →
+            {' '}<strong>SQL Editor</strong> → <strong>New query</strong>, cole o arquivo
+            {' '}<code className="text-[12px] bg-black/[0.05] px-1.5 py-0.5 rounded">supabase/schema.sql</code>
+            {' '}e clique em Run. Nada do que já está lá dentro é apagado.
+          </p>
+          <p className="t-micro mt-3">Depois de rodar, recarregue esta página.</p>
+        </div>
+      );
+
+      // ==========================================
+      // JANELA DO HISTÓRICO DE COMPRAS
+      //
+      // A mesma para insumo e para revenda: as duas guardam compra com
+      // fornecedor, data, quantidade e valor pago. A diferença é que a compra
+      // de revenda tem unidade própria (compra o fardo, vende a lata), e ela
+      // só aparece quando quem abriu a janela passa as unidades.
+      //
+      // É aqui que se vê o preço mudar: cada linha mostra o custo unitário
+      // daquela compra, então a coluna inteira é a história do fornecedor.
+      // ==========================================
+      const PurchaseHistoryModal = ({
+        titulo,
+        subtitulo,
+        compras,
+        unidadeBase,
+        unidadesCompra = null,
+        fornecedores = [],
+        onAdd,
+        onUpdate,
+        onDelete,
+        onClose
+      }) => {
+        const BLANK = {
+          supplier: '',
+          purchaseDate: getTodayDateString(),
+          qty: '',
+          purchaseUnit: unidadesCompra ? unidadesCompra[0] : '',
+          cost: ''
+        };
+        const [draft, setDraft] = useState(BLANK);
+        const setField = (campo, valor) => setDraft((d) => ({ ...d, [campo]: valor }));
+
+        const ordenadas = comprasOrdenadas(compras);
+        const fornecedorOptions = fornecedores.map((f) => ({ value: f, label: f }));
+
+        const custoUnitDe = (c) => {
+          const qtd = Number(c.qty) || 0;
+          return qtd > 0 ? (Number(c.cost) || 0) / qtd : 0;
+        };
+
+        const salvar = (e) => {
+          e.preventDefault();
+          const qty = Number(draft.qty) || 0;
+          const cost = Number(draft.cost) || 0;
+          if (qty <= 0 || cost <= 0) return;
+          onAdd({
+            supplier: draft.supplier.trim(),
+            purchaseDate: draft.purchaseDate || null,
+            qty,
+            purchaseUnit: draft.purchaseUnit || undefined,
+            cost
+          });
+          setDraft({ ...BLANK, supplier: draft.supplier, purchaseDate: draft.purchaseDate });
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto z-50">
+            <div className="card w-full max-w-3xl p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="min-w-0">
+                  <div className="t-overline flex items-center gap-1.5 mb-1">
+                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                    Compras
+                  </div>
+                  <h3 className="t-title truncate">{titulo}</h3>
+                  {subtitulo && <p className="t-micro mt-0.5">{subtitulo}</p>}
+                </div>
+                <button onClick={onClose} title="Fechar" className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={salvar} className="pt-4 border-t hairline">
+                <div className="t-overline mb-2">Lançar compra</div>
+                <div className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-12 sm:col-span-4">
+                    <label className="t-caption block mb-1">Fornecedor</label>
+                    <PickerField
+                      value={draft.supplier}
+                      options={fornecedorOptions}
+                      onType={(t) => setField('supplier', t)}
+                      onPick={(opt) => setField('supplier', opt.value)}
+                      placeholder="De quem comprou"
+                      emptyLabel="Fornecedor novo"
+                      className="field field-sm"
+                    />
+                  </div>
+                  <div className="col-span-6 sm:col-span-3">
+                    <label className="t-caption block mb-1">Data</label>
+                    <input
+                      type="date"
+                      value={draft.purchaseDate}
+                      onChange={(e) => setField('purchaseDate', e.target.value)}
+                      className="field field-sm"
+                    />
+                  </div>
+                  <div className={unidadesCompra ? 'col-span-3 sm:col-span-1' : 'col-span-6 sm:col-span-2'}>
+                    <label className="t-caption block mb-1">Qtd</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={draft.qty}
+                      onChange={(e) => setField('qty', e.target.value)}
+                      placeholder={unidadeBase === 'un' ? 'ex: 12' : 'ex: 5000'}
+                      title={`Quantidade comprada, em ${unidadeBase}`}
+                      className="field field-sm text-right tnum no-spin"
+                    />
+                  </div>
+                  {unidadesCompra && (
+                    <div className="col-span-3 sm:col-span-2">
+                      <label className="t-caption block mb-1">Unid.</label>
+                      <select
+                        value={draft.purchaseUnit}
+                        onChange={(e) => setField('purchaseUnit', e.target.value)}
+                        className="field field-sm field-select"
+                      >
+                        {unidadesCompra.map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="col-span-6 sm:col-span-2">
+                    <label className="t-caption block mb-1">Valor pago</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={draft.cost}
+                      onChange={(e) => setField('cost', e.target.value)}
+                      placeholder="ex: 18,43"
+                      className="field field-sm text-right tnum no-spin"
+                    />
+                  </div>
+                  <div className="col-span-6 sm:col-span-12">
+                    <button type="submit" className="btn btn-primary btn-sm w-full sm:w-auto">
+                      <Icons.Plus className="w-3.5 h-3.5" />
+                      Lançar
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="rola-x mt-5 pt-4 border-t hairline">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="t-overline-sm border-b hairline">
+                      <th className="py-2.5 pr-3 font-bold">Fornecedor</th>
+                      <th className="py-2.5 px-3 font-bold">Data</th>
+                      <th className="py-2.5 px-3 text-right font-bold">Qtd</th>
+                      <th className="py-2.5 px-3 text-right font-bold">Valor pago</th>
+                      <th className="py-2.5 px-3 text-right font-bold">Custo</th>
+                      <th className="py-2.5 pl-3 text-right font-bold">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenadas.length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-8"><p className="t-body ink-quiet">Nenhuma compra lançada ainda</p></td></tr>
+                    ) : ordenadas.map((c, idx) => (
+                      <tr key={c.id} className="border-t hairline">
+                        <td className="py-2 pr-3">
+                          <div className="w-32 sm:w-44">
+                            <PickerField
+                              value={c.supplier || ''}
+                              options={fornecedorOptions}
+                              onType={(t) => onUpdate({ ...c, supplier: t })}
+                              onPick={(opt) => onUpdate({ ...c, supplier: opt.value })}
+                              placeholder="Fornecedor"
+                              emptyLabel="Fornecedor novo"
+                              className="field h-8 pl-2.5 text-[12px]"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="date"
+                            value={c.purchaseDate || ''}
+                            onChange={(e) => onUpdate({ ...c, purchaseDate: e.target.value })}
+                            className="field h-8 px-2 text-[12px] w-32 sm:w-36"
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={c.qty || ''}
+                              onChange={(e) => onUpdate({ ...c, qty: Number(e.target.value) || 0 })}
+                              className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                            />
+                            <span className="t-micro">{c.purchaseUnit || unidadeBase}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={c.cost || ''}
+                            onChange={(e) => onUpdate({ ...c, cost: Number(e.target.value) || 0 })}
+                            className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <span className="t-body tnum">
+                            {formatPrecoInsumo(custoUnitDe(c), c.purchaseUnit || unidadeBase)}
+                          </span>
+                          {idx === 0 && <div className="t-nano ink-quiet">é este que vale</div>}
+                        </td>
+                        <td className="py-2 pl-3 text-right">
+                          <button
+                            onClick={() => onDelete(c.id)}
+                            title="Excluir esta compra"
+                            className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
+                          >
+                            <Icons.Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="t-micro pt-3">
+                O custo do item é sempre o da compra mais recente — é o que você vai pagar para repor.
+              </p>
+            </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // INSUMOS & FICHAS
+      //
+      // A tela de cadastro do CMV, em três painéis:
+      //
+      //   Insumos  → o que se compra, e por quanto
+      //   Fichas   → o que entra em cada produto, e quanto aquilo rende
+      //   Revenda  → o que se compra pronto para vender
+      //
+      // A linha do insumo já mostra a última compra e deixa corrigi-la ali
+      // mesmo: é o que a loja mais faz — chegou a nota, o preço mudou. O
+      // histórico inteiro fica atrás do carrinho, para quando a pergunta for
+      // outra ("subiu quanto?", "de quem eu comprava antes?").
+      // ==========================================
+      const SuppliesRecipesView = ({
+        supplies,
+        supplyPurchases,
+        recipes,
+        recipeItems,
+        products,
+        separatedProducts,
+        resalePurchases,
+        currentUnit,
+        fornecedores,
+        onAddSupply,
+        onUpdateSupply,
+        onDeleteSupply,
+        onSetUltimaCompraInsumo,
+        onAddSupplyPurchase,
+        onUpdateSupplyPurchase,
+        onDeleteSupplyPurchase,
+        onUpdateRecipe,
+        onAddRecipeItem,
+        onUpdateRecipeItem,
+        onDeleteRecipeItem,
+        onUpdateSeparatedProduct,
+        onSetUltimaCompraRevenda,
+        onAddResalePurchase,
+        onUpdateResalePurchase,
+        onDeleteResalePurchase
+      }) => {
+        const [painel, setPainel] = useState('insumos');
+        const [busca, setBusca] = useState('');
+        const [classeFiltro, setClasseFiltro] = useState('todos');
+        // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
+        const [historico, setHistorico] = useState(null);
+        // Produto cuja ficha está aberta
+        const [fichaProdutoId, setFichaProdutoId] = useState(null);
+
+        const BLANK_SUPPLY = { name: '', unit: 'g', supplyClass: 'insumo' };
+        const [draft, setDraft] = useState(BLANK_SUPPLY);
+        const nomeRef = useRef(null);
+
+        const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
+        const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
+
+        const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
+
+        const cadastrar = (e) => {
+          e.preventDefault();
+          const nome = draft.name.trim();
+          if (!nome) return;
+          // Nome repetido vira edição do insumo que já existe, como no catálogo
+          const existente = supplies.find((s) => normalizeName(s.name) === normalizeName(nome));
+          if (existente) {
+            onUpdateSupply({ ...existente, unit: draft.unit, supplyClass: draft.supplyClass });
+          } else {
+            onAddSupply({ name: nome, unit: draft.unit, supplyClass: draft.supplyClass });
+          }
+          setDraft({ ...BLANK_SUPPLY, unit: draft.unit, supplyClass: draft.supplyClass });
+          setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
+        };
+
+        const insumosFiltrados = supplies.filter((s) => {
+          const bateTexto = s.name.toLowerCase().includes(busca.toLowerCase());
+          const bateClasse = classeFiltro === 'todos' || (s.supplyClass || 'insumo') === classeFiltro;
+          return bateTexto && bateClasse;
+        });
+
+        // Produtos de fabricação, com a ficha e o custo já resolvidos
+        const produtosComFicha = useMemo(() => products.map((p) => {
+          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases);
+          return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
+        }), [products, recipes, recipeItems, supplies, supplyPurchases]);
+
+        const fichaAberta = produtosComFicha.find((x) => x.produto.id === fichaProdutoId) || null;
+
+        const supplyOptions = supplies.map((s) => ({
+          value: s.id,
+          label: s.name,
+          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
+        }));
+
+        const PAINEIS = [
+          { id: 'insumos', label: 'Insumos' },
+          { id: 'fichas', label: 'Fichas técnicas' },
+          { id: 'revenda', label: 'Revenda' }
+        ];
+
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="t-display">Insumos &amp; fichas</h2>
+              <p className="t-body mt-1">
+                O que a casa compra e o que entra em cada produto. É daqui que sai o CMV.
+              </p>
+            </div>
+
+            <div className="segmented w-full sm:w-auto sm:inline-flex">
+              {PAINEIS.map((p) => (
+                <button key={p.id} onClick={() => setPainel(p.id)} data-active={painel === p.id} className="flex-1 sm:flex-none h-9 px-4">
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ---------------- INSUMOS ---------------- */}
+            {painel === 'insumos' && (
+              <div className="space-y-5">
+                <div className="card p-6 sm:p-7">
+                  <div className="t-overline flex items-center gap-1.5 mb-2">
+                    <Icons.Package className="w-3.5 h-3.5" />
+                    Cadastro
+                  </div>
+                  <h3 className="t-title">Novo insumo</h3>
+                  <p className="t-body mt-1.5">
+                    A unidade é a menor em que ele é usado — grama, ml ou unidade. O preço vem depois, no carrinho de compras.
+                  </p>
+
+                  <form onSubmit={cadastrar} className="mt-5 pt-5 border-t hairline">
+                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                      <div className="col-span-12 sm:col-span-5">
+                        <label className="t-caption block mb-1">Insumo</label>
+                        <input
+                          ref={nomeRef}
+                          type="text"
+                          value={draft.name}
+                          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                          placeholder="ex: Farinha de trigo"
+                          className="field field-md font-semibold"
+                        />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <label className="t-caption block mb-1">Unidade</label>
+                        <select
+                          value={draft.unit}
+                          onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}
+                          className="field field-md field-select"
+                        >
+                          {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-8 sm:col-span-3">
+                        <label className="t-caption block mb-1">Classe</label>
+                        <select
+                          value={draft.supplyClass}
+                          onChange={(e) => setDraft((d) => ({ ...d, supplyClass: e.target.value }))}
+                          title="Só organiza a lista — as três entram no CMV do mesmo jeito"
+                          className="field field-md field-select"
+                        >
+                          {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-12 sm:col-span-2">
+                        <button type="submit" className="btn btn-primary btn-md w-full">
+                          <Icons.Plus className="w-4 h-4" />
+                          Cadastrar
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="card p-5 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
+                    <div className="relative flex-1 max-w-sm">
+                      <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                      <input
+                        type="text"
+                        placeholder="Pesquisar insumo…"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        className="field field-sm field-search"
+                      />
+                    </div>
+                    <select
+                      value={classeFiltro}
+                      onChange={(e) => setClasseFiltro(e.target.value)}
+                      className="field field-sm field-select field-auto"
+                    >
+                      <option value="todos">Todas as classes</option>
+                      {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="rola-x">
+                    <table className="w-full text-left tabela-larga">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline">
+                          <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Insumo</th>
+                          <th className="py-3 px-3 font-bold">Un.</th>
+                          <th className="py-3 px-3 font-bold">Fornecedor</th>
+                          <th className="py-3 px-3 font-bold">Data</th>
+                          <th className="py-3 px-3 text-right font-bold">Qtd comprada</th>
+                          <th className="py-3 px-3 text-right font-bold">Valor pago</th>
+                          <th className="py-3 px-3 text-right font-bold">Custo</th>
+                          <th className="py-3 px-3 font-bold">Variação</th>
+                          <th className="py-3 px-3 font-bold">Classe</th>
+                          <th className="py-3 pl-3 text-right font-bold">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {insumosFiltrados.length === 0 ? (
+                          <tr><td colSpan={10} className="text-center py-10"><p className="t-body ink-quiet">Nenhum insumo encontrado</p></td></tr>
+                        ) : insumosFiltrados.map((s) => {
+                          const compras = comprasDoInsumo(s.id);
+                          const uc = ultimaCompra(compras);
+                          const custoUnit = custoUnitarioInsumo(s.id, supplyPurchases);
+                          const rotulo = rotuloVariacao(s);
+                          return (
+                            <tr key={s.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                              <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => setHistorico({ tipo: 'insumo', id: s.id })}
+                                    title={`Compras de ${s.name}`}
+                                    className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0 relative"
+                                  >
+                                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                    {compras.length > 1 && (
+                                      <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 text-[9px] font-bold rounded-full bg-[#0E0937] text-white flex items-center justify-center tnum">
+                                        {compras.length}
+                                      </span>
+                                    )}
+                                  </button>
+                                  <input
+                                    type="text"
+                                    value={s.name}
+                                    onChange={(e) => onUpdateSupply({ ...s, name: e.target.value })}
+                                    placeholder="Nome do insumo"
+                                    className="field h-8 px-2.5 text-[13px] font-semibold w-32 sm:w-48"
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <select
+                                  value={s.unit}
+                                  onChange={(e) => onUpdateSupply({ ...s, unit: e.target.value })}
+                                  className="field field-select h-8 pl-2.5 text-[12px] w-16"
+                                >
+                                  {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="w-28 sm:w-36">
+                                  <PickerField
+                                    value={uc?.supplier || ''}
+                                    options={fornecedores.map((f) => ({ value: f, label: f }))}
+                                    onType={(t) => onSetUltimaCompraInsumo(s.id, { supplier: t })}
+                                    onPick={(opt) => onSetUltimaCompraInsumo(s.id, { supplier: opt.value })}
+                                    placeholder="Fornecedor"
+                                    emptyLabel="Fornecedor novo"
+                                    className="field h-8 pl-2.5 text-[12px]"
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <input
+                                  type="date"
+                                  value={uc?.purchaseDate || ''}
+                                  onChange={(e) => onSetUltimaCompraInsumo(s.id, { purchaseDate: e.target.value })}
+                                  className="field h-8 px-2 text-[12px] w-32 sm:w-36"
+                                />
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.001"
+                                    value={uc?.qty || ''}
+                                    onChange={(e) => onSetUltimaCompraInsumo(s.id, { qty: Number(e.target.value) || 0 })}
+                                    placeholder={s.unit === 'un' ? '12' : '5000'}
+                                    title={`Quantidade da última compra, em ${s.unit}`}
+                                    className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                  />
+                                  <span className="t-micro w-5">{s.unit}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={uc?.cost || ''}
+                                  onChange={(e) => onSetUltimaCompraInsumo(s.id, { cost: Number(e.target.value) || 0 })}
+                                  placeholder="0,00"
+                                  title="Valor pago na última compra"
+                                  className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                                />
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                {custoUnit > 0 ? (
+                                  <div className="leading-tight">
+                                    <div className="t-body tnum font-semibold">{formatPrecoInsumo(custoUnit, s.unit)}</div>
+                                    {s.variationUnit && Number(s.variationFactor) > 0 && (
+                                      <div className="t-nano tnum">
+                                        {formatCurrencyBR(s.unit === 'un' ? custoUnit / s.variationFactor : custoUnit * s.variationFactor)}/{s.variationUnit}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : <span className="t-body ink-quiet">—</span>}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-1">
+                                  <select
+                                    value={s.variationUnit || ''}
+                                    onChange={(e) => onUpdateSupply({ ...s, variationUnit: e.target.value })}
+                                    title="Como a loja compra ou usa este insumo"
+                                    className="field field-select h-8 pl-2.5 text-[12px] w-20"
+                                  >
+                                    <option value="">—</option>
+                                    {VARIATION_UNITS.filter((u) => u !== s.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.001"
+                                    value={s.variationFactor || ''}
+                                    onChange={(e) => onUpdateSupply({ ...s, variationFactor: Number(e.target.value) || null })}
+                                    placeholder="395"
+                                    title={rotulo || 'Quanto vale uma variação'}
+                                    className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16"
+                                  />
+                                </div>
+                                {rotulo && <div className="t-nano mt-0.5">{rotulo}</div>}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <select
+                                  value={s.supplyClass || 'insumo'}
+                                  onChange={(e) => onUpdateSupply({ ...s, supplyClass: e.target.value })}
+                                  className="field field-select h-8 pl-2.5 text-[12px] w-28"
+                                >
+                                  {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                </select>
+                              </td>
+                              <td className="py-2.5 pl-3 text-right">
+                                <button
+                                  onClick={() => onDeleteSupply(s.id)}
+                                  title="Excluir insumo"
+                                  className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
+                                >
+                                  <Icons.Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="t-micro pt-3">
+                    Os campos de compra mostram a última nota — corrigir aqui corrige aquela compra. Para lançar uma nova, use o carrinho.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ---------------- FICHAS TÉCNICAS ---------------- */}
+            {painel === 'fichas' && (
+              <div className="space-y-5">
+                <div className="card p-5 sm:p-6">
+                  <div className="rola-x">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline">
+                          <th className="py-3 pr-3 font-bold">Produto</th>
+                          <th className="py-3 px-3 text-center font-bold">Insumos</th>
+                          <th className="py-3 px-3 text-right font-bold">Custo da receita</th>
+                          <th className="py-3 px-3 text-center font-bold">Rende</th>
+                          <th className="py-3 px-3 text-right font-bold">Custo por un</th>
+                          <th className="py-3 pl-3 text-right font-bold">Ficha</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {produtosComFicha.length === 0 ? (
+                          <tr><td colSpan={6} className="text-center py-10"><p className="t-body ink-quiet">Cadastre produtos na aba Produtos primeiro</p></td></tr>
+                        ) : produtosComFicha.map(({ produto, ficha, custoUn }) => (
+                          <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-2.5 pr-3">
+                              <span className="t-callout font-semibold">{produto.name}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              {ficha && ficha.itens.length > 0
+                                ? <span className="t-body tnum">{ficha.itens.length}</span>
+                                : <span className="pill tone-quiet">sem ficha</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-right t-body tnum">
+                              {ficha && ficha.custo > 0 ? formatCurrencyBR(ficha.custo) : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-center t-body tnum">
+                              {ficha ? `${ficha.yieldQty} ${ficha.yieldUnit}` : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
+                              {custoUn > 0 ? `${formatCurrencyBR(custoUn)}/${produto.priceUnit || 'un'}` : '—'}
+                            </td>
+                            <td className="py-2.5 pl-3 text-right">
+                              <button
+                                onClick={() => setFichaProdutoId(produto.id)}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                <Icons.ClipboardList className="w-3.5 h-3.5" />
+                                {ficha && ficha.itens.length > 0 ? 'Abrir' : 'Montar'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {fichaAberta && (
+                  <RecipeEditor
+                    produto={fichaAberta.produto}
+                    ficha={fichaAberta.ficha}
+                    custoUn={fichaAberta.custoUn}
+                    supplies={supplies}
+                    supplyPurchases={supplyPurchases}
+                    supplyOptions={supplyOptions}
+                    onClose={() => setFichaProdutoId(null)}
+                    onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
+                    onAddItem={(supplyId) => onAddRecipeItem(fichaAberta.produto.id, supplyId)}
+                    onUpdateItem={onUpdateRecipeItem}
+                    onDeleteItem={onDeleteRecipeItem}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* ---------------- REVENDA ---------------- */}
+            {painel === 'revenda' && (
+              <div className="card p-5 sm:p-6">
+                <p className="t-body pb-4">
+                  Os itens de fora da vitrine desta unidade. Informe a compra e o custo por unidade sai sozinho.
+                </p>
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
+                    <thead>
+                      <tr className="t-overline-sm border-b hairline">
+                        <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
+                        <th className="py-3 px-3 font-bold">Fornecedor</th>
+                        <th className="py-3 px-3 font-bold">Data</th>
+                        <th className="py-3 px-3 text-right font-bold">Qtd comprada</th>
+                        <th className="py-3 px-3 font-bold">Un. compra</th>
+                        <th className="py-3 px-3 text-right font-bold">Valor pago</th>
+                        <th className="py-3 px-3 text-right font-bold">Custo</th>
+                        <th className="py-3 px-3 text-right font-bold">Preço</th>
+                        <th className="py-3 pl-3 font-bold">Vende por</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {revendaDaUnidade.length === 0 ? (
+                        <tr><td colSpan={9} className="text-center py-10"><p className="t-body ink-quiet">Nenhum item fora da vitrine nesta unidade</p></td></tr>
+                      ) : revendaDaUnidade.map((item) => {
+                        const compras = comprasDaRevenda(item.id);
+                        const uc = ultimaCompra(compras);
+                        const custo = custoRevenda(item, resalePurchases);
+                        return (
+                          <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setHistorico({ tipo: 'revenda', id: item.id })}
+                                  title={`Compras de ${item.productName}`}
+                                  className="w-7 h-7 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0 relative"
+                                >
+                                  <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                  {compras.length > 1 && (
+                                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 text-[9px] font-bold rounded-full bg-[#0E0937] text-white flex items-center justify-center tnum">
+                                      {compras.length}
+                                    </span>
+                                  )}
+                                </button>
+                                <span className="t-callout font-semibold w-32 sm:w-44 truncate" title={item.productName}>{item.productName}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="w-28 sm:w-36">
+                                <PickerField
+                                  value={uc?.supplier || ''}
+                                  options={fornecedores.map((f) => ({ value: f, label: f }))}
+                                  onType={(t) => onSetUltimaCompraRevenda(item.id, { supplier: t })}
+                                  onPick={(opt) => onSetUltimaCompraRevenda(item.id, { supplier: opt.value })}
+                                  placeholder="Fornecedor"
+                                  emptyLabel="Fornecedor novo"
+                                  className="field h-8 pl-2.5 text-[12px]"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <input
+                                type="date"
+                                value={uc?.purchaseDate || ''}
+                                onChange={(e) => onSetUltimaCompraRevenda(item.id, { purchaseDate: e.target.value })}
+                                className="field h-8 px-2 text-[12px] w-32 sm:w-36"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                value={uc?.qty || ''}
+                                onChange={(e) => onSetUltimaCompraRevenda(item.id, { qty: Number(e.target.value) || 0 })}
+                                placeholder="ex: 24"
+                                className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20 ml-auto block"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <select
+                                value={uc?.purchaseUnit || item.priceUnit || 'un'}
+                                onChange={(e) => onSetUltimaCompraRevenda(item.id, { purchaseUnit: e.target.value })}
+                                className="field field-select h-8 pl-2.5 text-[12px] w-16"
+                              >
+                                {['un', 'kg', 'g'].map((u) => <option key={u} value={u}>{u}</option>)}
+                              </select>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={uc?.cost || ''}
+                                onChange={(e) => onSetUltimaCompraRevenda(item.id, { cost: Number(e.target.value) || 0 })}
+                                placeholder="0,00"
+                                className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
+                              {custo > 0 ? `${formatCurrencyBR(custo)}/${item.priceUnit || 'un'}` : '—'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.price || ''}
+                                onChange={(e) => onUpdateSeparatedProduct({ ...item, price: Number(e.target.value) || 0 })}
+                                placeholder="0,00"
+                                className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                              />
+                            </td>
+                            <td className="py-2.5 pl-3">
+                              <select
+                                value={item.priceUnit || 'un'}
+                                onChange={(e) => onUpdateSeparatedProduct({ ...item, priceUnit: e.target.value })}
+                                className="field field-select h-8 pl-2.5 text-[12px] w-16"
+                              >
+                                {['un', 'kg', 'g'].map((u) => <option key={u} value={u}>{u}</option>)}
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="t-micro pt-3">
+                  Comprou o fardo e vende a lata? Deixe a unidade da compra diferente da de venda — a conta se vira.
+                </p>
+              </div>
+            )}
+
+            {/* Histórico de compras, o mesmo para insumo e revenda */}
+            {historico && historico.tipo === 'insumo' && (() => {
+              const s = supplies.find((x) => x.id === historico.id);
+              if (!s) return null;
+              return (
+                <PurchaseHistoryModal
+                  titulo={s.name}
+                  subtitulo={`Compras em ${s.unit}${rotuloVariacao(s) ? ` · ${rotuloVariacao(s)}` : ''}`}
+                  compras={comprasDoInsumo(s.id)}
+                  unidadeBase={s.unit}
+                  fornecedores={fornecedores}
+                  onAdd={(c) => onAddSupplyPurchase(s.id, c)}
+                  onUpdate={onUpdateSupplyPurchase}
+                  onDelete={onDeleteSupplyPurchase}
+                  onClose={() => setHistorico(null)}
+                />
+              );
+            })()}
+
+            {historico && historico.tipo === 'revenda' && (() => {
+              const item = separatedProducts.find((x) => x.id === historico.id);
+              if (!item) return null;
+              return (
+                <PurchaseHistoryModal
+                  titulo={item.productName}
+                  subtitulo={`Vendido por ${item.priceUnit || 'un'}`}
+                  compras={comprasDaRevenda(item.id)}
+                  unidadeBase={item.priceUnit || 'un'}
+                  unidadesCompra={['un', 'kg', 'g']}
+                  fornecedores={fornecedores}
+                  onAdd={(c) => onAddResalePurchase(item.id, c)}
+                  onUpdate={onUpdateResalePurchase}
+                  onDelete={onDeleteResalePurchase}
+                  onClose={() => setHistorico(null)}
+                />
+              );
+            })()}
+          </div>
+        );
+      };
+
+      // ==========================================
+      // A FICHA TÉCNICA DE UM PRODUTO
+      //
+      // Cada linha é um insumo e o custo que ele coloca no produto — não o
+      // custo da receita inteira. É essa leitura que responde "o que está
+      // pesando aqui": normalmente é um insumo só, e ele salta da coluna.
+      //
+      // O rendimento fica no topo porque ele muda tudo: a mesma massa que
+      // rende 40 unidades ou 30 é outro custo por unidade.
+      // ==========================================
+      const RecipeEditor = ({
+        produto,
+        ficha,
+        custoUn,
+        supplies,
+        supplyPurchases,
+        supplyOptions,
+        onClose,
+        onUpdateRecipe,
+        onAddItem,
+        onUpdateItem,
+        onDeleteItem
+      }) => {
+        const [novoInsumo, setNovoInsumo] = useState('');
+
+        const itens = ficha?.itens || [];
+        const custoTotal = ficha?.custo || 0;
+        const rendimento = ficha?.yieldQty || 1;
+        const preco = Number(produto.price) || 0;
+        const cmv = calcularCmv(custoUn, preco);
+        const calculavel = preco > 0 && custoUn > 0;
+
+        const adicionar = (opt) => {
+          if (!opt?.value) return;
+          onAddItem(opt.value);
+          setNovoInsumo('');
+        };
+
+        return (
+          <div className="card p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
+              <div className="min-w-0">
+                <div className="t-overline flex items-center gap-1.5 mb-1">
+                  <Icons.ClipboardList className="w-3.5 h-3.5" />
+                  Ficha técnica
+                </div>
+                <h3 className="t-title truncate">{produto.name}</h3>
+              </div>
+              <button onClick={onClose} title="Fechar ficha" className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                <Icons.X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Rendimento e peso: o que transforma o custo da fornada em custo
+                de uma unidade */}
+            <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end py-4 border-b hairline">
+              <div className="col-span-4 sm:col-span-2">
+                <label className="t-caption block mb-1">Rende</label>
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={rendimento}
+                  onChange={(e) => onUpdateRecipe({ yieldQty: Number(e.target.value) || 1 })}
+                  title="Quantas unidades a receita inteira rende"
+                  className="field field-sm text-right tnum no-spin"
+                />
+              </div>
+              <div className="col-span-4 sm:col-span-2">
+                <label className="t-caption block mb-1">Unidade</label>
+                <input
+                  type="text"
+                  value={ficha?.yieldUnit || 'un'}
+                  onChange={(e) => onUpdateRecipe({ yieldUnit: e.target.value })}
+                  placeholder="un"
+                  className="field field-sm"
+                />
+              </div>
+              {(produto.priceUnit || 'un') === 'kg' && (
+                <div className="col-span-4 sm:col-span-3">
+                  <label className="t-caption block mb-1">Peso da unidade (g)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={ficha?.weightPerUnit || ''}
+                    onChange={(e) => onUpdateRecipe({ weightPerUnit: Number(e.target.value) || null })}
+                    placeholder="ex: 120"
+                    title="Sem o peso da unidade, o custo por quilo não sai"
+                    className="field field-sm text-right tnum no-spin"
+                  />
+                </div>
+              )}
+              <div className="col-span-12 sm:col-span-5 flex flex-wrap items-center gap-4 sm:justify-end">
+                <div>
+                  <div className="t-caption">Custo da receita</div>
+                  <div className="t-metric-xs tnum">{formatCurrencyBR(custoTotal)}</div>
+                </div>
+                <div>
+                  <div className="t-caption">Custo por {produto.priceUnit || 'un'}</div>
+                  <div className="t-metric-xs tnum">{custoUn > 0 ? formatCurrencyBR(custoUn) : '—'}</div>
+                </div>
+                <div>
+                  <div className="t-caption">CMV</div>
+                  <div className="mt-0.5"><CmvCell cmv={cmv} calculavel={calculavel} natureza="fabricacao" /></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="py-4">
+              <div className="w-full sm:max-w-sm">
+                <label className="t-caption block mb-1">Adicionar insumo à ficha</label>
+                <PickerField
+                  value={novoInsumo}
+                  options={supplyOptions}
+                  onPick={adicionar}
+                  placeholder="Escolha um insumo…"
+                  className="field field-sm"
+                />
+              </div>
+            </div>
+
+            <div className="rola-x">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="t-overline-sm border-b hairline">
+                    <th className="py-3 pr-3 font-bold">Insumo</th>
+                    <th className="py-3 px-3 text-right font-bold">Quantidade</th>
+                    <th className="py-3 px-3 font-bold">Unidade</th>
+                    <th className="py-3 px-3 text-right font-bold">Preço do insumo</th>
+                    <th className="py-3 px-3 text-right font-bold">Custo na ficha</th>
+                    <th className="py-3 px-3 text-right font-bold">Peso no custo</th>
+                    <th className="py-3 pl-3 text-right font-bold">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itens.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-10"><p className="t-body ink-quiet">Ficha vazia — escolha o primeiro insumo acima</p></td></tr>
+                  ) : itens.map((item) => {
+                    const supply = supplies.find((s) => s.id === item.supplyId);
+                    const custoLinha = custoDoItemDaFicha(item, supplies, supplyPurchases);
+                    const peso = custoTotal > 0 ? (custoLinha / custoTotal) * 100 : 0;
+                    const unidades = supply
+                      ? [supply.unit, ...(supply.variationUnit && Number(supply.variationFactor) > 0 ? [supply.variationUnit] : [])]
+                      : ['un'];
+                    return (
+                      <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                        <td className="py-2.5 pr-3">
+                          <div className="w-40 sm:w-56">
+                            <PickerField
+                              value={item.supplyId}
+                              options={supplyOptions}
+                              onPick={(opt) => onUpdateItem({ ...item, supplyId: opt.value, usageUnit: '' })}
+                              placeholder="Insumo"
+                              className="field h-8 pl-2.5 text-[12px] font-semibold"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={item.qty || ''}
+                            onChange={(e) => onUpdateItem({ ...item, qty: Number(e.target.value) || 0 })}
+                            placeholder="0"
+                            className="field h-8 px-2 text-[12px] text-right tnum no-spin w-24 ml-auto block"
+                          />
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <select
+                            value={item.usageUnit || (supply?.unit || 'un')}
+                            onChange={(e) => onUpdateItem({ ...item, usageUnit: e.target.value === supply?.unit ? '' : e.target.value })}
+                            title="A unidade em que a quantidade acima está escrita"
+                            className="field field-select h-8 pl-2.5 text-[12px] w-20"
+                          >
+                            {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-2.5 px-3 text-right t-body tnum">
+                          {supply ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases), supply.unit) : '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
+                          {custoLinha > 0 ? formatCurrencyBR(custoLinha) : '—'}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-16 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                              <div className="h-full rounded-full bg-[#0E0937]" style={{ width: `${Math.min(peso, 100)}%` }} />
+                            </div>
+                            <span className="t-micro tnum w-10 text-right">{peso > 0 ? `${peso.toFixed(0)}%` : '—'}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 pl-3 text-right">
+                          <button
+                            onClick={() => onDeleteItem(item.id)}
+                            title="Tirar insumo da ficha"
+                            className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
+                          >
+                            <Icons.Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="t-micro pt-3">
+              Insumo sem compra lançada entra com custo zero — o CMV do produto fica menor do que é de verdade.
+            </p>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // CMV
+      //
+      // A tela de leitura: aqui não se cadastra nada além do preço de venda.
+      // Custo vem da ficha técnica, ficha vem dos insumos, insumo vem da
+      // compra — e é por isso que a resposta para um CMV alto quase nunca
+      // está nesta tela, e sim na anterior.
+      //
+      // Produção e revenda ficam em painéis separados de propósito: são
+      // negócios diferentes, com metas diferentes, e misturar os dois numa
+      // tabela só faria a loja comparar coisas que não se comparam.
+      // ==========================================
+      const CmvView = ({
+        products,
+        recipes,
+        recipeItems,
+        supplies,
+        supplyPurchases,
+        separatedProducts,
+        resalePurchases,
+        currentUnit,
+        unitName,
+        onUpdateProduct,
+        onUpdateSeparatedProduct
+      }) => {
+        const [painel, setPainel] = useState('producao');
+        const [ordem, setOrdem] = useState('cmv');
+
+        // Cada produto de fabricação com custo, CMV e margem já resolvidos
+        const linhasProducao = useMemo(() => products.map((p) => {
+          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases);
+          const custoUn = custoPorUnidadeDeVenda(p, ficha);
+          const preco = Number(p.price) || 0;
+          const calculavel = preco > 0 && custoUn > 0;
+          const lucro = preco - custoUn;
+          return {
+            produto: p,
+            ficha,
+            custoUn,
+            preco,
+            calculavel,
+            cmv: calcularCmv(custoUn, preco),
+            lucro,
+            margem: preco > 0 ? (lucro / preco) * 100 : 0
+          };
+        }), [products, recipes, recipeItems, supplies, supplyPurchases]);
+
+        const linhasRevenda = useMemo(() => separatedProducts
+          .filter((i) => i.unit === currentUnit)
+          .map((item) => {
+            const custo = custoRevenda(item, resalePurchases);
+            const preco = Number(item.price) || 0;
+            const calculavel = preco > 0 && custo > 0;
+            const lucro = preco - custo;
+            return {
+              item,
+              custo,
+              preco,
+              calculavel,
+              cmv: calcularCmv(custo, preco),
+              lucro,
+              margem: preco > 0 ? (lucro / preco) * 100 : 0
+            };
+          }), [separatedProducts, resalePurchases, currentUnit]);
+
+        // O placar do topo. A média junta os dois mundos porque a pergunta que
+        // ela responde é do negócio inteiro ("quanto do meu faturamento vira
+        // custo de mercadoria?"); o alerta, não — cada produto é medido pela
+        // régua da natureza dele.
+        const placar = useMemo(() => {
+          const cmvsProducao = linhasProducao.filter((l) => l.calculavel).map((l) => l.cmv);
+          const cmvsRevenda = linhasRevenda.filter((l) => l.calculavel).map((l) => l.cmv);
+          const todos = [...cmvsProducao, ...cmvsRevenda];
+          return {
+            media: todos.length ? todos.reduce((a, b) => a + b, 0) / todos.length : 0,
+            temMedia: todos.length > 0,
+            alertas:
+              cmvsProducao.filter((v) => v > CMV_METAS.fabricacao.atencao).length +
+              cmvsRevenda.filter((v) => v > CMV_METAS.revenda.atencao).length,
+            semPreco: linhasProducao.filter((l) => !l.calculavel).length + linhasRevenda.filter((l) => !l.calculavel).length
+          };
+        }, [linhasProducao, linhasRevenda]);
+
+        const ordenar = (linhas, nome) => [...linhas].sort((a, b) => {
+          if (ordem === 'preco') return b.preco - a.preco;
+          if (ordem === 'nome') return nome(a).localeCompare(nome(b), 'pt-BR');
+          // Maior CMV primeiro; quem não tem conta fechada vai para o fim
+          if (a.calculavel !== b.calculavel) return a.calculavel ? -1 : 1;
+          return b.cmv - a.cmv;
+        });
+
+        const producaoOrdenada = ordenar(linhasProducao, (l) => l.produto.name);
+        const revendaOrdenada = ordenar(linhasRevenda, (l) => l.item.productName);
+
+        const corDaMedia = placar.media === 0 ? '' :
+          placar.media < CMV_METAS.fabricacao.bom ? 'ink-fresh' :
+          placar.media < CMV_METAS.revenda.bom ? 'ink-last' : 'ink-expired';
+
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="t-display">CMV</h2>
+              <p className="t-body mt-1">
+                {unitName} · quanto de cada venda vai embora em custo de mercadoria.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.Package className="w-3.5 h-3.5" />
+                  Insumos
+                </span>
+                <div className="mt-2 t-metric-lg tnum">{supplies.length}</div>
+                <p className="t-micro mt-1">cadastrados</p>
+              </div>
+
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.ClipboardList className="w-3.5 h-3.5" />
+                  Fichas
+                </span>
+                <div className="mt-2 t-metric-lg tnum">{recipes.length}</div>
+                <p className="t-micro mt-1">de {products.length} produtos</p>
+              </div>
+
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.TrendingUp className="w-3.5 h-3.5" />
+                  CMV médio
+                </span>
+                <div className={`mt-2 t-metric-lg tnum ${corDaMedia}`}>
+                  {placar.temMedia ? `${placar.media.toFixed(1)}%` : '—'}
+                </div>
+                <div className="mt-2 h-1 rounded-full bg-black/[0.06] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${placar.media < CMV_METAS.fabricacao.bom ? 'dot-fresh' : placar.media < CMV_METAS.revenda.bom ? 'dot-last' : 'dot-expired'}`}
+                    style={{ width: `${Math.min(placar.media, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <span className="t-overline flex items-center gap-1.5">
+                  <Icons.AlertTriangle className="w-3.5 h-3.5" />
+                  CMV alto
+                </span>
+                <div className={`mt-2 t-metric-lg tnum ${placar.alertas > 0 ? 'ink-expired' : 'ink-fresh'}`}>
+                  {placar.alertas}
+                </div>
+                <p className="t-micro mt-1">
+                  {placar.semPreco > 0 ? `${placar.semPreco} sem conta fechada` : 'produtos acima da meta'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="segmented flex-1 sm:flex-none sm:inline-flex">
+                <button onClick={() => setPainel('producao')} data-active={painel === 'producao'} className="flex-1 sm:flex-none h-9 px-4">
+                  Produção ({linhasProducao.length})
+                </button>
+                <button onClick={() => setPainel('revenda')} data-active={painel === 'revenda'} className="flex-1 sm:flex-none h-9 px-4">
+                  Revenda ({linhasRevenda.length})
+                </button>
+              </div>
+              <select
+                value={ordem}
+                onChange={(e) => setOrdem(e.target.value)}
+                className="field field-sm field-select field-auto"
+              >
+                <option value="cmv">Maior CMV primeiro</option>
+                <option value="preco">Maior preço</option>
+                <option value="nome">Nome (A–Z)</option>
+              </select>
+            </div>
+
+            {/* ---------------- PRODUÇÃO ---------------- */}
+            {painel === 'producao' && (
+              <div className="card p-5 sm:p-6">
+                <p className="t-body pb-4">
+                  Meta de fabricação própria: bom até {CMV_METAS.fabricacao.bom}%, atenção até {CMV_METAS.fabricacao.atencao}%.
+                  O preço sugerido é o que deixaria o produto em {(CMV_METAS.fabricacao.alvo * 100).toFixed(0)}% de CMV.
+                </p>
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
+                    <thead>
+                      <tr className="t-overline-sm border-b hairline">
+                        <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
+                        <th className="py-3 px-3 font-bold">CMV</th>
+                        <th className="py-3 px-3 text-right font-bold">Preço</th>
+                        <th className="py-3 px-3 font-bold">Por</th>
+                        <th className="py-3 px-3 text-right font-bold">Preço sug.</th>
+                        <th className="py-3 px-3 text-right font-bold">Custo receita</th>
+                        <th className="py-3 px-3 text-right font-bold">Custo un.</th>
+                        <th className="py-3 px-3 text-right font-bold">Lucro</th>
+                        <th className="py-3 px-3 text-right font-bold">Margem</th>
+                        <th className="py-3 pl-3 text-center font-bold">Rende</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {producaoOrdenada.length === 0 ? (
+                        <tr><td colSpan={10} className="text-center py-10"><p className="t-body ink-quiet">Nenhum produto cadastrado</p></td></tr>
+                      ) : producaoOrdenada.map(({ produto, ficha, custoUn, preco, calculavel, cmv, lucro, margem }) => (
+                        <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                          <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                            <div className="w-36 sm:w-52">
+                              <span className="t-callout font-semibold block truncate" title={produto.name}>{produto.name}</span>
+                              {!ficha && (
+                                <span className="t-nano ink-quiet">
+                                  {Number(produto.manualCost) > 0 ? 'custo digitado à mão' : 'sem ficha técnica'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <CmvCell cmv={cmv} calculavel={calculavel} natureza="fabricacao" />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={produto.price || ''}
+                              onChange={(e) => onUpdateProduct({ ...produto, price: Number(e.target.value) || 0 })}
+                              placeholder="0,00"
+                              title="Preço de venda"
+                              className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={produto.priceUnit || 'un'}
+                              onChange={(e) => onUpdateProduct({ ...produto, priceUnit: e.target.value })}
+                              title="Se o preço acima é por unidade ou por quilo"
+                              className="field field-select h-8 pl-2.5 text-[12px] w-16"
+                            >
+                              <option value="un">un</option>
+                              <option value="kg">kg</option>
+                            </select>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {custoUn > 0
+                              ? <span className="t-body tnum font-semibold text-[#0E0937]">{formatCurrencyBR(precoSugerido(custoUn, 'fabricacao'))}</span>
+                              : <span className="t-body ink-quiet">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right t-body tnum">
+                            {ficha && ficha.custo > 0 ? formatCurrencyBR(ficha.custo) : <span className="ink-quiet">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {custoUn > 0 ? (
+                              <span className="t-body tnum">{formatCurrencyBR(custoUn)}/{produto.priceUnit || 'un'}</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={produto.manualCost || ''}
+                                onChange={(e) => onUpdateProduct({ ...produto, manualCost: Number(e.target.value) || 0 })}
+                                placeholder="digitar"
+                                title="Custo digitado à mão, enquanto não há ficha técnica"
+                                className="field h-8 px-2 text-[12px] text-right tnum no-spin w-24 ml-auto block"
+                              />
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <span className={`t-body tnum font-semibold ${calculavel ? (lucro >= 0 ? 'ink-fresh' : 'ink-expired') : 'ink-quiet'}`}>
+                              {calculavel ? formatCurrencyBR(lucro) : '—'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right t-body tnum">
+                            {calculavel ? `${margem.toFixed(1)}%` : <span className="ink-quiet">—</span>}
+                          </td>
+                          <td className="py-2.5 pl-3 text-center t-body tnum">
+                            {ficha ? `${ficha.yieldQty} ${ficha.yieldUnit}` : <span className="ink-quiet">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="t-micro pt-3">
+                  Produto sem ficha técnica aceita o custo digitado à mão na coluna “custo un.” — assim ele já entra na conta.
+                </p>
+              </div>
+            )}
+
+            {/* ---------------- REVENDA ---------------- */}
+            {painel === 'revenda' && (
+              <div className="card p-5 sm:p-6">
+                <p className="t-body pb-4">
+                  Referência do Sebrae para alimentação: markup de 100% sobre o custo, que dá CMV de {(CMV_METAS.revenda.alvo * 100).toFixed(0)}%.
+                  Bom até {CMV_METAS.revenda.bom}%, atenção até {CMV_METAS.revenda.atencao}%.
+                </p>
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
+                    <thead>
+                      <tr className="t-overline-sm border-b hairline">
+                        <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
+                        <th className="py-3 px-3 font-bold">CMV</th>
+                        <th className="py-3 px-3 text-right font-bold">Preço</th>
+                        <th className="py-3 px-3 font-bold">Por</th>
+                        <th className="py-3 px-3 text-right font-bold">Preço sug.</th>
+                        <th className="py-3 px-3 text-right font-bold">Custo</th>
+                        <th className="py-3 px-3 text-right font-bold">Lucro</th>
+                        <th className="py-3 pl-3 text-right font-bold">Margem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {revendaOrdenada.length === 0 ? (
+                        <tr><td colSpan={8} className="text-center py-10"><p className="t-body ink-quiet">Nenhum item de revenda nesta unidade</p></td></tr>
+                      ) : revendaOrdenada.map(({ item, custo, preco, calculavel, cmv, lucro, margem }) => (
+                        <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                          <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                            <div className="w-36 sm:w-52">
+                              <span className="t-callout font-semibold block truncate" title={item.productName}>{item.productName}</span>
+                              <span className="t-nano ink-quiet">{item.category}</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <CmvCell cmv={cmv} calculavel={calculavel} natureza="revenda" />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.price || ''}
+                              onChange={(e) => onUpdateSeparatedProduct({ ...item, price: Number(e.target.value) || 0 })}
+                              placeholder="0,00"
+                              className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <select
+                              value={item.priceUnit || 'un'}
+                              onChange={(e) => onUpdateSeparatedProduct({ ...item, priceUnit: e.target.value })}
+                              className="field field-select h-8 pl-2.5 text-[12px] w-16"
+                            >
+                              {['un', 'kg', 'g'].map((u) => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {custo > 0
+                              ? <span className="t-body tnum font-semibold text-[#0E0937]">{formatCurrencyBR(precoSugerido(custo, 'revenda'))}</span>
+                              : <span className="t-body ink-quiet">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right t-body tnum">
+                            {custo > 0 ? `${formatCurrencyBR(custo)}/${item.priceUnit || 'un'}` : <span className="ink-quiet">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <span className={`t-body tnum font-semibold ${calculavel ? (lucro >= 0 ? 'ink-fresh' : 'ink-expired') : 'ink-quiet'}`}>
+                              {calculavel ? formatCurrencyBR(lucro) : '—'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pl-3 text-right t-body tnum">
+                            {calculavel ? `${margem.toFixed(1)}%` : <span className="ink-quiet">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="t-micro pt-3">
+                  O custo sai da última compra lançada em Insumos &amp; fichas → Revenda.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      // ==========================================
+      // FORNECEDORES
+      //
+      // A mesma base do CMV, lida de outro jeito. O CMV pergunta "quanto sobra
+      // disso que eu vendo"; aqui a pergunta é "o preço mudou, e com quem sai
+      // mais barato" — que é o único jeito de mexer no CMV sem mexer no preço
+      // de venda.
+      //
+      // Nada é cadastrado nesta tela: toda compra lançada em Insumos & fichas
+      // cai aqui sozinha. A variação de preço também não é digitada — ela sai
+      // da comparação de cada compra com a anterior do mesmo item.
+      // ==========================================
+
+      // Junta as compras de insumo e as de revenda numa lista só e marca, em
+      // cada uma, quanto o preço andou desde a compra anterior daquele item.
+      const reunirCompras = (supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit) => {
+        const compras = [];
+
+        supplies.forEach((s) => {
+          supplyPurchases.filter((c) => c.supplyId === s.id).forEach((c) => {
+            compras.push({
+              id: c.id,
+              itemId: `s${s.id}`,
+              item: s.name,
+              tipo: 'Insumo',
+              unidade: s.unit,
+              fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
+              data: c.purchaseDate || '',
+              criadoEm: c.criadoEm,
+              qty: Number(c.qty) || 0,
+              cost: Number(c.cost) || 0
+            });
+          });
+        });
+
+        separatedProducts.filter((p) => p.unit === currentUnit).forEach((p) => {
+          resalePurchases.filter((c) => c.separatedProductId === p.id).forEach((c) => {
+            compras.push({
+              id: c.id,
+              itemId: `r${p.id}`,
+              item: p.productName,
+              tipo: 'Revenda',
+              unidade: c.purchaseUnit || p.priceUnit || 'un',
+              fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
+              data: c.purchaseDate || '',
+              criadoEm: c.criadoEm,
+              qty: Number(c.qty) || 0,
+              cost: Number(c.cost) || 0
+            });
+          });
+        });
+
+        compras.forEach((c) => { c.custoUnit = c.qty > 0 ? c.cost / c.qty : 0; });
+
+        // A variação é sempre contra a compra ANTERIOR do mesmo item, em ordem
+        // de data. A primeira compra de um item não tem com o que comparar.
+        const porItem = {};
+        compras.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
+        Object.values(porItem).forEach((lista) => {
+          lista.sort((a, b) => {
+            const d = (a.data || '').localeCompare(b.data || '');
+            return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
+          });
+          lista.forEach((c, idx) => {
+            const anterior = idx > 0 ? lista[idx - 1].custoUnit : 0;
+            if (idx === 0 || !(c.custoUnit > 0) || !(anterior > 0)) {
+              c.variacaoUnit = null;
+              c.variacaoPct = null;
+              return;
+            }
+            c.variacaoUnit = c.custoUnit - anterior;
+            c.variacaoPct = (c.variacaoUnit / anterior) * 100;
+          });
+        });
+
+        return compras;
+      };
+
+      // A seta da variação: vermelha subindo, verde caindo. O valor aparece na
+      // unidade grande (kg, L), que é como se fala de preço de insumo.
+      const VariacaoBadge = ({ variacaoUnit, variacaoPct, unidade }) => {
+        if (variacaoUnit === null || variacaoUnit === undefined || Math.abs(variacaoUnit) < 1e-9) {
+          return <span className="t-body ink-quiet">—</span>;
+        }
+        const subiu = variacaoUnit > 0;
+        const grande = precoNaUnidadeGrande(Math.abs(variacaoUnit), unidade).valor;
+        return (
+          <span className={`t-body tnum font-bold ${subiu ? 'ink-expired' : 'ink-fresh'}`}>
+            {subiu ? '↑' : '↓'} {formatCurrencyBR(grande)}
+            {variacaoPct !== null && variacaoPct !== undefined && (
+              <span className="font-semibold"> ({subiu ? '+' : ''}{variacaoPct.toFixed(0)}%)</span>
+            )}
+          </span>
+        );
+      };
+
+      const SuppliersView = ({
+        supplies,
+        supplyPurchases,
+        separatedProducts,
+        resalePurchases,
+        currentUnit,
+        unitName
+      }) => {
+        const [visao, setVisao] = useState('item');
+        const [busca, setBusca] = useState('');
+        const [tipoFiltro, setTipoFiltro] = useState('todos');
+        const [ordem, setOrdem] = useState('variacao_desc');
+        const [limite, setLimite] = useState('25');
+
+        const todas = useMemo(
+          () => reunirCompras(supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit),
+          [supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit]
+        );
+
+        // O filtro de tipo alimenta também o placar; a busca só estreita a lista
+        const porTipo = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
+        const termo = busca.trim().toLowerCase();
+        const compras = termo
+          ? porTipo.filter((c) => c.fornecedor.toLowerCase().includes(termo) || c.item.toLowerCase().includes(termo))
+          : porTipo;
+
+        const placar = useMemo(() => ({
+          fornecedores: new Set(porTipo.filter((c) => c.fornecedor !== 'Sem fornecedor').map((c) => c.fornecedor)).size,
+          compras: porTipo.length,
+          total: porTipo.reduce((s, c) => s + c.cost, 0),
+          itens: new Set(porTipo.map((c) => c.itemId)).size
+        }), [porTipo]);
+
+        // Um resumo por item: preço atual, o de antes, quanto andou e de
+        // quantos fornecedores ele já veio
+        const porItem = useMemo(() => {
+          const grupos = {};
+          compras.forEach((c) => { (grupos[c.itemId] = grupos[c.itemId] || []).push(c); });
+          return Object.values(grupos).map((lista) => {
+            const emOrdem = [...lista].sort((a, b) => {
+              const d = (b.data || '').localeCompare(a.data || '');
+              return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+            });
+            const atual = emOrdem[0];
+            const anterior = emOrdem[1] || null;
+            const fornecedoresDoItem = {};
+            lista.forEach((c) => {
+              if (!c.custoUnit) return;
+              const f = fornecedoresDoItem[c.fornecedor] || { soma: 0, n: 0, ultima: '' };
+              f.soma += c.custoUnit;
+              f.n += 1;
+              if ((c.data || '') > f.ultima) f.ultima = c.data || '';
+              fornecedoresDoItem[c.fornecedor] = f;
+            });
+            const medias = Object.entries(fornecedoresDoItem)
+              .map(([nome, f]) => ({ nome, medio: f.soma / f.n, ultima: f.ultima }))
+              .sort((a, b) => a.medio - b.medio);
+            const maisBarato = medias[0] || null;
+            const maisCaro = medias[medias.length - 1] || null;
+            return {
+              itemId: atual.itemId,
+              item: atual.item,
+              tipo: atual.tipo,
+              unidade: atual.unidade,
+              atual,
+              anterior,
+              compras: lista.length,
+              medias,
+              maisBarato,
+              // Quanto daria para economizar trocando o mais caro pelo mais barato
+              economiaPct: maisBarato && maisCaro && maisCaro.medio > 0 && medias.length > 1
+                ? ((maisCaro.medio - maisBarato.medio) / maisCaro.medio) * 100
+                : 0
+            };
+          });
+        }, [compras]);
+
+        const itensOrdenados = useMemo(() => [...porItem].sort((a, b) => {
+          const va = a.atual.variacaoPct;
+          const vb = b.atual.variacaoPct;
+          switch (ordem) {
+            case 'variacao_asc': return (va === null ? 1e9 : va) - (vb === null ? 1e9 : vb);
+            case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
+            case 'preco_asc': return a.atual.custoUnit - b.atual.custoUnit;
+            case 'preco_desc': return b.atual.custoUnit - a.atual.custoUnit;
+            case 'fornecedores_desc': return b.medias.length - a.medias.length;
+            case 'economia_desc': return b.economiaPct - a.economiaPct;
+            default: return (vb === null ? -1e9 : vb) - (va === null ? -1e9 : va);
+          }
+        }), [porItem, ordem]);
+
+        const porFornecedor = useMemo(() => {
+          const grupos = {};
+          compras.forEach((c) => { (grupos[c.fornecedor] = grupos[c.fornecedor] || []).push(c); });
+          return Object.entries(grupos).map(([nome, lista]) => ({
+            nome,
+            lista,
+            total: lista.reduce((s, c) => s + c.cost, 0),
+            itens: new Set(lista.map((c) => c.itemId)).size,
+            recente: lista.reduce((m, c) => (c.data > m ? c.data : m), '')
+          })).sort((a, b) => {
+            switch (ordem) {
+              case 'total_asc': return a.total - b.total;
+              case 'compras_desc': return b.lista.length - a.lista.length;
+              case 'recente': return (b.recente || '').localeCompare(a.recente || '');
+              case 'nome_asc': return a.nome.localeCompare(b.nome, 'pt-BR');
+              default: return b.total - a.total;
+            }
+          });
+        }, [compras, ordem]);
+
+        const extrato = useMemo(() => {
+          const lista = [...compras].sort((a, b) => {
+            const d = (b.data || '').localeCompare(a.data || '');
+            return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+          });
+          if (ordem === 'antiga') lista.reverse();
+          if (ordem === 'valor_desc') lista.sort((a, b) => b.cost - a.cost);
+          if (ordem === 'valor_asc') lista.sort((a, b) => a.cost - b.cost);
+          return limite === 'all' ? lista : lista.slice(0, Number(limite));
+        }, [compras, ordem, limite]);
+
+        // As opções de ordenação mudam com a visão: ordenar por "maior
+        // aumento" não quer dizer nada numa lista de fornecedores
+        const OPCOES_ORDEM = {
+          item: [
+            { v: 'variacao_desc', t: 'Maior aumento de preço' },
+            { v: 'variacao_asc', t: 'Maior queda de preço' },
+            { v: 'economia_desc', t: 'Maior economia possível' },
+            { v: 'preco_desc', t: 'Maior preço atual' },
+            { v: 'preco_asc', t: 'Menor preço atual' },
+            { v: 'fornecedores_desc', t: 'Mais fornecedores' },
+            { v: 'nome_asc', t: 'Nome (A–Z)' }
+          ],
+          fornecedor: [
+            { v: 'total_desc', t: 'Maior valor comprado' },
+            { v: 'total_asc', t: 'Menor valor comprado' },
+            { v: 'compras_desc', t: 'Mais compras' },
+            { v: 'recente', t: 'Compra mais recente' },
+            { v: 'nome_asc', t: 'Nome (A–Z)' }
+          ],
+          compra: [
+            { v: 'recente', t: 'Mais recentes' },
+            { v: 'antiga', t: 'Mais antigas' },
+            { v: 'valor_desc', t: 'Maior valor pago' },
+            { v: 'valor_asc', t: 'Menor valor pago' }
+          ]
+        };
+
+        const trocarVisao = (nova) => {
+          setVisao(nova);
+          setOrdem(OPCOES_ORDEM[nova][0].v);
+        };
+
+        const subiram = porItem.filter((i) => i.atual.variacaoPct > 0.5).length;
+        const cairam = porItem.filter((i) => i.atual.variacaoPct < -0.5).length;
+        const comEscolha = porItem.filter((i) => i.medias.length > 1);
+
+        if (todas.length === 0) {
+          return (
+            <div className="space-y-5">
+              <div>
+                <h2 className="t-display">Fornecedores</h2>
+                <p className="t-body mt-1">{unitName}</p>
+              </div>
+              <div className="card p-6 sm:p-7">
+                <p className="t-body">
+                  Nenhuma compra lançada ainda. Registre as compras no carrinho de cada insumo, em
+                  {' '}<strong>Insumos &amp; fichas</strong> — elas aparecem aqui sozinhas, com a variação de preço já calculada.
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="t-display">Fornecedores</h2>
+              <p className="t-body mt-1">
+                {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card p-5">
+                <span className="t-overline">Fornecedores</span>
+                <div className="mt-2 t-metric-lg tnum">{placar.fornecedores}</div>
+              </div>
+              <div className="card p-5">
+                <span className="t-overline">Compras</span>
+                <div className="mt-2 t-metric-lg tnum">{placar.compras}</div>
+              </div>
+              <div className="card p-5">
+                <span className="t-overline">Total comprado</span>
+                <div className="mt-2 t-metric-sm tnum">{formatCurrencyBR(placar.total)}</div>
+              </div>
+              <div className="card p-5">
+                <span className="t-overline">Itens diferentes</span>
+                <div className="mt-2 t-metric-lg tnum">{placar.itens}</div>
+              </div>
+            </div>
+
+            {/* O placar da variação: em quantos itens o preço andou, e em
+                quantos existe escolha de fornecedor */}
+            {visao === 'item' && (
+              <div className="card p-5 flex flex-wrap items-center gap-x-8 gap-y-3">
+                <div>
+                  <div className="t-caption">Subiram de preço</div>
+                  <div className="t-metric-xs tnum ink-expired">{subiram}</div>
+                </div>
+                <div>
+                  <div className="t-caption">Caíram de preço</div>
+                  <div className="t-metric-xs tnum ink-fresh">{cairam}</div>
+                </div>
+                <div>
+                  <div className="t-caption">Com mais de um fornecedor</div>
+                  <div className="t-metric-xs tnum">{comEscolha.length}</div>
+                </div>
+                {comEscolha.length > 0 && (
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="t-caption">Maior economia possível</div>
+                    <div className="t-body">
+                      <strong>{[...comEscolha].sort((a, b) => b.economiaPct - a.economiaPct)[0].item}</strong>
+                      {' · '}
+                      <span className="ink-fresh font-bold tnum">
+                        até {[...comEscolha].sort((a, b) => b.economiaPct - a.economiaPct)[0].economiaPct.toFixed(0)}% mais barato
+                      </span>
+                      {' com '}
+                      {[...comEscolha].sort((a, b) => b.economiaPct - a.economiaPct)[0].maisBarato.nome}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="segmented flex-1 lg:flex-none lg:inline-flex">
+                <button onClick={() => trocarVisao('item')} data-active={visao === 'item'} className="flex-1 lg:flex-none h-9 px-4">Por item</button>
+                <button onClick={() => trocarVisao('fornecedor')} data-active={visao === 'fornecedor'} className="flex-1 lg:flex-none h-9 px-4">Por fornecedor</button>
+                <button onClick={() => trocarVisao('compra')} data-active={visao === 'compra'} className="flex-1 lg:flex-none h-9 px-4">Por compra</button>
+              </div>
+              <div className="relative flex-1 max-w-sm">
+                <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                <input
+                  type="text"
+                  placeholder="Buscar fornecedor ou item…"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="field field-sm field-search"
+                />
+              </div>
+              <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-sm field-select field-auto">
+                {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
+              </select>
+              {visao === 'compra' && (
+                <select value={limite} onChange={(e) => setLimite(e.target.value)} className="field field-sm field-select field-auto">
+                  <option value="10">Últimas 10</option>
+                  <option value="25">Últimas 25</option>
+                  <option value="50">Últimas 50</option>
+                  <option value="all">Todas</option>
+                </select>
+              )}
+            </div>
+
+            <div className="segmented w-full sm:w-auto sm:inline-flex">
+              {['todos', 'Insumo', 'Revenda'].map((t) => (
+                <button key={t} onClick={() => setTipoFiltro(t)} data-active={tipoFiltro === t} className="flex-1 sm:flex-none h-8 px-4">
+                  {t === 'todos' ? 'Todos' : t}
+                </button>
+              ))}
+            </div>
+
+            {compras.length === 0 ? (
+              <div className="card p-6"><p className="t-body ink-quiet">Nenhum resultado com os filtros atuais.</p></div>
+            ) : (
+              <div className="card p-5 sm:p-6">
+                {/* ---------------- POR ITEM ---------------- */}
+                {visao === 'item' && (
+                  <div className="rola-x">
+                    <table className="w-full text-left tabela-larga">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline">
+                          <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
+                          <th className="py-3 px-3 text-right font-bold">Preço atual</th>
+                          <th className="py-3 px-3 text-right font-bold">Antes</th>
+                          <th className="py-3 px-3 text-right font-bold">Variação</th>
+                          <th className="py-3 px-3 font-bold">Fornecedor atual</th>
+                          <th className="py-3 px-3 font-bold">Mais barato</th>
+                          <th className="py-3 pl-3 text-center font-bold">Compras</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itensOrdenados.map((i) => (
+                          <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+                              <div className="w-36 sm:w-52">
+                                <span className="t-callout font-semibold block truncate" title={i.item}>{i.item}</span>
+                                <span className="t-nano ink-quiet">{i.tipo} · {formatDateBR(i.atual.data) || 'sem data'}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
+                              {formatPrecoInsumo(i.atual.custoUnit, i.unidade)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right t-body tnum ink-quiet">
+                              {i.anterior && i.anterior.custoUnit > 0 ? formatPrecoInsumo(i.anterior.custoUnit, i.unidade) : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
+                            </td>
+                            <td className="py-2.5 px-3 t-body truncate max-w-[160px]" title={i.atual.fornecedor}>{i.atual.fornecedor}</td>
+                            <td className="py-2.5 px-3">
+                              {i.medias.length > 1 ? (
+                                <div className="leading-tight">
+                                  <span className="t-body font-semibold">{i.maisBarato.nome}</span>
+                                  <div className="t-nano ink-fresh font-bold tnum">
+                                    {formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · −{i.economiaPct.toFixed(0)}%
+                                  </div>
+                                </div>
+                              ) : <span className="t-body ink-quiet">só um</span>}
+                            </td>
+                            <td className="py-2.5 pl-3 text-center t-body tnum">{i.compras}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* ---------------- POR FORNECEDOR ---------------- */}
+                {visao === 'fornecedor' && (
+                  <div className="space-y-5">
+                    {porFornecedor.map((f) => (
+                      <div key={f.nome}>
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pb-2">
+                          <h3 className="t-title">{f.nome}</h3>
+                          <span className="t-micro tnum">
+                            {formatCurrencyBR(f.total)} · {f.lista.length} {f.lista.length === 1 ? 'compra' : 'compras'} · {f.itens} {f.itens === 1 ? 'item' : 'itens'}
+                            {f.recente && ` · última em ${formatDateBR(f.recente)}`}
+                          </span>
+                        </div>
+                        <div className="rola-x">
+                          <table className="w-full text-left">
+                            <thead>
+                              <tr className="t-overline-sm border-b hairline">
+                                <th className="py-2 pr-3 font-bold">Item</th>
+                                <th className="py-2 px-3 font-bold">Data</th>
+                                <th className="py-2 px-3 text-right font-bold">Qtd</th>
+                                <th className="py-2 px-3 text-right font-bold">Valor pago</th>
+                                <th className="py-2 pl-3 text-right font-bold">Preço</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[...f.lista].sort((a, b) => (b.data || '').localeCompare(a.data || '')).map((c) => (
+                                <tr key={c.id} className="border-t hairline">
+                                  <td className="py-2 pr-3 t-body">{c.item}</td>
+                                  <td className="py-2 px-3 t-body tnum">{formatDateBR(c.data) || '—'}</td>
+                                  <td className="py-2 px-3 text-right t-body tnum">{c.qty} {c.unidade}</td>
+                                  <td className="py-2 px-3 text-right t-body tnum">{formatCurrencyBR(c.cost)}</td>
+                                  <td className="py-2 pl-3 text-right t-body tnum">{formatPrecoInsumo(c.custoUnit, c.unidade)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ---------------- POR COMPRA ---------------- */}
+                {visao === 'compra' && (
+                  <div className="rola-x">
+                    <table className="w-full text-left tabela-larga">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline">
+                          <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Data</th>
+                          <th className="py-3 px-3 font-bold">Item</th>
+                          <th className="py-3 px-3 font-bold">Fornecedor</th>
+                          <th className="py-3 px-3 text-right font-bold">Qtd</th>
+                          <th className="py-3 px-3 text-right font-bold">Valor pago</th>
+                          <th className="py-3 px-3 text-right font-bold">Preço</th>
+                          <th className="py-3 pl-3 text-right font-bold">Variação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {extrato.map((c) => (
+                          <tr key={c.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <td className="py-2.5 pr-3 t-body tnum sticky left-0 bg-white z-10">{formatDateBR(c.data) || '—'}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="t-body font-semibold">{c.item}</span>
+                              <span className="t-nano ink-quiet block">{c.tipo}</span>
+                            </td>
+                            <td className="py-2.5 px-3 t-body truncate max-w-[160px]" title={c.fornecedor}>{c.fornecedor}</td>
+                            <td className="py-2.5 px-3 text-right t-body tnum">{c.qty} {c.unidade}</td>
+                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
+                            <td className="py-2.5 px-3 text-right t-body tnum">{formatPrecoInsumo(c.custoUnit, c.unidade)}</td>
+                            <td className="py-2.5 pl-3 text-right">
+                              <VariacaoBadge variacaoUnit={c.variacaoUnit} variacaoPct={c.variacaoPct} unidade={c.unidade} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      };
+
       const CenteredCard = ({ children }) => (
         <div className="min-h-screen flex items-center justify-center p-6 font-sans">
           <div className="card p-7 sm:p-8 max-w-lg w-full space-y-4">{children}</div>
@@ -9567,6 +11868,15 @@
         const [productionRecords, setProductionRecords] = useState([]);
         // Falso enquanto a tabela production_records não existir no banco
         const [productionReady, setProductionReady] = useState(true);
+        // O CMV: insumos, o que foi comprado deles, as fichas técnicas e o que
+        // entra em cada uma
+        const [supplies, setSupplies] = useState([]);
+        const [supplyPurchases, setSupplyPurchases] = useState([]);
+        const [recipes, setRecipes] = useState([]);
+        const [recipeItems, setRecipeItems] = useState([]);
+        const [resalePurchases, setResalePurchases] = useState([]);
+        // Falso enquanto as tabelas do CMV não existirem no banco
+        const [cmvReady, setCmvReady] = useState(true);
         // Falso enquanto standard_plans não tiver prioridade e frequência
         const [planExtrasReady, setPlanExtrasReady] = useState(true);
         // Falso enquanto standard_plans não tiver a quantidade mínima por dia
@@ -9612,6 +11922,15 @@
           setProductionRecords(proximos);
         };
 
+        // Espelho das fichas técnicas, pelo mesmo motivo dos itens da vitrine:
+        // criar uma ficha e usar o id dela acontece antes do próximo render
+        const recipesRef = useRef(recipes);
+        recipesRef.current = recipes;
+        const aplicarRecipes = (proximas) => {
+          recipesRef.current = proximas;
+          setRecipes(proximas);
+        };
+
         // As baixas que já voltaram atrás, para o desfazer não devolver as
         // mesmas unidades duas vezes
         const desfeitasRef = useRef(new Set());
@@ -9636,6 +11955,12 @@
           setSeparatedProducts(data.separatedProducts);
           setProductionRecords(data.productionRecords);
           setProductionReady(data.productionReady);
+          setSupplies(data.supplies);
+          setSupplyPurchases(data.supplyPurchases);
+          aplicarRecipes(data.recipes);
+          setRecipeItems(data.recipeItems);
+          setResalePurchases(data.resalePurchases);
+          setCmvReady(data.cmvReady);
           setPlanExtrasReady(data.planExtrasReady);
           setPlanMinReady(data.planMinReady);
           setCurrentUnit((atual) => (data.units.some((u) => u.code === atual) ? atual : data.units[0]?.code || ''));
@@ -10622,6 +12947,261 @@
           });
         };
 
+
+        // Todo fornecedor que já apareceu numa compra, para os campos
+        // sugerirem em vez de fazer a loja digitar o nome de novo
+        const fornecedoresUsados = useMemo(() => {
+          const nomes = new Set();
+          [...supplyPurchases, ...resalePurchases].forEach((c) => {
+            const nome = (c.supplier || '').trim();
+            if (nome) nomes.add(nome);
+          });
+          return Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        }, [supplyPurchases, resalePurchases]);
+
+        // A linha da planilha edita a ÚLTIMA compra, que é a que manda no
+        // custo. Se o insumo ainda não tem nenhuma, a primeira digitação
+        // cria uma — senão o campo aceitaria o número e não guardaria nada.
+        const handleSetUltimaCompraInsumo = (supplyId, campos) => {
+          const uc = ultimaCompra(supplyPurchases.filter((c) => c.supplyId === supplyId));
+          if (uc) handleUpdateSupplyPurchase({ ...uc, ...campos });
+          else handleAddSupplyPurchase(supplyId, { supplier: '', purchaseDate: null, qty: 0, cost: 0, ...campos });
+        };
+
+        const handleSetUltimaCompraRevenda = (separatedProductId, campos) => {
+          const uc = ultimaCompra(resalePurchases.filter((c) => c.separatedProductId === separatedProductId));
+          if (uc) handleUpdateResalePurchase({ ...uc, ...campos });
+          else handleAddResalePurchase(separatedProductId, { supplier: '', purchaseDate: null, qty: 0, purchaseUnit: 'un', cost: 0, ...campos });
+        };
+
+        // ------------------------------------------
+        // CMV — insumos, compras e fichas técnicas
+        //
+        // Mesma divisão de trabalho do resto do app: o que é digitado grava
+        // com writeSoon (uma vez, depois da última tecla) e o que é criado ou
+        // apagado grava na hora com write.
+        // ------------------------------------------
+        const handleAddSupply = (supply) => {
+          write('Cadastrar insumo', async () => {
+            const linhas = await run('supplies', sb.from('supplies').insert({
+              name: supply.name,
+              unit: supply.unit || 'g',
+              variation_unit: supply.variationUnit || null,
+              variation_factor: supply.variationFactor || null,
+              supply_class: supply.supplyClass || 'insumo'
+            }).select());
+            const novo = fromSupply(linhas[0]);
+            setSupplies((prev) => [...prev, novo].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+            return novo;
+          });
+        };
+
+        const handleUpdateSupply = (updated) => {
+          setSupplies((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+
+          const campos = {
+            unit: updated.unit,
+            variation_unit: updated.variationUnit || null,
+            variation_factor: updated.variationFactor || null,
+            supply_class: updated.supplyClass
+          };
+          // Nome vazio é passagem da digitação: não vai para o banco
+          const nome = (updated.name || '').trim();
+          if (nome) campos.name = nome;
+
+          writeSoon(`insumo:${updated.id}`, 'Atualizar insumo', () =>
+            run('supplies', sb.from('supplies').update(campos).eq('id', updated.id))
+          );
+        };
+
+        // O insumo sai da lista, mas o que já foi comprado dele continua
+        // guardado — o histórico de preço é do fornecedor, não do cadastro.
+        // Por isso a exclusão é bloqueada enquanto ele estiver em alguma ficha.
+        const handleDeleteSupply = (id) => {
+          const alvo = supplies.find((s) => s.id === id);
+          if (!alvo) return;
+          const emFichas = recipeItems.filter((i) => i.supplyId === id);
+          if (emFichas.length > 0) {
+            const produtos = new Set(
+              emFichas
+                .map((i) => recipes.find((r) => r.id === i.recipeId))
+                .map((r) => products.find((p) => p.id === r?.productId)?.name)
+                .filter(Boolean)
+            );
+            setErrorMsg(
+              `"${alvo.name}" está em ${emFichas.length} ${emFichas.length === 1 ? 'ficha técnica' : 'fichas técnicas'}` +
+              (produtos.size ? ` (${Array.from(produtos).join(', ')})` : '') +
+              '. Tire o insumo delas antes de excluir.'
+            );
+            return;
+          }
+          const ok = window.confirm(
+            `Excluir o insumo "${alvo.name}"?\n\nAs compras registradas nele saem junto.`
+          );
+          if (!ok) return;
+
+          setSupplies((prev) => prev.filter((s) => s.id !== id));
+          setSupplyPurchases((prev) => prev.filter((c) => c.supplyId !== id));
+          write('Excluir insumo', () => run('supplies', sb.from('supplies').delete().eq('id', id)));
+        };
+
+        const handleAddSupplyPurchase = (supplyId, compra) => {
+          write('Registrar compra de insumo', async () => {
+            const linhas = await run('supply_purchases', sb.from('supply_purchases').insert({
+              supply_id: supplyId,
+              supplier: compra.supplier || '',
+              purchase_date: compra.purchaseDate || null,
+              qty: compra.qty || 0,
+              cost: compra.cost || 0
+            }).select());
+            setSupplyPurchases((prev) => [...prev, fromSupplyPurchase(linhas[0])]);
+          });
+        };
+
+        const handleUpdateSupplyPurchase = (updated) => {
+          setSupplyPurchases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          writeSoon(`compra-insumo:${updated.id}`, 'Atualizar compra de insumo', () =>
+            run('supply_purchases', sb.from('supply_purchases').update({
+              supplier: updated.supplier || '',
+              purchase_date: updated.purchaseDate || null,
+              qty: updated.qty || 0,
+              cost: updated.cost || 0
+            }).eq('id', updated.id))
+          );
+        };
+
+        const handleDeleteSupplyPurchase = (id) => {
+          setSupplyPurchases((prev) => prev.filter((c) => c.id !== id));
+          write('Excluir compra de insumo', () =>
+            run('supply_purchases', sb.from('supply_purchases').delete().eq('id', id))
+          );
+        };
+
+        // A ficha do produto, criada na primeira vez que alguém mexe nela.
+        // Devolve a ficha para quem chamou poder usar o id na mesma ação.
+        //
+        // Duas ações quase juntas (mexer no rendimento e já escolher o primeiro
+        // insumo) chamariam isto duas vezes antes de a primeira responder, e a
+        // segunda esbarraria no "uma ficha por produto" do banco. Por isso a
+        // criação em andamento fica guardada: quem chega depois espera a mesma.
+        const fichasEmCriacaoRef = useRef({});
+        const garantirFicha = (productId) => {
+          const existente = recipesRef.current.find((r) => r.productId === productId);
+          if (existente) return Promise.resolve(existente);
+          if (fichasEmCriacaoRef.current[productId]) return fichasEmCriacaoRef.current[productId];
+
+          const criacao = (async () => {
+            const linhas = await run('recipes', sb.from('recipes').insert({ product_id: productId }).select());
+            const nova = fromRecipe(linhas[0]);
+            aplicarRecipes([...recipesRef.current, nova]);
+            return nova;
+          })();
+
+          fichasEmCriacaoRef.current[productId] = criacao;
+          criacao.catch(() => {}).then(() => { delete fichasEmCriacaoRef.current[productId]; });
+          return criacao;
+        };
+
+        const handleUpdateRecipe = (productId, campos) => {
+          const atual = recipes.find((r) => r.productId === productId);
+          if (atual) {
+            aplicarRecipes(recipesRef.current.map((r) => (r.id === atual.id ? { ...r, ...campos } : r)));
+          }
+
+          const paraBanco = {};
+          if (campos.yieldQty !== undefined) paraBanco.yield_qty = Math.max(0.001, Number(campos.yieldQty) || 1);
+          if (campos.yieldUnit !== undefined) paraBanco.yield_unit = campos.yieldUnit || 'un';
+          if (campos.weightPerUnit !== undefined) paraBanco.weight_per_unit = campos.weightPerUnit || null;
+          if (campos.notes !== undefined) paraBanco.notes = campos.notes || '';
+
+          writeSoon(`ficha:${productId}`, 'Atualizar ficha técnica', async () => {
+            const ficha = await garantirFicha(productId);
+            await run('recipes', sb.from('recipes').update(paraBanco).eq('id', ficha.id));
+            // A ficha pode ter acabado de nascer aqui dentro, com os valores
+            // padrão: sem isto a tela voltaria para o rendimento 1
+            aplicarRecipes(recipesRef.current.map((r) => (r.id === ficha.id ? { ...r, ...campos } : r)));
+          });
+        };
+
+        const handleAddRecipeItem = (productId, supplyId) => {
+          write('Adicionar insumo à ficha', async () => {
+            const ficha = await garantirFicha(productId);
+            const linhas = await run('recipe_items', sb.from('recipe_items').insert({
+              recipe_id: ficha.id,
+              supply_id: supplyId,
+              qty: 0,
+              usage_unit: ''
+            }).select());
+            setRecipeItems((prev) => [...prev, fromRecipeItem(linhas[0])]);
+          });
+        };
+
+        const handleUpdateRecipeItem = (updated) => {
+          setRecipeItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          writeSoon(`ficha-item:${updated.id}`, 'Atualizar item da ficha', () =>
+            run('recipe_items', sb.from('recipe_items').update({
+              supply_id: updated.supplyId,
+              qty: Number(updated.qty) || 0,
+              usage_unit: updated.usageUnit || ''
+            }).eq('id', updated.id))
+          );
+        };
+
+        const handleDeleteRecipeItem = (id) => {
+          setRecipeItems((prev) => prev.filter((i) => i.id !== id));
+          write('Remover insumo da ficha', () =>
+            run('recipe_items', sb.from('recipe_items').delete().eq('id', id))
+          );
+        };
+
+        // Preço, unidade de venda e custo dos itens de fora da vitrine — o que
+        // a tela do CMV precisa mexer neles. A quantidade em estoque continua
+        // sendo assunto do handleUpdateSeparatedQty.
+        const handleUpdateSeparatedProduct = (updated) => {
+          setSeparatedProducts((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          writeSoon(`sep-cmv:${updated.id}`, 'Atualizar item de revenda', () =>
+            run('separated_products', sb.from('separated_products').update({
+              price: Number(updated.price) || 0,
+              price_unit: updated.priceUnit || 'un',
+              cost: Number(updated.cost) || 0
+            }).eq('id', updated.id))
+          );
+        };
+
+        const handleAddResalePurchase = (separatedProductId, compra) => {
+          write('Registrar compra de revenda', async () => {
+            const linhas = await run('resale_purchases', sb.from('resale_purchases').insert({
+              separated_product_id: separatedProductId,
+              supplier: compra.supplier || '',
+              purchase_date: compra.purchaseDate || null,
+              qty: compra.qty || 0,
+              purchase_unit: compra.purchaseUnit || 'un',
+              cost: compra.cost || 0
+            }).select());
+            setResalePurchases((prev) => [...prev, fromResalePurchase(linhas[0])]);
+          });
+        };
+
+        const handleUpdateResalePurchase = (updated) => {
+          setResalePurchases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          writeSoon(`compra-revenda:${updated.id}`, 'Atualizar compra de revenda', () =>
+            run('resale_purchases', sb.from('resale_purchases').update({
+              supplier: updated.supplier || '',
+              purchase_date: updated.purchaseDate || null,
+              qty: updated.qty || 0,
+              purchase_unit: updated.purchaseUnit || 'un',
+              cost: updated.cost || 0
+            }).eq('id', updated.id))
+          );
+        };
+
+        const handleDeleteResalePurchase = (id) => {
+          setResalePurchases((prev) => prev.filter((c) => c.id !== id));
+          write('Excluir compra de revenda', () =>
+            run('resale_purchases', sb.from('resale_purchases').delete().eq('id', id))
+          );
+        };
+
         // O banco não aceita dois produtos com o mesmo nome; a mensagem crua
         // do Postgres não diz isso com clareza para quem está na loja
         const traduzirErroProduto = (error) =>
@@ -10656,6 +13236,10 @@
             shelf_life_days: updated.shelfLifeDays,
             price: updated.price
           };
+          if (cmvReady) {
+            campos.price_unit = updated.priceUnit || 'un';
+            campos.manual_cost = Number(updated.manualCost) || 0;
+          }
           // Nome vazio é apenas uma passagem da digitação: não vai para o banco
           const nome = (updated.name || '').trim();
           if (nome) campos.name = nome;
@@ -11022,6 +13606,69 @@
                   onUpdateProduct={handleUpdateProduct}
                   onDeleteProduct={handleDeleteProduct}
                 />
+              )}
+
+              {activeTab === 'insumos' && (
+                cmvReady ? (
+                  <SuppliesRecipesView
+                    supplies={supplies}
+                    supplyPurchases={supplyPurchases}
+                    recipes={recipes}
+                    recipeItems={recipeItems}
+                    products={products}
+                    separatedProducts={separatedProducts}
+                    resalePurchases={resalePurchases}
+                    currentUnit={currentUnit}
+                    fornecedores={fornecedoresUsados}
+                    onAddSupply={handleAddSupply}
+                    onUpdateSupply={handleUpdateSupply}
+                    onDeleteSupply={handleDeleteSupply}
+                    onSetUltimaCompraInsumo={handleSetUltimaCompraInsumo}
+                    onAddSupplyPurchase={handleAddSupplyPurchase}
+                    onUpdateSupplyPurchase={handleUpdateSupplyPurchase}
+                    onDeleteSupplyPurchase={handleDeleteSupplyPurchase}
+                    onUpdateRecipe={handleUpdateRecipe}
+                    onAddRecipeItem={handleAddRecipeItem}
+                    onUpdateRecipeItem={handleUpdateRecipeItem}
+                    onDeleteRecipeItem={handleDeleteRecipeItem}
+                    onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+                    onSetUltimaCompraRevenda={handleSetUltimaCompraRevenda}
+                    onAddResalePurchase={handleAddResalePurchase}
+                    onUpdateResalePurchase={handleUpdateResalePurchase}
+                    onDeleteResalePurchase={handleDeleteResalePurchase}
+                  />
+                ) : <CmvSetupNotice />
+              )}
+
+              {activeTab === 'cmv' && (
+                cmvReady ? (
+                  <CmvView
+                    products={products}
+                    recipes={recipes}
+                    recipeItems={recipeItems}
+                    supplies={supplies}
+                    supplyPurchases={supplyPurchases}
+                    separatedProducts={separatedProducts}
+                    resalePurchases={resalePurchases}
+                    currentUnit={currentUnit}
+                    unitName={getUnitName(units, currentUnit)}
+                    onUpdateProduct={handleUpdateProduct}
+                    onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+                  />
+                ) : <CmvSetupNotice />
+              )}
+
+              {activeTab === 'fornecedores' && (
+                cmvReady ? (
+                  <SuppliersView
+                    supplies={supplies}
+                    supplyPurchases={supplyPurchases}
+                    separatedProducts={separatedProducts}
+                    resalePurchases={resalePurchases}
+                    currentUnit={currentUnit}
+                    unitName={getUnitName(units, currentUnit)}
+                  />
+                ) : <CmvSetupNotice />
               )}
             </main>
 
