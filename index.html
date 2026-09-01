@@ -397,14 +397,26 @@
       @keyframes long-press-fill { from { width: 0; } to { width: 100%; } }
 
       /* Segmented control (iOS) */
+      /* No celular o segmentado com muitos botões — os dias da semana, as
+         cinco listas do histórico — ficava mais largo que a tela e empurrava
+         a PÁGINA inteira junto: o cabeçalho e todos os cartões saíam
+         desalinhados por causa de uma tirinha de botões. Agora ele rola
+         dentro de si mesmo e a página não sente. */
       .segmented {
         display: inline-flex;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         padding: 2px;
         gap: 2px;
         background: rgba(120, 120, 128, 0.12);
         border-radius: 10px;
       }
+      .segmented::-webkit-scrollbar { display: none; }
       .segmented > button {
+        flex: 0 0 auto;
         border-radius: 8px;
         font-size: 12px;
         font-weight: 600;
@@ -484,7 +496,10 @@
       .field-md { height: 38px; padding: 0 12px; }
       /* Padding próprio: evita conflito com utilitários pl-/pr- do Tailwind */
       .field-search { padding-left: 34px; padding-right: 12px; }
-      .field-auto { width: auto; }
+      /* Largura pelo conteúdo, mas nunca além do que a tela tem: os filtros
+         de responsável e de motivo do relatório de perdas cresciam com a
+         opção mais longa e esticavam a página inteira no celular */
+      .field-auto { width: auto; max-width: 100%; }
 
       /* Campo de número: as setinhas do navegador só atrapalham no tamanho
          pequeno que a vitrine usa */
@@ -1036,6 +1051,22 @@
       .sheet th[data-sticky], .sheet td[data-sticky] { position: sticky; z-index: 2; }
       .sheet thead th[data-sticky], .sheet tfoot td[data-sticky] { z-index: 4; }
 
+      /* No celular a planilha do pedido tem catorze colunas e cabem três. A
+         Produzir é a décima primeira — ou seja, a única coluna que se digita
+         ficava fora da tela, e nada dizia que ela existia. Agora ela fica
+         presa na direita, do mesmo jeito que o produto fica preso na
+         esquerda: rola-se o meio da planilha para conferir padrão, loja e
+         falta, e a célula que se digita continua embaixo do polegar. */
+      @media (max-width: 640px) {
+        .sheet th[data-fim="true"], .sheet td[data-fim="true"] {
+          position: sticky;
+          right: 0;
+          z-index: 3;
+          box-shadow: -9px 0 12px -9px rgba(0, 0, 0, 0.22);
+        }
+        .sheet thead th[data-fim="true"], .sheet tfoot td[data-fim="true"] { z-index: 5; }
+      }
+
       /* A célula que se digita: limpa até a mão chegar nela */
       .sheet-input {
         width: 100%;
@@ -1074,6 +1105,55 @@
       .sheet-check[data-on="true"] { background: var(--accent); border-color: var(--accent); }
 
       /* Divisor fino no padrão das listas do iOS */
+      /* ==========================================
+         A BEIRADA QUE AVISA QUE ROLA
+
+         No celular quase toda tabela larga é maior que a tela e rola por
+         dentro. Só que nada dizia isso: a planilha do pedido cortava
+         justamente a coluna Produzir, a única que se digita, e o móvel da
+         vitrine cortava o cartão da direita no meio. Quem olhava via uma
+         tela quebrada, não uma tela que continua.
+
+         A sombra na beirada resolve sem JavaScript: duas camadas brancas
+         presas ao conteúdo (`local`) tapam as sombras quando a rolagem está
+         na ponta, e duas sombras presas ao quadro (`scroll`) aparecem do
+         lado em que ainda há conteúdo. Chegou no fim, a sombra some — é a
+         mesma dica que o iOS dá nas listas que passam da tela.
+         ========================================== */
+      .rola-x {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        background:
+          linear-gradient(to right, var(--bg-surface) 40%, rgba(255, 255, 255, 0)) left center / 34px 100% no-repeat local,
+          linear-gradient(to left,  var(--bg-surface) 40%, rgba(255, 255, 255, 0)) right center / 34px 100% no-repeat local,
+          radial-gradient(farthest-side at 0 50%,   rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)) left center / 13px 100% no-repeat scroll,
+          radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)) right center / 13px 100% no-repeat scroll;
+      }
+      /* Dentro de um cartão de fundo lavado a camada que tapa tem que ser da
+         cor daquele fundo, senão sobra uma faixa branca na beirada */
+      .rola-x[data-fundo="elevado"] {
+        background-image:
+          linear-gradient(to right, var(--bg-elevated) 40%, rgba(249, 249, 251, 0)),
+          linear-gradient(to left,  var(--bg-elevated) 40%, rgba(249, 249, 251, 0)),
+          radial-gradient(farthest-side at 0 50%,   rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)),
+          radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+      }
+
+      /* A tabela de registros — perdas, vendas, produção, histórico — é
+         `w-full`, então no celular ela não rolava: ela se espremia, e cada
+         linha virava três linhas de palavras picadas. Com uma largura mínima
+         ela volta a ser uma tabela e passa a rolar dentro do .rola-x, uma
+         linha por lançamento. */
+      .tabela-larga { min-width: 620px; }
+      /* Uma linha por lançamento. Sem isso o celular preferia espremer a
+         coluna e picar "Torta pedaço frango" em três linhas, o que embaralha
+         a leitura de cima para baixo: a tabela fica alta, torta e difícil de
+         varrer. Quebrando nada, ela cresce para o lado e rola — que é o que
+         a planilha do pedido já fazia. O que é bloco dentro da célula, como o
+         lote embaixo da data, continua na linha de baixo. */
+      .tabela-larga th, .tabela-larga td { white-space: nowrap; }
+
       .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
 
       /* Lista de apoio: lista agrupada de verdade, com cabeçalhos presos e
@@ -4170,7 +4250,7 @@
                     {/* O móvel desenhado: cada espaço no lugar em que ele está
                         no balcão, nas colunas daquela vitrine. Espaço vazio
                         fica apagado e chama o produto que falta */}
-                    <div className="overflow-x-auto mt-3">
+                    <div className="rola-x mt-3">
                       <div
                         className="showcase-grid grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
                         data-density={densidade}
@@ -5171,7 +5251,7 @@
                             : 'Nenhum produto com esse nome.'}
                   </p>
                 ) : (
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3 rola-x">
                     <table className="week-table">
                       <thead>
                         <tr>
@@ -5463,7 +5543,7 @@
                   Nenhum espaço cadastrado nesta unidade ainda.
                 </p>
               ) : (
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 rola-x">
                   <div className="mapa">
                     <span />
                     {WEEK_DAYS.map((day) => (
@@ -5669,7 +5749,7 @@
 
               {/* Os dias em um segmented control: um bloco só, o dia aberto
                   aparece na pastilha branca — o mesmo gesto do iOS */}
-              <div className="mt-6 overflow-x-auto pb-1 scrollbar-none">
+              <div className="mt-6 rola-x pb-1 scrollbar-none">
                 <div className="segmented w-full min-w-max">
                   {WEEK_DAYS.map((day) => {
                     const count = standardPlans.filter(
@@ -5788,7 +5868,7 @@
 
                     {/* A grade é o móvel: o fio fino entre os espaços faz o
                         desenho da vitrine, sem cartão em volta de cada um */}
-                    <div className="overflow-x-auto">
+                    <div className="rola-x">
                       <div
                         className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
                         style={{
@@ -6523,7 +6603,7 @@
               {row.minQty || '—'}
             </td>
 
-            <td className="p-0">
+            <td data-fim="true" className="p-0">
               <OrderQtyCell
                 value={row.orderQty}
                 cellRef={(el) => { celulas.current[indice] = el; }}
@@ -6734,7 +6814,7 @@
                         </div>
                       )}
 
-                      <div className="overflow-x-auto">
+                      <div className="rola-x">
                         <table className="sheet">
                           <SheetCols />
                           <thead>
@@ -6749,7 +6829,7 @@
                               <th className="num" title="Peças vencidas, que vão sair da vitrine">Venc.</th>
                               <th className="num" title="Padrão menos o que está na loja">Falta</th>
                               <th className="num" title="Quantidade mínima do item neste dia — o item é chamado quando o estoque bom chega nela. Digite na tabela da semana, na aba Vitrine padrão">Mín.</th>
-                              <th className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
+                              <th data-fim="true" className="num" style={{ width: '88px' }} title="Digite aqui — 0 tira do pedido">Produzir</th>
                               <th>Un</th>
                               <th>Responsável</th>
                               {/* A última coluna estica: é ela que come a sobra
@@ -6776,7 +6856,7 @@
                               <td className="num">{somaDe(bloco.entries, 'expiredQty') || '—'}</td>
                               <td className="num">{somaDe(bloco.entries, 'neededQty') || '—'}</td>
                               <td />
-                              <td className="num text-[#0E0937]">{somaDe(bloco.entries, 'orderQty')}</td>
+                              <td data-fim="true" className="num text-[#0E0937]">{somaDe(bloco.entries, 'orderQty')}</td>
                               <td colSpan={3} className="t-micro">
                                 {bloco.entries.filter((i) => i.noPedido).length} item(ns) no pedido
                               </td>
@@ -6986,19 +7066,23 @@
             <div className="card p-5 sm:p-6 space-y-1">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b hairline">
                 <h3 className="t-headline text-[#1d1d1f]">Registro detalhado</h3>
-                <div className="flex items-center gap-2">
+                {/* No celular os três filtros em uma linha só não cabiam, e
+                    como o select cresce com a opção mais longa eles esticavam
+                    a página inteira. Agora a linha quebra: a busca ocupa a
+                    largura toda e os dois seletores dividem a linha de baixo */}
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                   <input
                     type="text"
                     placeholder="Buscar produto…"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
-                    className="field field-sm field-auto"
+                    className="field field-sm field-auto col-span-2 sm:col-auto"
                   />
                   {lossResponsibles.length > 0 && (
                     <select
                       value={activeResponsible}
                       onChange={(e) => setSelectedResponsible(e.target.value)}
-                      className="field field-sm field-select field-auto"
+                      className="field field-sm field-select field-auto min-w-0"
                     >
                       <option value="todos">Todos os responsáveis</option>
                       {lossResponsibles.map((r) => (
@@ -7009,7 +7093,7 @@
                   <select
                     value={selectedReason}
                     onChange={(e) => setSelectedReason(e.target.value)}
-                    className="field field-sm field-select field-auto"
+                    className="field field-sm field-select field-auto min-w-0"
                   >
                     <option value="todos">Todos os motivos</option>
                     <option value="vencido">Vencidos</option>
@@ -7020,8 +7104,8 @@
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="rola-x">
+                <table className="w-full text-left tabela-larga">
                   <thead>
                     <tr className="t-overline-sm">
                       <th className="py-3 pr-3 font-bold">Data</th>
@@ -7759,12 +7843,15 @@
                   {tudo.length} lançamento(s) desde o começo
                 </span>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <button onClick={() => mover(-1)} title="Anterior" className="btn btn-secondary w-8 h-8 px-0 shrink-0">
                     <Icons.ChevronLeft className="w-4 h-4" />
                   </button>
 
-                  <div className="text-center min-w-[172px]">
+                  {/* A data no meio segurava 172px fixos: com as duas setas e o
+                      "Hoje" do lado, a linha não cabia em tela de 320px. Agora
+                      ela encolhe com a tela e só reserva a largura no desktop */}
+                  <div className="text-center min-w-0 flex-1 sm:flex-none sm:min-w-[172px]">
                     <div className="t-headline text-[#1d1d1f] tnum">{rotulo}</div>
                     <div className="t-caption capitalize">{subrotulo}</div>
                   </div>
@@ -7888,8 +7975,8 @@
 
               {/* ---------- TUDO JUNTO ---------- */}
               {activeTab === 'tudo' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -7983,8 +8070,8 @@
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                  <div className="rola-x">
+                    <table className="w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm">
                           <th className="py-3 pr-3 font-bold">{agrupamento === 'lote' ? 'Lote' : 'Produto'}</th>
@@ -8217,8 +8304,8 @@
 
               {/* ---------- PRODUÇÃO ---------- */}
               {activeTab === 'producao' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Fabricação</th>
@@ -8267,8 +8354,8 @@
 
               {/* ---------- VENDAS ---------- */}
               {activeTab === 'vendas' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -8310,8 +8397,8 @@
 
               {/* ---------- PERDAS ---------- */}
               {activeTab === 'perdas' && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                <div className="rola-x">
+                  <table className="w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -8749,8 +8836,8 @@
                 </select>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="rola-x">
+                <table className="w-full text-left tabela-larga">
                   <thead>
                     <tr className="t-overline-sm border-b hairline">
                       <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
