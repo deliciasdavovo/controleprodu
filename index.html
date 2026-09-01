@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-08-27-clique-duplo-1" />
+    <meta name="app-version" content="2026-09-01-cmv-insumo-ficha-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10123,27 +10123,75 @@
         // Produto cuja ficha está aberta
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
 
-        const BLANK_SUPPLY = { name: '', unit: 'g', supplyClass: 'insumo' };
+        const BLANK_SUPPLY = { name: '', unit: 'g', supplyClass: 'insumo', supplier: '', purchaseDate: getTodayDateString(), qty: '', cost: '' };
         const [draft, setDraft] = useState(BLANK_SUPPLY);
         const nomeRef = useRef(null);
 
         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
 
+        const draftExistente = supplies.find((s) => normalizeName(s.name) === normalizeName(draft.name.trim())) || null;
+        const draftUltimaCompra = draftExistente ? ultimaCompra(comprasDoInsumo(draftExistente.id)) : null;
+
+        const aplicarInsumoExistente = (nome) => {
+          const existente = supplies.find((s) => normalizeName(s.name) === normalizeName(String(nome || '').trim()));
+          if (!existente) return;
+          setDraft((d) => ({
+            ...d,
+            name: existente.name,
+            unit: existente.unit || d.unit,
+            supplyClass: existente.supplyClass || 'insumo'
+          }));
+        };
+
+        const avancarCadastroInsumo = (e) => {
+          if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+          const form = e.currentTarget.form;
+          if (!form) return;
+          const campos = Array.from(form.querySelectorAll('[data-insumo-flow]'));
+          const idx = campos.indexOf(e.currentTarget);
+          if (idx >= 0 && idx < campos.length - 1) {
+            e.preventDefault();
+            const proximo = campos[idx + 1];
+            proximo.focus();
+            if (proximo.select && proximo.tagName === 'INPUT') proximo.select();
+          }
+        };
+
         const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
 
-        const cadastrar = (e) => {
+        const cadastrar = async (e) => {
           e.preventDefault();
           const nome = draft.name.trim();
           if (!nome) return;
-          // Nome repetido vira edição do insumo que já existe, como no catálogo
+
+          const qty = Number(draft.qty) || 0;
+          const cost = Number(draft.cost) || 0;
+          if ((qty > 0 || cost > 0) && !(qty > 0 && cost > 0)) {
+            window.alert('Para registrar a compra, preencha quantidade e valor pago.');
+            return;
+          }
+
+          // Se já existe, esta linha vira uma NOVA COMPRA do mesmo insumo.
           const existente = supplies.find((s) => normalizeName(s.name) === normalizeName(nome));
+          let supplyId = existente?.id || null;
           if (existente) {
             onUpdateSupply({ ...existente, unit: draft.unit, supplyClass: draft.supplyClass });
           } else {
-            onAddSupply({ name: nome, unit: draft.unit, supplyClass: draft.supplyClass });
+            const novo = await onAddSupply({ name: nome, unit: draft.unit, supplyClass: draft.supplyClass });
+            supplyId = novo?.id || null;
           }
-          setDraft({ ...BLANK_SUPPLY, unit: draft.unit, supplyClass: draft.supplyClass });
+
+          if (supplyId && qty > 0 && cost > 0) {
+            onAddSupplyPurchase(supplyId, {
+              supplier: draft.supplier.trim(),
+              purchaseDate: draft.purchaseDate || getTodayDateString(),
+              qty,
+              cost
+            });
+          }
+
+          setDraft({ ...BLANK_SUPPLY, unit: draft.unit, supplyClass: draft.supplyClass, purchaseDate: getTodayDateString() });
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
 
@@ -10159,7 +10207,7 @@
           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
         }), [products, recipes, recipeItems, supplies, supplyPurchases]);
 
-        const fichaAberta = produtosComFicha.find((x) => x.produto.id === fichaProdutoId) || null;
+        const fichaAberta = produtosComFicha.find((x) => String(x.produto.id) === String(fichaProdutoId)) || null;
 
         const supplyOptions = supplies.map((s) => ({
           value: s.id,
@@ -10200,7 +10248,7 @@
                   </div>
                   <h3 className="t-title">Novo insumo</h3>
                   <p className="t-body mt-1.5">
-                    A unidade é a menor em que ele é usado — grama, ml ou unidade. O preço vem depois, no carrinho de compras.
+                    Cadastre o insumo e a compra na mesma linha. Se o insumo já existir, o lançamento vira uma nova compra no histórico.
                   </p>
 
                   <form onSubmit={cadastrar} className="mt-5 pt-5 border-t hairline">
@@ -10210,9 +10258,13 @@
                         <input
                           ref={nomeRef}
                           type="text"
+                          list="cadastro-insumos-list"
                           value={draft.name}
                           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                          placeholder="ex: Farinha de trigo"
+                          onBlur={(e) => aplicarInsumoExistente(e.target.value)}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
+                          placeholder="Digite ou escolha um insumo"
                           className="field field-md font-semibold"
                         />
                       </div>
@@ -10221,6 +10273,8 @@
                         <select
                           value={draft.unit}
                           onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
                           className="field field-md field-select"
                         >
                           {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -10231,20 +10285,94 @@
                         <select
                           value={draft.supplyClass}
                           onChange={(e) => setDraft((d) => ({ ...d, supplyClass: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
                           title="Só organiza a lista — as três entram no CMV do mesmo jeito"
                           className="field field-md field-select"
                         >
                           {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                         </select>
                       </div>
-                      <div className="col-span-12 sm:col-span-2">
+                      <div className="col-span-12 sm:col-span-4">
+                        <label className="t-caption block mb-1">Fornecedor</label>
+                        <input
+                          type="text"
+                          list="cadastro-fornecedores-list"
+                          value={draft.supplier}
+                          onChange={(e) => setDraft((d) => ({ ...d, supplier: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
+                          placeholder={draftUltimaCompra?.supplier || 'Fornecedor'}
+                          className="field field-md"
+                        />
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="t-caption block mb-1">Data</label>
+                        <input
+                          type="date"
+                          value={draft.purchaseDate}
+                          onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
+                          className="field field-md"
+                        />
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="t-caption block mb-1">Qtd. comprada</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={draft.qty}
+                          onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
+                          placeholder={draftUltimaCompra?.qty ? String(draftUltimaCompra.qty) : '0'}
+                          className="field field-md text-right tnum no-spin"
+                        />
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="t-caption block mb-1">Valor pago (R$)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={draft.cost}
+                          onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
+                          onKeyDown={avancarCadastroInsumo}
+                          data-insumo-flow
+                          placeholder={draftUltimaCompra?.cost ? String(draftUltimaCompra.cost) : '0,00'}
+                          className="field field-md text-right tnum no-spin"
+                        />
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
                         <button type="submit" className="btn btn-primary btn-md w-full">
                           <Icons.Plus className="w-4 h-4" />
-                          Cadastrar
+                          {draftExistente ? 'Registrar compra' : 'Cadastrar + compra'}
                         </button>
                       </div>
                     </div>
+                    <datalist id="cadastro-insumos-list">
+                      {supplies.map((s) => <option key={s.id} value={s.name} />)}
+                    </datalist>
+                    <datalist id="cadastro-fornecedores-list">
+                      {fornecedores.map((f) => <option key={f} value={f} />)}
+                    </datalist>
                   </form>
+                  {draftExistente && (
+                    <div className="mt-3 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
+                      <strong>{draftExistente.name}</strong>
+                      {draftUltimaCompra ? (
+                        <span>
+                          {' · última compra: '}
+                          {draftUltimaCompra.qty || 0} {draftExistente.unit}
+                          {' · '}{formatCurrencyBR(Number(draftUltimaCompra.cost) || 0)}
+                          {draftUltimaCompra.supplier ? ` · ${draftUltimaCompra.supplier}` : ''}
+                          {draftUltimaCompra.purchaseDate ? ` · ${formatDateBR(draftUltimaCompra.purchaseDate)}` : ''}
+                        </span>
+                      ) : <span> · ainda sem compra registrada</span>}
+                    </div>
+                  )}
                 </div>
 
                 <div className="card p-5 sm:p-6">
@@ -10483,6 +10611,7 @@
                             </td>
                             <td className="py-2.5 pl-3 text-right">
                               <button
+                                type="button"
                                 onClick={() => setFichaProdutoId(produto.id)}
                                 className="btn btn-secondary btn-sm"
                               >
@@ -10729,7 +10858,7 @@
         };
 
         return (
-          <div className="card p-5 sm:p-6">
+          <div role="dialog" aria-modal="true" className="fixed inset-0 z-[90] bg-white overflow-y-auto p-5 sm:p-8">
             <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
               <div className="min-w-0">
                 <div className="t-overline flex items-center gap-1.5 mb-1">
@@ -10738,7 +10867,7 @@
                 </div>
                 <h3 className="t-title truncate">{produto.name}</h3>
               </div>
-              <button onClick={onClose} title="Fechar ficha" className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+              <button type="button" onClick={onClose} title="Fechar ficha" className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
                 <Icons.X className="w-4 h-4" />
               </button>
             </div>
@@ -10885,6 +11014,7 @@
                         </td>
                         <td className="py-2.5 pl-3 text-right">
                           <button
+                            type="button"
                             onClick={() => onDeleteItem(item.id)}
                             title="Tirar insumo da ficha"
                             className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
@@ -12982,7 +13112,7 @@
         // apagado grava na hora com write.
         // ------------------------------------------
         const handleAddSupply = (supply) => {
-          write('Cadastrar insumo', async () => {
+          return write('Cadastrar insumo', async () => {
             const linhas = await run('supplies', sb.from('supplies').insert({
               name: supply.name,
               unit: supply.unit || 'g',
