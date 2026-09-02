@@ -1,0 +1,38 @@
+name: Add entry gateway
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/add_entry_gateway.py'
+      - '.github/workflows/add-entry-gateway-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Aplicar tela inicial
+        run: python3 .github/scripts/add_entry_gateway.py
+
+      - name: Conferir alteração
+        run: |
+          grep -q '2026-09-02-home-vitrine-cmv-1' index.html
+          grep -q 'Onde você quer entrar?' index.html
+          grep -q 'Entrar na Vitrine' index.html
+          grep -q 'Entrar no CMV' index.html
+          grep -q 'onHome={() => setEntryMode(null)}' index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Entry Gateway"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add Vitrine and CMV entry screen"
+          git push
