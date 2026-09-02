@@ -1,0 +1,38 @@
+name: Add product sale unit picker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/add_product_sale_unit_picker.py'
+      - '.github/workflows/add-product-sale-unit-picker-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply patch
+        run: python3 .github/scripts/add_product_sale_unit_picker.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-02-produto-preco-unidade-1' index.html
+          grep -q '>Vendido por<' index.html
+          grep -q "priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un'" index.html
+          grep -q "price_unit: prod.priceUnit || 'un'" index.html
+          grep -q "onUpdateProduct({ ...p, priceUnit: opt.value })" index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Product Sale Unit"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add sale unit selector to products"
+          git push
