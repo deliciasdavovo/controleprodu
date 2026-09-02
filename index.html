@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-item-historico-compras-1" />
+    <meta name="app-version" content="2026-09-02-ficha-parcial-componentes-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1965,16 +1965,85 @@
         return qtd * fator;
       };
 
-      // Custo de uma linha da ficha — só daquele insumo, na quantidade usada
-      const custoDoItemDaFicha = (item, supplies, purchases) => {
-        const supply = supplies.find((s) => s.id === item.supplyId);
+      // Produto fabricado pela própria casa também pode ser ingrediente de outra
+      // ficha. Ex.: a ficha do lanche usa 1 un do pão de brioche, e o custo do
+      // pão vem da ficha do próprio brioche. Assim uma mudança na farinha
+      // atravessa automaticamente todas as fichas que usam aquele pão.
+      const converterQtdComponente = (qtd, origem, destino) => {
+        const n = Number(qtd) || 0;
+        const de = origem || destino || 'un';
+        const para = destino || de;
+        if (!n || de === para) return n;
+        if (de === 'kg' && para === 'g') return n * 1000;
+        if (de === 'g' && para === 'kg') return n / 1000;
+        if (de === 'L' && para === 'ml') return n * 1000;
+        if (de === 'ml' && para === 'L') return n / 1000;
+        return n;
+      };
+
+      const unidadesDeComponente = (unidade) => {
+        const u = unidade || 'un';
+        if (u === 'g') return ['g', 'kg'];
+        if (u === 'kg') return ['kg', 'g'];
+        if (u === 'ml') return ['ml', 'L'];
+        if (u === 'L') return ['L', 'ml'];
+        return [u];
+      };
+
+      // Verifica dependência entre produtos para não criar uma ficha circular:
+      // A usa B e B usa A. Além de confundir a operação, isso nunca teria um
+      // custo final calculável.
+      const produtoDependeDe = (productId, targetId, recipes, recipeItems, visitados = new Set()) => {
+        if (!productId || !targetId) return false;
+        if (productId === targetId) return true;
+        if (visitados.has(productId)) return false;
+        const proximosVisitados = new Set(visitados);
+        proximosVisitados.add(productId);
+        const ficha = recipes.find((r) => r.productId === productId);
+        if (!ficha) return false;
+        return recipeItems
+          .filter((i) => i.recipeId === ficha.id && i.componentProductId)
+          .some((i) => i.componentProductId === targetId
+            || produtoDependeDe(i.componentProductId, targetId, recipes, recipeItems, proximosVisitados));
+      };
+
+      // Custo de uma linha da ficha. A linha pode vir de uma compra (supplyId)
+      // ou de uma fabricação própria (componentProductId).
+      const custoDoItemDaFicha = (
+        item, supplies, purchases, products = [], recipes = [], recipeItems = [], pilha = new Set()
+      ) => {
+        if (item?.componentProductId) {
+          const componente = products.find((p) => p.id === item.componentProductId);
+          if (!componente || pilha.has(componente.id)) return 0;
+          const fichaComponente = fichaDoProduto(
+            componente.id, recipes, recipeItems, supplies, purchases, products, pilha
+          );
+          if (!fichaComponente || !(fichaComponente.custo > 0)) return 0;
+          const rendimento = Number(fichaComponente.yieldQty) || 0;
+          if (rendimento <= 0) return 0;
+          const unidadeSaida = fichaComponente.yieldUnit || 'un';
+          const qtd = converterQtdComponente(
+            item.qty,
+            item.usageUnit || unidadeSaida,
+            unidadeSaida
+          );
+          return (fichaComponente.custo / rendimento) * qtd;
+        }
+
+        const supply = supplies.find((s) => s.id === item?.supplyId);
         if (!supply) return 0;
         return custoUnitarioInsumo(supply.id, purchases) * qtdNaUnidadeBase(item, supply);
       };
 
-      // Custo da receita inteira, do jeito que ela é produzida
-      const custoDaFicha = (itens, supplies, purchases) =>
-        (itens || []).reduce((total, item) => total + custoDoItemDaFicha(item, supplies, purchases), 0);
+      // Custo da receita inteira, do jeito que ela é produzida.
+      const custoDaFicha = (
+        itens, supplies, purchases, products = [], recipes = [], recipeItems = [], pilha = new Set()
+      ) => (itens || []).reduce(
+        (total, item) => total + custoDoItemDaFicha(
+          item, supplies, purchases, products, recipes, recipeItems, pilha
+        ),
+        0
+      );
 
       // Custo de UMA unidade do produto, já na unidade em que ele é vendido.
       // Produto vendido a quilo precisa do peso da unidade: a receita rende 40
@@ -2014,14 +2083,21 @@
 
       // Reúne a ficha de um produto num objeto só, com o custo já somado.
       // Devolve null quando o produto ainda não tem ficha.
-      const fichaDoProduto = (productId, recipes, recipeItems, supplies, purchases) => {
+      const fichaDoProduto = (
+        productId, recipes, recipeItems, supplies, purchases, products = [], pilha = new Set()
+      ) => {
+        if (pilha.has(productId)) return null;
         const recipe = recipes.find((r) => r.productId === productId);
         if (!recipe) return null;
         const itens = recipeItems.filter((i) => i.recipeId === recipe.id);
+        const proximaPilha = new Set(pilha);
+        proximaPilha.add(productId);
         return {
           ...recipe,
           itens,
-          custo: custoDaFicha(itens, supplies, purchases)
+          custo: custoDaFicha(
+            itens, supplies, purchases, products, recipes, recipeItems, proximaPilha
+          )
         };
       };
 
@@ -2496,7 +2572,8 @@
       const fromRecipeItem = (row) => ({
         id: row.id,
         recipeId: row.recipe_id,
-        supplyId: row.supply_id,
+        supplyId: row.supply_id || null,
+        componentProductId: row.component_product_id || null,
         qty: Number(row.qty) || 0,
         usageUnit: row.usage_unit || ''
       });
@@ -10366,7 +10443,7 @@
 
         // Produtos de fabricação, com a ficha e o custo já resolvidos
         const produtosComFicha = useMemo(() => products.map((p) => {
-          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases);
+          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
         }), [products, recipes, recipeItems, supplies, supplyPurchases]);
 
@@ -10848,9 +10925,12 @@
                     supplies={supplies}
                     supplyPurchases={supplyPurchases}
                     supplyOptions={supplyOptions}
+                    products={products}
+                    recipes={recipes}
+                    recipeItems={recipeItems}
                     onClose={() => setFichaProdutoId(null)}
                     onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
-                    onAddItem={(supplyId) => onAddRecipeItem(fichaAberta.produto.id, supplyId)}
+                    onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
                     onUpdateItem={onUpdateRecipeItem}
                     onDeleteItem={onDeleteRecipeItem}
                   />
@@ -11050,13 +11130,16 @@
         supplies,
         supplyPurchases,
         supplyOptions,
+        products,
+        recipes,
+        recipeItems,
         onClose,
         onUpdateRecipe,
         onAddItem,
         onUpdateItem,
         onDeleteItem
       }) => {
-        const [novoInsumo, setNovoInsumo] = useState('');
+        const [novoComponente, setNovoComponente] = useState('');
 
         const itens = ficha?.itens || [];
         const custoTotal = ficha?.custo || 0;
@@ -11065,14 +11148,65 @@
         const cmv = calcularCmv(custoUn, preco);
         const calculavel = preco > 0 && custoUn > 0;
 
+        const opcoesComponentes = useMemo(() => {
+          const comprados = supplyOptions.map((o) => ({
+            ...o,
+            value: `insumo:${o.value}`,
+            hint: `Comprado${o.hint ? ` · ${o.hint}` : ''}`
+          }));
+
+          const fabricados = products
+            .filter((p) => p.id !== produto.id && !produtoDependeDe(p.id, produto.id, recipes, recipeItems))
+            .map((p) => {
+              const fichaP = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
+              const rendimentoP = Number(fichaP?.yieldQty) || 0;
+              const unidadeP = fichaP?.yieldUnit || 'un';
+              const custoP = fichaP && rendimentoP > 0 ? fichaP.custo / rendimentoP : 0;
+              return {
+                value: `produto:${p.id}`,
+                label: p.name,
+                hint: custoP > 0
+                  ? `Fabricação própria · ${formatCurrencyBR(custoP)}/${unidadeP}`
+                  : 'Fabricação própria · sem ficha/custo'
+              };
+            });
+
+          return [...comprados, ...fabricados];
+        }, [supplyOptions, products, recipes, recipeItems, supplies, supplyPurchases, produto.id]);
+
+        const interpretarComponente = (value) => {
+          const raw = String(value || '');
+          if (raw.startsWith('produto:')) {
+            return { supplyId: null, componentProductId: raw.slice('produto:'.length) };
+          }
+          if (raw.startsWith('insumo:')) {
+            return { supplyId: raw.slice('insumo:'.length), componentProductId: null };
+          }
+          return null;
+        };
+
         const adicionar = (opt) => {
-          if (!opt?.value) return;
-          onAddItem(opt.value);
-          setNovoInsumo('');
+          const componente = interpretarComponente(opt?.value);
+          if (!componente) return;
+          onAddItem(componente);
+          setNovoComponente('');
         };
 
         return (
-          <div role="dialog" aria-modal="true" className="fixed inset-0 z-[90] bg-white overflow-y-auto p-5 sm:p-8">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Ficha técnica de ${produto.name}`}
+            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[2px] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          >
+            <button
+              type="button"
+              aria-label="Fechar ficha técnica"
+              onClick={onClose}
+              className="absolute inset-0"
+            />
+            <div className="relative bg-white rounded-[24px] w-full max-w-5xl max-h-[88vh] overflow-y-auto shadow-[0_24px_64px_rgba(0,0,0,0.24)] border hairline my-auto">
+              <div className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
               <div className="min-w-0">
                 <div className="t-overline flex items-center gap-1.5 mb-1">
@@ -11144,14 +11278,17 @@
 
             <div className="py-4">
               <div className="w-full sm:max-w-sm">
-                <label className="t-caption block mb-1">Adicionar insumo à ficha</label>
+                <label className="t-caption block mb-1">Adicionar ingrediente ou produto da casa</label>
                 <PickerField
-                  value={novoInsumo}
-                  options={supplyOptions}
+                  value={novoComponente}
+                  options={opcoesComponentes}
                   onPick={adicionar}
-                  placeholder="Escolha um insumo…"
+                  placeholder="Insumo comprado ou fabricação própria…"
                   className="field field-sm"
                 />
+                <p className="t-nano mt-1.5">
+                  Produto da casa usa automaticamente o custo da própria ficha técnica.
+                </p>
               </div>
             </div>
 
@@ -11159,10 +11296,10 @@
               <table className="w-full text-left">
                 <thead>
                   <tr className="t-overline-sm border-b hairline">
-                    <th className="py-3 pr-3 font-bold">Insumo</th>
+                    <th className="py-3 pr-3 font-bold">Ingrediente / componente</th>
                     <th className="py-3 px-3 text-right font-bold">Quantidade</th>
                     <th className="py-3 px-3 font-bold">Unidade</th>
-                    <th className="py-3 px-3 text-right font-bold">Preço do insumo</th>
+                    <th className="py-3 px-3 text-right font-bold">Custo de origem</th>
                     <th className="py-3 px-3 text-right font-bold">Custo na ficha</th>
                     <th className="py-3 px-3 text-right font-bold">Peso no custo</th>
                     <th className="py-3 pl-3 text-right font-bold">Ação</th>
@@ -11170,23 +11307,45 @@
                 </thead>
                 <tbody>
                   {itens.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-10"><p className="t-body ink-quiet">Ficha vazia — escolha o primeiro insumo acima</p></td></tr>
+                    <tr><td colSpan={7} className="text-center py-10"><p className="t-body ink-quiet">Ficha vazia — escolha o primeiro ingrediente ou produto da casa acima</p></td></tr>
                   ) : itens.map((item) => {
-                    const supply = supplies.find((s) => s.id === item.supplyId);
-                    const custoLinha = custoDoItemDaFicha(item, supplies, supplyPurchases);
+                    const supply = item.supplyId ? supplies.find((s) => s.id === item.supplyId) : null;
+                    const componentProduct = item.componentProductId
+                      ? products.find((p) => p.id === item.componentProductId)
+                      : null;
+                    const componentFicha = componentProduct
+                      ? fichaDoProduto(componentProduct.id, recipes, recipeItems, supplies, supplyPurchases, products, new Set([produto.id]))
+                      : null;
+                    const custoLinha = custoDoItemDaFicha(
+                      item, supplies, supplyPurchases, products, recipes, recipeItems, new Set([produto.id])
+                    );
                     const peso = custoTotal > 0 ? (custoLinha / custoTotal) * 100 : 0;
+                    const unidadeBase = supply?.unit || componentFicha?.yieldUnit || 'un';
                     const unidades = supply
                       ? [supply.unit, ...(supply.variationUnit && Number(supply.variationFactor) > 0 ? [supply.variationUnit] : [])]
-                      : ['un'];
+                      : unidadesDeComponente(unidadeBase);
+                    const seletorValue = item.componentProductId
+                      ? `produto:${item.componentProductId}`
+                      : `insumo:${item.supplyId || ''}`;
+                    const rendimentoComponente = Number(componentFicha?.yieldQty) || 0;
+                    const custoOrigem = supply
+                      ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases), supply.unit)
+                      : (componentFicha && rendimentoComponente > 0 && componentFicha.custo > 0
+                        ? `${formatCurrencyBR(componentFicha.custo / rendimentoComponente)}/${unidadeBase}`
+                        : '—');
                     return (
                       <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                         <td className="py-2.5 pr-3">
                           <div className="w-40 sm:w-56">
                             <PickerField
-                              value={item.supplyId}
-                              options={supplyOptions}
-                              onPick={(opt) => onUpdateItem({ ...item, supplyId: opt.value, usageUnit: '' })}
-                              placeholder="Insumo"
+                              value={seletorValue}
+                              options={opcoesComponentes}
+                              onPick={(opt) => {
+                                const componente = interpretarComponente(opt.value);
+                                if (!componente) return;
+                                onUpdateItem({ ...item, ...componente, usageUnit: '' });
+                              }}
+                              placeholder="Ingrediente"
                               className="field h-8 pl-2.5 text-[12px] font-semibold"
                             />
                           </div>
@@ -11203,17 +11362,21 @@
                           />
                         </td>
                         <td className="py-2.5 px-3">
-                          <select
-                            value={item.usageUnit || (supply?.unit || 'un')}
-                            onChange={(e) => onUpdateItem({ ...item, usageUnit: e.target.value === supply?.unit ? '' : e.target.value })}
-                            title="A unidade em que a quantidade acima está escrita"
-                            className="field field-select h-8 pl-2.5 text-[12px] w-20"
-                          >
-                            {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
-                          </select>
+                          <div className="w-20">
+                            <PickerField
+                              value={item.usageUnit || unidadeBase}
+                              options={unidades.map((u) => ({ value: u, label: u }))}
+                              onPick={(opt) => onUpdateItem({
+                                ...item,
+                                usageUnit: opt.value === unidadeBase ? '' : opt.value
+                              })}
+                              title="A unidade em que a quantidade acima está escrita"
+                              className="field h-8 pl-2.5 text-[12px]"
+                            />
+                          </div>
                         </td>
                         <td className="py-2.5 px-3 text-right t-body tnum">
-                          {supply ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases), supply.unit) : '—'}
+                          {custoOrigem}
                         </td>
                         <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
                           {custoLinha > 0 ? formatCurrencyBR(custoLinha) : '—'}
@@ -11230,7 +11393,7 @@
                           <button
                             type="button"
                             onClick={() => onDeleteItem(item.id)}
-                            title="Tirar insumo da ficha"
+                            title="Tirar componente da ficha"
                             className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
                           >
                             <Icons.Trash2 className="w-4 h-4" />
@@ -11244,8 +11407,10 @@
             </div>
 
             <p className="t-micro pt-3">
-              Insumo sem compra lançada entra com custo zero — o CMV do produto fica menor do que é de verdade.
+              Insumo sem compra e produto da casa sem ficha entram com custo zero — complete a origem para o CMV ficar correto.
             </p>
+              </div>
+            </div>
           </div>
         );
       };
@@ -11280,7 +11445,7 @@
 
         // Cada produto de fabricação com custo, CMV e margem já resolvidos
         const linhasProducao = useMemo(() => products.map((p) => {
-          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases);
+          const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           const custoUn = custoPorUnidadeDeVenda(p, ficha);
           const preco = Number(p.price) || 0;
           const calculavel = preco > 0 && custoUn > 0;
@@ -13740,12 +13905,21 @@
           });
         };
 
-        const handleAddRecipeItem = (productId, supplyId) => {
-          write('Adicionar insumo à ficha', async () => {
+        const handleAddRecipeItem = (productId, component) => {
+          const supplyId = component?.supplyId || null;
+          const componentProductId = component?.componentProductId || null;
+          if (!supplyId && !componentProductId) return;
+          if (componentProductId && produtoDependeDe(componentProductId, productId, recipes, recipeItems)) {
+            window.alert('Esse produto criaria uma ficha circular. Escolha outro componente.');
+            return;
+          }
+
+          write(componentProductId ? 'Adicionar fabricação própria à ficha' : 'Adicionar insumo à ficha', async () => {
             const ficha = await garantirFicha(productId);
             const linhas = await run('recipe_items', sb.from('recipe_items').insert({
               recipe_id: ficha.id,
               supply_id: supplyId,
+              component_product_id: componentProductId,
               qty: 0,
               usage_unit: ''
             }).select());
@@ -13754,19 +13928,32 @@
         };
 
         const handleUpdateRecipeItem = (updated) => {
-          setRecipeItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-          writeSoon(`ficha-item:${updated.id}`, 'Atualizar item da ficha', () =>
+          const fichaPai = recipes.find((r) => r.id === updated.recipeId);
+          if (updated.componentProductId && fichaPai
+            && produtoDependeDe(updated.componentProductId, fichaPai.productId, recipes, recipeItems)) {
+            window.alert('Esse produto criaria uma ficha circular. Escolha outro componente.');
+            return;
+          }
+
+          const normalizado = {
+            ...updated,
+            supplyId: updated.componentProductId ? null : (updated.supplyId || null),
+            componentProductId: updated.componentProductId || null
+          };
+          setRecipeItems((prev) => prev.map((i) => (i.id === normalizado.id ? normalizado : i)));
+          writeSoon(`ficha-item:${normalizado.id}`, 'Atualizar item da ficha', () =>
             run('recipe_items', sb.from('recipe_items').update({
-              supply_id: updated.supplyId,
-              qty: Number(updated.qty) || 0,
-              usage_unit: updated.usageUnit || ''
-            }).eq('id', updated.id))
+              supply_id: normalizado.supplyId,
+              component_product_id: normalizado.componentProductId,
+              qty: Number(normalizado.qty) || 0,
+              usage_unit: normalizado.usageUnit || ''
+            }).eq('id', normalizado.id))
           );
         };
 
         const handleDeleteRecipeItem = (id) => {
           setRecipeItems((prev) => prev.filter((i) => i.id !== id));
-          write('Remover insumo da ficha', () =>
+          write('Remover componente da ficha', () =>
             run('recipe_items', sb.from('recipe_items').delete().eq('id', id))
           );
         };

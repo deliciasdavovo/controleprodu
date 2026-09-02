@@ -474,22 +474,42 @@ comment on column public.recipes.weight_per_unit is 'Peso de uma unidade em gram
 -- ---------------------------------------------------------------------
 -- 14. Itens da ficha técnica
 --
--- Cada linha é um insumo dentro da receita. usage_unit vazio significa
--- que a quantidade está na unidade base do insumo; preenchido, ela está
--- na variação dele (2 latas, 3 fatias) e o app converte na hora da conta.
+-- Cada linha é um componente da receita: ou um insumo comprado, ou outro
+-- produto fabricado pela própria casa. usage_unit vazio significa que a
+-- quantidade está na unidade base/origem; preenchido, o app converte na conta.
 -- ---------------------------------------------------------------------
 create table if not exists public.recipe_items (
-  id          uuid primary key default gen_random_uuid(),
-  recipe_id   uuid not null references public.recipes (id) on delete cascade,
-  supply_id   uuid not null references public.supplies (id) on delete restrict,
-  qty         numeric(12,3) not null default 0,
-  usage_unit  text not null default '',
-  created_at  timestamptz not null default now(),
-  constraint recipe_items_qty_check check (qty >= 0)
+  id                    uuid primary key default gen_random_uuid(),
+  recipe_id             uuid not null references public.recipes (id) on delete cascade,
+  supply_id             uuid references public.supplies (id) on delete restrict,
+  component_product_id  uuid references public.products (id) on delete restrict,
+  qty                   numeric(12,3) not null default 0,
+  usage_unit            text not null default '',
+  created_at            timestamptz not null default now(),
+  constraint recipe_items_qty_check check (qty >= 0),
+  constraint recipe_items_source_check check (
+    (supply_id is not null and component_product_id is null)
+    or (supply_id is null and component_product_id is not null)
+  )
 );
+
+-- Bancos anteriores tinham supply_id obrigatório. Agora uma linha pode vir de
+-- um produto fabricado pela própria casa, mas nunca das duas origens ao mesmo tempo.
+alter table public.recipe_items
+  add column if not exists component_product_id uuid references public.products (id) on delete restrict;
+alter table public.recipe_items
+  alter column supply_id drop not null;
+alter table public.recipe_items
+  drop constraint if exists recipe_items_source_check;
+alter table public.recipe_items
+  add constraint recipe_items_source_check check (
+    (supply_id is not null and component_product_id is null)
+    or (supply_id is null and component_product_id is not null)
+  );
 
 create index if not exists recipe_items_recipe_idx on public.recipe_items (recipe_id);
 create index if not exists recipe_items_supply_idx on public.recipe_items (supply_id);
+create index if not exists recipe_items_component_product_idx on public.recipe_items (component_product_id);
 
 comment on table public.recipe_items is 'Os insumos de cada ficha técnica, com a quantidade usada.';
 comment on column public.recipe_items.usage_unit is 'Vazio = quantidade na unidade base do insumo. Preenchido = na variação dele.';
