@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-fabricacao-equivalencia-unidade-1" />
+    <meta name="app-version" content="2026-09-02-produto-preco-unidade-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -9058,7 +9058,7 @@
         const [filterResponsible, setFilterResponsible] = useState('todos');
 
         // Linha de cadastro: um produto por vez, sem sair do teclado
-        const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', showcaseEnabled: true, shelfLifeDays: 2, price: 8.5 };
+        const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', showcaseEnabled: true, shelfLifeDays: 2, price: 8.5, priceUnit: 'un' };
         const [draft, setDraft] = useState(BLANK_DRAFT);
 
         const nameRef = useRef(null);
@@ -9093,7 +9093,8 @@
                 category: found.category,
                 showcaseEnabled: found.showcaseEnabled !== false,
                 shelfLifeDays: found.shelfLifeDays,
-                price: found.price
+                price: found.price,
+                priceUnit: found.priceUnit || 'un'
               }
             : { ...d, name: value });
         };
@@ -9125,7 +9126,8 @@
             category: draft.category,
             showcaseEnabled: draft.showcaseEnabled !== false,
             shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
-            price: Math.max(0, Number(draft.price) || 0)
+            price: Math.max(0, Number(draft.price) || 0),
+            priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un'
           };
 
           if (matched) {
@@ -9137,7 +9139,7 @@
 
           // Responsável e categoria continuam preenchidos: quem cadastra costuma
           // lançar vários itens seguidos da mesma pessoa
-          setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category, showcaseEnabled: dados.showcaseEnabled });
+          setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category, showcaseEnabled: dados.showcaseEnabled, priceUnit: dados.priceUnit });
           setTimeout(() => {
             if (nameRef.current) nameRef.current.focus();
           }, 50);
@@ -9239,17 +9241,36 @@
                     />
                   </div>
 
-                  <div className="col-span-4 md:col-span-1">
-                    <label className="t-caption block mb-1">Preço</label>
-                    <input
-                      ref={priceRef}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={draft.price}
-                      onChange={(e) => setField('price', e.target.value)}
-                      className="field field-md text-right tnum"
-                    />
+                  <div className="col-span-8 md:col-span-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_108px] gap-2">
+                      <div>
+                        <label className="t-caption block mb-1">Preço de venda</label>
+                        <div className="relative">
+                          <span className="t-micro absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">R$</span>
+                          <input
+                            ref={priceRef}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={draft.price}
+                            onChange={(e) => setField('price', e.target.value)}
+                            className="field field-md text-right tnum pl-8"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="t-caption block mb-1">Vendido por</label>
+                        <PickerField
+                          value={draft.priceUnit || 'un'}
+                          options={[
+                            { value: 'un', label: 'Unidade' },
+                            { value: 'kg', label: 'Kg' }
+                          ]}
+                          onPick={(opt) => setField('priceUnit', opt.value)}
+                          className="field field-md"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="col-span-4 md:col-span-2">
@@ -9307,7 +9328,7 @@
                       <th className="py-3 px-3 font-bold">Categoria</th>
                       <th className="py-3 px-3 text-center font-bold">Vitrine</th>
                       <th className="py-3 px-3 text-center font-bold">Validade</th>
-                      <th className="py-3 px-3 text-right font-bold">Preço</th>
+                      <th className="py-3 px-3 text-right font-bold">Preço de venda</th>
                       <th className="py-3 pl-3 text-right font-bold">Ação</th>
                     </tr>
                   </thead>
@@ -9379,17 +9400,30 @@
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <span className="t-micro hidden sm:inline">R$</span>
+                            <div className="flex items-center justify-end gap-1.5 min-w-[190px]">
+                              <span className="t-micro">R$</span>
                               <input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 value={p.price}
                                 onChange={(e) => onUpdateProduct({ ...p, price: Math.max(0, Number(e.target.value) || 0) })}
-                                title="Preço de venda"
+                                title={`Preço de venda por ${p.priceUnit === 'kg' ? 'kg' : 'unidade'}`}
                                 className="field h-8 px-2 text-[12px] text-right font-bold tnum w-20 sm:w-24"
                               />
+                              <span className="t-micro">/</span>
+                              <div className="w-24">
+                                <PickerField
+                                  value={p.priceUnit || 'un'}
+                                  options={[
+                                    { value: 'un', label: 'unidade' },
+                                    { value: 'kg', label: 'kg' }
+                                  ]}
+                                  onPick={(opt) => onUpdateProduct({ ...p, priceUnit: opt.value })}
+                                  title="Unidade do preço de venda"
+                                  className="field h-8 pl-2.5 text-[12px]"
+                                />
+                              </div>
                             </div>
                           </td>
                           <td className="py-2.5 pl-3 text-right">
@@ -14161,7 +14195,8 @@
               default_unit: prod.defaultUnit,
               min_replenishment_qty: prod.minReplenishmentQty,
               shelf_life_days: prod.shelfLifeDays,
-              price: prod.price
+              price: prod.price,
+              price_unit: prod.priceUnit || 'un'
             }).select();
             if (error) throw traduzirErroProduto(error);
             setProducts((prev) => [...prev, fromProduct(data[0])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
