@@ -96,7 +96,7 @@ if old not in text:
 text = text.replace(old, new, 1)
 
 # 6) Replace old one-way resale badge/button in the supply table with editable checkbox.
-pattern = re.compile(r'''\{revendaDoInsumo\(s\.name\) \? \(\s*<span className="[^\"]*">Revenda ✓</span>\s*\) : \(\s*<button\s*type="button"\s*onClick=\{\(\) => criarRevendaDoInsumo\(s\.name, s\.unit\)\}.*?>\s*\+ Revenda também\s*</button>\s*\)\}''', re.S)
+pattern = re.compile(r'''\{revendaDoInsumo\(s\.name\) \? \(\s*<div className="t-nano mt-1 font-bold text-\[#274133\]">Revenda ✓</div>\s*\) : \(\s*<button\s*type="button"\s*onClick=\{\(\) => criarRevendaDoInsumo\(s\.name, s\.unit\)\}\s*className="mt-1 t-nano underline underline-offset-2 text-\[#0E0937\] font-bold"\s*>\s*\+ Revenda também\s*</button>\s*\)\}''', re.S)
 m = pattern.search(text)
 if not m:
     raise SystemExit('table resale marker not found')
