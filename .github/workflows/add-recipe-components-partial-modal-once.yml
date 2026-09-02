@@ -18,6 +18,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fix patch script quoting
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/add_recipe_components_and_partial_modal.py')
+          lines = p.read_text(encoding='utf-8').splitlines(True)
+          for i, line in enumerate(lines):
+              if 'title="Tirar insumo da ficha"' in line:
+                  lines[i] = "'                            title=\"Tirar insumo da ficha\"',\n"
+              elif 'title="Tirar componente da ficha"' in line:
+                  lines[i] = "'                            title=\"Tirar componente da ficha\"',\n"
+          p.write_text(''.join(lines), encoding='utf-8')
+          PY
+          python3 -m py_compile .github/scripts/add_recipe_components_and_partial_modal.py
+
       - name: Apply recipe component patch
         run: python3 .github/scripts/add_recipe_components_and_partial_modal.py
 
