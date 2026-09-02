@@ -1,0 +1,40 @@
+name: Add recipe components and partial modal
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/add_recipe_components_and_partial_modal.py'
+      - '.github/workflows/add-recipe-components-partial-modal-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply recipe component patch
+        run: python3 .github/scripts/add_recipe_components_and_partial_modal.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-02-ficha-parcial-componentes-1' index.html
+          grep -q 'Fabricação própria' index.html
+          grep -q 'Histórico de compras do item' index.html
+          grep -q 'component_product_id' index.html
+          grep -q 'component_product_id' supabase/schema.sql
+          test -f supabase/migrations/20260902_recipe_product_components.sql
+          grep -q 'max-w-5xl max-h-\[88vh\]' index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Recipe Components"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html supabase/schema.sql supabase/migrations/20260902_recipe_product_components.sql
+          git commit -m "Add manufactured products to technical sheets"
+          git push
