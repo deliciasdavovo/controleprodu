@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-categorias-ddv-1" />
+    <meta name="app-version" content="2026-09-02-picker-design-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -539,13 +539,15 @@
       .picker-panel {
         position: fixed;
         z-index: 140;
-        padding: 4px;
-        background: var(--bg-surface);
-        border: 1px solid var(--hairline);
-        border-radius: var(--radius-md);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.16);
+        padding: 6px;
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(60, 60, 67, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 18px 50px rgba(14, 9, 55, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
         overflow-y: auto;
         overscroll-behavior: contain;
+        backdrop-filter: saturate(180%) blur(18px);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
       }
       .picker-option {
         display: flex;
@@ -553,16 +555,25 @@
         justify-content: space-between;
         gap: 8px;
         width: 100%;
+        min-height: 38px;
         text-align: left;
-        padding: 7px 10px;
-        border-radius: 8px;
+        padding: 8px 11px;
+        border-radius: 11px;
         font-size: 13px;
         font-weight: 600;
         letter-spacing: -0.01em;
         color: var(--ink-1);
-        transition: background-color .12s ease, color .12s ease;
+        transition: background-color .12s ease, color .12s ease, transform .1s ease;
       }
+      .picker-option:hover { background: rgba(14, 9, 55, 0.055); }
+      .picker-option:active { transform: scale(0.99); }
       .picker-option[data-active="true"] { background: var(--accent); color: #fff; }
+      .picker-disabled {
+        background-color: rgba(118, 118, 128, 0.055) !important;
+        color: var(--ink-4) !important;
+        cursor: not-allowed !important;
+        opacity: .88;
+      }
       .picker-option[data-muted="true"] { color: var(--ink-3); font-weight: 500; }
       .picker-option[data-active="true"][data-muted="true"] { color: #fff; }
       .picker-hint {
@@ -2586,6 +2597,8 @@
         inputRef,
         onKeyDown,
         title,
+        disabled = false,
+        inputProps = {},
         emptyLabel = 'Nada encontrado'
       }) => {
         const [open, setOpen] = useState(false);
@@ -2635,7 +2648,13 @@
           };
         }, [open]);
 
-        const openList = () => { setSearch(''); setTyped(false); setActive(-1); setOpen(true); };
+        const openList = () => {
+          if (disabled) return;
+          setSearch('');
+          setTyped(false);
+          setActive(-1);
+          setOpen(true);
+        };
         const close = () => { setOpen(false); setActive(-1); setTyped(false); };
 
         const choose = (opt) => {
@@ -2644,6 +2663,7 @@
         };
 
         const handleChange = (e) => {
+          if (disabled) return;
           const texto = e.target.value;
           setActive(-1);
           setTyped(true);
@@ -2691,13 +2711,15 @@
               aria-expanded={open}
               autoComplete="off"
               title={title}
+              disabled={disabled}
               placeholder={placeholderAtual}
               value={texto}
               onChange={handleChange}
-              onMouseDown={() => { if (!open) openList(); }}
+              onMouseDown={() => { if (!disabled && !open) openList(); }}
               onBlur={close}
               onKeyDown={handleKeyDown}
-              className={`${className} field-select`}
+              {...inputProps}
+              className={`${className} field-select ${disabled ? 'picker-disabled' : ''}`}
             />
 
             {open && box && ReactDOM.createPortal(
@@ -9086,17 +9108,14 @@
 
                   <div className="col-span-5 md:col-span-2">
                     <label className="t-caption block mb-1">Categoria</label>
-                    <select
-                      ref={categoryRef}
+                    <PickerField
+                      inputRef={categoryRef}
                       value={draft.category}
-                      onChange={(e) => setField('category', e.target.value)}
+                      options={PRODUCT_CATEGORIES}
+                      onPick={(opt) => setField('category', opt.value)}
                       onKeyDown={goToField(shelfLifeRef)}
-                      className="field field-md field-select"
-                    >
-                      {PRODUCT_CATEGORIES.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
+                      className="field field-md"
+                    />
                   </div>
 
                   <div className="col-span-7 md:col-span-2">
@@ -9171,17 +9190,18 @@
                     className="field field-sm field-search"
                   />
                 </div>
-                <select
-                  value={filterResponsible}
-                  onChange={(e) => setFilterResponsible(e.target.value)}
-                  className="field field-sm field-select field-auto"
-                >
-                  <option value="todos">Todos os responsáveis</option>
-                  {responsibleOptions.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                  {hasUnassigned && <option value="sem">{NO_RESPONSIBLE_LABEL}</option>}
-                </select>
+                <div className="w-52 max-w-full">
+                  <PickerField
+                    value={filterResponsible}
+                    options={[
+                      { value: 'todos', label: 'Todos os responsáveis' },
+                      ...responsibleOptions.map((r) => ({ value: r, label: r })),
+                      ...(hasUnassigned ? [{ value: 'sem', label: NO_RESPONSIBLE_LABEL }] : [])
+                    ]}
+                    onPick={(opt) => setFilterResponsible(opt.value)}
+                    className="field field-sm"
+                  />
+                </div>
               </div>
 
               <div className="rola-x">
@@ -9228,16 +9248,15 @@
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <select
-                              value={p.category}
-                              onChange={(e) => onUpdateProduct({ ...p, category: e.target.value })}
-                              title="Categoria do produto"
-                              className="field field-select h-8 pl-2.5 text-[12px] w-28 sm:w-32"
-                            >
-                              {PRODUCT_CATEGORIES.map((c) => (
-                                <option key={c.value} value={c.value}>{c.label}</option>
-                              ))}
-                            </select>
+                            <div className="w-28 sm:w-32">
+                              <PickerField
+                                value={p.category}
+                                options={PRODUCT_CATEGORIES}
+                                onPick={(opt) => onUpdateProduct({ ...p, category: opt.value })}
+                                title="Categoria do produto"
+                                className="field h-8 pl-2.5 text-[12px]"
+                              />
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-center">
                             <label className="inline-flex items-center gap-1.5 cursor-pointer" title="Define se este produto aparece nos fluxos de vitrine e produção">
@@ -10223,6 +10242,20 @@
             return true;
           }
 
+          if (tipo === 'unidade') {
+            const sugestao = primeiraSugestaoCadastro(SUPPLY_UNITS, campo.value);
+            if (!sugestao) return false;
+            setDraft((d) => ({ ...d, unit: String(sugestao) }));
+            return true;
+          }
+
+          if (tipo === 'classe') {
+            const sugestao = primeiraSugestaoCadastro(SUPPLY_CLASSES, campo.value, (c) => c.label);
+            if (!sugestao) return false;
+            setDraft((d) => ({ ...d, supplyClass: sugestao.value }));
+            return true;
+          }
+
           if (tipo === 'fornecedor') {
             const digitado = String(campo.value || '').trim();
             const sugestao = digitado
@@ -10385,47 +10418,69 @@
                     <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
                       <div className="col-span-12 sm:col-span-5">
                         <label className="t-caption block mb-1">Insumo</label>
-                        <input
-                          ref={nomeRef}
-                          type="text"
-                          list="cadastro-insumos-list"
+                        <PickerField
+                          inputRef={nomeRef}
                           value={draft.name}
-                          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                          onBlur={(e) => aplicarInsumoExistente(e.target.value)}
+                          options={supplies.map((s) => ({
+                            value: s.name,
+                            label: s.name,
+                            hint: `${s.unit} · ${SUPPLY_CLASSES.find((c) => c.value === (s.supplyClass || 'insumo'))?.label || 'Ingrediente'}`
+                          }))}
+                          onType={(nome) => {
+                            const existente = supplies.find((s) => normalizeName(s.name) === normalizeName(String(nome || '').trim()));
+                            setDraft((d) => existente
+                              ? { ...d, name: nome, unit: existente.unit || d.unit, supplyClass: existente.supplyClass || 'insumo' }
+                              : { ...d, name: nome });
+                          }}
+                          onPick={(opt) => aplicarInsumoExistente(opt.value)}
                           onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          data-insumo-field="nome"
+                          inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'nome' }}
                           placeholder="Digite ou escolha um insumo"
+                          emptyLabel="Insumo novo — será cadastrado ao salvar"
                           className="field field-md font-semibold"
                         />
                       </div>
                       <div className="col-span-4 sm:col-span-2">
                         <label className="t-caption block mb-1">Unidade</label>
-                        <select
-                          value={draft.unit}
-                          onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          disabled={!!draftExistente}
-                          title={draftExistente ? 'Unidade fixa do cadastro. Para alterar, use a tabela de insumos.' : 'Unidade do novo insumo'}
-                          className="field field-md field-select disabled:bg-black/[0.035] disabled:text-[#86868b] disabled:cursor-not-allowed"
-                        >
-                          {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                        {draftExistente ? (
+                          <div
+                            title="Unidade fixa do cadastro. Para alterar, use a tabela de insumos."
+                            className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b] cursor-not-allowed"
+                          >
+                            {draft.unit}
+                          </div>
+                        ) : (
+                          <PickerField
+                            value={draft.unit}
+                            options={SUPPLY_UNITS.map((u) => ({ value: u, label: u }))}
+                            onPick={(opt) => setDraft((d) => ({ ...d, unit: opt.value }))}
+                            onKeyDown={avancarCadastroInsumo}
+                            inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'unidade' }}
+                            title="Unidade do novo insumo"
+                            className="field field-md"
+                          />
+                        )}
                       </div>
                       <div className="col-span-8 sm:col-span-3">
                         <label className="t-caption block mb-1">Classe</label>
-                        <select
-                          value={draft.supplyClass}
-                          onChange={(e) => setDraft((d) => ({ ...d, supplyClass: e.target.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          disabled={!!draftExistente}
-                          title={draftExistente ? 'Classe fixa do cadastro. Para alterar, use a tabela de insumos.' : 'Só organiza a lista — as três entram no CMV do mesmo jeito'}
-                          className="field field-md field-select disabled:bg-black/[0.035] disabled:text-[#86868b] disabled:cursor-not-allowed"
-                        >
-                          {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                        </select>
+                        {draftExistente ? (
+                          <div
+                            title="Classe fixa do cadastro. Para alterar, use a tabela de insumos."
+                            className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b] cursor-not-allowed"
+                          >
+                            {SUPPLY_CLASSES.find((c) => c.value === draft.supplyClass)?.label || draft.supplyClass}
+                          </div>
+                        ) : (
+                          <PickerField
+                            value={draft.supplyClass}
+                            options={SUPPLY_CLASSES}
+                            onPick={(opt) => setDraft((d) => ({ ...d, supplyClass: opt.value }))}
+                            onKeyDown={avancarCadastroInsumo}
+                            inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'classe' }}
+                            title="Classe do novo insumo"
+                            className="field field-md"
+                          />
+                        )}
                       </div>
                       <div className="col-span-12 sm:col-span-2">
                         <label className="t-caption block mb-1">Também é revenda?</label>
@@ -10444,15 +10499,15 @@
                       </div>
                       <div className="col-span-12 sm:col-span-4">
                         <label className="t-caption block mb-1">Fornecedor</label>
-                        <input
-                          type="text"
-                          list="cadastro-fornecedores-list"
+                        <PickerField
                           value={draft.supplier}
-                          onChange={(e) => setDraft((d) => ({ ...d, supplier: e.target.value }))}
+                          options={fornecedores.map((f) => ({ value: f, label: f }))}
+                          onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
+                          onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
                           onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          data-insumo-field="fornecedor"
+                          inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'fornecedor' }}
                           placeholder={draftUltimaCompra?.supplier || 'Fornecedor'}
+                          emptyLabel="Fornecedor novo — será salvo com esta compra"
                           className="field field-md"
                         />
                       </div>
@@ -10504,12 +10559,6 @@
                         </button>
                       </div>
                     </div>
-                    <datalist id="cadastro-insumos-list">
-                      {supplies.map((s) => <option key={s.id} value={s.name} />)}
-                    </datalist>
-                    <datalist id="cadastro-fornecedores-list">
-                      {fornecedores.map((f) => <option key={f} value={f} />)}
-                    </datalist>
                   </form>
                   {draftExistente && (
                     <div className="mt-3 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
@@ -10539,14 +10588,14 @@
                         className="field field-sm field-search"
                       />
                     </div>
-                    <select
-                      value={classeFiltro}
-                      onChange={(e) => setClasseFiltro(e.target.value)}
-                      className="field field-sm field-select field-auto"
-                    >
-                      <option value="todos">Todas as classes</option>
-                      {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </select>
+                    <div className="w-40">
+                      <PickerField
+                        value={classeFiltro}
+                        options={[{ value: 'todos', label: 'Todas as classes' }, ...SUPPLY_CLASSES]}
+                        onPick={(opt) => setClasseFiltro(opt.value)}
+                        className="field field-sm"
+                      />
+                    </div>
                   </div>
 
                   <div className="rola-x">
@@ -10599,13 +10648,14 @@
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
-                                <select
-                                  value={s.unit}
-                                  onChange={(e) => onUpdateSupply({ ...s, unit: e.target.value })}
-                                  className="field field-select h-8 pl-2.5 text-[12px] w-16"
-                                >
-                                  {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                                </select>
+                                <div className="w-16">
+                                  <PickerField
+                                    value={s.unit}
+                                    options={SUPPLY_UNITS.map((u) => ({ value: u, label: u }))}
+                                    onPick={(opt) => onUpdateSupply({ ...s, unit: opt.value })}
+                                    className="field h-8 pl-2.5 text-[12px]"
+                                  />
+                                </div>
                               </td>
                               <td className="py-2.5 px-3">
                                 <div className="w-28 sm:w-36">
@@ -10669,15 +10719,15 @@
                               </td>
                               <td className="py-2.5 px-3">
                                 <div className="flex items-center gap-1">
-                                  <select
-                                    value={s.variationUnit || ''}
-                                    onChange={(e) => onUpdateSupply({ ...s, variationUnit: e.target.value })}
-                                    title="Como a loja compra ou usa este insumo"
-                                    className="field field-select h-8 pl-2.5 text-[12px] w-20"
-                                  >
-                                    <option value="">—</option>
-                                    {VARIATION_UNITS.filter((u) => u !== s.unit).map((u) => <option key={u} value={u}>{u}</option>)}
-                                  </select>
+                                  <div className="w-20">
+                                    <PickerField
+                                      value={s.variationUnit || ''}
+                                      options={[{ value: '', label: '—' }, ...VARIATION_UNITS.filter((u) => u !== s.unit).map((u) => ({ value: u, label: u }))]}
+                                      onPick={(opt) => onUpdateSupply({ ...s, variationUnit: opt.value })}
+                                      title="Como a loja compra ou usa este insumo"
+                                      className="field h-8 pl-2.5 text-[12px]"
+                                    />
+                                  </div>
                                   <input
                                     type="number"
                                     min="0"
@@ -10692,13 +10742,14 @@
                                 {rotulo && <div className="t-nano mt-0.5">{rotulo}</div>}
                               </td>
                               <td className="py-2.5 px-3">
-                                <select
-                                  value={s.supplyClass || 'insumo'}
-                                  onChange={(e) => onUpdateSupply({ ...s, supplyClass: e.target.value })}
-                                  className="field field-select h-8 pl-2.5 text-[12px] w-28"
-                                >
-                                  {SUPPLY_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                </select>
+                                <div className="w-28">
+                                  <PickerField
+                                    value={s.supplyClass || 'insumo'}
+                                    options={SUPPLY_CLASSES}
+                                    onPick={(opt) => onUpdateSupply({ ...s, supplyClass: opt.value })}
+                                    className="field h-8 pl-2.5 text-[12px]"
+                                  />
+                                </div>
                                 <label className="mt-1.5 inline-flex items-center gap-1.5 cursor-pointer" title="Define se este insumo também aparece como item de revenda">
                                   <input
                                     type="checkbox"
