@@ -1,0 +1,9 @@
+# Backups completos do PostgreSQL/Supabase — nunca publicar no repositório público
+*.backup
+*.backup.gz
+db_cluster-*.gz
+
+# Seeds/migrações com dados comerciais reais
+supabase/private/
+supabase/legacy_private*.sql
+supabase/*legacy*private*.sql
