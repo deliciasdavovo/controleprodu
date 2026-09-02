@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-ficha-seletores-separados-1" />
+    <meta name="app-version" content="2026-09-02-fabricacao-equivalencia-unidade-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1969,22 +1969,33 @@
       // ficha. Ex.: a ficha do lanche usa 1 un do pão de brioche, e o custo do
       // pão vem da ficha do próprio brioche. Assim uma mudança na farinha
       // atravessa automaticamente todas as fichas que usam aquele pão.
-      const converterQtdComponente = (qtd, origem, destino) => {
+      const converterQtdComponente = (qtd, origem, destino, pesoUnidadeG = 0) => {
         const n = Number(qtd) || 0;
         const de = origem || destino || 'un';
         const para = destino || de;
+        const pesoG = Number(pesoUnidadeG) || 0;
         if (!n || de === para) return n;
         if (de === 'kg' && para === 'g') return n * 1000;
         if (de === 'g' && para === 'kg') return n / 1000;
         if (de === 'L' && para === 'ml') return n * 1000;
         if (de === 'ml' && para === 'L') return n / 1000;
+
+        // Produto da casa vendido por kg também pode ser usado por unidade em
+        // outra ficha quando existe uma equivalência, ex.: 1 chipa = 50 g.
+        if (pesoG > 0 && de === 'un' && para === 'g') return n * pesoG;
+        if (pesoG > 0 && de === 'un' && para === 'kg') return (n * pesoG) / 1000;
+        if (pesoG > 0 && de === 'g' && para === 'un') return n / pesoG;
+        if (pesoG > 0 && de === 'kg' && para === 'un') return (n * 1000) / pesoG;
+
+        // Nunca trate 1 unidade como 1 kg por falta da equivalência.
+        if (de === 'un' || para === 'un') return 0;
         return n;
       };
 
-      const unidadesDeComponente = (unidade) => {
+      const unidadesDeComponente = (unidade, pesoUnidadeG = 0) => {
         const u = unidade || 'un';
         if (u === 'g') return ['g', 'kg'];
-        if (u === 'kg') return ['kg', 'g'];
+        if (u === 'kg') return Number(pesoUnidadeG) > 0 ? ['kg', 'g', 'un'] : ['kg', 'g'];
         if (u === 'ml') return ['ml', 'L'];
         if (u === 'L') return ['L', 'ml'];
         return [u];
@@ -2025,7 +2036,8 @@
           const qtd = converterQtdComponente(
             item.qty,
             item.usageUnit || unidadeSaida,
-            unidadeSaida
+            unidadeSaida,
+            fichaComponente.weightPerUnit
           );
           return (fichaComponente.custo / rendimento) * qtd;
         }
@@ -11159,10 +11171,12 @@
           if (!ficha || ficha.yieldUnit === unidadeVenda) return;
           if (unidadeVenda === 'kg' && Number(ficha.weightPerUnit) > 0) {
             const kg = ((Number(ficha.yieldQty) || 1) * Number(ficha.weightPerUnit)) / 1000;
-            onUpdateRecipe({ yieldQty: kg || 1, yieldUnit: 'kg', weightPerUnit: null });
+            // O peso por unidade continua útil: agora ele é a equivalência para
+            // usar este produto vendido por kg como "un" em outra ficha.
+            onUpdateRecipe({ yieldQty: kg || 1, yieldUnit: 'kg', weightPerUnit: ficha.weightPerUnit });
             return;
           }
-          onUpdateRecipe({ yieldUnit: unidadeVenda, weightPerUnit: unidadeVenda === 'kg' ? null : ficha.weightPerUnit });
+          onUpdateRecipe({ yieldUnit: unidadeVenda, weightPerUnit: ficha.weightPerUnit });
         }, [ficha?.id, produto.priceUnit]);
         const cmv = calcularCmv(custoUn, preco);
         const calculavel = preco > 0 && custoUn > 0;
@@ -11181,12 +11195,14 @@
               const rendimentoP = Number(fichaP?.yieldQty) || 0;
               const unidadeP = fichaP?.yieldUnit || 'un';
               const custoP = fichaP && rendimentoP > 0 ? fichaP.custo / rendimentoP : 0;
+              const pesoUnP = Number(fichaP?.weightPerUnit) || 0;
+              const equivalenciaP = unidadeP === 'kg' && pesoUnP > 0 ? ` · 1 un = ${pesoUnP} g` : '';
               return {
                 value: `produto:${p.id}`,
                 label: p.name,
                 hint: custoP > 0
-                  ? `Fabricação própria · ${formatCurrencyBR(custoP)}/${unidadeP}`
-                  : 'Fabricação própria · sem ficha/custo'
+                  ? `Fabricação própria · ${formatCurrencyBR(custoP)}/${unidadeP}${equivalenciaP}`
+                  : `Fabricação própria · sem ficha/custo${equivalenciaP}`
               };
             });
 
@@ -11264,7 +11280,7 @@
                     onChange={(e) => onUpdateRecipe({
                       yieldQty: Number(e.target.value) || 1,
                       yieldUnit: unidadeVenda,
-                      weightPerUnit: unidadeVenda === 'kg' ? null : ficha?.weightPerUnit
+                      weightPerUnit: ficha?.weightPerUnit
                     })}
                     title={unidadeVenda === 'kg'
                       ? 'Quantos quilos esta receita produz no total'
@@ -11283,6 +11299,27 @@
                     ? 'Produto vendido por kg · informe o peso total que a receita rende.'
                     : 'Produto vendido por unidade · informe quantas unidades a receita rende.'}
                 </p>
+
+                {unidadeVenda === 'kg' && (
+                  <div className="mt-3 pt-3 border-t hairline">
+                    <label className="t-caption block mb-1">Equivalência para usar por unidade</label>
+                    <div className="flex items-center gap-2">
+                      <span className="t-callout font-semibold whitespace-nowrap">1 un =</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={ficha?.weightPerUnit || ''}
+                        onChange={(e) => onUpdateRecipe({ weightPerUnit: Number(e.target.value) || null })}
+                        placeholder="ex: 50"
+                        title="Peso em gramas de uma unidade deste produto"
+                        className="field field-sm text-right tnum no-spin w-24"
+                      />
+                      <span className="t-callout font-semibold">g</span>
+                    </div>
+                    <p className="t-nano mt-1.5">Opcional · permite usar este produto como un em outra ficha técnica.</p>
+                  </div>
+                )}
               </div>
               <div className="col-span-12 sm:col-span-8 flex flex-wrap items-center gap-4 sm:justify-end">
                 <div>
@@ -11361,7 +11398,7 @@
                     const unidadeBase = supply?.unit || componentFicha?.yieldUnit || 'un';
                     const unidades = supply
                       ? [supply.unit, ...(supply.variationUnit && Number(supply.variationFactor) > 0 ? [supply.variationUnit] : [])]
-                      : unidadesDeComponente(unidadeBase);
+                      : unidadesDeComponente(unidadeBase, componentFicha?.weightPerUnit);
                     const seletorValue = item.componentProductId
                       ? `produto:${item.componentProductId}`
                       : `insumo:${item.supplyId || ''}`;
