@@ -1,0 +1,39 @@
+name: Fix official product categories
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/fix_product_categories_ddv.py'
+      - '.github/workflows/fix-product-categories-ddv-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply categories
+        run: python3 .github/scripts/fix_product_categories_ddv.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-02-categorias-ddv-1' index.html
+          grep -q "label: 'Bomboniere'" index.html
+          grep -q "label: 'Bebidas Revenda'" index.html
+          grep -q "value: 'pao', label: 'Pães'" index.html
+          grep -q "bebida_revenda" supabase/schema.sql
+          test -f supabase/migrations/20260902_categorias_produtos_ddv.sql
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Categories Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html supabase/schema.sql supabase/migrations/20260902_categorias_produtos_ddv.sql
+          git commit -m "Use official bakery product categories"
+          git push
