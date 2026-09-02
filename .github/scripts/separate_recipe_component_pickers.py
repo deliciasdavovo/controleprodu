@@ -4,7 +4,6 @@ import re
 p = Path('index.html')
 s = p.read_text(encoding='utf-8')
 
-# Version marker
 s, n = re.subn(
     r'<meta name="app-version" content="[^"]+" />',
     '<meta name="app-version" content="2026-09-02-ficha-seletores-separados-1" />',
@@ -14,7 +13,6 @@ s, n = re.subn(
 if n != 1:
     raise SystemExit('app version marker not found')
 
-# Keep the existing combined source calculation, but expose two purpose-specific lists.
 needle = """        }, [supplyOptions, products, recipes, recipeItems, supplies, supplyPurchases, produto.id]);
 
         const interpretarComponente = (value) => {"""
@@ -46,6 +44,9 @@ old_ui = """            <div className=\"py-4\">
                   placeholder=\"Insumo comprado ou fabricação própria…\"
                   className=\"field field-sm\"
                 />
+                <p className=\"t-nano mt-1.5\">
+                  Produto da casa usa automaticamente o custo da própria ficha técnica.
+                </p>
               </div>
             </div>"""
 new_ui = """            <div className=\"py-4 border-b hairline\">
