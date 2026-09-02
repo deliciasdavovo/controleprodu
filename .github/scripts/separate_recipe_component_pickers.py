@@ -17,7 +17,7 @@ if n != 1:
 # Keep the existing combined source calculation, but expose two purpose-specific lists.
 needle = """        }, [supplyOptions, products, recipes, recipeItems, supplies, supplyPurchases, produto.id]);
 
-        const adicionar = (opt) => {"""
+        const interpretarComponente = (value) => {"""
 replacement = """        }, [supplyOptions, products, recipes, recipeItems, supplies, supplyPurchases, produto.id]);
 
         // O fluxo normal da ficha é insumo comprado. Fabricação própria é uma
@@ -31,7 +31,7 @@ replacement = """        }, [supplyOptions, products, recipes, recipeItems, supp
           [opcoesComponentes]
         );
 
-        const adicionar = (opt) => {"""
+        const interpretarComponente = (value) => {"""
 if needle not in s:
     raise SystemExit('component options end marker not found')
 s = s.replace(needle, replacement, 1)
