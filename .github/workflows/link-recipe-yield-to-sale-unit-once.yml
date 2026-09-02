@@ -1,0 +1,37 @@
+name: Link recipe yield to sale unit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/link_recipe_yield_to_sale_unit.py'
+      - '.github/workflows/link-recipe-yield-to-sale-unit-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply patch
+        run: python3 .github/scripts/link_recipe_yield_to_sale_unit.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-02-ficha-rendimento-venda-1' index.html
+          grep -q 'Rendimento da receita' index.html
+          grep -q 'Produto vendido por kg' index.html
+          grep -q "yield_unit: (produto?.priceUnit || 'un') === 'kg' ? 'kg' : 'un'" index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Recipe Yield"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Link recipe yield to product sale unit"
+          git push
