@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-insumo-master-fields-1" />
+    <meta name="app-version" content="2026-09-02-categorias-ddv-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1848,18 +1848,14 @@
 
       // Categorias do catálogo, na ordem em que aparecem nos menus
       const PRODUCT_CATEGORIES = [
-        { value: 'salgado', label: 'Salgado' },
-        { value: 'doce', label: 'Doce' },
-        { value: 'sobremesa', label: 'Sobremesa' },
-        { value: 'pao', label: 'Pão' },
-        { value: 'bolo', label: 'Bolo' },
-        { value: 'confeitaria', label: 'Confeitaria' },
-        { value: 'lanche', label: 'Lanche' },
-        { value: 'refeicao', label: 'Refeição' },
-        { value: 'bebida', label: 'Bebida' },
+        { value: 'doce', label: 'Doces' },
+        { value: 'salgado', label: 'Salgados' },
+        { value: 'sobremesa', label: 'Sobremesas' },
         { value: 'cafeteria', label: 'Cafeteria' },
-        { value: 'encomenda', label: 'Encomenda' },
-        { value: 'outro', label: 'Outro' }
+        { value: 'pao', label: 'Pães' },
+        { value: 'bomboniere', label: 'Bomboniere' },
+        { value: 'bebida_revenda', label: 'Bebidas Revenda' },
+        { value: 'outro', label: 'Outros' }
       ];
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
@@ -2052,9 +2048,10 @@
       // vitrine, este mapa define o móvel padrão dele.
       const CATEGORY_BY_SHOWCASE = { salgada: 'salgado', doce: 'doce', sobremesa: 'sobremesa' };
       const SHOWCASE_BY_CATEGORY = {
-        salgado: 'salgada', pao: 'salgada', lanche: 'salgada', refeicao: 'salgada',
-        doce: 'doce', bolo: 'doce', confeitaria: 'doce',
-        sobremesa: 'sobremesa'
+        salgado: 'salgada', pao: 'salgada',
+        doce: 'doce',
+        sobremesa: 'sobremesa',
+        cafeteria: 'doce', bomboniere: 'doce', bebida_revenda: 'salgada', outro: 'salgada'
       };
 
       const showcaseTypeOfCategory = (category) => SHOWCASE_BY_CATEGORY[category] || 'salgada';

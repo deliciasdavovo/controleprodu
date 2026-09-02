@@ -56,7 +56,7 @@ create table if not exists public.products (
   updated_at             timestamptz not null default now(),
   constraint products_name_unique unique (name),
   constraint products_category_check
-    check (category in ('salgado', 'doce', 'sobremesa', 'pao', 'bolo', 'confeitaria', 'lanche', 'refeicao', 'bebida', 'cafeteria', 'encomenda', 'outro')),
+    check (category in ('doce', 'salgado', 'sobremesa', 'cafeteria', 'pao', 'bomboniere', 'bebida_revenda', 'outro')),
   constraint products_min_qty_check check (min_replenishment_qty >= 0),
   constraint products_shelf_life_check check (shelf_life_days > 0),
   constraint products_price_check check (price >= 0)
