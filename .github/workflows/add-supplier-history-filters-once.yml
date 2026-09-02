@@ -1,0 +1,38 @@
+name: Add supplier history and period filters
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/add_supplier_history_filters.py'
+      - '.github/workflows/add-supplier-history-filters-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply supplier history filters
+        run: python3 .github/scripts/add_supplier_history_filters.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-02-fornecedor-historico-filtros-1' index.html
+          grep -q 'Histórico de compras' index.html
+          grep -q 'Todos os meses' index.html
+          grep -q 'Limpar período' index.html
+          grep -q 'setHistoricoFornecedor' index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Supplier History"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add supplier purchase history and period filters"
+          git push
