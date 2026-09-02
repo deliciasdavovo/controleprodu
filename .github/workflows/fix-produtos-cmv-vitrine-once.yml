@@ -1,0 +1,38 @@
+name: Fix produtos CMV e vitrine
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/fix_produtos_cmv_vitrine.py'
+      - '.github/workflows/fix-produtos-cmv-vitrine-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Aplicar correção
+        run: python3 .github/scripts/fix_produtos_cmv_vitrine.py
+
+      - name: Conferir correções
+        run: |
+          grep -q '2026-09-02-produtos-cmv-vitrine-1' index.html
+          grep -q "showcaseEnabled" index.html
+          grep -q "id: 'produtos'.*Cadastro de Produtos" index.html
+          grep -q "value: 'pao'" index.html
+          grep -q "20260902_produtos_cmv_vitrine" <(find supabase/migrations -maxdepth 1 -type f -printf '%f\n')
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Product Catalog Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html supabase/schema.sql supabase/migrations/20260902_produtos_cmv_vitrine.sql
+          git commit -m "Move products to CMV and separate showcase flag"
+          git push
