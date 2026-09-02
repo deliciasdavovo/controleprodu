@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-fornecedor-historico-filtros-1" />
+    <meta name="app-version" content="2026-09-02-item-historico-compras-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11734,6 +11734,7 @@
         const [dataInicio, setDataInicio] = useState('');
         const [dataFim, setDataFim] = useState('');
         const [historicoFornecedor, setHistoricoFornecedor] = useState(null);
+        const [historicoItem, setHistoricoItem] = useState(null);
 
         const todas = useMemo(
           () => reunirCompras(supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit),
@@ -11767,6 +11768,13 @@
 
         const comprasHistoricoFornecedor = historicoFornecedor
           ? [...porPeriodo.filter((c) => c.fornecedor === historicoFornecedor)].sort((a, b) => {
+              const d = (b.data || '').localeCompare(a.data || '');
+              return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+            })
+          : [];
+
+        const comprasHistoricoItem = historicoItem
+          ? [...porPeriodo.filter((c) => c.itemId === historicoItem.itemId)].sort((a, b) => {
               const d = (b.data || '').localeCompare(a.data || '');
               return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
             })
@@ -11981,6 +11989,64 @@
               </div>
             )}
 
+            {historicoItem && (
+              <div className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center p-0 sm:p-6">
+                <button
+                  type="button"
+                  aria-label="Fechar histórico do item"
+                  onClick={() => setHistoricoItem(null)}
+                  className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+                />
+                <div className="relative w-full sm:max-w-4xl max-h-[88vh] overflow-hidden bg-white rounded-t-[26px] sm:rounded-[24px] shadow-2xl border hairline">
+                  <div className="px-5 sm:px-6 py-4 border-b hairline flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                      <Icons.ShoppingCart className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="t-overline">Histórico de compras do item</div>
+                      <h3 className="t-title truncate">{historicoItem.item}</h3>
+                      <p className="t-micro mt-1 tnum">
+                        {comprasHistoricoItem.length} {comprasHistoricoItem.length === 1 ? 'compra' : 'compras'} · {formatCurrencyBR(comprasHistoricoItem.reduce((s, c) => s + c.cost, 0))}
+                        {mesFiltro ? ` · ${mesesDisponiveis.find((m) => m.value === mesFiltro)?.label || mesFiltro}` : ''}
+                        {(dataInicio || dataFim) ? ` · ${dataInicio ? formatDateBR(dataInicio) : 'início'} até ${dataFim ? formatDateBR(dataFim) : 'hoje'}` : ''}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => setHistoricoItem(null)} className="btn btn-secondary btn-sm">Fechar</button>
+                  </div>
+                  <div className="overflow-auto max-h-[68vh] px-5 sm:px-6 pb-5">
+                    {comprasHistoricoItem.length === 0 ? (
+                      <p className="t-body text-center py-10 ink-quiet">Nenhuma compra deste item no período selecionado.</p>
+                    ) : (
+                      <table className="w-full text-left tabela-larga">
+                        <thead className="sticky top-0 bg-white z-10">
+                          <tr className="t-overline-sm border-b hairline">
+                            <th className="py-3 pr-3 font-bold">Data</th>
+                            <th className="py-3 px-3 font-bold">Fornecedor</th>
+                            <th className="py-3 px-3 font-bold">Tipo</th>
+                            <th className="py-3 px-3 text-right font-bold">Quantidade</th>
+                            <th className="py-3 px-3 text-right font-bold">Valor pago</th>
+                            <th className="py-3 pl-3 text-right font-bold">Custo unit.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comprasHistoricoItem.map((c) => (
+                            <tr key={`${c.tipo}-${c.id}`} className="border-t hairline">
+                              <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
+                              <td className="py-3 px-3 t-callout font-semibold">{c.fornecedor}</td>
+                              <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
+                              <td className="py-3 px-3 text-right t-callout tnum">{c.qty || 0} {c.unidade}</td>
+                              <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
+                              <td className="py-3 pl-3 text-right t-callout tnum">{c.custoUnit > 0 ? `${formatCurrencyBR(c.custoUnit)}/${c.unidade}` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <h2 className="t-display">Fornecedores</h2>
               <p className="t-body mt-1">
@@ -12163,7 +12229,17 @@
                                 </div>
                               ) : <span className="t-body ink-quiet">só um</span>}
                             </td>
-                            <td className="py-2.5 pl-3 text-center t-body tnum">{i.compras}</td>
+                            <td className="py-2.5 pl-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setHistoricoItem({ itemId: i.itemId, item: i.item })}
+                                title={`Histórico de compras de ${i.item}`}
+                                className="btn btn-secondary btn-sm mx-auto"
+                              >
+                                <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                <span className="tnum">{i.compras}</span>
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
