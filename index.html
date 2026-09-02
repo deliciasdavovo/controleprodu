@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-01-insumo-enter-autocomplete-3" />
+    <meta name="app-version" content="2026-09-02-produtos-cmv-vitrine-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1850,7 +1850,16 @@
       const PRODUCT_CATEGORIES = [
         { value: 'salgado', label: 'Salgado' },
         { value: 'doce', label: 'Doce' },
-        { value: 'sobremesa', label: 'Sobremesa' }
+        { value: 'sobremesa', label: 'Sobremesa' },
+        { value: 'pao', label: 'Pão' },
+        { value: 'bolo', label: 'Bolo' },
+        { value: 'confeitaria', label: 'Confeitaria' },
+        { value: 'lanche', label: 'Lanche' },
+        { value: 'refeicao', label: 'Refeição' },
+        { value: 'bebida', label: 'Bebida' },
+        { value: 'cafeteria', label: 'Cafeteria' },
+        { value: 'encomenda', label: 'Encomenda' },
+        { value: 'outro', label: 'Outro' }
       ];
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
@@ -2038,17 +2047,23 @@
       // ------------------------------------------
       const showcaseKey = (slot) => (slot ? `${slot.showcaseType}#${slot.shelfNumber}` : '');
 
-      // Cada tipo de vitrine aceita uma categoria do catálogo
+      // Categoria comercial e presença na vitrine são coisas diferentes.
+      // A categoria organiza o catálogo/CMV; quando o produto participa da
+      // vitrine, este mapa define o móvel padrão dele.
       const CATEGORY_BY_SHOWCASE = { salgada: 'salgado', doce: 'doce', sobremesa: 'sobremesa' };
+      const SHOWCASE_BY_CATEGORY = {
+        salgado: 'salgada', pao: 'salgada', lanche: 'salgada', refeicao: 'salgada',
+        doce: 'doce', bolo: 'doce', confeitaria: 'doce',
+        sobremesa: 'sobremesa'
+      };
 
-      const showcaseTypeOfCategory = (category) =>
-        category === 'doce' ? 'doce' : category === 'sobremesa' ? 'sobremesa' : 'salgada';
+      const showcaseTypeOfCategory = (category) => SHOWCASE_BY_CATEGORY[category] || 'salgada';
 
       const categoryOfShowcaseType = (showcaseType) => CATEGORY_BY_SHOWCASE[showcaseType] || 'salgado';
 
-      // Produtos que podem entrar em uma vitrine deste tipo
+      // Só entra nos fluxos de vitrine se estiver explicitamente habilitado.
       const productsForShowcaseType = (products, showcaseType) =>
-        products.filter((p) => showcaseTypeOfCategory(p.category) === showcaseType);
+        products.filter((p) => p.showcaseEnabled !== false && showcaseTypeOfCategory(p.category) === showcaseType);
 
       // Quantidade mínima de um produto em um dia: a soma do mínimo dos espaços
       // que o padrão daquele dia reservou para ele. É o ponto de reposição do
@@ -2336,6 +2351,7 @@
         name: row.name,
         responsible: row.responsible || '',
         category: row.category,
+        showcaseEnabled: row.is_active !== false,
         defaultUnit: row.default_unit,
         minReplenishmentQty: row.min_replenishment_qty,
         shelfLifeDays: row.shelf_life_days,
@@ -2506,7 +2522,7 @@
           supplies, supplyPurchases, recipes, recipeItems, resalePurchases
         ] = await Promise.all([
           run('unidades', sb.from('units').select('*').order('name')),
-          run('produtos', sb.from('products').select('*').eq('is_active', true).order('name')),
+          run('produtos', sb.from('products').select('*').order('name')),
           run('espaços da vitrine', sb.from('showcase_slots').select('*').order('shelf_number').order('slot_number')),
           run('itens da vitrine', sb.from('slot_items').select(SLOT_ITEM_COLUMNS)),
           run('vitrine padrão', sb.from('standard_plans').select('*')),
@@ -2942,14 +2958,14 @@
             { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
             { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
             { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History },
-            { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee },
-            { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos', icon: Icons.Package }
+            { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee }
           ]
         },
         cmv: {
           label: 'CMV',
           title: 'Custo, preço e fornecedores',
           tabs: [
+            { id: 'produtos', label: 'Produtos', fullLabel: 'Cadastro de Produtos', icon: Icons.Package },
             { id: 'insumos', label: 'Insumos', fullLabel: 'Insumos & Fichas', icon: Icons.Layers },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart }
@@ -4707,7 +4723,7 @@
           const daVitrine = [];
           const deOutras = [];
 
-          products.forEach((p) => {
+          products.filter((p) => p.showcaseEnabled !== false).forEach((p) => {
             const tipo = showcaseTypeOfCategory(p.category);
             const opcao = { value: p.name, label: p.name };
             if (tipo === showcaseType) {
@@ -8919,7 +8935,7 @@
         const [filterResponsible, setFilterResponsible] = useState('todos');
 
         // Linha de cadastro: um produto por vez, sem sair do teclado
-        const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', shelfLifeDays: 2, price: 8.5 };
+        const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', showcaseEnabled: true, shelfLifeDays: 2, price: 8.5 };
         const [draft, setDraft] = useState(BLANK_DRAFT);
 
         const nameRef = useRef(null);
@@ -8952,6 +8968,7 @@
                 name: value,
                 responsible: found.responsible || '',
                 category: found.category,
+                showcaseEnabled: found.showcaseEnabled !== false,
                 shelfLifeDays: found.shelfLifeDays,
                 price: found.price
               }
@@ -8983,6 +9000,7 @@
             name: nome,
             responsible: cleanResponsible(draft.responsible),
             category: draft.category,
+            showcaseEnabled: draft.showcaseEnabled !== false,
             shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
             price: Math.max(0, Number(draft.price) || 0)
           };
@@ -8996,7 +9014,7 @@
 
           // Responsável e categoria continuam preenchidos: quem cadastra costuma
           // lançar vários itens seguidos da mesma pessoa
-          setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category });
+          setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category, showcaseEnabled: dados.showcaseEnabled });
           setTimeout(() => {
             if (nameRef.current) nameRef.current.focus();
           }, 50);
@@ -9020,7 +9038,7 @@
                 Cadastro
               </div>
               <h2 className="t-display">Catálogo de produtos</h2>
-              <p className="t-body mt-1.5">Salgados, doces e sobremesas da casa.</p>
+              <p className="t-body mt-1.5">Cadastro mestre para CMV e fichas técnicas. O produto pode existir sem participar da vitrine.</p>
 
               <form onSubmit={handleSubmit} className="mt-5 pt-5 border-t hairline">
                 <div className="flex items-center justify-between mb-3">
@@ -9072,6 +9090,19 @@
                         <option key={c.value} value={c.value}>{c.label}</option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="col-span-7 md:col-span-2">
+                    <label className="t-caption block mb-1">Vai para vitrine?</label>
+                    <label className="field field-md flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={draft.showcaseEnabled !== false}
+                        onChange={(e) => setField('showcaseEnabled', e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="t-callout font-semibold">{draft.showcaseEnabled !== false ? 'Sim' : 'Não'}</span>
+                    </label>
                   </div>
 
                   <div className="col-span-4 md:col-span-1">
@@ -9153,6 +9184,7 @@
                       <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
                       <th className="py-3 px-3 font-bold">Responsável</th>
                       <th className="py-3 px-3 font-bold">Categoria</th>
+                      <th className="py-3 px-3 text-center font-bold">Vitrine</th>
                       <th className="py-3 px-3 text-center font-bold">Validade</th>
                       <th className="py-3 px-3 text-right font-bold">Preço</th>
                       <th className="py-3 pl-3 text-right font-bold">Ação</th>
@@ -9160,7 +9192,7 @@
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
+                      <tr><td colSpan={7} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
                     ) : (
                       filtered.map((p) => (
                         <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
@@ -9199,6 +9231,19 @@
                                 <option key={c.value} value={c.value}>{c.label}</option>
                               ))}
                             </select>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <label className="inline-flex items-center gap-1.5 cursor-pointer" title="Define se este produto aparece nos fluxos de vitrine e produção">
+                              <input
+                                type="checkbox"
+                                checked={p.showcaseEnabled !== false}
+                                onChange={(e) => onUpdateProduct({ ...p, showcaseEnabled: e.target.checked })}
+                                className="w-4 h-4"
+                              />
+                              <span className={`t-micro font-bold ${p.showcaseEnabled !== false ? 'text-[#274133]' : 'text-[#86868b]'}`}>
+                                {p.showcaseEnabled !== false ? 'Sim' : 'Não'}
+                              </span>
+                            </label>
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex items-center justify-center gap-1.5">
@@ -9416,7 +9461,7 @@
           const daVitrine = [];
           const deOutras = [];
 
-          products.forEach((p) => {
+          products.filter((p) => p.showcaseEnabled !== false).forEach((p) => {
             const tipo = showcaseTypeOfCategory(p.category);
             const opcao = { value: p.name, label: p.name };
             if (tipo === showcaseType) daVitrine.push(opcao);
@@ -12645,6 +12690,9 @@
 
           write('Alocar na vitrine', async () => {
             let product = existente;
+            if (product && product.showcaseEnabled === false) {
+              throw new Error(`“${product.name}” está marcado como fora da vitrine. Ative “Vai para vitrine” no cadastro de Produtos.`);
+            }
 
             // Produto digitado que ainda não existe entra no catálogo, já na
             // categoria da vitrine em que ele está sendo colocado — o espaço
@@ -12656,6 +12704,7 @@
                 name: productName.trim(),
                 responsible: '',
                 category: tipoDestino ? categoryOfShowcaseType(tipoDestino) : 'salgado',
+                is_active: true,
                 default_unit: 'un',
                 min_replenishment_qty: 10,
                 shelf_life_days: 2,
@@ -13450,6 +13499,7 @@
               name: prod.name,
               responsible: prod.responsible,
               category: prod.category,
+              is_active: prod.showcaseEnabled !== false,
               default_unit: prod.defaultUnit,
               min_replenishment_qty: prod.minReplenishmentQty,
               shelf_life_days: prod.shelfLifeDays,
@@ -13466,6 +13516,7 @@
           const campos = {
             responsible: cleanResponsible(updated.responsible),
             category: updated.category,
+            is_active: updated.showcaseEnabled !== false,
             shelf_life_days: updated.shelfLifeDays,
             price: updated.price
           };

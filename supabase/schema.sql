@@ -56,7 +56,7 @@ create table if not exists public.products (
   updated_at             timestamptz not null default now(),
   constraint products_name_unique unique (name),
   constraint products_category_check
-    check (category in ('salgado', 'doce', 'sobremesa')),
+    check (category in ('salgado', 'doce', 'sobremesa', 'pao', 'bolo', 'confeitaria', 'lanche', 'refeicao', 'bebida', 'cafeteria', 'encomenda', 'outro')),
   constraint products_min_qty_check check (min_replenishment_qty >= 0),
   constraint products_shelf_life_check check (shelf_life_days > 0),
   constraint products_price_check check (price >= 0)
@@ -71,6 +71,7 @@ create index if not exists products_responsible_idx on public.products (responsi
 comment on table public.products is 'Salgados, doces e sobremesas produzidos pela casa.';
 comment on column public.products.shelf_life_days is 'Validade em dias contados a partir da data de fabricação.';
 comment on column public.products.responsible is 'Quem produz e responde pelo produto. Vazio = sem responsável definido.';
+comment on column public.products.is_active is 'Sim = participa da vitrine/produção. Não = permanece no catálogo apenas para CMV e ficha técnica.';
 
 
 -- ---------------------------------------------------------------------
