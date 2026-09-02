@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-02-ficha-rendimento-venda-1" />
+    <meta name="app-version" content="2026-09-02-ficha-seletores-separados-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11193,6 +11193,17 @@
           return [...comprados, ...fabricados];
         }, [supplyOptions, products, recipes, recipeItems, supplies, supplyPurchases, produto.id]);
 
+        // O fluxo normal da ficha é insumo comprado. Fabricação própria é uma
+        // exceção e por isso fica num seletor separado, sem misturar as listas.
+        const opcoesInsumos = useMemo(
+          () => opcoesComponentes.filter((o) => String(o.value || '').startsWith('insumo:')),
+          [opcoesComponentes]
+        );
+        const opcoesFabricados = useMemo(
+          () => opcoesComponentes.filter((o) => String(o.value || '').startsWith('produto:')),
+          [opcoesComponentes]
+        );
+
         const interpretarComponente = (value) => {
           const raw = String(value || '');
           if (raw.startsWith('produto:')) {
@@ -11289,19 +11300,33 @@
               </div>
             </div>
 
-            <div className="py-4">
-              <div className="w-full sm:max-w-sm">
-                <label className="t-caption block mb-1">Adicionar ingrediente ou produto da casa</label>
-                <PickerField
-                  value={novoComponente}
-                  options={opcoesComponentes}
-                  onPick={adicionar}
-                  placeholder="Insumo comprado ou fabricação própria…"
-                  className="field field-sm"
-                />
-                <p className="t-nano mt-1.5">
-                  Produto da casa usa automaticamente o custo da própria ficha técnica.
-                </p>
+            <div className="py-4 border-b hairline">
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px] gap-3 items-end">
+                <div className="min-w-0">
+                  <label className="t-caption block mb-1">Adicionar insumo</label>
+                  <PickerField
+                    value={novoComponente}
+                    options={opcoesInsumos}
+                    onPick={adicionar}
+                    placeholder="Escolha um insumo…"
+                    className="field field-sm"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="t-caption">Fabricação própria</label>
+                    <span className="t-nano">uso eventual</span>
+                  </div>
+                  <PickerField
+                    value=""
+                    options={opcoesFabricados}
+                    onPick={adicionar}
+                    placeholder="Produto da casa…"
+                    className="field field-sm bg-black/[0.018]"
+                    emptyLabel="Nenhum produto disponível"
+                  />
+                </div>
               </div>
             </div>
 
