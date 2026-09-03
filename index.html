@@ -10719,7 +10719,7 @@
         const produtosComFicha = useMemo(() => products.map((p) => {
           const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
-        }), [products, recipes, recipeItems, supplies, supplyPurchases]);
+        }), [products, recipes, recipeItems, supplies, supplyPurchases, separatedProducts]);
 
         const fichaAberta = produtosComFicha.find((x) => String(x.produto.id) === String(fichaProdutoId)) || null;
 
@@ -11940,8 +11940,12 @@
         const [ordem, setOrdem] = useState('cmv');
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
 
-        // Cada produto de fabricação com custo, CMV e margem já resolvidos
-        const linhasProducao = useMemo(() => products.map((p) => {
+        // Cada produto de fabricação com custo, CMV e margem já resolvidos.
+        // Itens que também existem em separatedProducts são revenda e não podem
+        // aparecer novamente na aba Produção.
+        const linhasProducao = useMemo(() => products
+          .filter((p) => !separatedProducts.some((r) => normalizeName(r.productName) === normalizeName(p.name)))
+          .map((p) => {
           const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           const custoUn = custoPorUnidadeDeVenda(p, ficha);
           const preco = Number(p.price) || 0;
