@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-insumo-revenda-um-form-2" />
+    <meta name="app-version" content="2026-09-03-tipo-insumo-revenda-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10421,6 +10421,12 @@
           { value: 'revenda', label: 'Revenda' },
           { value: 'producao', label: 'Produção' }
         ];
+        const TIPOS_TABELA = [
+          { value: 'insumo', label: 'Insumo' },
+          { value: 'revenda', label: 'Revenda' },
+          { value: 'insumo_revenda', label: 'Insumo + revenda' },
+          { value: 'producao', label: 'Produção' }
+        ];
         const BLANK_ENTRY = {
           type: 'insumo',
           name: '',
@@ -10701,21 +10707,52 @@
           const producao = produtosComFicha.map(({ produto, ficha, custoUn }) => ({
             key: `producao:${produto.id}`,
             tipo: 'producao', id: produto.id, name: produto.name, source: produto,
-            unidade: produto.priceUnit || 'un', compra: null, custo: custoUn,
+            unidade: produto.priceUnit || 'un', compra: null, compraOrigem: null, custo: custoUn,
             ficha
           }));
-          const insumos = supplies.map((x) => ({
-            key: `insumo:${x.id}`,
-            tipo: 'insumo', id: x.id, name: x.name, source: x,
-            unidade: x.unit || 'g', compra: ultimaCompra(comprasDoInsumo(x.id)),
-            custo: custoUnitarioInsumo(x.id, supplyPurchases)
-          }));
-          const revendas = revendaDaUnidade.map((x) => ({
-            key: `revenda:${x.id}`,
-            tipo: 'revenda', id: x.id, name: x.productName, source: x,
-            unidade: x.priceUnit || 'un', compra: ultimaCompra(comprasDaRevenda(x.id)),
-            custo: custoRevenda(x, resalePurchases)
-          }));
+
+          // Um item marcado como “Também é revenda” existe fisicamente nas duas
+          // tabelas do banco, mas operacionalmente é UM cadastro. A tabela une
+          // os dois pelo nome e mostra “Insumo + revenda”.
+          const insumos = supplies.map((x) => {
+            const rev = revendaDaUnidade.find(
+              (r) => normalizeName(r.productName) === normalizeName(x.name)
+            );
+            const compraInsumo = ultimaCompra(comprasDoInsumo(x.id));
+            if (!rev) {
+              return {
+                key: `insumo:${x.id}`,
+                tipo: 'insumo', id: x.id, name: x.name, source: x,
+                unidade: x.unit || 'g', compra: compraInsumo, compraOrigem: 'insumo',
+                custo: custoUnitarioInsumo(x.id, supplyPurchases)
+              };
+            }
+
+            const compraRevenda = ultimaCompra(comprasDaRevenda(rev.id));
+            const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases);
+            const custoDaRevenda = custoRevenda(rev, resalePurchases);
+            return {
+              key: `insumo_revenda:${x.id}:${rev.id}`,
+              tipo: 'insumo_revenda', id: x.id, resaleId: rev.id,
+              name: x.name, source: x, resaleSource: rev,
+              unidade: custoInsumo > 0 ? (x.unit || 'g') : (rev.priceUnit || 'un'),
+              compra: compraInsumo || compraRevenda,
+              compraOrigem: compraInsumo ? 'insumo' : 'revenda',
+              custo: custoInsumo > 0 ? custoInsumo : custoDaRevenda
+            };
+          });
+
+          // Revenda sem um insumo de mesmo nome continua sendo revenda pura.
+          // As híbridas já foram incorporadas acima e não entram de novo.
+          const revendas = revendaDaUnidade
+            .filter((x) => !supplies.some((s) => normalizeName(s.name) === normalizeName(x.productName)))
+            .map((x) => ({
+              key: `revenda:${x.id}`,
+              tipo: 'revenda', id: x.id, name: x.productName, source: x,
+              unidade: x.priceUnit || 'un', compra: ultimaCompra(comprasDaRevenda(x.id)),
+              compraOrigem: 'revenda', custo: custoRevenda(x, resalePurchases)
+            }));
+
           return [...insumos, ...revendas, ...producao].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
 
@@ -10724,6 +10761,57 @@
           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
           return bateTexto && bateTipo;
         });
+
+        const atualizarCompraLinha = (linha, campos) => {
+          if (linha.tipo === 'producao') return;
+          const usaRevenda = linha.tipo === 'revenda'
+            || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda');
+          if (usaRevenda) {
+            const rev = linha.resaleSource || linha.source;
+            onSetUltimaCompraRevenda(rev.id, campos);
+          } else {
+            onSetUltimaCompraInsumo(linha.source.id, campos);
+          }
+        };
+
+        const alterarTipoDaTabela = async (linha, novoTipo) => {
+          if (!novoTipo || novoTipo === linha.tipo) return;
+
+          if (novoTipo === 'insumo_revenda') {
+            if (linha.tipo === 'insumo') {
+              return onSetSupplyResale(linha.source, true);
+            }
+            if (linha.tipo === 'revenda') {
+              let insumo = supplies.find((s) => normalizeName(s.name) === normalizeName(linha.name));
+              if (!insumo) {
+                insumo = await onAddSupply({
+                  name: linha.name,
+                  unit: unidadeBaseDaRevenda(linha.source.priceUnit || linha.source.unitOfMeasure),
+                  supplyClass: 'insumo'
+                });
+              }
+              if (insumo) return onSetSupplyResale(insumo, true);
+              return;
+            }
+            window.alert('Para transformar um produto de produção em Insumo + revenda, mude primeiro para Insumo. Assim o sistema consegue conferir os vínculos da ficha e da vitrine com segurança.');
+            return;
+          }
+
+          if (linha.tipo === 'insumo_revenda') {
+            if (novoTipo === 'insumo') {
+              return onSetSupplyResale(linha.source, false);
+            }
+            if (novoTipo === 'revenda') {
+              return onChangeCatalogType({ ...linha, tipo: 'insumo' }, 'revenda');
+            }
+            if (novoTipo === 'producao') {
+              await onSetSupplyResale(linha.source, false);
+              return onChangeCatalogType({ ...linha, tipo: 'insumo' }, 'producao');
+            }
+          }
+
+          return onChangeCatalogType(linha, novoTipo);
+        };
 
         const supplyOptions = supplies.map((s) => ({
           value: s.id,
@@ -11011,7 +11099,7 @@
                       <input type="text" placeholder="Pesquisar cadastro…" value={busca} onChange={(e) => setBusca(e.target.value)} className="field field-sm field-search" />
                     </div>
                     <div className="w-44">
-                      <PickerField value={classeFiltro} options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_ENTRADA]} onPick={(opt) => setClasseFiltro(opt.value)} className="field field-sm" />
+                      <PickerField value={classeFiltro} options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_TABELA]} onPick={(opt) => setClasseFiltro(opt.value)} className="field field-sm" />
                     </div>
                   </div>
 
@@ -11041,6 +11129,16 @@
                               <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
                                 {linha.tipo === 'revenda' ? (
                                   <input value={x.productName} onChange={(e) => onUpdateSeparatedProduct({...x,productName:e.target.value})} className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48" />
+                                ) : linha.tipo === 'insumo_revenda' ? (
+                                  <input
+                                    value={x.name}
+                                    onChange={(e) => {
+                                      const name = e.target.value;
+                                      onUpdateSupply({...x,name});
+                                      if (linha.resaleSource) onUpdateSeparatedProduct({...linha.resaleSource,productName:name});
+                                    }}
+                                    className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48"
+                                  />
                                 ) : linha.tipo === 'insumo' ? (
                                   <input value={x.name} onChange={(e) => onUpdateSupply({...x,name:e.target.value})} className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48" />
                                 ) : (
@@ -11048,13 +11146,13 @@
                                 )}
                               </td>
                               <td className="py-2.5 px-3">
-                                <div className="w-28">
-                                  <PickerField value={linha.tipo} options={TIPOS_ENTRADA} onPick={(opt) => opt.value !== linha.tipo && onChangeCatalogType(linha, opt.value)} className="field h-8 pl-2.5 text-[12px] font-bold" />
+                                <div className="w-40">
+                                  <PickerField value={linha.tipo} options={TIPOS_TABELA} onPick={(opt) => alterarTipoDaTabela(linha, opt.value)} className="field h-8 pl-2.5 text-[12px] font-bold" />
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
                                 <div className="w-16">
-                                  {linha.tipo === 'insumo' ? (
+                                  {linha.tipo === 'insumo' || linha.tipo === 'insumo_revenda' ? (
                                     <PickerField value={x.unit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => onUpdateSupply({...x,unit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
                                   ) : linha.tipo === 'revenda' ? (
                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => onUpdateSeparatedProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
@@ -11065,24 +11163,24 @@
                               </td>
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : (
-                                  <div className="w-28 sm:w-36"><PickerField value={c?.supplier || ''} options={fornecedores.map((f) => ({value:f,label:f}))} onType={(v) => linha.tipo === 'insumo' ? onSetUltimaCompraInsumo(x.id,{supplier:v}) : onSetUltimaCompraRevenda(x.id,{supplier:v})} onPick={(opt) => linha.tipo === 'insumo' ? onSetUltimaCompraInsumo(x.id,{supplier:opt.value}) : onSetUltimaCompraRevenda(x.id,{supplier:opt.value})} placeholder="Fornecedor" emptyLabel="Fornecedor novo" className="field h-8 pl-2.5 text-[12px]" /></div>
+                                  <div className="w-28 sm:w-36"><PickerField value={c?.supplier || ''} options={fornecedores.map((f) => ({value:f,label:f}))} onType={(v) => atualizarCompraLinha(linha,{supplier:v})} onPick={(opt) => atualizarCompraLinha(linha,{supplier:opt.value})} placeholder="Fornecedor" emptyLabel="Fornecedor novo" className="field h-8 pl-2.5 text-[12px]" /></div>
                                 )}
                               </td>
                               <td className="py-2.5 px-3">
-                                {linha.tipo === 'producao' ? <span className="t-empty">—</span> : <input type="date" value={c?.purchaseDate || ''} onChange={(e) => linha.tipo === 'insumo' ? onSetUltimaCompraInsumo(x.id,{purchaseDate:e.target.value}) : onSetUltimaCompraRevenda(x.id,{purchaseDate:e.target.value})} className="field h-8 px-2 text-[12px] w-32 sm:w-36" />}
+                                {linha.tipo === 'producao' ? <span className="t-empty">—</span> : <input type="date" value={c?.purchaseDate || ''} onChange={(e) => atualizarCompraLinha(linha,{purchaseDate:e.target.value})} className="field h-8 px-2 text-[12px] w-32 sm:w-36" />}
                               </td>
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : (
                                   <div className="flex items-center justify-end gap-1">
-                                    <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => linha.tipo === 'insumo' ? onSetUltimaCompraInsumo(x.id,{qty:Number(e.target.value)||0}) : onSetUltimaCompraRevenda(x.id,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
-                                    {linha.tipo === 'revenda' ? (
-                                      <div className="w-14"><PickerField value={c?.purchaseUnit || x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => onSetUltimaCompraRevenda(x.id,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
+                                    <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => atualizarCompraLinha(linha,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
+                                    {linha.tipo === 'revenda' || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda') ? (
+                                      <div className="w-14"><PickerField value={c?.purchaseUnit || (linha.resaleSource || x).priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => atualizarCompraLinha(linha,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
                                     ) : <span className="t-micro">{x.unit}</span>}
                                   </div>
                                 )}
                               </td>
                               <td className="py-2.5 px-3">
-                                {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : <input type="number" min="0" step="0.01" value={c?.cost || ''} onChange={(e) => linha.tipo === 'insumo' ? onSetUltimaCompraInsumo(x.id,{cost:Number(e.target.value)||0}) : onSetUltimaCompraRevenda(x.id,{cost:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block" />}
+                                {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : <input type="number" min="0" step="0.01" value={c?.cost || ''} onChange={(e) => atualizarCompraLinha(linha,{cost:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block" />}
                               </td>
                               <td className="py-2.5 px-3 text-right t-callout tnum font-semibold">
                                 {linha.custo > 0 ? `${formatCurrencyBR(linha.custo)}/${linha.unidade}` : '—'}
@@ -11090,6 +11188,13 @@
                               <td className="py-2.5 pl-3">
                                 {linha.tipo === 'insumo' ? (
                                   <div className="w-28"><PickerField value={x.supplyClass || 'insumo'} options={SUPPLY_CLASSES} onPick={(opt) => onUpdateSupply({...x,supplyClass:opt.value})} className="field h-8 pl-2.5 text-[12px]" /></div>
+                                ) : linha.tipo === 'insumo_revenda' ? (
+                                  <div className="flex items-center gap-1.5 min-w-[220px]">
+                                    <div className="w-24"><PickerField value={x.supplyClass || 'insumo'} options={SUPPLY_CLASSES} onPick={(opt) => onUpdateSupply({...x,supplyClass:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
+                                    <span className="t-micro">Venda</span>
+                                    <input type="number" min="0" step="0.01" value={linha.resaleSource?.price || ''} onChange={(e) => linha.resaleSource && onUpdateSeparatedProduct({...linha.resaleSource,price:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-20" />
+                                    <span className="t-micro">/{linha.resaleSource?.priceUnit || 'un'}</span>
+                                  </div>
                                 ) : (
                                   <div className="flex items-center gap-1">
                                     <span className="t-micro">Preço</span>
@@ -11103,7 +11208,7 @@
                       </tbody>
                     </table>
                   </div>
-                  <p className="t-micro pt-3">O tipo pode ser corrigido na própria tabela. O sistema bloqueia a troca quando ela quebraria ficha técnica, vitrine ou histórico.</p>
+                  <p className="t-micro pt-3">O tipo pode ser Insumo, Revenda, Insumo + revenda ou Produção. Itens híbridos aparecem uma única vez na tabela.</p>
                 </div>
               </div>
             )}
@@ -14345,7 +14450,7 @@
           const nome = String(supply?.name || '').trim();
           if (!nome) return;
 
-          write(enabled ? 'Ativar revenda do insumo' : 'Desativar revenda do insumo', async () => {
+          return write(enabled ? 'Ativar revenda do insumo' : 'Desativar revenda do insumo', async () => {
             const { data: existentes, error: buscaError } = await sb
               .from('separated_products')
               .select('*')
