@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-cadastro-unificado-1" />
+    <meta name="app-version" content="2026-09-03-cadastro-unificado-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3078,7 +3078,7 @@
           label: 'CMV',
           title: 'Custo, preço e fornecedores',
           tabs: [
-            { id: 'produtos', label: 'Produtos', fullLabel: 'Cadastro de Produtos', icon: Icons.Package },
+            { id: 'produtos', label: 'Cadastros', fullLabel: 'Cadastro geral', icon: Icons.Package },
             { id: 'insumos', label: 'Insumos', fullLabel: 'Insumos & Fichas', icon: Icons.Layers },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart }
@@ -9060,6 +9060,7 @@
         products,
         supplies,
         separatedProducts,
+        currentUnit,
         onAddProduct,
         onAddSupply,
         onAddSeparatedProduct
@@ -9083,7 +9084,7 @@
         const nomes = [
           ...products.map((x) => ({ value: `fabricacao:${x.id}`, label: x.name, hint: 'Fabricação' })),
           ...supplies.map((x) => ({ value: `insumo:${x.id}`, label: x.name, hint: 'Insumo' })),
-          ...separatedProducts.map((x) => ({ value: `revenda:${x.id}`, label: x.productName || x.name, hint: 'Revenda' }))
+          ...separatedProducts.filter((x) => !currentUnit || x.unit === currentUnit).map((x) => ({ value: `revenda:${x.id}`, label: x.productName || x.name, hint: 'Revenda' }))
         ];
 
         const jaExiste = () => {
@@ -9091,7 +9092,7 @@
           if (!nome) return false;
           if (tipo === 'fabricacao') return products.some((x) => normalizeName(x.name) === nome);
           if (tipo === 'insumo') return supplies.some((x) => normalizeName(x.name) === nome);
-          return separatedProducts.some((x) => normalizeName(x.productName || x.name) === nome);
+          return separatedProducts.some((x) => (!currentUnit || x.unit === currentUnit) && normalizeName(x.productName || x.name) === nome);
         };
 
         const salvar = async (e) => {
@@ -9269,7 +9270,7 @@
       // ==========================================
       // PRODUCT CATALOG VIEW
       // ==========================================
-      const ProductCatalogView = ({ products, supplies, separatedProducts, onAddProduct, onAddSupply, onAddSeparatedProduct, onUpdateProduct, onDeleteProduct }) => {
+      const ProductCatalogView = ({ products, supplies, separatedProducts, currentUnit, onAddProduct, onAddSupply, onAddSeparatedProduct, onUpdateProduct, onDeleteProduct }) => {
         const [filterText, setFilterText] = useState('');
         const [filterResponsible, setFilterResponsible] = useState('todos');
 
@@ -9377,6 +9378,7 @@
               products={products}
               supplies={supplies}
               separatedProducts={separatedProducts}
+              currentUnit={currentUnit}
               onAddProduct={onAddProduct}
               onAddSupply={onAddSupply}
               onAddSeparatedProduct={onAddSeparatedProduct}
@@ -10623,7 +10625,7 @@
               <div className="space-y-5">
                 <div className="card-quiet px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
-                    <div className="t-callout font-bold text-[#1d1d1f]">Cadastros novos ficam em Produtos → Cadastro geral</div>
+                    <div className="t-callout font-bold text-[#1d1d1f]">Cadastros novos ficam em Cadastros → Cadastro geral</div>
                     <p className="t-micro mt-0.5">Aqui você lança compras, corrige preço de insumo e acompanha o histórico.</p>
                   </div>
                   <span className="pill tone-quiet">Fabricação · Insumo · Revenda</span>
@@ -14565,6 +14567,7 @@
                   products={products}
                   supplies={supplies}
                   separatedProducts={separatedProducts}
+                  currentUnit={currentUnit}
                   onAddProduct={handleAddProduct}
                   onAddSupply={handleAddSupply}
                   onAddSeparatedProduct={handleAddSeparatedProduct}
