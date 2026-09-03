@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-cmv-ficha-botao-1" />
+    <meta name="app-version" content="2026-09-03-cadastro-unificado-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -9051,9 +9051,225 @@
       };
 
       // ==========================================
+      // CADASTRO GERAL
+      // Um único ponto de entrada para fabricação, insumo e revenda.
+      // O seletor muda os campos do cadastro novo; ele não converte registros
+      // antigos automaticamente, porque isso pode quebrar ficha e histórico.
+      // ==========================================
+      const UnifiedCatalogEntry = ({
+        products,
+        supplies,
+        separatedProducts,
+        onAddProduct,
+        onAddSupply,
+        onAddSeparatedProduct
+      }) => {
+        const [tipo, setTipo] = useState('fabricacao');
+        const [salvando, setSalvando] = useState(false);
+        const BLANK = {
+          name: '', responsible: '', productCategory: 'salgado', showcaseEnabled: true,
+          shelfLifeDays: 2, price: '', priceUnit: 'un',
+          supplyUnit: 'g', supplyClass: 'insumo', resaleCategory: 'revenda'
+        };
+        const [draft, setDraft] = useState(BLANK);
+
+        const setField = (field, value) => setDraft((d) => ({ ...d, [field]: value }));
+        const tipoInfo = {
+          fabricacao: { label: 'Fabricação', icon: Icons.ChefHat || Icons.Package, help: 'Produto feito pela casa · pode ter ficha técnica e CMV de produção.' },
+          insumo: { label: 'Insumo', icon: Icons.Package, help: 'Matéria-prima, embalagem ou item de limpeza que a casa compra.' },
+          revenda: { label: 'Revenda', icon: Icons.ShoppingCart, help: 'Item comprado pronto para vender, como bebidas e bomboniere.' }
+        };
+
+        const nomes = [
+          ...products.map((x) => ({ value: `fabricacao:${x.id}`, label: x.name, hint: 'Fabricação' })),
+          ...supplies.map((x) => ({ value: `insumo:${x.id}`, label: x.name, hint: 'Insumo' })),
+          ...separatedProducts.map((x) => ({ value: `revenda:${x.id}`, label: x.productName || x.name, hint: 'Revenda' }))
+        ];
+
+        const jaExiste = () => {
+          const nome = normalizeName(draft.name);
+          if (!nome) return false;
+          if (tipo === 'fabricacao') return products.some((x) => normalizeName(x.name) === nome);
+          if (tipo === 'insumo') return supplies.some((x) => normalizeName(x.name) === nome);
+          return separatedProducts.some((x) => normalizeName(x.productName || x.name) === nome);
+        };
+
+        const salvar = async (e) => {
+          e.preventDefault();
+          const name = String(draft.name || '').trim();
+          if (!name || salvando) return;
+          if (jaExiste()) {
+            window.alert(`“${name}” já existe como ${tipoInfo[tipo].label.toLowerCase()}. Use a tabela abaixo para editar.`);
+            return;
+          }
+
+          setSalvando(true);
+          try {
+            if (tipo === 'fabricacao') {
+              await onAddProduct({
+                name,
+                responsible: cleanResponsible(draft.responsible),
+                category: draft.productCategory,
+                showcaseEnabled: draft.showcaseEnabled !== false,
+                shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
+                price: Math.max(0, Number(draft.price) || 0),
+                priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un',
+                defaultUnit: 'un',
+                minReplenishmentQty: 5
+              });
+            } else if (tipo === 'insumo') {
+              await onAddSupply({
+                name,
+                unit: draft.supplyUnit || 'g',
+                supplyClass: draft.supplyClass || 'insumo'
+              });
+            } else {
+              await onAddSeparatedProduct({
+                productName: name,
+                category: draft.resaleCategory || 'revenda',
+                currentQty: 0,
+                unitOfMeasure: draft.priceUnit || 'un',
+                minQty: 0,
+                price: Math.max(0, Number(draft.price) || 0),
+                priceUnit: draft.priceUnit || 'un'
+              });
+            }
+            setDraft((d) => ({ ...BLANK, priceUnit: d.priceUnit, supplyUnit: d.supplyUnit, supplyClass: d.supplyClass, productCategory: d.productCategory, resaleCategory: d.resaleCategory }));
+          } finally {
+            setSalvando(false);
+          }
+        };
+
+        return (
+          <div className="card p-6 sm:p-7">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              <div>
+                <div className="t-overline flex items-center gap-1.5 mb-2">
+                  <Icons.Plus className="w-3.5 h-3.5" />
+                  Cadastro geral
+                </div>
+                <h2 className="t-title">O que você quer cadastrar?</h2>
+                <p className="t-body mt-1.5">Produto de fabricação, insumo e revenda entram pelo mesmo formulário.</p>
+              </div>
+              <div className="segmented w-full lg:w-auto lg:inline-flex shrink-0">
+                {['fabricacao', 'insumo', 'revenda'].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    data-active={tipo === t}
+                    onClick={() => setTipo(t)}
+                    className="flex-1 lg:flex-none h-9 px-4"
+                  >
+                    {tipoInfo[t].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
+              <strong>{tipoInfo[tipo].label}</strong> · {tipoInfo[tipo].help}
+              <span className="block mt-0.5">Para trocar o cadastro, clique em outro tipo acima. O nome digitado continua no campo.</span>
+            </div>
+
+            <form onSubmit={salvar} className="mt-5 pt-5 border-t hairline">
+              <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                <div className="col-span-12 md:col-span-4">
+                  <label className="t-caption block mb-1">Nome</label>
+                  <PickerField
+                    value={draft.name}
+                    options={nomes}
+                    onType={(v) => setField('name', v)}
+                    onPick={(opt) => setField('name', opt.label)}
+                    placeholder={tipo === 'fabricacao' ? 'Ex: Chipa' : tipo === 'insumo' ? 'Ex: Farinha de trigo' : 'Ex: Coca-Cola 350 ml'}
+                    emptyLabel="Nome novo — será cadastrado"
+                    className="field field-md font-semibold"
+                  />
+                </div>
+
+                {tipo === 'fabricacao' && (
+                  <>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="t-caption block mb-1">Responsável</label>
+                      <input value={draft.responsible} onChange={(e) => setField('responsible', e.target.value)} placeholder="Quem produz" className="field field-md" />
+                    </div>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="t-caption block mb-1">Categoria</label>
+                      <PickerField value={draft.productCategory} options={PRODUCT_CATEGORIES} onPick={(opt) => setField('productCategory', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <label className="t-caption block mb-1">Validade</label>
+                      <input type="number" min="1" value={draft.shelfLifeDays} onChange={(e) => setField('shelfLifeDays', e.target.value)} className="field field-md text-center tnum" />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <label className="t-caption block mb-1">Preço</label>
+                      <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setField('price', e.target.value)} placeholder="0,00" className="field field-md text-right tnum no-spin" />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <label className="t-caption block mb-1">Vende por</label>
+                      <PickerField value={draft.priceUnit} options={[{value:'un',label:'Unidade'},{value:'kg',label:'Kg'}]} onPick={(opt) => setField('priceUnit', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-6 md:col-span-1">
+                      <label className="t-caption block mb-1">Vitrine</label>
+                      <label className="field field-md flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={draft.showcaseEnabled !== false} onChange={(e) => setField('showcaseEnabled', e.target.checked)} className="w-4 h-4" />
+                        <span className="t-callout font-semibold">{draft.showcaseEnabled !== false ? 'Sim' : 'Não'}</span>
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {tipo === 'insumo' && (
+                  <>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="t-caption block mb-1">Unidade base</label>
+                      <PickerField value={draft.supplyUnit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => setField('supplyUnit', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-6 md:col-span-3">
+                      <label className="t-caption block mb-1">Classe</label>
+                      <PickerField value={draft.supplyClass} options={SUPPLY_CLASSES} onPick={(opt) => setField('supplyClass', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <p className="t-micro pb-2">Depois do cadastro, fornecedor, quantidade e valor da compra são lançados na tabela de Insumos.</p>
+                    </div>
+                  </>
+                )}
+
+                {tipo === 'revenda' && (
+                  <>
+                    <div className="col-span-6 md:col-span-2">
+                      <label className="t-caption block mb-1">Categoria</label>
+                      <PickerField value={draft.resaleCategory} options={[{value:'revenda',label:'Revenda'},{value:'cafeteria',label:'Cafeteria'},{value:'encomenda',label:'Encomenda'}]} onPick={(opt) => setField('resaleCategory', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-3 md:col-span-2">
+                      <label className="t-caption block mb-1">Preço</label>
+                      <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setField('price', e.target.value)} placeholder="0,00" className="field field-md text-right tnum no-spin" />
+                    </div>
+                    <div className="col-span-3 md:col-span-2">
+                      <label className="t-caption block mb-1">Vende por</label>
+                      <PickerField value={draft.priceUnit} options={[{value:'un',label:'Unidade'},{value:'kg',label:'Kg'},{value:'g',label:'g'}]} onPick={(opt) => setField('priceUnit', opt.value)} className="field field-md" />
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <p className="t-micro pb-2">A compra e o estoque são lançados depois na tabela de Revenda.</p>
+                    </div>
+                  </>
+                )}
+
+                <div className="col-span-12 md:col-span-2 md:col-start-11">
+                  <button type="submit" disabled={salvando || !String(draft.name || '').trim()} className="btn btn-primary btn-md w-full disabled:opacity-45">
+                    <Icons.Plus className="w-4 h-4" />
+                    {salvando ? 'Salvando…' : `Cadastrar ${tipoInfo[tipo].label.toLowerCase()}`}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        );
+      };
+
+      // ==========================================
       // PRODUCT CATALOG VIEW
       // ==========================================
-      const ProductCatalogView = ({ products, onAddProduct, onUpdateProduct, onDeleteProduct }) => {
+      const ProductCatalogView = ({ products, supplies, separatedProducts, onAddProduct, onAddSupply, onAddSeparatedProduct, onUpdateProduct, onDeleteProduct }) => {
         const [filterText, setFilterText] = useState('');
         const [filterResponsible, setFilterResponsible] = useState('todos');
 
@@ -9157,141 +9373,14 @@
 
         return (
           <div className="space-y-5">
-            <div className="card p-6 sm:p-7">
-              <div className="t-overline flex items-center gap-1.5 mb-2">
-                <Icons.Package className="w-3.5 h-3.5" />
-                Cadastro
-              </div>
-              <h2 className="t-display">Catálogo de produtos</h2>
-              <p className="t-body mt-1.5">Cadastro mestre para CMV e fichas técnicas. O produto pode existir sem participar da vitrine.</p>
-
-              <form onSubmit={handleSubmit} className="mt-5 pt-5 border-t hairline">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="t-overline">Cadastrar na linha</span>
-                  <span className="t-micro">Enter ↵ avança e salva</span>
-                </div>
-
-                <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
-                  <div className="col-span-12 md:col-span-3">
-                    <label className="t-caption block mb-1">Produto</label>
-                    <PickerField
-                      inputRef={nameRef}
-                      placeholder="Digite ou busque…"
-                      value={draft.name}
-                      options={productOptions}
-                      onType={handleDraftName}
-                      onPick={(opt) => handleDraftName(opt.label)}
-                      emptyLabel="Nome novo — vai entrar como produto novo"
-                      onKeyDown={goToField(responsibleRef)}
-                      className="field field-md font-semibold"
-                    />
-                  </div>
-
-                  <div className="col-span-7 md:col-span-3">
-                    <label className="t-caption block mb-1">Responsável</label>
-                    <PickerField
-                      inputRef={responsibleRef}
-                      placeholder="Quem produz"
-                      value={draft.responsible}
-                      options={responsiblePickerOptions}
-                      onType={(texto) => setField('responsible', texto)}
-                      onPick={(opt) => setField('responsible', opt.value)}
-                      emptyLabel="Responsável novo — é criado ao salvar"
-                      onKeyDown={goToField(categoryRef)}
-                      className="field field-md"
-                    />
-                  </div>
-
-                  <div className="col-span-5 md:col-span-2">
-                    <label className="t-caption block mb-1">Categoria</label>
-                    <PickerField
-                      inputRef={categoryRef}
-                      value={draft.category}
-                      options={PRODUCT_CATEGORIES}
-                      onPick={(opt) => setField('category', opt.value)}
-                      onKeyDown={goToField(shelfLifeRef)}
-                      className="field field-md"
-                    />
-                  </div>
-
-                  <div className="col-span-7 md:col-span-2">
-                    <label className="t-caption block mb-1">Vai para vitrine?</label>
-                    <label className="field field-md flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={draft.showcaseEnabled !== false}
-                        onChange={(e) => setField('showcaseEnabled', e.target.checked)}
-                        className="w-4 h-4"
-                      />
-                      <span className="t-callout font-semibold">{draft.showcaseEnabled !== false ? 'Sim' : 'Não'}</span>
-                    </label>
-                  </div>
-
-                  <div className="col-span-4 md:col-span-1">
-                    <label className="t-caption block mb-1">Validade</label>
-                    <input
-                      ref={shelfLifeRef}
-                      type="number"
-                      min="1"
-                      title="Validade em dias a partir da fabricação"
-                      value={draft.shelfLifeDays}
-                      onChange={(e) => setField('shelfLifeDays', e.target.value)}
-                      onKeyDown={goToField(priceRef)}
-                      className="field field-md text-center tnum"
-                    />
-                  </div>
-
-                  <div className="col-span-8 md:col-span-2">
-                    <div className="grid grid-cols-[minmax(0,1fr)_108px] gap-2">
-                      <div>
-                        <label className="t-caption block mb-1">Preço de venda</label>
-                        <div className="relative">
-                          <span className="t-micro absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">R$</span>
-                          <input
-                            ref={priceRef}
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={draft.price}
-                            onChange={(e) => setField('price', e.target.value)}
-                            className="field field-md text-right tnum pl-8"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="t-caption block mb-1">Vendido por</label>
-                        <PickerField
-                          value={draft.priceUnit || 'un'}
-                          options={[
-                            { value: 'un', label: 'Unidade' },
-                            { value: 'kg', label: 'Kg' }
-                          ]}
-                          onPick={(opt) => setField('priceUnit', opt.value)}
-                          className="field field-md"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="col-span-4 md:col-span-2">
-                    <button
-                      type="submit"
-                      title={matched ? 'Salvar alterações do produto' : 'Cadastrar produto'}
-                      className="btn btn-primary btn-md w-full"
-                    >
-                      {matched ? <Icons.CheckCircle2 className="w-4 h-4" /> : <Icons.Plus className="w-4 h-4" />}
-                      {matched ? 'Salvar' : 'Cadastrar'}
-                    </button>
-                  </div>
-                </div>
-
-                <p className="t-micro mt-2">
-                  {matched
-                    ? `“${matched.name}” já está no catálogo — os campos acima atualizam o cadastro dele.`
-                    : 'Validade em dias contados da fabricação. Um nome já cadastrado abre o produto para edição.'}
-                </p>
-              </form>
-            </div>
+            <UnifiedCatalogEntry
+              products={products}
+              supplies={supplies}
+              separatedProducts={separatedProducts}
+              onAddProduct={onAddProduct}
+              onAddSupply={onAddSupply}
+              onAddSeparatedProduct={onAddSeparatedProduct}
+            />
 
             <div className="card p-5 sm:p-6 space-y-1">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
@@ -10532,176 +10621,12 @@
             {/* ---------------- INSUMOS ---------------- */}
             {painel === 'insumos' && (
               <div className="space-y-5">
-                <div className="card p-6 sm:p-7">
-                  <div className="t-overline flex items-center gap-1.5 mb-2">
-                    <Icons.Package className="w-3.5 h-3.5" />
-                    Cadastro
+                <div className="card-quiet px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <div className="t-callout font-bold text-[#1d1d1f]">Cadastros novos ficam em Produtos → Cadastro geral</div>
+                    <p className="t-micro mt-0.5">Aqui você lança compras, corrige preço de insumo e acompanha o histórico.</p>
                   </div>
-                  <h3 className="t-title">Novo insumo</h3>
-                  <p className="t-body mt-1.5">
-                    Cadastre o insumo e a compra na mesma linha. Se o insumo já existir, o lançamento vira uma nova compra no histórico.
-                  </p>
-
-                  <form onSubmit={cadastrar} className="mt-5 pt-5 border-t hairline">
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
-                      <div className="col-span-12 sm:col-span-5">
-                        <label className="t-caption block mb-1">Insumo</label>
-                        <PickerField
-                          inputRef={nomeRef}
-                          value={draft.name}
-                          options={supplies.map((s) => ({
-                            value: s.name,
-                            label: s.name,
-                            hint: `${s.unit} · ${SUPPLY_CLASSES.find((c) => c.value === (s.supplyClass || 'insumo'))?.label || 'Ingrediente'}`
-                          }))}
-                          onType={(nome) => {
-                            const existente = supplies.find((s) => normalizeName(s.name) === normalizeName(String(nome || '').trim()));
-                            setDraft((d) => existente
-                              ? { ...d, name: nome, unit: existente.unit || d.unit, supplyClass: existente.supplyClass || 'insumo' }
-                              : { ...d, name: nome });
-                          }}
-                          onPick={(opt) => aplicarInsumoExistente(opt.value)}
-                          onKeyDown={avancarCadastroInsumo}
-                          inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'nome' }}
-                          placeholder="Digite ou escolha um insumo"
-                          emptyLabel="Insumo novo — será cadastrado ao salvar"
-                          className="field field-md font-semibold"
-                        />
-                      </div>
-                      <div className="col-span-4 sm:col-span-2">
-                        <label className="t-caption block mb-1">Unidade</label>
-                        {draftExistente ? (
-                          <div
-                            title="Unidade fixa do cadastro. Para alterar, use a tabela de insumos."
-                            className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b] cursor-not-allowed"
-                          >
-                            {draft.unit}
-                          </div>
-                        ) : (
-                          <PickerField
-                            value={draft.unit}
-                            options={SUPPLY_UNITS.map((u) => ({ value: u, label: u }))}
-                            onPick={(opt) => setDraft((d) => ({ ...d, unit: opt.value }))}
-                            onKeyDown={avancarCadastroInsumo}
-                            inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'unidade' }}
-                            title="Unidade do novo insumo"
-                            className="field field-md"
-                          />
-                        )}
-                      </div>
-                      <div className="col-span-8 sm:col-span-3">
-                        <label className="t-caption block mb-1">Classe</label>
-                        {draftExistente ? (
-                          <div
-                            title="Classe fixa do cadastro. Para alterar, use a tabela de insumos."
-                            className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b] cursor-not-allowed"
-                          >
-                            {SUPPLY_CLASSES.find((c) => c.value === draft.supplyClass)?.label || draft.supplyClass}
-                          </div>
-                        ) : (
-                          <PickerField
-                            value={draft.supplyClass}
-                            options={SUPPLY_CLASSES}
-                            onPick={(opt) => setDraft((d) => ({ ...d, supplyClass: opt.value }))}
-                            onKeyDown={avancarCadastroInsumo}
-                            inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'classe' }}
-                            title="Classe do novo insumo"
-                            className="field field-md"
-                          />
-                        )}
-                      </div>
-                      <div className="col-span-12 sm:col-span-2">
-                        <label className="t-caption block mb-1">Também é revenda?</label>
-                        <label className="field field-md flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={draftExistente ? !!revendaDoInsumo(draftExistente.name) : draft.resaleAlso}
-                            disabled={!!draftExistente}
-                            onChange={(e) => setDraft((d) => ({ ...d, resaleAlso: e.target.checked }))}
-                            className="w-4 h-4 disabled:opacity-55 disabled:cursor-not-allowed"
-                          />
-                          <span className={`t-callout font-semibold ${draftExistente ? 'text-[#86868b]' : ''}`}>
-                            Revenda também{draftExistente ? ' · edite na tabela' : ''}
-                          </span>
-                        </label>
-                      </div>
-                      <div className="col-span-12 sm:col-span-4">
-                        <label className="t-caption block mb-1">Fornecedor</label>
-                        <PickerField
-                          value={draft.supplier}
-                          options={fornecedores.map((f) => ({ value: f, label: f }))}
-                          onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
-                          onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          inputProps={{ 'data-insumo-flow': true, 'data-insumo-field': 'fornecedor' }}
-                          placeholder={draftUltimaCompra?.supplier || 'Fornecedor'}
-                          emptyLabel="Fornecedor novo — será salvo com esta compra"
-                          className="field field-md"
-                        />
-                      </div>
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="t-caption block mb-1">Data</label>
-                        <input
-                          type="date"
-                          value={draft.purchaseDate}
-                          onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          className="field field-md"
-                        />
-                      </div>
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="t-caption block mb-1">Qtd. comprada</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          value={draft.qty}
-                          onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          data-insumo-field="qtd"
-                          placeholder={draftUltimaCompra?.qty ? String(draftUltimaCompra.qty) : '0'}
-                          className="field field-md text-right tnum no-spin"
-                        />
-                      </div>
-                      <div className="col-span-6 sm:col-span-2">
-                        <label className="t-caption block mb-1">Valor pago (R$)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={draft.cost}
-                          onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
-                          onKeyDown={avancarCadastroInsumo}
-                          data-insumo-flow
-                          data-insumo-field="custo"
-                          placeholder={draftUltimaCompra?.cost ? String(draftUltimaCompra.cost) : '0,00'}
-                          className="field field-md text-right tnum no-spin"
-                        />
-                      </div>
-                      <div className="col-span-6 sm:col-span-2">
-                        <button type="submit" className="btn btn-primary btn-md w-full">
-                          <Icons.Plus className="w-4 h-4" />
-                          {draftExistente ? 'Registrar compra' : 'Cadastrar + compra'}
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                  {draftExistente && (
-                    <div className="mt-3 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
-                      <strong>{draftExistente.name}</strong>
-                      {draftUltimaCompra ? (
-                        <span>
-                          {' · última compra: '}
-                          {draftUltimaCompra.qty || 0} {draftExistente.unit}
-                          {' · '}{formatCurrencyBR(Number(draftUltimaCompra.cost) || 0)}
-                          {draftUltimaCompra.supplier ? ` · ${draftUltimaCompra.supplier}` : ''}
-                          {draftUltimaCompra.purchaseDate ? ` · ${formatDateBR(draftUltimaCompra.purchaseDate)}` : ''}
-                        </span>
-                      ) : <span> · ainda sem compra registrada</span>}
-                    </div>
-                  )}
+                  <span className="pill tone-quiet">Fabricação · Insumo · Revenda</span>
                 </div>
 
                 <div className="card p-5 sm:p-6">
@@ -13878,7 +13803,8 @@
               current_qty: prod.currentQty,
               unit_of_measure: prod.unitOfMeasure || 'un',
               min_qty: prod.minQty || 0,
-              price: prod.price
+              price: prod.price,
+              price_unit: prod.priceUnit || 'un'
             }).select());
             setSeparatedProducts((prev) => [...prev, fromSeparated(linhas[0])]);
           });
@@ -14637,7 +14563,11 @@
               {activeTab === 'produtos' && (
                 <ProductCatalogView
                   products={products}
+                  supplies={supplies}
+                  separatedProducts={separatedProducts}
                   onAddProduct={handleAddProduct}
+                  onAddSupply={handleAddSupply}
+                  onAddSeparatedProduct={handleAddSeparatedProduct}
                   onUpdateProduct={handleUpdateProduct}
                   onDeleteProduct={handleDeleteProduct}
                 />
