@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-tipo-insumo-revenda-1" />
+    <meta name="app-version" content="2026-09-03-tipo-insumo-revenda-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10805,8 +10805,8 @@
               return onChangeCatalogType({ ...linha, tipo: 'insumo' }, 'revenda');
             }
             if (novoTipo === 'producao') {
-              await onSetSupplyResale(linha.source, false);
-              return onChangeCatalogType({ ...linha, tipo: 'insumo' }, 'producao');
+              window.alert('Para mudar Insumo + revenda para Produção, mude primeiro para Insumo. O sistema confere os vínculos da ficha antes da segunda troca sem desligar a revenda por engano.');
+              return;
             }
           }
 
