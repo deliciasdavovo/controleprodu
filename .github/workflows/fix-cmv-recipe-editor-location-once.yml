@@ -1,0 +1,44 @@
+name: Fix CMV recipe editor location
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/fix_cmv_recipe_editor_location.py'
+      - '.github/workflows/fix-cmv-recipe-editor-location-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply fix
+        run: python3 .github/scripts/fix_cmv_recipe_editor_location.py
+
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          assert s.count('title={`Abrir ficha técnica de ${produto.name}`}') == 1
+          assert 'Produto sem ficha técnica aceita o custo digitado à mão' in s
+          trecho = s[s.index('const CmvView = ({'):s.index('// ==========================================\n      // FORNECEDORES')]
+          assert '<RecipeEditor' in trecho
+          assert 'onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}' in trecho
+          assert 'colSpan={11}' in trecho
+          print('verify ok')
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name "DDV CMV Recipe"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix CMV technical sheet editor placement"
+          git push
