@@ -10989,25 +10989,6 @@
               </div>
             )}
 
-            {fichaAberta && (
-              <RecipeEditor
-                produto={fichaAberta.produto}
-                ficha={fichaAberta.ficha}
-                custoUn={fichaAberta.custoUn}
-                supplies={supplies}
-                supplyPurchases={supplyPurchases}
-                supplyOptions={supplyOptions}
-                products={products}
-                recipes={recipes}
-                recipeItems={recipeItems}
-                onClose={() => setFichaProdutoId(null)}
-                onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
-                onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
-                onUpdateItem={onUpdateRecipeItem}
-                onDeleteItem={onDeleteRecipeItem}
-              />
-            )}
-
             {/* ---------------- REVENDA ---------------- */}
             {painel === 'revenda' && (
               <div className="card p-5 sm:p-6">
@@ -11854,6 +11835,25 @@
                   Produto sem ficha técnica aceita o custo digitado à mão na coluna “custo un.” — assim ele já entra na conta.
                 </p>
               </div>
+            )}
+
+            {fichaAberta && (
+              <RecipeEditor
+                produto={fichaAberta.produto}
+                ficha={fichaAberta.ficha}
+                custoUn={fichaAberta.custoUn}
+                supplies={supplies}
+                supplyPurchases={supplyPurchases}
+                supplyOptions={supplyOptions}
+                products={products}
+                recipes={recipes}
+                recipeItems={recipeItems}
+                onClose={() => setFichaProdutoId(null)}
+                onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
+                onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
+                onUpdateItem={onUpdateRecipeItem}
+                onDeleteItem={onDeleteRecipeItem}
+              />
             )}
 
             {/* ---------------- REVENDA ---------------- */}
