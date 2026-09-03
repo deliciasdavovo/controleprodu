@@ -1,0 +1,38 @@
+name: Add CMV recipe button
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/add_cmv_recipe_button.py'
+      - '.github/workflows/add-cmv-recipe-button-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply patch
+        run: python3 .github/scripts/add_cmv_recipe_button.py
+
+      - name: Verify
+        run: |
+          grep -q '2026-09-03-cmv-ficha-botao-1' index.html
+          grep -q 'Abrir ficha técnica de' index.html
+          grep -q 'onUpdateRecipe={handleUpdateRecipe}' index.html
+          grep -q 'onAddRecipeItem={handleAddRecipeItem}' index.html
+          grep -q 'colSpan={11}' index.html
+
+      - name: Commit
+        run: |
+          git config user.name "DDV CMV Recipe"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Open technical sheets from CMV"
+          git push
