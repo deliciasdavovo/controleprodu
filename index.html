@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-tipo-insumo-revenda-2" />
+    <meta name="app-version" content="2026-09-03-equivalencia-insumo-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10427,11 +10427,16 @@
           { value: 'insumo_revenda', label: 'Insumo + revenda' },
           { value: 'producao', label: 'Produção' }
         ];
+        const UNIDADES_EQUIVALENCIA = [
+          'un', 'kg', 'g', 'L', 'ml', 'fatia', 'pacote', 'caixa', 'lata', 'pote', 'sachê'
+        ].map((value) => ({ value, label: value }));
         const BLANK_ENTRY = {
           type: 'insumo',
           name: '',
           unit: 'g',
           supplyClass: 'insumo',
+          variationUnit: '',
+          variationFactor: '',
           resaleAlso: false,
           supplier: '',
           purchaseDate: getTodayDateString(),
@@ -10559,6 +10564,8 @@
               name: x.name,
               unit: x.unit || 'g',
               supplyClass: x.supplyClass || 'insumo',
+              variationUnit: x.variationUnit || '',
+              variationFactor: x.variationFactor || '',
               resaleAlso: !!rev,
               price: rev?.price || '',
               priceUnit: rev?.priceUnit || d.priceUnit || 'un',
@@ -10578,6 +10585,8 @@
               name: x.productName,
               unit: ins?.unit || unidadeBaseDaRevenda(x.priceUnit || x.unitOfMeasure),
               supplyClass: ins?.supplyClass || 'insumo',
+              variationUnit: ins?.variationUnit || '',
+              variationFactor: ins?.variationFactor || '',
               resaleAlso: true,
               price: x.price || '',
               priceUnit: x.priceUnit || 'un',
@@ -10631,8 +10640,19 @@
             insumo = await onAddSupply({
               name: nome,
               unit: draft.unit || 'g',
-              supplyClass: draft.supplyClass || 'insumo'
+              supplyClass: draft.supplyClass || 'insumo',
+              variationUnit: String(draft.variationUnit || '').trim() || null,
+              variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null
             });
+          }
+
+          if (insumo && (String(draft.variationUnit || '').trim() || Number(draft.variationFactor) > 0)) {
+            const variationUnit = String(draft.variationUnit || '').trim() || null;
+            const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
+            if (variationUnit !== (insumo.variationUnit || null) || variationFactor !== (Number(insumo.variationFactor) || null)) {
+              onUpdateSupply({ ...insumo, variationUnit, variationFactor });
+              insumo = { ...insumo, variationUnit, variationFactor };
+            }
           }
 
           if (insumo?.id && qty > 0 && cost > 0) {
@@ -11041,6 +11061,47 @@
                             className="field field-md text-right tnum no-spin"
                           />
                         </div>
+                        {!modoProducao && (
+                          <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
+                            <div className="col-span-12 sm:col-span-3">
+                              <div className="t-caption font-semibold">Equivalência / variação <span className="font-normal text-[#86868b]">(opcional)</span></div>
+                              <p className="t-micro mt-1">Para usar na ficha como fatia, unidade, pacote, kg etc.</p>
+                            </div>
+                            <div className="col-span-6 sm:col-span-3">
+                              <label className="t-caption block mb-1">Unidade alternativa</label>
+                              <PickerField
+                                value={draft.variationUnit}
+                                options={UNIDADES_EQUIVALENCIA}
+                                onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                                onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                                placeholder="Ex: fatia"
+                                emptyLabel="Usar esta unidade"
+                                className="field field-md"
+                              />
+                            </div>
+                            <div className="col-span-6 sm:col-span-2">
+                              <label className="t-caption block mb-1">Quanto vale</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                value={draft.variationFactor}
+                                onChange={(e) => setDraft((d) => ({ ...d, variationFactor: e.target.value }))}
+                                placeholder="Ex: 30"
+                                className="field field-md text-right tnum no-spin"
+                              />
+                            </div>
+                            <div className="col-span-12 sm:col-span-4">
+                              <label className="t-caption block mb-1">Leitura</label>
+                              <div className="field field-md flex items-center px-3 bg-black/[0.035] t-callout font-semibold">
+                                {draft.unit === 'un'
+                                  ? `1 un = ${draft.variationFactor || '…'} ${draft.variationUnit || '…'}`
+                                  : `1 ${draft.variationUnit || '…'} = ${draft.variationFactor || '…'} ${draft.unit || 'g'}`}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {draft.resaleAlso && (
                           <div className="col-span-3 sm:col-span-1">
                             <label className="t-caption block mb-1">Un. compra</label>
@@ -11110,6 +11171,7 @@
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
                           <th className="py-3 px-3 font-bold">Tipo</th>
                           <th className="py-3 px-3 font-bold">Un.</th>
+                          <th className="py-3 px-3 font-bold">Equiv.</th>
                           <th className="py-3 px-3 font-bold">Fornecedor</th>
                           <th className="py-3 px-3 font-bold">Data</th>
                           <th className="py-3 px-3 text-right font-bold">Qtd comprada</th>
@@ -11120,7 +11182,7 @@
                       </thead>
                       <tbody>
                         {cadastrosFiltrados.length === 0 ? (
-                          <tr><td colSpan={9} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
+                          <tr><td colSpan={10} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
                         ) : cadastrosFiltrados.map((linha) => {
                           const x = linha.source;
                           const c = linha.compra;
@@ -11160,6 +11222,27 @@
                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'}]} onPick={(opt) => onUpdateProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
                                   )}
                                 </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                {linha.tipo === 'insumo' || linha.tipo === 'insumo_revenda' ? (
+                                  <div className="flex items-center gap-1 min-w-[210px]">
+                                    {x.unit === 'un' ? (
+                                      <>
+                                        <span className="t-micro whitespace-nowrap">1 un =</span>
+                                        <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
+                                        <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="unid." emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="t-micro">1</span>
+                                        <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="fatia" emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
+                                        <span className="t-micro">=</span>
+                                        <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
+                                        <span className="t-micro whitespace-nowrap">{x.unit}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : <span className="t-empty">—</span>}
                               </td>
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : (
@@ -11208,7 +11291,7 @@
                       </tbody>
                     </table>
                   </div>
-                  <p className="t-micro pt-3">O tipo pode ser Insumo, Revenda, Insumo + revenda ou Produção. Itens híbridos aparecem uma única vez na tabela.</p>
+                  <p className="t-micro pt-3">O tipo pode ser Insumo, Revenda, Insumo + revenda ou Produção. Itens híbridos aparecem uma única vez. Em Equiv. você pode registrar coisas como 1 fatia = 30 g ou 1 un = 500 g.</p>
                 </div>
               </div>
             )}
