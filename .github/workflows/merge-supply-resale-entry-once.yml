@@ -1,0 +1,51 @@
+name: Merge supply resale entry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/merge_supply_resale_entry.py'
+      - '.github/workflows/merge-supply-resale-entry-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply patch
+        run: python3 .github/scripts/merge_supply_resale_entry.py
+
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          checks = [
+            '2026-09-03-insumo-revenda-um-form-1',
+            'Também é revenda?',
+            'Insumo / revenda',
+            'A compra abaixo vale para o insumo e também alimenta o histórico/CMV da revenda',
+            'resaleAlso: false',
+            'qtdCompraNaBase',
+            'await onAddResalePurchase(revenda.id',
+            "type: 'producao'",
+            'cadastrosUnificados'
+          ]
+          for x in checks:
+            assert x in s, x
+          assert "{TIPOS_ENTRADA.map((t) => (" not in s
+          print('verify ok')
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name "DDV Unified Purchase"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Use one purchase form for supply and resale"
+          git push
