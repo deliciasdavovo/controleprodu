@@ -1,0 +1,50 @@
+name: Restore unified purchase entry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/restore_unified_purchase_entry.py'
+      - '.github/workflows/restore-unified-purchase-entry-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 .github/scripts/restore_unified_purchase_entry.py
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          checks = [
+            '2026-09-03-entrada-unificada-compras-1',
+            'Cadastro + compra',
+            "{ value: 'insumo', label: 'Insumo' }",
+            "{ value: 'revenda', label: 'Revenda' }",
+            "{ value: 'producao', label: 'Produção' }",
+            'onChangeCatalogType={handleChangeCatalogType}',
+            'Alterar tipo do cadastro',
+            'cadastrosUnificados',
+            "painel === 'entradas'",
+            "label: 'Entradas'",
+            "label: 'Produtos'"
+          ]
+          for x in checks:
+            assert x in s, x
+          assert 'Cadastros novos ficam em Cadastros' not in s
+          print('verify ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "DDV Unified Entry"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restore unified purchase entry and editable types"
+          git push
