@@ -1,0 +1,36 @@
+name: Guard hybrid production conversion
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/guard_hybrid_production_conversion.py'
+      - '.github/workflows/guard-hybrid-production-conversion-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 .github/scripts/guard_hybrid_production_conversion.py
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          assert '2026-09-03-tipo-insumo-revenda-2' in s
+          assert 'Para mudar Insumo + revenda para Produção' in s
+          print('verify ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "DDV Hybrid Type"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Guard hybrid to production type changes"
+          git push
