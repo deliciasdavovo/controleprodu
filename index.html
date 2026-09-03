@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-insumo-revenda-um-form-1" />
+    <meta name="app-version" content="2026-09-03-insumo-revenda-um-form-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12172,7 +12172,31 @@
         });
 
         separatedProducts.filter((p) => p.unit === currentUnit).forEach((p) => {
+          const insumoMesmoNome = supplies.find(
+            (s) => normalizeName(s.name) === normalizeName(p.productName)
+          );
+
           resalePurchases.filter((c) => c.separatedProductId === p.id).forEach((c) => {
+            // Quando "Também é revenda" está marcado, a mesma entrada grava o
+            // custo nos dois lados para alimentar ficha técnica e CMV. Na tela
+            // de fornecedores, porém, é UMA compra só. O espelho de revenda é
+            // ignorado aqui para o total comprado não aparecer em dobro.
+            const espelhoDoInsumo = insumoMesmoNome && supplyPurchases.some((ci) => {
+              if (ci.supplyId !== insumoMesmoNome.id) return false;
+              const mesmoFornecedor = normalizeName(ci.supplier || '') === normalizeName(c.supplier || '');
+              const mesmaData = (ci.purchaseDate || '') === (c.purchaseDate || '');
+              const mesmoValor = Math.abs((Number(ci.cost) || 0) - (Number(c.cost) || 0)) < 0.005;
+              if (!(mesmoFornecedor && mesmaData && mesmoValor)) return false;
+
+              const ti = ci.criadoEm ? new Date(ci.criadoEm).getTime() : 0;
+              const tr = c.criadoEm ? new Date(c.criadoEm).getTime() : 0;
+              // Registros criados pelo mesmo submit nascem praticamente juntos.
+              // Para dados antigos sem timestamp, fornecedor+data+valor é a
+              // melhor assinatura disponível.
+              return !ti || !tr || Math.abs(ti - tr) <= 120000;
+            });
+            if (espelhoDoInsumo) return;
+
             compras.push({
               id: c.id,
               itemId: `r${p.id}`,
