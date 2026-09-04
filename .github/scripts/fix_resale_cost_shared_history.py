@@ -83,11 +83,27 @@ if cmv_old not in s:
     raise SystemExit('CMV resale cost marker not found')
 s = s.replace(cmv_old, cmv_new, 1)
 
-dep_old = '}), [separatedProducts, currentUnit, resalePurchases]);'
-dep_new = '}), [separatedProducts, currentUnit, resalePurchases, supplies, supplyPurchases]);'
-if dep_old not in s:
-    raise SystemExit('CMV dependency marker not found')
-s = s.replace(dep_old, dep_new, 1)
+# Atualiza a lista de dependências do useMemo da revenda sem depender da
+# formatação exata do fechamento.
+rev_start = s.index('        const linhasRevenda = useMemo(')
+rev_end = s.index('        const placar = useMemo(', rev_start)
+segment = s[rev_start:rev_end]
+last_resale = segment.rfind('resalePurchases')
+if last_resale < 0:
+    raise SystemExit('resalePurchases dependency not found')
+left = segment.rfind('[', 0, last_resale)
+right = segment.find(']', last_resale)
+if left < 0 or right < 0:
+    raise SystemExit('CMV dependency array not found')
+dep_text = segment[left + 1:right]
+if 'separatedProducts' not in dep_text or 'currentUnit' not in dep_text:
+    raise SystemExit(f'unexpected CMV dependency array: {dep_text!r}')
+deps = [x.strip() for x in dep_text.split(',') if x.strip()]
+for wanted in ['supplies', 'supplyPurchases']:
+    if wanted not in deps:
+        deps.append(wanted)
+segment = segment[:left + 1] + ', '.join(deps) + segment[right:]
+s = s[:rev_start] + segment + s[rev_end:]
 
 # Mantém a mesma regra nos pontos da tela unificada que exibem custo da
 # revenda, quando esses padrões existirem na versão atual.
