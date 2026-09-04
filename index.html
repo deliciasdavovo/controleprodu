@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-04-vitrine-conferencia-rapida-1" />
+    <meta name="app-version" content="2026-09-04-cadastros-unificados-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3127,8 +3127,7 @@
           label: 'CMV',
           title: 'Custo, preço e fornecedores',
           tabs: [
-            { id: 'produtos', label: 'Produtos', fullLabel: 'Produtos de fabricação', icon: Icons.Package },
-            { id: 'insumos', label: 'Entradas', fullLabel: 'Entradas, compras e fichas', icon: Icons.Layers },
+            { id: 'insumos', label: 'Cadastros', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart }
           ]
@@ -10921,6 +10920,7 @@
         const TIPOS_ENTRADA = [
           { value: 'insumo', label: 'Insumo' },
           { value: 'revenda', label: 'Revenda' },
+          { value: 'insumo_revenda', label: 'Insumo + revenda' },
           { value: 'producao', label: 'Produção' }
         ];
         const TIPOS_TABELA = [
@@ -10934,6 +10934,7 @@
         ].map((value) => ({ value, label: value }));
         const BLANK_ENTRY = {
           type: 'insumo',
+          purchaseKind: 'insumo',
           name: '',
           unit: 'g',
           supplyClass: 'insumo',
@@ -10959,6 +10960,10 @@
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
         const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
         const modoProducao = draft.type === 'producao';
+        const tipoCompra = draft.purchaseKind || (draft.resaleAlso ? 'insumo_revenda' : 'insumo');
+        const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
+        const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
+        const tipoCadastroAtual = modoProducao ? 'producao' : tipoCompra;
 
         const nomeDraft = normalizeName(String(draft.name || '').trim());
         const supplyExistente = nomeDraft
@@ -11063,6 +11068,7 @@
             setDraft((d) => ({
               ...d,
               type: 'insumo',
+              purchaseKind: rev ? 'insumo_revenda' : 'insumo',
               name: x.name,
               unit: x.unit || 'g',
               supplyClass: x.supplyClass || 'insumo',
@@ -11084,6 +11090,7 @@
             setDraft((d) => ({
               ...d,
               type: 'insumo',
+              purchaseKind: ins ? 'insumo_revenda' : 'revenda',
               name: x.productName,
               unit: ins?.unit || unidadeBaseDaRevenda(x.priceUnit || x.unitOfMeasure),
               supplyClass: ins?.supplyClass || 'insumo',
@@ -11135,42 +11142,46 @@
             return;
           }
 
-          // Todo item comprado nasce/continua como insumo mestre. A opção
-          // "Também é revenda" só acrescenta a face de venda do MESMO item.
+          // Um cadastro comprado pode ser só insumo, só revenda ou os dois.
+          // A mesma linha de compra alimenta apenas os históricos que pertencem
+          // àquele tipo — sem obrigar revenda pura a nascer como insumo.
           let insumo = supplyExistente;
-          if (!insumo) {
-            insumo = await onAddSupply({
-              name: nome,
-              unit: draft.unit || 'g',
-              supplyClass: draft.supplyClass || 'insumo',
-              variationUnit: String(draft.variationUnit || '').trim() || null,
-              variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null
-            });
-          }
+          if (temInsumo) {
+            if (!insumo) {
+              insumo = await onAddSupply({
+                name: nome,
+                unit: draft.unit || 'g',
+                supplyClass: draft.supplyClass || 'insumo',
+                variationUnit: String(draft.variationUnit || '').trim() || null,
+                variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null
+              });
+            }
 
-          if (insumo && (String(draft.variationUnit || '').trim() || Number(draft.variationFactor) > 0)) {
-            const variationUnit = String(draft.variationUnit || '').trim() || null;
-            const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
-            if (variationUnit !== (insumo.variationUnit || null) || variationFactor !== (Number(insumo.variationFactor) || null)) {
-              onUpdateSupply({ ...insumo, variationUnit, variationFactor });
-              insumo = { ...insumo, variationUnit, variationFactor };
+            if (insumo) {
+              const variationUnit = String(draft.variationUnit || '').trim() || null;
+              const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
+              if (variationUnit !== (insumo.variationUnit || null)
+                || variationFactor !== (Number(insumo.variationFactor) || null)) {
+                onUpdateSupply({ ...insumo, variationUnit, variationFactor });
+                insumo = { ...insumo, variationUnit, variationFactor };
+              }
+            }
+
+            if (insumo?.id && qty > 0 && cost > 0) {
+              const qtdBase = temRevenda
+                ? qtdCompraNaBase(qty, draft.purchaseUnit || draft.unit, insumo.unit || draft.unit)
+                : qty;
+              await onAddSupplyPurchase(insumo.id, {
+                supplier: String(draft.supplier || '').trim(),
+                purchaseDate: draft.purchaseDate || getTodayDateString(),
+                qty: qtdBase,
+                cost
+              });
             }
           }
 
-          if (insumo?.id && qty > 0 && cost > 0) {
-            const qtdBase = draft.resaleAlso
-              ? qtdCompraNaBase(qty, draft.purchaseUnit || draft.unit, insumo.unit || draft.unit)
-              : qty;
-            await onAddSupplyPurchase(insumo.id, {
-              supplier: String(draft.supplier || '').trim(),
-              purchaseDate: draft.purchaseDate || getTodayDateString(),
-              qty: qtdBase,
-              cost
-            });
-          }
-
-          if (draft.resaleAlso) {
-            let revenda = revendaExistente;
+          let revenda = revendaExistente;
+          if (temRevenda) {
             const dadosRevenda = {
               productName: nome,
               category: draft.resaleCategory || 'revenda',
@@ -11187,8 +11198,6 @@
               onUpdateSeparatedProduct({ ...revenda, ...dadosRevenda });
             }
 
-            // Revenda também precisa de histórico de compra próprio para CMV.
-            // A mesma entrada alimenta os dois lados sem pedir tudo de novo.
             if (revenda?.id && qty > 0 && cost > 0) {
               await onAddResalePurchase(revenda.id, {
                 supplier: String(draft.supplier || '').trim(),
@@ -11199,14 +11208,16 @@
               });
             }
           } else if (revendaExistente && insumo && onSetSupplyResale) {
-            // Se a pessoa desmarcou conscientemente em um item já existente,
-            // o cadastro deixa de aparecer como revenda, mas o histórico fica.
+            // Desmarcar a face de revenda em um insumo existente não apaga o
+            // histórico; apenas tira o item da revenda ativa.
             onSetSupplyResale(insumo, false);
           }
 
           setDraft((d) => ({
             ...BLANK_ENTRY,
             type: 'insumo',
+            purchaseKind: d.purchaseKind || 'insumo',
+            resaleAlso: (d.purchaseKind || 'insumo') === 'insumo_revenda',
             unit: d.unit,
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
@@ -11349,9 +11360,9 @@
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="t-display">Entradas &amp; fichas</h2>
+              <h2 className="t-display">Cadastros, compras &amp; fichas</h2>
               <p className="t-body mt-1">
-                Insumo e revenda entram pelo mesmo formulário de compra. Produção fica separada, porque o custo vem da ficha técnica.
+                Um único cadastro para Insumo, Revenda, Insumo + revenda e Produção. Compras e fichas ficam no mesmo lugar.
               </p>
             </div>
 
@@ -11375,26 +11386,40 @@
                       </div>
                       <h3 className="t-title">Cadastro + compra</h3>
                       <p className="t-body mt-1.5">
-                        Um único formulário para insumo e revenda. Marque <strong>Também é revenda?</strong> quando o item também é vendido.
+                        Escolha o tipo acima. Revenda apenas e Insumo + revenda usam a mesma linha de compra, sem cadastro duplicado.
                       </p>
                     </div>
-                    <div className="segmented w-full lg:w-auto lg:inline-flex shrink-0">
-                      <button
-                        type="button"
-                        data-active={!modoProducao}
-                        onClick={() => setDraft((d) => ({ ...BLANK_ENTRY, type: 'insumo', unit: d.unit, supplyClass: d.supplyClass, purchaseDate: getTodayDateString() }))}
-                        className="flex-1 lg:flex-none h-9 px-4"
-                      >
-                        Insumo / revenda
-                      </button>
-                      <button
-                        type="button"
-                        data-active={modoProducao}
-                        onClick={() => setDraft((d) => ({ ...BLANK_ENTRY, type: 'producao', productCategory: d.productCategory, priceUnit: d.priceUnit, purchaseDate: getTodayDateString() }))}
-                        className="flex-1 lg:flex-none h-9 px-4"
-                      >
-                        Produção
-                      </button>
+                    <div className="segmented w-full lg:w-auto lg:inline-flex shrink-0 overflow-x-auto">
+                      {TIPOS_ENTRADA.map((tipo) => (
+                        <button
+                          key={tipo.value}
+                          type="button"
+                          data-active={tipoCadastroAtual === tipo.value}
+                          onClick={() => setDraft((d) => tipo.value === 'producao'
+                            ? {
+                                ...BLANK_ENTRY,
+                                type: 'producao',
+                                productCategory: d.productCategory,
+                                priceUnit: d.priceUnit,
+                                purchaseDate: getTodayDateString()
+                              }
+                            : {
+                                ...BLANK_ENTRY,
+                                type: 'insumo',
+                                purchaseKind: tipo.value,
+                                resaleAlso: tipo.value === 'insumo_revenda',
+                                unit: d.unit,
+                                supplyClass: d.supplyClass,
+                                priceUnit: d.priceUnit,
+                                purchaseUnit: d.purchaseUnit,
+                                resaleCategory: d.resaleCategory,
+                                purchaseDate: getTodayDateString()
+                              })}
+                          className="flex-1 lg:flex-none h-9 px-4"
+                        >
+                          {tipo.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -11414,7 +11439,7 @@
                         />
                       </div>
 
-                      {!modoProducao && (
+                      {temInsumo && (
                         <>
                           <div className="col-span-4 lg:col-span-2">
                             <label className="t-caption block mb-1">Unidade base</label>
@@ -11444,21 +11469,15 @@
                               />
                             )}
                           </div>
-                          <div className="col-span-12 lg:col-span-3">
-                            <label className="t-caption block mb-1">Também é revenda?</label>
-                            <label className="field field-md flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!draft.resaleAlso}
-                                onChange={(e) => setDraft((d) => ({ ...d, resaleAlso: e.target.checked }))}
-                                className="w-4 h-4"
-                              />
-                              <span className="t-callout font-semibold">
-                                {draft.resaleAlso ? 'Sim · também vendo este item' : 'Não · só uso/compro como insumo'}
-                              </span>
-                            </label>
-                          </div>
                         </>
+                      )}
+
+                      {!modoProducao && !temInsumo && (
+                        <div className="col-span-8 lg:col-span-5">
+                          <div className="field field-md flex items-center px-3 bg-black/[0.035] t-callout font-semibold">
+                            Revenda apenas · comprado pronto para vender
+                          </div>
+                        </div>
                       )}
 
                       {modoProducao && (
@@ -11493,9 +11512,9 @@
                       )}
                     </div>
 
-                    {!modoProducao && draft.resaleAlso && (
+                    {!modoProducao && temRevenda && (
                       <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
-                        <div className="col-span-4 sm:col-span-2">
+                        <div className="col-span-6 sm:col-span-3">
                           <label className="t-caption block mb-1">Preço de venda</label>
                           <input
                             type="number"
@@ -11507,7 +11526,7 @@
                             className="field field-md text-right tnum no-spin"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-2">
+                        <div className="col-span-6 sm:col-span-2">
                           <label className="t-caption block mb-1">Vendido por</label>
                           <PickerField
                             value={draft.priceUnit}
@@ -11516,7 +11535,7 @@
                             className="field field-md"
                           />
                         </div>
-                        <div className="col-span-4 sm:col-span-3">
+                        <div className="col-span-12 sm:col-span-3">
                           <label className="t-caption block mb-1">Categoria da revenda</label>
                           <PickerField
                             value={draft.resaleCategory}
@@ -11525,113 +11544,120 @@
                             className="field field-md"
                           />
                         </div>
-                        <div className="col-span-12 sm:col-span-5">
-                          <p className="t-micro pb-2">
-                            A compra abaixo vale para o insumo e também alimenta o histórico/CMV da revenda — sem preencher duas vezes.
-                          </p>
+                        <div className="col-span-12 sm:col-span-4">
+                          <div className="rounded-xl bg-black/[0.035] px-3 py-2 t-micro min-h-11 flex items-center">
+                            {temInsumo
+                              ? 'A compra abaixo alimenta o insumo e o CMV da revenda ao mesmo tempo.'
+                              : 'Revenda apenas: a compra abaixo alimenta diretamente custo e CMV.'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!modoProducao && temInsumo && (
+                      <div className="mt-3 pt-3 border-t hairline">
+                        <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                          <div className="col-span-12 lg:col-span-3 lg:self-center">
+                            <div className="t-caption font-semibold">Equivalência / variação <span className="font-normal text-[#86868b]">(opcional)</span></div>
+                            <p className="t-micro mt-1">Ex.: 1 fatia = 30 g · 1 un = 500 g.</p>
+                          </div>
+                          <div className="col-span-6 sm:col-span-3">
+                            <label className="t-caption block mb-1">Unidade alternativa</label>
+                            <PickerField
+                              value={draft.variationUnit}
+                              options={UNIDADES_EQUIVALENCIA}
+                              onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                              onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                              placeholder="Ex: fatia"
+                              emptyLabel="Usar esta unidade"
+                              className="field field-md"
+                            />
+                          </div>
+                          <div className="col-span-6 sm:col-span-2">
+                            <label className="t-caption block mb-1">Quanto vale</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={draft.variationFactor}
+                              onChange={(e) => setDraft((d) => ({ ...d, variationFactor: e.target.value }))}
+                              placeholder="Ex: 30"
+                              className="field field-md text-right tnum no-spin"
+                            />
+                          </div>
+                          <div className="col-span-12 sm:col-span-4">
+                            <label className="t-caption block mb-1">Leitura</label>
+                            <div className="field field-md flex items-center px-3 bg-black/[0.035] t-callout font-semibold whitespace-nowrap overflow-hidden text-ellipsis">
+                              {draft.unit === 'un'
+                                ? `1 un = ${draft.variationFactor || '…'} ${draft.variationUnit || '…'}`
+                                : `1 ${draft.variationUnit || '…'} = ${draft.variationFactor || '…'} ${draft.unit || 'g'}`}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
                     {!modoProducao && (
-                      <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
-                        <div className="col-span-12 sm:col-span-4">
-                          <label className="t-caption block mb-1">Fornecedor</label>
-                          <PickerField
-                            value={draft.supplier}
-                            options={fornecedores.map((f) => ({ value: f, label: f }))}
-                            onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
-                            onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
-                            placeholder={compraExistente?.supplier || 'Fornecedor'}
-                            emptyLabel="Fornecedor novo"
-                            className="field field-md"
-                          />
-                        </div>
-                        <div className="col-span-6 sm:col-span-2">
-                          <label className="t-caption block mb-1">Data</label>
-                          <input type="date" value={draft.purchaseDate} onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))} className="field field-md" />
-                        </div>
-                        <div className={`${draft.resaleAlso ? 'col-span-3 sm:col-span-1' : 'col-span-6 sm:col-span-2'}`}>
-                          <label className="t-caption block mb-1">Qtd. comprada</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            value={draft.qty}
-                            onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
-                            placeholder={compraExistente?.qty ? String(compraExistente.qty) : '0'}
-                            className="field field-md text-right tnum no-spin"
-                          />
-                        </div>
-                        {!modoProducao && (
-                          <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
-                            <div className="col-span-12 sm:col-span-3">
-                              <div className="t-caption font-semibold">Equivalência / variação <span className="font-normal text-[#86868b]">(opcional)</span></div>
-                              <p className="t-micro mt-1">Para usar na ficha como fatia, unidade, pacote, kg etc.</p>
-                            </div>
-                            <div className="col-span-6 sm:col-span-3">
-                              <label className="t-caption block mb-1">Unidade alternativa</label>
-                              <PickerField
-                                value={draft.variationUnit}
-                                options={UNIDADES_EQUIVALENCIA}
-                                onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
-                                onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
-                                placeholder="Ex: fatia"
-                                emptyLabel="Usar esta unidade"
-                                className="field field-md"
-                              />
-                            </div>
-                            <div className="col-span-6 sm:col-span-2">
-                              <label className="t-caption block mb-1">Quanto vale</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={draft.variationFactor}
-                                onChange={(e) => setDraft((d) => ({ ...d, variationFactor: e.target.value }))}
-                                placeholder="Ex: 30"
-                                className="field field-md text-right tnum no-spin"
-                              />
-                            </div>
-                            <div className="col-span-12 sm:col-span-4">
-                              <label className="t-caption block mb-1">Leitura</label>
-                              <div className="field field-md flex items-center px-3 bg-black/[0.035] t-callout font-semibold">
-                                {draft.unit === 'un'
-                                  ? `1 un = ${draft.variationFactor || '…'} ${draft.variationUnit || '…'}`
-                                  : `1 ${draft.variationUnit || '…'} = ${draft.variationFactor || '…'} ${draft.unit || 'g'}`}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {draft.resaleAlso && (
-                          <div className="col-span-3 sm:col-span-1">
-                            <label className="t-caption block mb-1">Un. compra</label>
+                      <div className="mt-3 pt-3 border-t hairline">
+                        <div className="t-overline mb-2">Compra</div>
+                        <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                          <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+                            <label className="t-caption block mb-1">Fornecedor</label>
                             <PickerField
-                              value={draft.purchaseUnit}
-                              options={[{ value: 'un', label: 'un' }, { value: 'kg', label: 'kg' }, { value: 'g', label: 'g' }, { value: 'L', label: 'L' }, { value: 'ml', label: 'ml' }]}
-                              onPick={(opt) => setDraft((d) => ({ ...d, purchaseUnit: opt.value }))}
+                              value={draft.supplier}
+                              options={fornecedores.map((f) => ({ value: f, label: f }))}
+                              onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
+                              onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
+                              placeholder={compraExistente?.supplier || 'Fornecedor'}
+                              emptyLabel="Fornecedor novo"
                               className="field field-md"
                             />
                           </div>
-                        )}
-                        <div className={`${draft.resaleAlso ? 'col-span-6 sm:col-span-2' : 'col-span-6 sm:col-span-2'}`}>
-                          <label className="t-caption block mb-1">Valor pago</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={draft.cost}
-                            onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
-                            placeholder={compraExistente?.cost ? String(compraExistente.cost) : '0,00'}
-                            className="field field-md text-right tnum no-spin"
-                          />
-                        </div>
-                        <div className="col-span-6 sm:col-span-2">
-                          <button type="submit" className="btn btn-primary btn-md w-full">
-                            <Icons.Plus className="w-4 h-4" />
-                            {cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra'}
-                          </button>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Data</label>
+                            <input type="date" value={draft.purchaseDate} onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))} className="field field-md" />
+                          </div>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Qtd. comprada{temInsumo && !temRevenda ? ` (${draft.unit})` : ''}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={draft.qty}
+                              onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
+                              placeholder={compraExistente?.qty ? String(compraExistente.qty) : '0'}
+                              className="field field-md text-right tnum no-spin"
+                            />
+                          </div>
+                          {temRevenda && (
+                            <div className="col-span-4 sm:col-span-3 lg:col-span-1">
+                              <label className="t-caption block mb-1">Un. compra</label>
+                              <PickerField
+                                value={draft.purchaseUnit}
+                                options={[{ value: 'un', label: 'un' }, { value: 'kg', label: 'kg' }, { value: 'g', label: 'g' }, { value: 'L', label: 'L' }, { value: 'ml', label: 'ml' }]}
+                                onPick={(opt) => setDraft((d) => ({ ...d, purchaseUnit: opt.value }))}
+                                className="field field-md"
+                              />
+                            </div>
+                          )}
+                          <div className="col-span-8 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Valor pago</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={draft.cost}
+                              onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
+                              placeholder={compraExistente?.cost ? String(compraExistente.cost) : '0,00'}
+                              className="field field-md text-right tnum no-spin"
+                            />
+                          </div>
+                          <div className="col-span-12 sm:col-span-6 lg:col-span-2">
+                            <button type="submit" className="btn btn-primary btn-md w-full">
+                              <Icons.Plus className="w-4 h-4" />
+                              {cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -11793,7 +11819,7 @@
                       </tbody>
                     </table>
                   </div>
-                  <p className="t-micro pt-3">O tipo pode ser Insumo, Revenda, Insumo + revenda ou Produção. Itens híbridos aparecem uma única vez. Em Equiv. você pode registrar coisas como 1 fatia = 30 g ou 1 un = 500 g.</p>
+                  <p className="t-micro pt-3">Todos os cadastros ficam nesta tabela: Insumo, Revenda, Insumo + revenda e Produção. Itens híbridos aparecem uma única vez; use o seletor Tipo para corrigir a classificação.</p>
                 </div>
               </div>
             )}
@@ -15752,20 +15778,6 @@
                   separatedProducts={separatedProducts}
                   onUpdateQty={handleUpdateSeparatedQty}
                   onAddSeparatedProduct={handleAddSeparatedProduct}
-                />
-              )}
-
-              {activeTab === 'produtos' && (
-                <ProductCatalogView
-                  products={products}
-                  supplies={supplies}
-                  separatedProducts={separatedProducts}
-                  currentUnit={currentUnit}
-                  onAddProduct={handleAddProduct}
-                  onAddSupply={handleAddSupply}
-                  onAddSeparatedProduct={handleAddSeparatedProduct}
-                  onUpdateProduct={handleUpdateProduct}
-                  onDeleteProduct={handleDeleteProduct}
                 />
               )}
 
