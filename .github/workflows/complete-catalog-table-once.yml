@@ -1,0 +1,44 @@
+name: Complete catalog master table
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/complete_catalog_table.py'
+      - '.github/workflows/complete-catalog-table-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 .github/scripts/complete_catalog_table.py
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+            '2026-09-04-cadastros-mestre-copiar-ficha-1',
+            "{ value: 'embalagem', label: 'Embalagem' }",
+            "{ value: 'limpeza', label: 'Limpeza' }",
+            'Preço venda',
+            'Esta é a tabela mestre:',
+            'const handleCopyRecipe',
+            'Copiar ficha técnica',
+            'onCopyRecipe={handleCopyRecipe}',
+            'onDeleteCatalogItem={handleDeleteCatalogItem}',
+            'Material de limpeza · uso interno'
+          ]
+          for c in checks: assert c in s, c
+          assert 'Também é revenda?</label>' not in s
+          print('verify ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "DDV Catalog"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Complete catalog master table and recipe copy"
+          git push
