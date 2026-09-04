@@ -1,0 +1,2081 @@
+===== LINES 9481-9995 =====
+9481:                     <div className="flex items-center gap-1.5">
+9482:                       <button
+9483:                         onClick={() => onUpdateQty(item.id, -1)}
+9484:                         className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] text-[#1d1d1f] font-bold flex items-center justify-center transition-colors"
+9485:                       >
+9486:                         −
+9487:                       </button>
+9488:                       <button
+9489:                         onClick={() => onUpdateQty(item.id, 1)}
+9490:                         className="w-8 h-8 rounded-full bg-[#0E0937] hover:bg-[#211A58] text-white font-bold flex items-center justify-center transition-colors"
+9491:                       >
+9492:                         +
+9493:                       </button>
+9494:                     </div>
+9495:                   </div>
+9496:                 </div>
+9497:               ))}
+9498:             </div>
+9499: 
+9500:             {showModal && (
+9501:               <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+9502:                 <form onSubmit={handleSubmit} className="bg-white rounded-[20px] max-w-md w-full p-6 space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.24)]">
+9503:                   <h3 className="t-title text-[#1d1d1f]">Novo item fora da vitrine</h3>
+9504:                   <div>
+9505:                     <label className="t-caption block mb-1">Nome</label>
+9506:                     <input
+9507:                       type="text"
+9508:                       required
+9509:                       value={name}
+9510:                       onChange={(e) => setName(e.target.value)}
+9511:                       placeholder="Ex: Coca-Cola 350 ml"
+9512:                       className="field field-md"
+9513:                     />
+9514:                   </div>
+9515:                   <div className="grid grid-cols-2 gap-3">
+9516:                     <div>
+9517:                       <label className="t-caption block mb-1">Categoria</label>
+9518:                       <select value={category} onChange={(e) => setCategory(e.target.value)} className="field field-md">
+9519:                         <option value="revenda">Revenda</option>
+9520:                         <option value="cafeteria">Cafeteria</option>
+9521:                         <option value="encomenda">Encomenda</option>
+9522:                       </select>
+9523:                     </div>
+9524:                     <div>
+9525:                       <label className="t-caption block mb-1">Preço (R$)</label>
+9526:                       <input
+9527:                         type="number"
+9528:                         step="0.01"
+9529:                         value={price}
+9530:                         onChange={(e) => setPrice(Number(e.target.value) || 0)}
+9531:                         className="field field-md tnum"
+9532:                       />
+9533:                     </div>
+9534:                   </div>
+9535:                   <div>
+9536:                     <label className="t-caption block mb-1">Estoque inicial</label>
+9537:                     <input
+9538:                       type="number"
+9539:                       value={qty}
+9540:                       onChange={(e) => setQty(Number(e.target.value) || 0)}
+9541:                       className="field field-md tnum"
+9542:                     />
+9543:                   </div>
+9544:                   <div className="flex justify-end gap-2 pt-1">
+9545:                     <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary btn-md">Cancelar</button>
+9546:                     <button type="submit" className="btn btn-primary btn-md">Salvar</button>
+9547:                   </div>
+9548:                 </form>
+9549:               </div>
+9550:             )}
+9551:           </div>
+9552:         );
+9553:       };
+9554: 
+9555:       // ==========================================
+9556:       // CADASTRO GERAL
+9557:       // Um único ponto de entrada para fabricação, insumo e revenda.
+9558:       // O seletor muda os campos do cadastro novo; ele não converte registros
+9559:       // antigos automaticamente, porque isso pode quebrar ficha e histórico.
+9560:       // ==========================================
+9561:       const UnifiedCatalogEntry = ({
+9562:         products,
+9563:         supplies,
+9564:         separatedProducts,
+9565:         currentUnit,
+9566:         onAddProduct,
+9567:         onAddSupply,
+9568:         onAddSeparatedProduct
+9569:       }) => {
+9570:         const [tipo, setTipo] = useState('fabricacao');
+9571:         const [salvando, setSalvando] = useState(false);
+9572:         const BLANK = {
+9573:           name: '', responsible: '', productCategory: 'salgado', showcaseEnabled: true,
+9574:           shelfLifeDays: 2, price: '', priceUnit: 'un',
+9575:           supplyUnit: 'g', supplyClass: 'insumo', resaleCategory: 'revenda'
+9576:         };
+9577:         const [draft, setDraft] = useState(BLANK);
+9578: 
+9579:         const setField = (field, value) => setDraft((d) => ({ ...d, [field]: value }));
+9580:         const tipoInfo = {
+9581:           fabricacao: { label: 'Fabricação', icon: Icons.ChefHat || Icons.Package, help: 'Produto feito pela casa · pode ter ficha técnica e CMV de produção.' },
+9582:           insumo: { label: 'Insumo', icon: Icons.Package, help: 'Matéria-prima, embalagem ou item de limpeza que a casa compra.' },
+9583:           revenda: { label: 'Revenda', icon: Icons.ShoppingCart, help: 'Item comprado pronto para vender, como bebidas e bomboniere.' }
+9584:         };
+9585: 
+9586:         const nomes = [
+9587:           ...products.map((x) => ({ value: `fabricacao:${x.id}`, label: x.name, hint: 'Fabricação' })),
+9588:           ...supplies.map((x) => ({ value: `insumo:${x.id}`, label: x.name, hint: 'Insumo' })),
+9589:           ...separatedProducts.filter((x) => !currentUnit || x.unit === currentUnit).map((x) => ({ value: `revenda:${x.id}`, label: x.productName || x.name, hint: 'Revenda' }))
+9590:         ];
+9591: 
+9592:         const jaExiste = () => {
+9593:           const nome = normalizeName(draft.name);
+9594:           if (!nome) return false;
+9595:           if (tipo === 'fabricacao') return products.some((x) => normalizeName(x.name) === nome);
+9596:           if (tipo === 'insumo') return supplies.some((x) => normalizeName(x.name) === nome);
+9597:           return separatedProducts.some((x) => (!currentUnit || x.unit === currentUnit) && normalizeName(x.productName || x.name) === nome);
+9598:         };
+9599: 
+9600:         const salvar = async (e) => {
+9601:           e.preventDefault();
+9602:           const name = String(draft.name || '').trim();
+9603:           if (!name || salvando) return;
+9604:           if (jaExiste()) {
+9605:             window.alert(`“${name}” já existe como ${tipoInfo[tipo].label.toLowerCase()}. Use a tabela abaixo para editar.`);
+9606:             return;
+9607:           }
+9608: 
+9609:           setSalvando(true);
+9610:           try {
+9611:             if (tipo === 'fabricacao') {
+9612:               await onAddProduct({
+9613:                 name,
+9614:                 responsible: cleanResponsible(draft.responsible),
+9615:                 category: draft.productCategory,
+9616:                 showcaseEnabled: draft.showcaseEnabled !== false,
+9617:                 shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
+9618:                 price: Math.max(0, Number(draft.price) || 0),
+9619:                 priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un',
+9620:                 defaultUnit: 'un',
+9621:                 minReplenishmentQty: 5
+9622:               });
+9623:             } else if (tipo === 'insumo') {
+9624:               await onAddSupply({
+9625:                 name,
+9626:                 unit: draft.supplyUnit || 'g',
+9627:                 supplyClass: draft.supplyClass || 'insumo'
+9628:               });
+9629:             } else {
+9630:               await onAddSeparatedProduct({
+9631:                 productName: name,
+9632:                 category: draft.resaleCategory || 'revenda',
+9633:                 currentQty: 0,
+9634:                 unitOfMeasure: draft.priceUnit || 'un',
+9635:                 minQty: 0,
+9636:                 price: Math.max(0, Number(draft.price) || 0),
+9637:                 priceUnit: draft.priceUnit || 'un'
+9638:               });
+9639:             }
+9640:             setDraft((d) => ({ ...BLANK, priceUnit: d.priceUnit, supplyUnit: d.supplyUnit, supplyClass: d.supplyClass, productCategory: d.productCategory, resaleCategory: d.resaleCategory }));
+9641:           } finally {
+9642:             setSalvando(false);
+9643:           }
+9644:         };
+9645: 
+9646:         return (
+9647:           <div className="card p-6 sm:p-7">
+9648:             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+9649:               <div>
+9650:                 <div className="t-overline flex items-center gap-1.5 mb-2">
+9651:                   <Icons.Plus className="w-3.5 h-3.5" />
+9652:                   Cadastro geral
+9653:                 </div>
+9654:                 <h2 className="t-title">O que você quer cadastrar?</h2>
+9655:                 <p className="t-body mt-1.5">Produto de fabricação, insumo e revenda entram pelo mesmo formulário.</p>
+9656:               </div>
+9657:               <div className="segmented w-full lg:w-auto lg:inline-flex shrink-0">
+9658:                 {['fabricacao', 'insumo', 'revenda'].map((t) => (
+9659:                   <button
+9660:                     key={t}
+9661:                     type="button"
+9662:                     data-active={tipo === t}
+9663:                     onClick={() => setTipo(t)}
+9664:                     className="flex-1 lg:flex-none h-9 px-4"
+9665:                   >
+9666:                     {tipoInfo[t].label}
+9667:                   </button>
+9668:                 ))}
+9669:               </div>
+9670:             </div>
+9671: 
+9672:             <div className="mt-4 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
+9673:               <strong>{tipoInfo[tipo].label}</strong> · {tipoInfo[tipo].help}
+9674:               <span className="block mt-0.5">Para trocar o cadastro, clique em outro tipo acima. O nome digitado continua no campo.</span>
+9675:             </div>
+9676: 
+9677:             <form onSubmit={salvar} className="mt-5 pt-5 border-t hairline">
+9678:               <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+9679:                 <div className="col-span-12 md:col-span-4">
+9680:                   <label className="t-caption block mb-1">Nome</label>
+9681:                   <PickerField
+9682:                     value={draft.name}
+9683:                     options={nomes}
+9684:                     onType={(v) => setField('name', v)}
+9685:                     onPick={(opt) => setField('name', opt.label)}
+9686:                     placeholder={tipo === 'fabricacao' ? 'Ex: Chipa' : tipo === 'insumo' ? 'Ex: Farinha de trigo' : 'Ex: Coca-Cola 350 ml'}
+9687:                     emptyLabel="Nome novo — será cadastrado"
+9688:                     className="field field-md font-semibold"
+9689:                   />
+9690:                 </div>
+9691: 
+9692:                 {tipo === 'fabricacao' && (
+9693:                   <>
+9694:                     <div className="col-span-6 md:col-span-2">
+9695:                       <label className="t-caption block mb-1">Responsável</label>
+9696:                       <input value={draft.responsible} onChange={(e) => setField('responsible', e.target.value)} placeholder="Quem produz" className="field field-md" />
+9697:                     </div>
+9698:                     <div className="col-span-6 md:col-span-2">
+9699:                       <label className="t-caption block mb-1">Categoria</label>
+9700:                       <PickerField value={draft.productCategory} options={PRODUCT_CATEGORIES} onPick={(opt) => setField('productCategory', opt.value)} className="field field-md" />
+9701:                     </div>
+9702:                     <div className="col-span-4 md:col-span-1">
+9703:                       <label className="t-caption block mb-1">Validade</label>
+9704:                       <input type="number" min="1" value={draft.shelfLifeDays} onChange={(e) => setField('shelfLifeDays', e.target.value)} className="field field-md text-center tnum" />
+9705:                     </div>
+9706:                     <div className="col-span-4 md:col-span-1">
+9707:                       <label className="t-caption block mb-1">Preço</label>
+9708:                       <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setField('price', e.target.value)} placeholder="0,00" className="field field-md text-right tnum no-spin" />
+9709:                     </div>
+9710:                     <div className="col-span-4 md:col-span-1">
+9711:                       <label className="t-caption block mb-1">Vende por</label>
+9712:                       <PickerField value={draft.priceUnit} options={[{value:'un',label:'Unidade'},{value:'kg',label:'Kg'}]} onPick={(opt) => setField('priceUnit', opt.value)} className="field field-md" />
+9713:                     </div>
+9714:                     <div className="col-span-6 md:col-span-1">
+9715:                       <label className="t-caption block mb-1">Vitrine</label>
+9716:                       <label className="field field-md flex items-center gap-2 cursor-pointer">
+9717:                         <input type="checkbox" checked={draft.showcaseEnabled !== false} onChange={(e) => setField('showcaseEnabled', e.target.checked)} className="w-4 h-4" />
+9718:                         <span className="t-callout font-semibold">{draft.showcaseEnabled !== false ? 'Sim' : 'Não'}</span>
+9719:                       </label>
+9720:                     </div>
+9721:                   </>
+9722:                 )}
+9723: 
+9724:                 {tipo === 'insumo' && (
+9725:                   <>
+9726:                     <div className="col-span-6 md:col-span-2">
+9727:                       <label className="t-caption block mb-1">Unidade base</label>
+9728:                       <PickerField value={draft.supplyUnit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => setField('supplyUnit', opt.value)} className="field field-md" />
+9729:                     </div>
+9730:                     <div className="col-span-6 md:col-span-3">
+9731:                       <label className="t-caption block mb-1">Classe</label>
+9732:                       <PickerField value={draft.supplyClass} options={SUPPLY_CLASSES} onPick={(opt) => setField('supplyClass', opt.value)} className="field field-md" />
+9733:                     </div>
+9734:                     <div className="col-span-12 md:col-span-3">
+9735:                       <p className="t-micro pb-2">Depois do cadastro, fornecedor, quantidade e valor da compra são lançados na tabela de Insumos.</p>
+9736:                     </div>
+9737:                   </>
+9738:                 )}
+9739: 
+9740:                 {tipo === 'revenda' && (
+9741:                   <>
+9742:                     <div className="col-span-6 md:col-span-2">
+9743:                       <label className="t-caption block mb-1">Categoria</label>
+9744:                       <PickerField value={draft.resaleCategory} options={[{value:'revenda',label:'Revenda'},{value:'cafeteria',label:'Cafeteria'},{value:'encomenda',label:'Encomenda'}]} onPick={(opt) => setField('resaleCategory', opt.value)} className="field field-md" />
+9745:                     </div>
+9746:                     <div className="col-span-3 md:col-span-2">
+9747:                       <label className="t-caption block mb-1">Preço</label>
+9748:                       <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setField('price', e.target.value)} placeholder="0,00" className="field field-md text-right tnum no-spin" />
+9749:                     </div>
+9750:                     <div className="col-span-3 md:col-span-2">
+9751:                       <label className="t-caption block mb-1">Vende por</label>
+9752:                       <PickerField value={draft.priceUnit} options={[{value:'un',label:'Unidade'},{value:'kg',label:'Kg'},{value:'g',label:'g'}]} onPick={(opt) => setField('priceUnit', opt.value)} className="field field-md" />
+9753:                     </div>
+9754:                     <div className="col-span-12 md:col-span-2">
+9755:                       <p className="t-micro pb-2">A compra e o estoque são lançados depois na tabela de Revenda.</p>
+9756:                     </div>
+9757:                   </>
+9758:                 )}
+9759: 
+9760:                 <div className="col-span-12 md:col-span-2 md:col-start-11">
+9761:                   <button type="submit" disabled={salvando || !String(draft.name || '').trim()} className="btn btn-primary btn-md w-full disabled:opacity-45">
+9762:                     <Icons.Plus className="w-4 h-4" />
+9763:                     {salvando ? 'Salvando…' : `Cadastrar ${tipoInfo[tipo].label.toLowerCase()}`}
+9764:                   </button>
+9765:                 </div>
+9766:               </div>
+9767:             </form>
+9768:           </div>
+9769:         );
+9770:       };
+9771: 
+9772:       // ==========================================
+9773:       // PRODUCT CATALOG VIEW
+9774:       // ==========================================
+9775:       const ProductCatalogView = ({ products, supplies, separatedProducts, currentUnit, onAddProduct, onAddSupply, onAddSeparatedProduct, onUpdateProduct, onDeleteProduct }) => {
+9776:         const [filterText, setFilterText] = useState('');
+9777:         const [filterResponsible, setFilterResponsible] = useState('todos');
+9778: 
+9779:         // Linha de cadastro: um produto por vez, sem sair do teclado
+9780:         const BLANK_DRAFT = { name: '', responsible: '', category: 'salgado', showcaseEnabled: true, shelfLifeDays: 2, price: 8.5, priceUnit: 'un' };
+9781:         const [draft, setDraft] = useState(BLANK_DRAFT);
+9782: 
+9783:         const nameRef = useRef(null);
+9784:         const responsibleRef = useRef(null);
+9785:         const categoryRef = useRef(null);
+9786:         const shelfLifeRef = useRef(null);
+9787:         const priceRef = useRef(null);
+9788: 
+9789:         const responsibleOptions = listResponsibles(products);
+9790:         const hasUnassigned = products.some((p) => !cleanResponsible(p.responsible));
+9791: 
+9792:         const productOptions = products.map((p) => ({ value: p.name, label: p.name }));
+9793:         const responsiblePickerOptions = responsibleOptions.map((r) => ({ value: r, label: r }));
+9794: 
+9795:         // Nome igual ao de um produto já cadastrado: a linha passa a editar aquele produto
+9796:         const findByName = (value) =>
+9797:           normalizeName(value)
+9798:             ? products.find((p) => normalizeName(p.name) === normalizeName(value)) || null
+9799:             : null;
+9800: 
+9801:         const matched = findByName(draft.name);
+9802: 
+9803:         const setField = (field, value) => setDraft((d) => ({ ...d, [field]: value }));
+9804: 
+9805:         // Ao reconhecer um produto existente, a linha carrega os dados dele para ajuste
+9806:         const handleDraftName = (value) => {
+9807:           const found = findByName(value);
+9808:           setDraft((d) => found
+9809:             ? {
+9810:                 name: value,
+9811:                 responsible: found.responsible || '',
+9812:                 category: found.category,
+9813:                 showcaseEnabled: found.showcaseEnabled !== false,
+9814:                 shelfLifeDays: found.shelfLifeDays,
+9815:                 price: found.price,
+9816:                 priceUnit: found.priceUnit || 'un'
+9817:               }
+9818:             : { ...d, name: value });
+9819:         };
+9820: 
+9821:         // Enter passa para o próximo campo; no último, o formulário salva sozinho
+9822:         const goToField = (ref) => (e) => {
+9823:           if (e.key !== 'Enter') return;
+9824:           e.preventDefault();
+9825:           const el = ref.current;
+9826:           if (!el) return;
+9827:           el.focus();
+9828:           if (el.select) el.select();
+9829:         };
+9830: 
+9831:         const filtered = products.filter((p) => {
+9832:           const matchesText = p.name.toLowerCase().includes(filterText.toLowerCase());
+9833:           const matchesResponsible =
+9834:             filterResponsible === 'todos' ||
+9835:             (filterResponsible === 'sem' ? !cleanResponsible(p.responsible) : cleanResponsible(p.responsible) === filterResponsible);
+9836:           return matchesText && matchesResponsible;
+9837:         });
+9838: 
+9839:         // A linha do cadastro não fecha depois de salvar, então o clique
+9840:         // repetido cadastraria o mesmo produto duas vezes
+9841:         const salvar = useCliqueUnico((nome) => {
+9842:           const dados = {
+9843:             name: nome,
+9844:             responsible: cleanResponsible(draft.responsible),
+9845:             category: draft.category,
+9846:             showcaseEnabled: draft.showcaseEnabled !== false,
+9847:             shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 1),
+9848:             price: Math.max(0, Number(draft.price) || 0),
+9849:             priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un'
+9850:           };
+9851: 
+9852:           if (matched) {
+9853:             onUpdateProduct({ ...matched, ...dados });
+9854:           } else {
+9855:             // O id vem do banco; aqui só descrevemos o produto
+9856:             onAddProduct({ ...dados, defaultUnit: 'un', minReplenishmentQty: 5 });
+9857:           }
+9858: 
+9859:           // Responsável e categoria continuam preenchidos: quem cadastra costuma
+9860:           // lançar vários itens seguidos da mesma pessoa
+9861:           setDraft({ ...BLANK_DRAFT, responsible: dados.responsible, category: dados.category, showcaseEnabled: dados.showcaseEnabled, priceUnit: dados.priceUnit });
+9862:           setTimeout(() => {
+9863:             if (nameRef.current) nameRef.current.focus();
+9864:           }, 50);
+9865:         });
+9866: 
+9867:         const handleSubmit = (e) => {
+9868:           e.preventDefault();
+9869:           const nome = draft.name.trim();
+9870:           if (!nome) {
+9871:             if (nameRef.current) nameRef.current.focus();
+9872:             return;
+9873:           }
+9874:           salvar(nome);
+9875:         };
+9876: 
+9877:         return (
+9878:           <div className="space-y-5">
+9879:             <div className="card-quiet px-4 py-3">
+9880:               <div className="t-callout font-bold text-[#1d1d1f]">Cadastro e compras ficam em Entradas</div>
+9881:               <p className="t-micro mt-0.5">Esta tabela continua sendo o cadastro mestre dos produtos de fabricação.</p>
+9882:             </div>
+9883: 
+9884:             <div className="card p-5 sm:p-6 space-y-1">
+9885:               <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
+9886:                 <div className="relative flex-1 max-w-sm">
+9887:                   <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+9888:                   <input
+9889:                     type="text"
+9890:                     placeholder="Pesquisar produto…"
+9891:                     value={filterText}
+9892:                     onChange={(e) => setFilterText(e.target.value)}
+9893:                     className="field field-sm field-search"
+9894:                   />
+9895:                 </div>
+9896:                 <div className="w-52 max-w-full">
+9897:                   <PickerField
+9898:                     value={filterResponsible}
+9899:                     options={[
+9900:                       { value: 'todos', label: 'Todos os responsáveis' },
+9901:                       ...responsibleOptions.map((r) => ({ value: r, label: r })),
+9902:                       ...(hasUnassigned ? [{ value: 'sem', label: NO_RESPONSIBLE_LABEL }] : [])
+9903:                     ]}
+9904:                     onPick={(opt) => setFilterResponsible(opt.value)}
+9905:                     className="field field-sm"
+9906:                   />
+9907:                 </div>
+9908:               </div>
+9909: 
+9910:               <div className="rola-x">
+9911:                 <table className="w-full text-left tabela-larga">
+9912:                   <thead>
+9913:                     <tr className="t-overline-sm border-b hairline">
+9914:                       <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
+9915:                       <th className="py-3 px-3 font-bold">Responsável</th>
+9916:                       <th className="py-3 px-3 font-bold">Categoria</th>
+9917:                       <th className="py-3 px-3 text-center font-bold">Vitrine</th>
+9918:                       <th className="py-3 px-3 text-center font-bold">Validade</th>
+9919:                       <th className="py-3 px-3 text-right font-bold">Preço de venda</th>
+9920:                       <th className="py-3 pl-3 text-right font-bold">Ação</th>
+9921:                     </tr>
+9922:                   </thead>
+9923:                   <tbody>
+9924:                     {filtered.length === 0 ? (
+9925:                       <tr><td colSpan={7} className="text-center py-10"><p className="t-body text-[#86868b]">Nenhum produto encontrado</p></td></tr>
+9926:                     ) : (
+9927:                       filtered.map((p) => (
+9928:                         <tr key={p.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+9929:                           <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+9930:                             <input
+9931:                               type="text"
+9932:                               value={p.name}
+9933:                               onChange={(e) => onUpdateProduct({ ...p, name: e.target.value })}
+9934:                               placeholder="Nome do produto"
+9935:                               title="Nome do produto"
+9936:                               className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-56"
+9937:                             />
+9938:                           </td>
+9939:                           <td className="py-2.5 px-3">
+9940:                             <div className="w-32 sm:w-40">
+9941:                               <PickerField
+9942:                                 value={p.responsible || ''}
+9943:                                 options={responsiblePickerOptions}
+9944:                                 onType={(texto) => onUpdateProduct({ ...p, responsible: texto })}
+9945:                                 onPick={(opt) => onUpdateProduct({ ...p, responsible: opt.value })}
+9946:                                 placeholder="Quem responde…"
+9947:                                 title="Responsável pelo produto"
+9948:                                 emptyLabel="Responsável novo"
+9949:                                 className="field h-8 pl-2.5 text-[12px]"
+9950:                               />
+9951:                             </div>
+9952:                           </td>
+9953:                           <td className="py-2.5 px-3">
+9954:                             <div className="w-28 sm:w-32">
+9955:                               <PickerField
+9956:                                 value={p.category}
+9957:                                 options={PRODUCT_CATEGORIES}
+9958:                                 onPick={(opt) => onUpdateProduct({ ...p, category: opt.value })}
+9959:                                 title="Categoria do produto"
+9960:                                 className="field h-8 pl-2.5 text-[12px]"
+9961:                               />
+9962:                             </div>
+9963:                           </td>
+9964:                           <td className="py-2.5 px-3 text-center">
+9965:                             <label className="inline-flex items-center gap-1.5 cursor-pointer" title="Define se este produto aparece nos fluxos de vitrine e produção">
+9966:                               <input
+9967:                                 type="checkbox"
+9968:                                 checked={p.showcaseEnabled !== false}
+9969:                                 onChange={(e) => onUpdateProduct({ ...p, showcaseEnabled: e.target.checked })}
+9970:                                 className="w-4 h-4"
+9971:                               />
+9972:                               <span className={`t-micro font-bold ${p.showcaseEnabled !== false ? 'text-[#274133]' : 'text-[#86868b]'}`}>
+9973:                                 {p.showcaseEnabled !== false ? 'Sim' : 'Não'}
+9974:                               </span>
+9975:                             </label>
+9976:                           </td>
+9977:                           <td className="py-2.5 px-3">
+9978:                             <div className="flex items-center justify-center gap-1.5">
+9979:                               <input
+9980:                                 type="number"
+9981:                                 min="1"
+9982:                                 value={p.shelfLifeDays}
+9983:                                 onChange={(e) => onUpdateProduct({ ...p, shelfLifeDays: Math.max(1, Number(e.target.value) || 1) })}
+9984:                                 title="Validade em dias a partir da fabricação"
+9985:                                 className="field h-8 px-2 text-[12px] text-center tnum w-14 sm:w-16"
+9986:                               />
+9987:                               <span className="t-micro whitespace-nowrap hidden sm:inline">dia(s)</span>
+9988:                             </div>
+9989:                           </td>
+9990:                           <td className="py-2.5 px-3">
+9991:                             <div className="flex items-center justify-end gap-1.5 min-w-[190px]">
+9992:                               <span className="t-micro">R$</span>
+9993:                               <input
+9994:                                 type="number"
+9995:                                 step="0.01"
+
+===== LINES 10798-11789 =====
+10798:                               placeholder="Fornecedor"
+10799:                               emptyLabel="Fornecedor novo"
+10800:                               className="field h-8 pl-2.5 text-[12px]"
+10801:                             />
+10802:                           </div>
+10803:                         </td>
+10804:                         <td className="py-2 px-3">
+10805:                           <input
+10806:                             type="date"
+10807:                             value={c.purchaseDate || ''}
+10808:                             onChange={(e) => onUpdate({ ...c, purchaseDate: e.target.value })}
+10809:                             className="field h-8 px-2 text-[12px] w-32 sm:w-36"
+10810:                           />
+10811:                         </td>
+10812:                         <td className="py-2 px-3">
+10813:                           <div className="flex items-center justify-end gap-1">
+10814:                             <input
+10815:                               type="number"
+10816:                               min="0"
+10817:                               step="0.001"
+10818:                               value={c.qty || ''}
+10819:                               onChange={(e) => onUpdate({ ...c, qty: Number(e.target.value) || 0 })}
+10820:                               className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+10821:                             />
+10822:                             <span className="t-micro">{c.purchaseUnit || unidadeBase}</span>
+10823:                           </div>
+10824:                         </td>
+10825:                         <td className="py-2 px-3">
+10826:                           <input
+10827:                             type="number"
+10828:                             min="0"
+10829:                             step="0.01"
+10830:                             value={c.cost || ''}
+10831:                             onChange={(e) => onUpdate({ ...c, cost: Number(e.target.value) || 0 })}
+10832:                             className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
+10833:                           />
+10834:                         </td>
+10835:                         <td className="py-2 px-3 text-right">
+10836:                           <span className="t-body tnum">
+10837:                             {formatPrecoInsumo(custoUnitDe(c), c.purchaseUnit || unidadeBase)}
+10838:                           </span>
+10839:                           {idx === 0 && <div className="t-nano ink-quiet">é este que vale</div>}
+10840:                         </td>
+10841:                         <td className="py-2 pl-3 text-right">
+10842:                           <button
+10843:                             onClick={() => onDelete(c.id)}
+10844:                             title="Excluir esta compra"
+10845:                             className="w-7 h-7 rounded-full icon-danger flex items-center justify-center ml-auto"
+10846:                           >
+10847:                             <Icons.Trash2 className="w-4 h-4" />
+10848:                           </button>
+10849:                         </td>
+10850:                       </tr>
+10851:                     ))}
+10852:                   </tbody>
+10853:                 </table>
+10854:               </div>
+10855: 
+10856:               <p className="t-micro pt-3">
+10857:                 O custo do item é sempre o da compra mais recente — é o que você vai pagar para repor.
+10858:               </p>
+10859:             </div>
+10860:           </div>
+10861:         );
+10862:       };
+10863: 
+10864:       // ==========================================
+10865:       // INSUMOS & FICHAS
+10866:       //
+10867:       // A tela de cadastro do CMV, em três painéis:
+10868:       //
+10869:       //   Insumos  → o que se compra, e por quanto
+10870:       //   Fichas   → o que entra em cada produto, e quanto aquilo rende
+10871:       //   Revenda  → o que se compra pronto para vender
+10872:       //
+10873:       // A linha do insumo já mostra a última compra e deixa corrigi-la ali
+10874:       // mesmo: é o que a loja mais faz — chegou a nota, o preço mudou. O
+10875:       // histórico inteiro fica atrás do carrinho, para quando a pergunta for
+10876:       // outra ("subiu quanto?", "de quem eu comprava antes?").
+10877:       // ==========================================
+10878:       const SuppliesRecipesView = ({
+10879:         supplies,
+10880:         supplyPurchases,
+10881:         recipes,
+10882:         recipeItems,
+10883:         products,
+10884:         separatedProducts,
+10885:         resalePurchases,
+10886:         currentUnit,
+10887:         fornecedores,
+10888:         onAddProduct,
+10889:         onUpdateProduct,
+10890:         onAddSupply,
+10891:         onUpdateSupply,
+10892:         onDeleteSupply,
+10893:         onSetUltimaCompraInsumo,
+10894:         onAddSupplyPurchase,
+10895:         onUpdateSupplyPurchase,
+10896:         onDeleteSupplyPurchase,
+10897:         onAddSeparatedProduct,
+10898:         onSetSupplyResale,
+10899:         onUpdateRecipe,
+10900:         onAddRecipeItem,
+10901:         onUpdateRecipeItem,
+10902:         onDeleteRecipeItem,
+10903:         onUpdateSeparatedProduct,
+10904:         onSetUltimaCompraRevenda,
+10905:         onAddResalePurchase,
+10906:         onUpdateResalePurchase,
+10907:         onDeleteResalePurchase,
+10908:         onChangeCatalogType
+10909:       }) => {
+10910:         const [painel, setPainel] = useState('entradas');
+10911:         const [busca, setBusca] = useState('');
+10912:         const [classeFiltro, setClasseFiltro] = useState('todos');
+10913:         // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
+10914:         const [historico, setHistorico] = useState(null);
+10915:         // Produto cuja ficha está aberta
+10916:         const [fichaProdutoId, setFichaProdutoId] = useState(null);
+10917: 
+10918:         // A tabela continua distinguindo os três tipos. No formulário de compra,
+10919:         // porém, insumo e revenda são a MESMA entrada: revenda é uma opção do
+10920:         // insumo, como era no fluxo rápido original.
+10921:         const TIPOS_ENTRADA = [
+10922:           { value: 'insumo', label: 'Insumo' },
+10923:           { value: 'revenda', label: 'Revenda' },
+10924:           { value: 'producao', label: 'Produção' }
+10925:         ];
+10926:         const TIPOS_TABELA = [
+10927:           { value: 'insumo', label: 'Insumo' },
+10928:           { value: 'revenda', label: 'Revenda' },
+10929:           { value: 'insumo_revenda', label: 'Insumo + revenda' },
+10930:           { value: 'producao', label: 'Produção' }
+10931:         ];
+10932:         const UNIDADES_EQUIVALENCIA = [
+10933:           'un', 'kg', 'g', 'L', 'ml', 'fatia', 'pacote', 'caixa', 'lata', 'pote', 'sachê'
+10934:         ].map((value) => ({ value, label: value }));
+10935:         const BLANK_ENTRY = {
+10936:           type: 'insumo',
+10937:           name: '',
+10938:           unit: 'g',
+10939:           supplyClass: 'insumo',
+10940:           variationUnit: '',
+10941:           variationFactor: '',
+10942:           resaleAlso: false,
+10943:           supplier: '',
+10944:           purchaseDate: getTodayDateString(),
+10945:           qty: '',
+10946:           cost: '',
+10947:           purchaseUnit: 'un',
+10948:           responsible: '',
+10949:           productCategory: 'salgado',
+10950:           shelfLifeDays: 2,
+10951:           price: '',
+10952:           priceUnit: 'un',
+10953:           resaleCategory: 'revenda'
+10954:         };
+10955:         const [draft, setDraft] = useState(BLANK_ENTRY);
+10956:         const nomeRef = useRef(null);
+10957: 
+10958:         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
+10959:         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
+10960:         const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
+10961:         const modoProducao = draft.type === 'producao';
+10962: 
+10963:         const nomeDraft = normalizeName(String(draft.name || '').trim());
+10964:         const supplyExistente = nomeDraft
+10965:           ? supplies.find((x) => normalizeName(x.name) === nomeDraft) || null
+10966:           : null;
+10967:         const revendaExistente = nomeDraft
+10968:           ? revendaDaUnidade.find((x) => normalizeName(x.productName) === nomeDraft) || null
+10969:           : null;
+10970:         const produtoExistente = nomeDraft
+10971:           ? products.find((x) => normalizeName(x.name) === nomeDraft) || null
+10972:           : null;
+10973: 
+10974:         const cadastroExistente = modoProducao
+10975:           ? produtoExistente
+10976:           : (supplyExistente || revendaExistente);
+10977: 
+10978:         // Na entrada única, a última compra pode estar no histórico de insumo
+10979:         // ou no histórico de revenda (dados antigos). Usamos a mais recente só
+10980:         // para sugerir fornecedor/quantidade/valor no formulário.
+10981:         const compraExistente = !modoProducao
+10982:           ? ultimaCompra([
+10983:               ...(supplyExistente ? comprasDoInsumo(supplyExistente.id) : []),
+10984:               ...(revendaExistente ? comprasDaRevenda(revendaExistente.id) : [])
+10985:             ])
+10986:           : null;
+10987: 
+10988:         const unidadeBaseDaRevenda = (unidade) => {
+10989:           const u = String(unidade || 'un');
+10990:           if (u === 'kg' || u === 'g') return 'g';
+10991:           if (u === 'L' || u === 'ml') return 'ml';
+10992:           return 'un';
+10993:         };
+10994: 
+10995:         const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) => {
+10996:           const q = Number(qtd) || 0;
+10997:           const de = String(unidadeCompra || unidadeBase || 'un');
+10998:           const para = String(unidadeBase || 'un');
+10999:           if (!q || de === para) return q;
+11000:           if (de === 'kg' && para === 'g') return q * 1000;
+11001:           if (de === 'g' && para === 'kg') return q / 1000;
+11002:           if (de === 'L' && para === 'ml') return q * 1000;
+11003:           if (de === 'ml' && para === 'L') return q / 1000;
+11004:           return q;
+11005:         };
+11006: 
+11007:         // Um nome só no autocomplete. Se o item já é insumo + revenda, ele
+11008:         // aparece uma vez e o hint deixa isso claro.
+11009:         const opcoesCompra = useMemo(() => {
+11010:           const mapa = new Map();
+11011:           supplies.forEach((x) => {
+11012:             const rev = revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name));
+11013:             mapa.set(normalizeName(x.name), {
+11014:               value: `insumo:${x.id}`,
+11015:               label: x.name,
+11016:               hint: rev ? `Insumo · ${x.unit} · revenda também` : `Insumo · ${x.unit}`
+11017:             });
+11018:           });
+11019:           revendaDaUnidade.forEach((x) => {
+11020:             const key = normalizeName(x.productName);
+11021:             if (!mapa.has(key)) {
+11022:               mapa.set(key, {
+11023:                 value: `revenda:${x.id}`,
+11024:                 label: x.productName,
+11025:                 hint: `Revenda · ${x.priceUnit || 'un'}`
+11026:               });
+11027:             }
+11028:           });
+11029:           return Array.from(mapa.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+11030:         }, [supplies, revendaDaUnidade]);
+11031: 
+11032:         const opcoesProducao = useMemo(
+11033:           () => products
+11034:             .map((x) => ({ value: `producao:${x.id}`, label: x.name, hint: `Produção · ${x.priceUnit || 'un'}` }))
+11035:             .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+11036:           [products]
+11037:         );
+11038: 
+11039:         const opcoesCadastro = modoProducao ? opcoesProducao : opcoesCompra;
+11040: 
+11041:         const selecionarCadastro = (opt) => {
+11042:           const [tipo, id] = String(opt?.value || '').split(':');
+11043: 
+11044:           if (tipo === 'producao') {
+11045:             const x = products.find((i) => String(i.id) === id);
+11046:             if (x) setDraft((d) => ({
+11047:               ...d,
+11048:               type: 'producao',
+11049:               name: x.name,
+11050:               responsible: x.responsible || '',
+11051:               productCategory: x.category || 'salgado',
+11052:               shelfLifeDays: x.shelfLifeDays || 2,
+11053:               price: x.price || '',
+11054:               priceUnit: x.priceUnit || 'un'
+11055:             }));
+11056:             return;
+11057:           }
+11058: 
+11059:           if (tipo === 'insumo') {
+11060:             const x = supplies.find((i) => String(i.id) === id);
+11061:             if (!x) return;
+11062:             const rev = revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name));
+11063:             setDraft((d) => ({
+11064:               ...d,
+11065:               type: 'insumo',
+11066:               name: x.name,
+11067:               unit: x.unit || 'g',
+11068:               supplyClass: x.supplyClass || 'insumo',
+11069:               variationUnit: x.variationUnit || '',
+11070:               variationFactor: x.variationFactor || '',
+11071:               resaleAlso: !!rev,
+11072:               price: rev?.price || '',
+11073:               priceUnit: rev?.priceUnit || d.priceUnit || 'un',
+11074:               purchaseUnit: rev?.priceUnit || d.purchaseUnit || x.unit || 'un',
+11075:               resaleCategory: rev?.category || d.resaleCategory || 'revenda'
+11076:             }));
+11077:             return;
+11078:           }
+11079: 
+11080:           if (tipo === 'revenda') {
+11081:             const x = revendaDaUnidade.find((i) => String(i.id) === id);
+11082:             if (!x) return;
+11083:             const ins = supplies.find((i) => normalizeName(i.name) === normalizeName(x.productName));
+11084:             setDraft((d) => ({
+11085:               ...d,
+11086:               type: 'insumo',
+11087:               name: x.productName,
+11088:               unit: ins?.unit || unidadeBaseDaRevenda(x.priceUnit || x.unitOfMeasure),
+11089:               supplyClass: ins?.supplyClass || 'insumo',
+11090:               variationUnit: ins?.variationUnit || '',
+11091:               variationFactor: ins?.variationFactor || '',
+11092:               resaleAlso: true,
+11093:               price: x.price || '',
+11094:               priceUnit: x.priceUnit || 'un',
+11095:               purchaseUnit: x.priceUnit || 'un',
+11096:               resaleCategory: x.category || 'revenda'
+11097:             }));
+11098:           }
+11099:         };
+11100: 
+11101:         const cadastrar = async (e) => {
+11102:           e.preventDefault();
+11103:           const nome = String(draft.name || '').trim();
+11104:           if (!nome) return;
+11105: 
+11106:           if (modoProducao) {
+11107:             const dados = {
+11108:               name: nome,
+11109:               responsible: cleanResponsible(draft.responsible),
+11110:               category: draft.productCategory || 'outro',
+11111:               showcaseEnabled: produtoExistente ? produtoExistente.showcaseEnabled !== false : false,
+11112:               shelfLifeDays: Math.max(1, Number(draft.shelfLifeDays) || 2),
+11113:               price: Math.max(0, Number(draft.price) || 0),
+11114:               priceUnit: draft.priceUnit === 'kg' ? 'kg' : 'un',
+11115:               defaultUnit: 'un',
+11116:               minReplenishmentQty: produtoExistente?.minReplenishmentQty || 5
+11117:             };
+11118:             if (produtoExistente) onUpdateProduct({ ...produtoExistente, ...dados });
+11119:             else await onAddProduct(dados);
+11120:             setDraft((d) => ({
+11121:               ...BLANK_ENTRY,
+11122:               type: 'producao',
+11123:               productCategory: d.productCategory,
+11124:               priceUnit: d.priceUnit,
+11125:               purchaseDate: getTodayDateString()
+11126:             }));
+11127:             setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
+11128:             return;
+11129:           }
+11130: 
+11131:           const qty = Number(draft.qty) || 0;
+11132:           const cost = Number(draft.cost) || 0;
+11133:           if ((qty > 0 || cost > 0) && !(qty > 0 && cost > 0)) {
+11134:             window.alert('Para registrar a compra, preencha quantidade e valor pago.');
+11135:             return;
+11136:           }
+11137: 
+11138:           // Todo item comprado nasce/continua como insumo mestre. A opção
+11139:           // "Também é revenda" só acrescenta a face de venda do MESMO item.
+11140:           let insumo = supplyExistente;
+11141:           if (!insumo) {
+11142:             insumo = await onAddSupply({
+11143:               name: nome,
+11144:               unit: draft.unit || 'g',
+11145:               supplyClass: draft.supplyClass || 'insumo',
+11146:               variationUnit: String(draft.variationUnit || '').trim() || null,
+11147:               variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null
+11148:             });
+11149:           }
+11150: 
+11151:           if (insumo && (String(draft.variationUnit || '').trim() || Number(draft.variationFactor) > 0)) {
+11152:             const variationUnit = String(draft.variationUnit || '').trim() || null;
+11153:             const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
+11154:             if (variationUnit !== (insumo.variationUnit || null) || variationFactor !== (Number(insumo.variationFactor) || null)) {
+11155:               onUpdateSupply({ ...insumo, variationUnit, variationFactor });
+11156:               insumo = { ...insumo, variationUnit, variationFactor };
+11157:             }
+11158:           }
+11159: 
+11160:           if (insumo?.id && qty > 0 && cost > 0) {
+11161:             const qtdBase = draft.resaleAlso
+11162:               ? qtdCompraNaBase(qty, draft.purchaseUnit || draft.unit, insumo.unit || draft.unit)
+11163:               : qty;
+11164:             await onAddSupplyPurchase(insumo.id, {
+11165:               supplier: String(draft.supplier || '').trim(),
+11166:               purchaseDate: draft.purchaseDate || getTodayDateString(),
+11167:               qty: qtdBase,
+11168:               cost
+11169:             });
+11170:           }
+11171: 
+11172:           if (draft.resaleAlso) {
+11173:             let revenda = revendaExistente;
+11174:             const dadosRevenda = {
+11175:               productName: nome,
+11176:               category: draft.resaleCategory || 'revenda',
+11177:               currentQty: revenda?.currentQty || 0,
+11178:               unitOfMeasure: draft.priceUnit || 'un',
+11179:               minQty: revenda?.minQty || 0,
+11180:               price: Math.max(0, Number(draft.price) || 0),
+11181:               priceUnit: draft.priceUnit || 'un'
+11182:             };
+11183: 
+11184:             if (!revenda) {
+11185:               revenda = await onAddSeparatedProduct(dadosRevenda);
+11186:             } else {
+11187:               onUpdateSeparatedProduct({ ...revenda, ...dadosRevenda });
+11188:             }
+11189: 
+11190:             // Revenda também precisa de histórico de compra próprio para CMV.
+11191:             // A mesma entrada alimenta os dois lados sem pedir tudo de novo.
+11192:             if (revenda?.id && qty > 0 && cost > 0) {
+11193:               await onAddResalePurchase(revenda.id, {
+11194:                 supplier: String(draft.supplier || '').trim(),
+11195:                 purchaseDate: draft.purchaseDate || getTodayDateString(),
+11196:                 qty,
+11197:                 purchaseUnit: draft.purchaseUnit || draft.priceUnit || 'un',
+11198:                 cost
+11199:               });
+11200:             }
+11201:           } else if (revendaExistente && insumo && onSetSupplyResale) {
+11202:             // Se a pessoa desmarcou conscientemente em um item já existente,
+11203:             // o cadastro deixa de aparecer como revenda, mas o histórico fica.
+11204:             onSetSupplyResale(insumo, false);
+11205:           }
+11206: 
+11207:           setDraft((d) => ({
+11208:             ...BLANK_ENTRY,
+11209:             type: 'insumo',
+11210:             unit: d.unit,
+11211:             supplyClass: d.supplyClass,
+11212:             priceUnit: d.priceUnit,
+11213:             purchaseUnit: d.purchaseUnit,
+11214:             resaleCategory: d.resaleCategory,
+11215:             purchaseDate: getTodayDateString()
+11216:           }));
+11217:           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
+11218:         };
+11219: 
+11220:         // Produtos de fabricação, com a ficha e o custo já resolvidos
+11221:         const produtosComFicha = useMemo(() => products.map((p) => {
+11222:           const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
+11223:           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
+11224:         }), [products, recipes, recipeItems, supplies, supplyPurchases, separatedProducts]);
+11225: 
+11226:         const fichaAberta = produtosComFicha.find((x) => String(x.produto.id) === String(fichaProdutoId)) || null;
+11227: 
+11228:         const cadastrosUnificados = useMemo(() => {
+11229:           const producao = produtosComFicha.map(({ produto, ficha, custoUn }) => ({
+11230:             key: `producao:${produto.id}`,
+11231:             tipo: 'producao', id: produto.id, name: produto.name, source: produto,
+11232:             unidade: produto.priceUnit || 'un', compra: null, compraOrigem: null, custo: custoUn,
+11233:             ficha
+11234:           }));
+11235: 
+11236:           // Um item marcado como “Também é revenda” existe fisicamente nas duas
+11237:           // tabelas do banco, mas operacionalmente é UM cadastro. A tabela une
+11238:           // os dois pelo nome e mostra “Insumo + revenda”.
+11239:           const insumos = supplies.map((x) => {
+11240:             const rev = revendaDaUnidade.find(
+11241:               (r) => normalizeName(r.productName) === normalizeName(x.name)
+11242:             );
+11243:             const compraInsumo = ultimaCompra(comprasDoInsumo(x.id));
+11244:             if (!rev) {
+11245:               return {
+11246:                 key: `insumo:${x.id}`,
+11247:                 tipo: 'insumo', id: x.id, name: x.name, source: x,
+11248:                 unidade: x.unit || 'g', compra: compraInsumo, compraOrigem: 'insumo',
+11249:                 custo: custoUnitarioInsumo(x.id, supplyPurchases)
+11250:               };
+11251:             }
+11252: 
+11253:             const compraRevenda = ultimaCompra(comprasDaRevenda(rev.id));
+11254:             const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases);
+11255:             const custoDaRevenda = custoRevendaComHistoricoCompartilhado(rev, resalePurchases, supplies, supplyPurchases);
+11256:             return {
+11257:               key: `insumo_revenda:${x.id}:${rev.id}`,
+11258:               tipo: 'insumo_revenda', id: x.id, resaleId: rev.id,
+11259:               name: x.name, source: x, resaleSource: rev,
+11260:               unidade: custoInsumo > 0 ? (x.unit || 'g') : (rev.priceUnit || 'un'),
+11261:               compra: compraInsumo || compraRevenda,
+11262:               compraOrigem: compraInsumo ? 'insumo' : 'revenda',
+11263:               custo: custoInsumo > 0 ? custoInsumo : custoDaRevenda
+11264:             };
+11265:           });
+11266: 
+11267:           // Revenda sem um insumo de mesmo nome continua sendo revenda pura.
+11268:           // As híbridas já foram incorporadas acima e não entram de novo.
+11269:           const revendas = revendaDaUnidade
+11270:             .filter((x) => !supplies.some((s) => normalizeName(s.name) === normalizeName(x.productName)))
+11271:             .map((x) => ({
+11272:               key: `revenda:${x.id}`,
+11273:               tipo: 'revenda', id: x.id, name: x.productName, source: x,
+11274:               unidade: x.priceUnit || 'un', compra: ultimaCompra(comprasDaRevenda(x.id)),
+11275:               compraOrigem: 'revenda', custo: custoRevendaComHistoricoCompartilhado(x, resalePurchases, supplies, supplyPurchases)
+11276:             }));
+11277: 
+11278:           return [...insumos, ...revendas, ...producao].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+11279:         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
+11280: 
+11281:         const cadastrosFiltrados = cadastrosUnificados.filter((x) => {
+11282:           const bateTexto = x.name.toLowerCase().includes(busca.toLowerCase());
+11283:           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
+11284:           return bateTexto && bateTipo;
+11285:         });
+11286: 
+11287:         const atualizarCompraLinha = (linha, campos) => {
+11288:           if (linha.tipo === 'producao') return;
+11289:           const usaRevenda = linha.tipo === 'revenda'
+11290:             || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda');
+11291:           if (usaRevenda) {
+11292:             const rev = linha.resaleSource || linha.source;
+11293:             onSetUltimaCompraRevenda(rev.id, campos);
+11294:           } else {
+11295:             onSetUltimaCompraInsumo(linha.source.id, campos);
+11296:           }
+11297:         };
+11298: 
+11299:         const alterarTipoDaTabela = async (linha, novoTipo) => {
+11300:           if (!novoTipo || novoTipo === linha.tipo) return;
+11301: 
+11302:           if (novoTipo === 'insumo_revenda') {
+11303:             if (linha.tipo === 'insumo') {
+11304:               return onSetSupplyResale(linha.source, true);
+11305:             }
+11306:             if (linha.tipo === 'revenda') {
+11307:               let insumo = supplies.find((s) => normalizeName(s.name) === normalizeName(linha.name));
+11308:               if (!insumo) {
+11309:                 insumo = await onAddSupply({
+11310:                   name: linha.name,
+11311:                   unit: unidadeBaseDaRevenda(linha.source.priceUnit || linha.source.unitOfMeasure),
+11312:                   supplyClass: 'insumo'
+11313:                 });
+11314:               }
+11315:               if (insumo) return onSetSupplyResale(insumo, true);
+11316:               return;
+11317:             }
+11318:             window.alert('Para transformar um produto de produção em Insumo + revenda, mude primeiro para Insumo. Assim o sistema consegue conferir os vínculos da ficha e da vitrine com segurança.');
+11319:             return;
+11320:           }
+11321: 
+11322:           if (linha.tipo === 'insumo_revenda') {
+11323:             if (novoTipo === 'insumo') {
+11324:               return onSetSupplyResale(linha.source, false);
+11325:             }
+11326:             if (novoTipo === 'revenda') {
+11327:               return onChangeCatalogType({ ...linha, tipo: 'insumo' }, 'revenda');
+11328:             }
+11329:             if (novoTipo === 'producao') {
+11330:               window.alert('Para mudar Insumo + revenda para Produção, mude primeiro para Insumo. O sistema confere os vínculos da ficha antes da segunda troca sem desligar a revenda por engano.');
+11331:               return;
+11332:             }
+11333:           }
+11334: 
+11335:           return onChangeCatalogType(linha, novoTipo);
+11336:         };
+11337: 
+11338:         const supplyOptions = supplies.map((s) => ({
+11339:           value: s.id,
+11340:           label: s.name,
+11341:           hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
+11342:         }));
+11343: 
+11344:         const PAINEIS = [
+11345:           { id: 'entradas', label: 'Entradas & compras' },
+11346:           { id: 'fichas', label: 'Fichas técnicas' }
+11347:         ];
+11348: 
+11349:         return (
+11350:           <div className="space-y-5">
+11351:             <div>
+11352:               <h2 className="t-display">Entradas &amp; fichas</h2>
+11353:               <p className="t-body mt-1">
+11354:                 Insumo e revenda entram pelo mesmo formulário de compra. Produção fica separada, porque o custo vem da ficha técnica.
+11355:               </p>
+11356:             </div>
+11357: 
+11358:             <div className="segmented w-full sm:w-auto sm:inline-flex">
+11359:               {PAINEIS.map((p) => (
+11360:                 <button key={p.id} onClick={() => setPainel(p.id)} data-active={painel === p.id} className="flex-1 sm:flex-none h-9 px-4">
+11361:                   {p.label}
+11362:                 </button>
+11363:               ))}
+11364:             </div>
+11365: 
+11366:             {/* ---------------- ENTRADAS / COMPRAS ---------------- */}
+11367:             {painel === 'entradas' && (
+11368:               <div className="space-y-5">
+11369:                 <div className="card p-6 sm:p-7">
+11370:                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+11371:                     <div>
+11372:                       <div className="t-overline flex items-center gap-1.5 mb-2">
+11373:                         <Icons.ShoppingCart className="w-3.5 h-3.5" />
+11374:                         Entrada principal
+11375:                       </div>
+11376:                       <h3 className="t-title">Cadastro + compra</h3>
+11377:                       <p className="t-body mt-1.5">
+11378:                         Um único formulário para insumo e revenda. Marque <strong>Também é revenda?</strong> quando o item também é vendido.
+11379:                       </p>
+11380:                     </div>
+11381:                     <div className="segmented w-full lg:w-auto lg:inline-flex shrink-0">
+11382:                       <button
+11383:                         type="button"
+11384:                         data-active={!modoProducao}
+11385:                         onClick={() => setDraft((d) => ({ ...BLANK_ENTRY, type: 'insumo', unit: d.unit, supplyClass: d.supplyClass, purchaseDate: getTodayDateString() }))}
+11386:                         className="flex-1 lg:flex-none h-9 px-4"
+11387:                       >
+11388:                         Insumo / revenda
+11389:                       </button>
+11390:                       <button
+11391:                         type="button"
+11392:                         data-active={modoProducao}
+11393:                         onClick={() => setDraft((d) => ({ ...BLANK_ENTRY, type: 'producao', productCategory: d.productCategory, priceUnit: d.priceUnit, purchaseDate: getTodayDateString() }))}
+11394:                         className="flex-1 lg:flex-none h-9 px-4"
+11395:                       >
+11396:                         Produção
+11397:                       </button>
+11398:                     </div>
+11399:                   </div>
+11400: 
+11401:                   <form onSubmit={cadastrar} className="mt-5 pt-5 border-t hairline">
+11402:                     <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+11403:                       <div className="col-span-12 lg:col-span-4">
+11404:                         <label className="t-caption block mb-1">Item</label>
+11405:                         <PickerField
+11406:                           inputRef={nomeRef}
+11407:                           value={draft.name}
+11408:                           options={opcoesCadastro}
+11409:                           onType={(name) => setDraft((d) => ({ ...d, name }))}
+11410:                           onPick={selecionarCadastro}
+11411:                           placeholder={modoProducao ? 'Digite ou escolha um produto' : 'Digite ou escolha um insumo / revenda'}
+11412:                           emptyLabel="Item novo — será cadastrado ao salvar"
+11413:                           className="field field-md font-semibold"
+11414:                         />
+11415:                       </div>
+11416: 
+11417:                       {!modoProducao && (
+11418:                         <>
+11419:                           <div className="col-span-4 lg:col-span-2">
+11420:                             <label className="t-caption block mb-1">Unidade base</label>
+11421:                             {supplyExistente ? (
+11422:                               <div className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b]">{supplyExistente.unit}</div>
+11423:                             ) : (
+11424:                               <PickerField
+11425:                                 value={draft.unit}
+11426:                                 options={SUPPLY_UNITS.map((u) => ({ value: u, label: u }))}
+11427:                                 onPick={(opt) => setDraft((d) => ({ ...d, unit: opt.value }))}
+11428:                                 className="field field-md"
+11429:                               />
+11430:                             )}
+11431:                           </div>
+11432:                           <div className="col-span-8 lg:col-span-3">
+11433:                             <label className="t-caption block mb-1">Classe</label>
+11434:                             {supplyExistente ? (
+11435:                               <div className="field field-md flex items-center px-3 bg-black/[0.035] text-[#86868b]">
+11436:                                 {SUPPLY_CLASSES.find((c) => c.value === supplyExistente.supplyClass)?.label || 'Ingrediente'}
+11437:                               </div>
+11438:                             ) : (
+11439:                               <PickerField
+11440:                                 value={draft.supplyClass}
+11441:                                 options={SUPPLY_CLASSES}
+11442:                                 onPick={(opt) => setDraft((d) => ({ ...d, supplyClass: opt.value }))}
+11443:                                 className="field field-md"
+11444:                               />
+11445:                             )}
+11446:                           </div>
+11447:                           <div className="col-span-12 lg:col-span-3">
+11448:                             <label className="t-caption block mb-1">Também é revenda?</label>
+11449:                             <label className="field field-md flex items-center gap-2 cursor-pointer">
+11450:                               <input
+11451:                                 type="checkbox"
+11452:                                 checked={!!draft.resaleAlso}
+11453:                                 onChange={(e) => setDraft((d) => ({ ...d, resaleAlso: e.target.checked }))}
+11454:                                 className="w-4 h-4"
+11455:                               />
+11456:                               <span className="t-callout font-semibold">
+11457:                                 {draft.resaleAlso ? 'Sim · também vendo este item' : 'Não · só uso/compro como insumo'}
+11458:                               </span>
+11459:                             </label>
+11460:                           </div>
+11461:                         </>
+11462:                       )}
+11463: 
+11464:                       {modoProducao && (
+11465:                         <>
+11466:                           <div className="col-span-6 lg:col-span-2">
+11467:                             <label className="t-caption block mb-1">Responsável</label>
+11468:                             <input value={draft.responsible} onChange={(e) => setDraft((d) => ({ ...d, responsible: e.target.value }))} placeholder="Quem produz" className="field field-md" />
+11469:                           </div>
+11470:                           <div className="col-span-6 lg:col-span-2">
+11471:                             <label className="t-caption block mb-1">Categoria</label>
+11472:                             <PickerField value={draft.productCategory} options={PRODUCT_CATEGORIES} onPick={(opt) => setDraft((d) => ({ ...d, productCategory: opt.value }))} className="field field-md" />
+11473:                           </div>
+11474:                           <div className="col-span-4 lg:col-span-1">
+11475:                             <label className="t-caption block mb-1">Validade</label>
+11476:                             <input type="number" min="1" value={draft.shelfLifeDays} onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))} className="field field-md text-center tnum" />
+11477:                           </div>
+11478:                           <div className="col-span-4 lg:col-span-1">
+11479:                             <label className="t-caption block mb-1">Preço</label>
+11480:                             <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))} placeholder="0,00" className="field field-md text-right tnum no-spin" />
+11481:                           </div>
+11482:                           <div className="col-span-4 lg:col-span-1">
+11483:                             <label className="t-caption block mb-1">Vende por</label>
+11484:                             <PickerField value={draft.priceUnit} options={[{ value: 'un', label: 'un' }, { value: 'kg', label: 'kg' }]} onPick={(opt) => setDraft((d) => ({ ...d, priceUnit: opt.value }))} className="field field-md" />
+11485:                           </div>
+11486:                           <div className="col-span-12 lg:col-span-2">
+11487:                             <button type="submit" className="btn btn-primary btn-md w-full">
+11488:                               <Icons.Plus className="w-4 h-4" />
+11489:                               {produtoExistente ? 'Salvar produto' : 'Cadastrar produto'}
+11490:                             </button>
+11491:                           </div>
+11492:                         </>
+11493:                       )}
+11494:                     </div>
+11495: 
+11496:                     {!modoProducao && draft.resaleAlso && (
+11497:                       <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
+11498:                         <div className="col-span-4 sm:col-span-2">
+11499:                           <label className="t-caption block mb-1">Preço de venda</label>
+11500:                           <input
+11501:                             type="number"
+11502:                             min="0"
+11503:                             step="0.01"
+11504:                             value={draft.price}
+11505:                             onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+11506:                             placeholder="0,00"
+11507:                             className="field field-md text-right tnum no-spin"
+11508:                           />
+11509:                         </div>
+11510:                         <div className="col-span-4 sm:col-span-2">
+11511:                           <label className="t-caption block mb-1">Vendido por</label>
+11512:                           <PickerField
+11513:                             value={draft.priceUnit}
+11514:                             options={[{ value: 'un', label: 'unidade' }, { value: 'kg', label: 'kg' }, { value: 'g', label: 'g' }]}
+11515:                             onPick={(opt) => setDraft((d) => ({ ...d, priceUnit: opt.value, purchaseUnit: d.purchaseUnit || opt.value }))}
+11516:                             className="field field-md"
+11517:                           />
+11518:                         </div>
+11519:                         <div className="col-span-4 sm:col-span-3">
+11520:                           <label className="t-caption block mb-1">Categoria da revenda</label>
+11521:                           <PickerField
+11522:                             value={draft.resaleCategory}
+11523:                             options={[{ value: 'revenda', label: 'Revenda' }, { value: 'cafeteria', label: 'Cafeteria' }, { value: 'encomenda', label: 'Encomenda' }]}
+11524:                             onPick={(opt) => setDraft((d) => ({ ...d, resaleCategory: opt.value }))}
+11525:                             className="field field-md"
+11526:                           />
+11527:                         </div>
+11528:                         <div className="col-span-12 sm:col-span-5">
+11529:                           <p className="t-micro pb-2">
+11530:                             A compra abaixo vale para o insumo e também alimenta o histórico/CMV da revenda — sem preencher duas vezes.
+11531:                           </p>
+11532:                         </div>
+11533:                       </div>
+11534:                     )}
+11535: 
+11536:                     {!modoProducao && (
+11537:                       <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
+11538:                         <div className="col-span-12 sm:col-span-4">
+11539:                           <label className="t-caption block mb-1">Fornecedor</label>
+11540:                           <PickerField
+11541:                             value={draft.supplier}
+11542:                             options={fornecedores.map((f) => ({ value: f, label: f }))}
+11543:                             onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
+11544:                             onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
+11545:                             placeholder={compraExistente?.supplier || 'Fornecedor'}
+11546:                             emptyLabel="Fornecedor novo"
+11547:                             className="field field-md"
+11548:                           />
+11549:                         </div>
+11550:                         <div className="col-span-6 sm:col-span-2">
+11551:                           <label className="t-caption block mb-1">Data</label>
+11552:                           <input type="date" value={draft.purchaseDate} onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))} className="field field-md" />
+11553:                         </div>
+11554:                         <div className={`${draft.resaleAlso ? 'col-span-3 sm:col-span-1' : 'col-span-6 sm:col-span-2'}`}>
+11555:                           <label className="t-caption block mb-1">Qtd. comprada</label>
+11556:                           <input
+11557:                             type="number"
+11558:                             min="0"
+11559:                             step="0.001"
+11560:                             value={draft.qty}
+11561:                             onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
+11562:                             placeholder={compraExistente?.qty ? String(compraExistente.qty) : '0'}
+11563:                             className="field field-md text-right tnum no-spin"
+11564:                           />
+11565:                         </div>
+11566:                         {!modoProducao && (
+11567:                           <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
+11568:                             <div className="col-span-12 sm:col-span-3">
+11569:                               <div className="t-caption font-semibold">Equivalência / variação <span className="font-normal text-[#86868b]">(opcional)</span></div>
+11570:                               <p className="t-micro mt-1">Para usar na ficha como fatia, unidade, pacote, kg etc.</p>
+11571:                             </div>
+11572:                             <div className="col-span-6 sm:col-span-3">
+11573:                               <label className="t-caption block mb-1">Unidade alternativa</label>
+11574:                               <PickerField
+11575:                                 value={draft.variationUnit}
+11576:                                 options={UNIDADES_EQUIVALENCIA}
+11577:                                 onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+11578:                                 onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+11579:                                 placeholder="Ex: fatia"
+11580:                                 emptyLabel="Usar esta unidade"
+11581:                                 className="field field-md"
+11582:                               />
+11583:                             </div>
+11584:                             <div className="col-span-6 sm:col-span-2">
+11585:                               <label className="t-caption block mb-1">Quanto vale</label>
+11586:                               <input
+11587:                                 type="number"
+11588:                                 min="0"
+11589:                                 step="0.001"
+11590:                                 value={draft.variationFactor}
+11591:                                 onChange={(e) => setDraft((d) => ({ ...d, variationFactor: e.target.value }))}
+11592:                                 placeholder="Ex: 30"
+11593:                                 className="field field-md text-right tnum no-spin"
+11594:                               />
+11595:                             </div>
+11596:                             <div className="col-span-12 sm:col-span-4">
+11597:                               <label className="t-caption block mb-1">Leitura</label>
+11598:                               <div className="field field-md flex items-center px-3 bg-black/[0.035] t-callout font-semibold">
+11599:                                 {draft.unit === 'un'
+11600:                                   ? `1 un = ${draft.variationFactor || '…'} ${draft.variationUnit || '…'}`
+11601:                                   : `1 ${draft.variationUnit || '…'} = ${draft.variationFactor || '…'} ${draft.unit || 'g'}`}
+11602:                               </div>
+11603:                             </div>
+11604:                           </div>
+11605:                         )}
+11606: 
+11607:                         {draft.resaleAlso && (
+11608:                           <div className="col-span-3 sm:col-span-1">
+11609:                             <label className="t-caption block mb-1">Un. compra</label>
+11610:                             <PickerField
+11611:                               value={draft.purchaseUnit}
+11612:                               options={[{ value: 'un', label: 'un' }, { value: 'kg', label: 'kg' }, { value: 'g', label: 'g' }, { value: 'L', label: 'L' }, { value: 'ml', label: 'ml' }]}
+11613:                               onPick={(opt) => setDraft((d) => ({ ...d, purchaseUnit: opt.value }))}
+11614:                               className="field field-md"
+11615:                             />
+11616:                           </div>
+11617:                         )}
+11618:                         <div className={`${draft.resaleAlso ? 'col-span-6 sm:col-span-2' : 'col-span-6 sm:col-span-2'}`}>
+11619:                           <label className="t-caption block mb-1">Valor pago</label>
+11620:                           <input
+11621:                             type="number"
+11622:                             min="0"
+11623:                             step="0.01"
+11624:                             value={draft.cost}
+11625:                             onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
+11626:                             placeholder={compraExistente?.cost ? String(compraExistente.cost) : '0,00'}
+11627:                             className="field field-md text-right tnum no-spin"
+11628:                           />
+11629:                         </div>
+11630:                         <div className="col-span-6 sm:col-span-2">
+11631:                           <button type="submit" className="btn btn-primary btn-md w-full">
+11632:                             <Icons.Plus className="w-4 h-4" />
+11633:                             {cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra'}
+11634:                           </button>
+11635:                         </div>
+11636:                       </div>
+11637:                     )}
+11638:                   </form>
+11639: 
+11640:                   {!modoProducao && cadastroExistente && (
+11641:                     <div className="mt-3 px-3 py-2 rounded-xl bg-black/[0.035] t-micro">
+11642:                       <strong>{supplyExistente?.name || revendaExistente?.productName}</strong>
+11643:                       <span>
+11644:                         {' · '}
+11645:                         {supplyExistente ? 'insumo' : 'revenda'}
+11646:                         {revendaExistente && supplyExistente ? ' + revenda' : ''}
+11647:                       </span>
+11648:                       {compraExistente && (
+11649:                         <span>
+11650:                           {' · última compra '}{formatCurrencyBR(Number(compraExistente.cost) || 0)}
+11651:                           {compraExistente.supplier ? ` · ${compraExistente.supplier}` : ''}
+11652:                         </span>
+11653:                       )}
+11654:                     </div>
+11655:                   )}
+11656:                 </div>
+11657: 
+11658:                 <div className="card p-5 sm:p-6">
+11659:                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
+11660:                     <div className="relative flex-1 max-w-sm">
+11661:                       <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+11662:                       <input type="text" placeholder="Pesquisar cadastro…" value={busca} onChange={(e) => setBusca(e.target.value)} className="field field-sm field-search" />
+11663:                     </div>
+11664:                     <div className="w-44">
+11665:                       <PickerField value={classeFiltro} options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_TABELA]} onPick={(opt) => setClasseFiltro(opt.value)} className="field field-sm" />
+11666:                     </div>
+11667:                   </div>
+11668: 
+11669:                   <div className="rola-x">
+11670:                     <table className="w-full text-left tabela-larga">
+11671:                       <thead>
+11672:                         <tr className="t-overline-sm border-b hairline">
+11673:                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
+11674:                           <th className="py-3 px-3 font-bold">Tipo</th>
+11675:                           <th className="py-3 px-3 font-bold">Un.</th>
+11676:                           <th className="py-3 px-3 font-bold">Equiv.</th>
+11677:                           <th className="py-3 px-3 font-bold">Fornecedor</th>
+11678:                           <th className="py-3 px-3 font-bold">Data</th>
+11679:                           <th className="py-3 px-3 text-right font-bold">Qtd comprada</th>
+11680:                           <th className="py-3 px-3 text-right font-bold">Valor pago</th>
+11681:                           <th className="py-3 px-3 text-right font-bold">Custo</th>
+11682:                           <th className="py-3 pl-3 font-bold">Detalhes</th>
+11683:                         </tr>
+11684:                       </thead>
+11685:                       <tbody>
+11686:                         {cadastrosFiltrados.length === 0 ? (
+11687:                           <tr><td colSpan={10} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
+11688:                         ) : cadastrosFiltrados.map((linha) => {
+11689:                           const x = linha.source;
+11690:                           const c = linha.compra;
+11691:                           return (
+11692:                             <tr key={linha.key} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+11693:                               <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
+11694:                                 {linha.tipo === 'revenda' ? (
+11695:                                   <input value={x.productName} onChange={(e) => onUpdateSeparatedProduct({...x,productName:e.target.value})} className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48" />
+11696:                                 ) : linha.tipo === 'insumo_revenda' ? (
+11697:                                   <input
+11698:                                     value={x.name}
+11699:                                     onChange={(e) => {
+11700:                                       const name = e.target.value;
+11701:                                       onUpdateSupply({...x,name});
+11702:                                       if (linha.resaleSource) onUpdateSeparatedProduct({...linha.resaleSource,productName:name});
+11703:                                     }}
+11704:                                     className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48"
+11705:                                   />
+11706:                                 ) : linha.tipo === 'insumo' ? (
+11707:                                   <input value={x.name} onChange={(e) => onUpdateSupply({...x,name:e.target.value})} className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48" />
+11708:                                 ) : (
+11709:                                   <input value={x.name} onChange={(e) => onUpdateProduct({...x,name:e.target.value})} className="field h-8 px-2.5 text-[13px] font-semibold w-36 sm:w-48" />
+11710:                                 )}
+11711:                               </td>
+11712:                               <td className="py-2.5 px-3">
+11713:                                 <div className="w-40">
+11714:                                   <PickerField value={linha.tipo} options={TIPOS_TABELA} onPick={(opt) => alterarTipoDaTabela(linha, opt.value)} className="field h-8 pl-2.5 text-[12px] font-bold" />
+11715:                                 </div>
+11716:                               </td>
+11717:                               <td className="py-2.5 px-3">
+11718:                                 <div className="w-16">
+11719:                                   {linha.tipo === 'insumo' || linha.tipo === 'insumo_revenda' ? (
+11720:                                     <PickerField value={x.unit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => onUpdateSupply({...x,unit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
+11721:                                   ) : linha.tipo === 'revenda' ? (
+11722:                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => onUpdateSeparatedProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
+11723:                                   ) : (
+11724:                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'}]} onPick={(opt) => onUpdateProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
+11725:                                   )}
+11726:                                 </div>
+11727:                               </td>
+11728:                               <td className="py-2.5 px-3">
+11729:                                 {linha.tipo === 'insumo' || linha.tipo === 'insumo_revenda' ? (
+11730:                                   <div className="flex items-center gap-1 min-w-[210px]">
+11731:                                     {x.unit === 'un' ? (
+11732:                                       <>
+11733:                                         <span className="t-micro whitespace-nowrap">1 un =</span>
+11734:                                         <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
+11735:                                         <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="unid." emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
+11736:                                       </>
+11737:                                     ) : (
+11738:                                       <>
+11739:                                         <span className="t-micro">1</span>
+11740:                                         <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="fatia" emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
+11741:                                         <span className="t-micro">=</span>
+11742:                                         <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
+11743:                                         <span className="t-micro whitespace-nowrap">{x.unit}</span>
+11744:                                       </>
+11745:                                     )}
+11746:                                   </div>
+11747:                                 ) : <span className="t-empty">—</span>}
+11748:                               </td>
+11749:                               <td className="py-2.5 px-3">
+11750:                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : (
+11751:                                   <div className="w-28 sm:w-36"><PickerField value={c?.supplier || ''} options={fornecedores.map((f) => ({value:f,label:f}))} onType={(v) => atualizarCompraLinha(linha,{supplier:v})} onPick={(opt) => atualizarCompraLinha(linha,{supplier:opt.value})} placeholder="Fornecedor" emptyLabel="Fornecedor novo" className="field h-8 pl-2.5 text-[12px]" /></div>
+11752:                                 )}
+11753:                               </td>
+11754:                               <td className="py-2.5 px-3">
+11755:                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : <input type="date" value={c?.purchaseDate || ''} onChange={(e) => atualizarCompraLinha(linha,{purchaseDate:e.target.value})} className="field h-8 px-2 text-[12px] w-32 sm:w-36" />}
+11756:                               </td>
+11757:                               <td className="py-2.5 px-3">
+11758:                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : (
+11759:                                   <div className="flex items-center justify-end gap-1">
+11760:                                     <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => atualizarCompraLinha(linha,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
+11761:                                     {linha.tipo === 'revenda' || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda') ? (
+11762:                                       <div className="w-14"><PickerField value={c?.purchaseUnit || (linha.resaleSource || x).priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => atualizarCompraLinha(linha,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
+11763:                                     ) : <span className="t-micro">{x.unit}</span>}
+11764:                                   </div>
+11765:                                 )}
+11766:                               </td>
+11767:                               <td className="py-2.5 px-3">
+11768:                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : <input type="number" min="0" step="0.01" value={c?.cost || ''} onChange={(e) => atualizarCompraLinha(linha,{cost:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block" />}
+11769:                               </td>
+11770:                               <td className="py-2.5 px-3 text-right t-callout tnum font-semibold">
+11771:                                 {linha.custo > 0 ? `${formatCurrencyBR(linha.custo)}/${linha.unidade}` : '—'}
+11772:                               </td>
+11773:                               <td className="py-2.5 pl-3">
+11774:                                 {linha.tipo === 'insumo' ? (
+11775:                                   <div className="w-28"><PickerField value={x.supplyClass || 'insumo'} options={SUPPLY_CLASSES} onPick={(opt) => onUpdateSupply({...x,supplyClass:opt.value})} className="field h-8 pl-2.5 text-[12px]" /></div>
+11776:                                 ) : linha.tipo === 'insumo_revenda' ? (
+11777:                                   <div className="flex items-center gap-1.5 min-w-[220px]">
+11778:                                     <div className="w-24"><PickerField value={x.supplyClass || 'insumo'} options={SUPPLY_CLASSES} onPick={(opt) => onUpdateSupply({...x,supplyClass:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
+11779:                                     <span className="t-micro">Venda</span>
+11780:                                     <input type="number" min="0" step="0.01" value={linha.resaleSource?.price || ''} onChange={(e) => linha.resaleSource && onUpdateSeparatedProduct({...linha.resaleSource,price:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-20" />
+11781:                                     <span className="t-micro">/{linha.resaleSource?.priceUnit || 'un'}</span>
+11782:                                   </div>
+11783:                                 ) : (
+11784:                                   <div className="flex items-center gap-1">
+11785:                                     <span className="t-micro">Preço</span>
+11786:                                     <input type="number" min="0" step="0.01" value={x.price || ''} onChange={(e) => linha.tipo === 'revenda' ? onUpdateSeparatedProduct({...x,price:Number(e.target.value)||0}) : onUpdateProduct({...x,price:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-20" />
+11787:                                   </div>
+11788:                                 )}
+11789:                               </td>
+
+===== LINES 15269-15569 =====
+15269:             if (!alvo) return;
+15270:             const dia = campos.dia || toDayKey(alvo.timestamp);
+15271:             const soldAt = comDiaNovo(alvo.timestamp, dia);
+15272:             // O tempo de vitrine é a distância entre o lote e o dia da venda
+15273:             const exposicao = daysBetweenKeys(lote, dia);
+15274: 
+15275:             setSaleRecords((prev) => prev.map((s) => s.id === id ? {
+15276:               ...s, qty, producedQty: tamanhoLote, manufactureDate: lote, exposureDays: exposicao, timestamp: soldAt
+15277:             } : s));
+15278: 
+15279:             write('Corrigir venda', () =>
+15280:               run('sale_records', sb.from('sale_records').update({
+15281:                 qty,
+15282:                 produced_qty: tamanhoLote,
+15283:                 manufacture_date: lote,
+15284:                 exposure_days: exposicao,
+15285:                 sold_at: soldAt
+15286:               }).eq('id', id))
+15287:             );
+15288:             return;
+15289:           }
+15290: 
+15291:           if (tipo === 'perda') {
+15292:             const alvo = lossRecords.find((l) => l.id === id);
+15293:             if (!alvo) return;
+15294:             const dia = campos.dia || alvo.lossDate;
+15295:             const reason = campos.reason || alvo.reason;
+15296:             const details = campos.details || '';
+15297: 
+15298:             setLossRecords((prev) => prev.map((l) => l.id === id ? {
+15299:               ...l, qty, producedQty: tamanhoLote, manufactureDate: lote, lossDate: dia, reason, details
+15300:             } : l));
+15301: 
+15302:             write('Corrigir perda', () =>
+15303:               run('loss_records', sb.from('loss_records').update({
+15304:                 qty,
+15305:                 produced_qty: tamanhoLote,
+15306:                 manufacture_date: lote,
+15307:                 loss_date: dia,
+15308:                 reason,
+15309:                 details: details || null
+15310:               }).eq('id', id))
+15311:             );
+15312:             return;
+15313:           }
+15314: 
+15315:           const alvo = productionRecordsRef.current.find((p) => p.id === id);
+15316:           if (!alvo) return;
+15317: 
+15318:           aplicarProducao(productionRecordsRef.current.map((p) => p.id === id ? {
+15319:             ...p, qty, manufactureDate: lote
+15320:           } : p));
+15321: 
+15322:           write('Corrigir produção', () =>
+15323:             run('production_records', sb.from('production_records').update({
+15324:               qty,
+15325:               manufacture_date: lote
+15326:             }).eq('id', id))
+15327:           );
+15328:         };
+15329: 
+15330:         const handleDeleteProduct = (id) => {
+15331:           const emUso = slotItems.some((i) => i.productId === id);
+15332:           if (emUso) {
+15333:             setErrorMsg('Este produto está na vitrine agora. Dê baixa nele antes de excluir.');
+15334:             return;
+15335:           }
+15336: 
+15337:           write('Excluir produto', async () => {
+15338:             const { error } = await sb.from('products').delete().eq('id', id);
+15339:             // A trava do banco (on delete restrict) impede apagar produto com histórico
+15340:             if (error) throw new Error(
+15341:               error.code === '23503'
+15342:                 ? 'o produto tem lançamentos ligados a ele e não pode ser apagado'
+15343:                 : error.message
+15344:             );
+15345:             setProducts((prev) => prev.filter((p) => p.id !== id));
+15346:           });
+15347:         };
+15348: 
+15349:         const handleChangeCatalogType = (item, novoTipo) => {
+15350:           const tipoAtual = item?.tipo;
+15351:           const id = item?.id;
+15352:           const nome = String(item?.name || item?.source?.name || item?.source?.productName || '').trim();
+15353:           if (!id || !nome || !novoTipo || novoTipo === tipoAtual) return;
+15354: 
+15355:           const rotulo = { producao: 'Produção', insumo: 'Insumo', revenda: 'Revenda' };
+15356:           const ok = window.confirm(`Alterar “${nome}” de ${rotulo[tipoAtual]} para ${rotulo[novoTipo]}?`);
+15357:           if (!ok) return;
+15358: 
+15359:           return write('Alterar tipo do cadastro', async () => {
+15360:             const unidadeInsumo = (u) => {
+15361:               const x = String(u || '').toLowerCase();
+15362:               if (x === 'kg' || x === 'g') return 'g';
+15363:               if (x === 'l' || x === 'ml') return 'ml';
+15364:               return 'un';
+15365:             };
+15366: 
+15367:             const garantirInsumo = async (unidade = 'g') => {
+15368:               let { data, error } = await sb.from('supplies').select('*').eq('name', nome).limit(1);
+15369:               if (error) throw error;
+15370:               let row = data && data[0];
+15371:               if (row) {
+15372:                 const resp = await sb.from('supplies').update({ is_active: true }).eq('id', row.id).select();
+15373:                 if (resp.error) throw resp.error;
+15374:                 row = resp.data && resp.data[0];
+15375:               } else {
+15376:                 const resp = await sb.from('supplies').insert({
+15377:                   name: nome,
+15378:                   unit: unidadeInsumo(unidade),
+15379:                   supply_class: 'insumo',
+15380:                   is_active: true
+15381:                 }).select();
+15382:                 if (resp.error) throw resp.error;
+15383:                 row = resp.data && resp.data[0];
+15384:               }
+15385:               const convertido = fromSupply(row);
+15386:               setSupplies((prev) => [
+15387:                 ...prev.filter((x) => x.id !== convertido.id && normalizeName(x.name) !== normalizeName(nome)),
+15388:                 convertido
+15389:               ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+15390:               return convertido;
+15391:             };
+15392: 
+15393:             const garantirRevenda = async (origem = null) => {
+15394:               let { data, error } = await sb.from('separated_products')
+15395:                 .select('*').eq('unit_code', currentUnit).eq('name', nome).limit(1);
+15396:               if (error) throw error;
+15397:               let row = data && data[0];
+15398:               if (row) {
+15399:                 const resp = await sb.from('separated_products').update({ is_active: true }).eq('id', row.id).select();
+15400:                 if (resp.error) throw resp.error;
+15401:                 row = resp.data && resp.data[0];
+15402:               } else {
+15403:                 const pu = origem?.priceUnit || origem?.unit || 'un';
+15404:                 const resp = await sb.from('separated_products').insert({
+15405:                   unit_code: currentUnit,
+15406:                   name: nome,
+15407:                   category: 'revenda',
+15408:                   current_qty: 0,
+15409:                   unit_of_measure: pu,
+15410:                   min_qty: 0,
+15411:                   price: Number(origem?.price) || 0,
+15412:                   price_unit: pu,
+15413:                   is_active: true
+15414:                 }).select();
+15415:                 if (resp.error) throw resp.error;
+15416:                 row = resp.data && resp.data[0];
+15417:               }
+15418:               const convertido = fromSeparated(row);
+15419:               setSeparatedProducts((prev) => [
+15420:                 ...prev.filter((x) => x.id !== convertido.id && !(x.unit === currentUnit && normalizeName(x.productName) === normalizeName(nome))),
+15421:                 convertido
+15422:               ].sort((a, b) => a.productName.localeCompare(b.productName, 'pt-BR')));
+15423:               return convertido;
+15424:             };
+15425: 
+15426:             const garantirProduto = async (origem = null) => {
+15427:               const local = products.find((p) => normalizeName(p.name) === normalizeName(nome));
+15428:               if (local) return local;
+15429:               const { data, error } = await sb.from('products').insert({
+15430:                 name: nome,
+15431:                 responsible: '',
+15432:                 category: 'outro',
+15433:                 is_active: false,
+15434:                 default_unit: 'un',
+15435:                 min_replenishment_qty: 5,
+15436:                 shelf_life_days: 2,
+15437:                 price: Number(origem?.price) || 0,
+15438:                 price_unit: origem?.priceUnit === 'kg' ? 'kg' : 'un'
+15439:               }).select();
+15440:               if (error) throw traduzirErroProduto(error);
+15441:               const convertido = fromProduct(data[0]);
+15442:               setProducts((prev) => [...prev, convertido].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+15443:               return convertido;
+15444:             };
+15445: 
+15446:             const copiarComprasInsumoParaRevenda = async (supplyId, revendaId, unidade) => {
+15447:               if (resalePurchases.some((c) => c.separatedProductId === revendaId)) return;
+15448:               const origem = supplyPurchases.filter((c) => c.supplyId === supplyId);
+15449:               if (!origem.length) return;
+15450:               const { data, error } = await sb.from('resale_purchases').insert(origem.map((c) => ({
+15451:                 separated_product_id: revendaId,
+15452:                 supplier: c.supplier || '',
+15453:                 purchase_date: c.purchaseDate || null,
+15454:                 qty: Number(c.qty) || 0,
+15455:                 purchase_unit: unidade || 'un',
+15456:                 cost: Number(c.cost) || 0
+15457:               }))).select();
+15458:               if (error) throw error;
+15459:               setResalePurchases((prev) => [...prev, ...(data || []).map(fromResalePurchase)]);
+15460:             };
+15461: 
+15462:             const copiarComprasRevendaParaInsumo = async (revendaId, supplyId, unidadeBase) => {
+15463:               if (supplyPurchases.some((c) => c.supplyId === supplyId)) return;
+15464:               const origem = resalePurchases.filter((c) => c.separatedProductId === revendaId);
+15465:               if (!origem.length) return;
+15466:               const qtdConvertida = (c) => {
+15467:                 const q = Number(c.qty) || 0;
+15468:                 const u = String(c.purchaseUnit || 'un').toLowerCase();
+15469:                 if (unidadeBase === 'g' && u === 'kg') return q * 1000;
+15470:                 if (unidadeBase === 'ml' && u === 'l') return q * 1000;
+15471:                 return q;
+15472:               };
+15473:               const { data, error } = await sb.from('supply_purchases').insert(origem.map((c) => ({
+15474:                 supply_id: supplyId,
+15475:                 supplier: c.supplier || '',
+15476:                 purchase_date: c.purchaseDate || null,
+15477:                 qty: qtdConvertida(c),
+15478:                 cost: Number(c.cost) || 0
+15479:               }))).select();
+15480:               if (error) throw error;
+15481:               setSupplyPurchases((prev) => [...prev, ...(data || []).map(fromSupplyPurchase)]);
+15482:             };
+15483: 
+15484:             if (tipoAtual === 'insumo') {
+15485:               const origem = supplies.find((x) => x.id === id) || item.source;
+15486:               const emFicha = recipeItems.some((ri) => ri.supplyId === id);
+15487:               if (emFicha) throw new Error(`“${nome}” está sendo usado em ficha técnica. Tire-o das fichas antes de mudar o tipo.`);
+15488: 
+15489:               if (novoTipo === 'revenda') {
+15490:                 const alvo = await garantirRevenda({ unit: origem?.unit || 'un' });
+15491:                 await copiarComprasInsumoParaRevenda(id, alvo.id, origem?.unit || 'un');
+15492:               } else {
+15493:                 await garantirProduto({ priceUnit: origem?.unit === 'g' ? 'kg' : 'un' });
+15494:               }
+15495: 
+15496:               const { error } = await sb.from('supplies').update({ is_active: false }).eq('id', id);
+15497:               if (error) throw error;
+15498:               setSupplies((prev) => prev.filter((x) => x.id !== id));
+15499:               return;
+15500:             }
+15501: 
+15502:             if (tipoAtual === 'revenda') {
+15503:               const origem = separatedProducts.find((x) => x.id === id) || item.source;
+15504:               if (novoTipo === 'producao' && Number(origem?.currentQty) > 0) {
+15505:                 throw new Error(`“${nome}” ainda tem ${origem.currentQty} em estoque. Zere ou dê baixa no estoque antes de mudar para Produção.`);
+15506:               }
+15507: 
+15508:               if (novoTipo === 'insumo') {
+15509:                 const alvo = await garantirInsumo(origem?.priceUnit || origem?.unitOfMeasure || 'un');
+15510:                 await copiarComprasRevendaParaInsumo(id, alvo.id, alvo.unit);
+15511:               } else {
+15512:                 await garantirProduto(origem);
+15513:               }
+15514: 
+15515:               const { error } = await sb.from('separated_products').update({ is_active: false }).eq('id', id);
+15516:               if (error) throw error;
+15517:               setSeparatedProducts((prev) => prev.filter((x) => x.id !== id));
+15518:               return;
+15519:             }
+15520: 
+15521:             // Produção: só sai desta tabela quando não existe nada ligado a ela.
+15522:             const temLigacao =
+15523:               slotItems.some((x) => x.productId === id) ||
+15524:               standardPlans.some((x) => x.productId === id) ||
+15525:               recipes.some((x) => x.productId === id) ||
+15526:               recipeItems.some((x) => x.componentProductId === id) ||
+15527:               saleRecords.some((x) => x.productId === id) ||
+15528:               lossRecords.some((x) => x.productId === id) ||
+15529:               productionRecords.some((x) => x.productId === id);
+15530:             if (temLigacao) {
+15531:               throw new Error(`“${nome}” já tem ficha, vitrine ou histórico de produção/venda. Para não perder vínculos, ele não pode trocar de Produção automaticamente.`);
+15532:             }
+15533: 
+15534:             const origem = products.find((x) => x.id === id) || item.source;
+15535:             if (novoTipo === 'insumo') await garantirInsumo(origem?.priceUnit === 'kg' ? 'g' : 'un');
+15536:             else await garantirRevenda(origem);
+15537: 
+15538:             const { error } = await sb.from('products').delete().eq('id', id);
+15539:             if (error) throw error;
+15540:             setProducts((prev) => prev.filter((x) => x.id !== id));
+15541:           });
+15542:         };
+15543: 
+15544:         if (!isSupabaseConfigured) return <SetupScreen />;
+15545:         if (!sb) return (
+15546:           <ConnectionErrorScreen
+15547:             message="A biblioteca do Supabase não carregou. Verifique a conexão com a internet ou algum bloqueador de scripts."
+15548:             onRetry={() => window.location.reload()}
+15549:           />
+15550:         );
+15551:         if (loadState === 'loading') return <LoadingScreen />;
+15552:         if (loadState === 'error') return <ConnectionErrorScreen message={errorMsg} onRetry={() => { setLoadState('loading'); reload(); }} />;
+15553: 
+15554:         if (!entryMode) {
+15555:           return (
+15556:             <EntryScreen
+15557:               onChoose={(mode) => {
+15558:                 setEntryMode(mode);
+15559:                 setActiveTab(mode === 'cmv' ? 'cmv' : 'vitrine');
+15560:               }}
+15561:             />
+15562:           );
+15563:         }
+15564: 
+15565:         return (
+15566:           <div className="min-h-screen flex flex-col font-sans">
+15567:             <Navbar
+15568:               units={units}
+15569:               currentUnit={currentUnit}
+
+===== LINES 15678-15943 =====
+15678:                     Adicionar item
+15679:                   </button>
+15680: 
+15681:                   {/* Folga do fim da página: o + fica por cima do conteúdo, e
+15682:                       sem ela a última linha da lista nunca aparece inteira */}
+15683:                   <div className="h-16 lg:hidden" aria-hidden="true" />
+15684:                 </div>
+15685:               )}
+15686: 
+15687:               {activeTab === 'padrao' && (
+15688:                 <StandardShowcaseView
+15689:                   currentUnit={currentUnit}
+15690:                   unitName={getUnitName(units, currentUnit)}
+15691:                   slots={slots}
+15692:                   products={products}
+15693:                   standardPlans={standardPlans}
+15694:                   selectedDay={selectedDay}
+15695:                   onSelectDay={setSelectedDay}
+15696:                   onUpdatePlanItem={handleUpdatePlanItem}
+15697:                   onRemovePlanItem={handleRemovePlanItem}
+15698:                   onUpdatePlanSchedule={handleUpdatePlanSchedule}
+15699:                   onSetPlanMin={handleSetPlanMin}
+15700:                   onSetWeeklyQty={handleSetWeeklyQty}
+15701:                   onSetWeeklyMin={handleSetWeeklyMin}
+15702:                   onCopyDayPlan={handleCopyDayPlan}
+15703:                   onClearDayPlan={handleClearDayPlan}
+15704:                   onGenerateProductionOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
+15705:                 />
+15706:               )}
+15707: 
+15708:               {activeTab === 'producao' && (
+15709:                 <ProductionOrderView
+15710:                   currentUnit={currentUnit}
+15711:                   unitName={getUnitName(units, currentUnit)}
+15712:                   slots={slots}
+15713:                   slotItems={slotItems}
+15714:                   products={products}
+15715:                   standardPlans={standardPlans}
+15716:                   selectedDay={productionDay}
+15717:                   onSelectDay={setProductionDay}
+15718:                   onApplyProductionToShowcase={handleApplyProductionToShowcase}
+15719:                 />
+15720:               )}
+15721: 
+15722:               {activeTab === 'perdas' && (
+15723:                 <LossesReportView
+15724:                   currentUnit={currentUnit}
+15725:                   unitName={getUnitName(units, currentUnit)}
+15726:                   lossRecords={lossRecords}
+15727:                   onDeleteLoss={handleDeleteLoss}
+15728:                 />
+15729:               )}
+15730: 
+15731:               {activeTab === 'historico' && (
+15732:                 <HistoryView
+15733:                   currentUnit={currentUnit}
+15734:                   unitName={getUnitName(units, currentUnit)}
+15735:                   products={products}
+15736:                   saleRecords={saleRecords}
+15737:                   lossRecords={lossRecords}
+15738:                   productionRecords={productionRecords}
+15739:                   productionReady={productionReady}
+15740:                   slots={slots}
+15741:                   onDeleteSale={handleDeleteSale}
+15742:                   onDeleteLoss={handleDeleteLoss}
+15743:                   onDeleteProduction={handleDeleteProduction}
+15744:                   onEditRecord={handleEditRecord}
+15745:                 />
+15746:               )}
+15747: 
+15748:               {activeTab === 'fora' && (
+15749:                 <SeparatedProductsView
+15750:                   currentUnit={currentUnit}
+15751:                   unitName={getUnitName(units, currentUnit)}
+15752:                   separatedProducts={separatedProducts}
+15753:                   onUpdateQty={handleUpdateSeparatedQty}
+15754:                   onAddSeparatedProduct={handleAddSeparatedProduct}
+15755:                 />
+15756:               )}
+15757: 
+15758:               {activeTab === 'produtos' && (
+15759:                 <ProductCatalogView
+15760:                   products={products}
+15761:                   supplies={supplies}
+15762:                   separatedProducts={separatedProducts}
+15763:                   currentUnit={currentUnit}
+15764:                   onAddProduct={handleAddProduct}
+15765:                   onAddSupply={handleAddSupply}
+15766:                   onAddSeparatedProduct={handleAddSeparatedProduct}
+15767:                   onUpdateProduct={handleUpdateProduct}
+15768:                   onDeleteProduct={handleDeleteProduct}
+15769:                 />
+15770:               )}
+15771: 
+15772:               {activeTab === 'insumos' && (
+15773:                 cmvReady ? (
+15774:                   <SuppliesRecipesView
+15775:                     supplies={supplies}
+15776:                     supplyPurchases={supplyPurchases}
+15777:                     recipes={recipes}
+15778:                     recipeItems={recipeItems}
+15779:                     products={products}
+15780:                     separatedProducts={separatedProducts}
+15781:                     resalePurchases={resalePurchases}
+15782:                     currentUnit={currentUnit}
+15783:                     fornecedores={fornecedoresUsados}
+15784:                     onAddProduct={handleAddProduct}
+15785:                     onUpdateProduct={handleUpdateProduct}
+15786:                     onAddSupply={handleAddSupply}
+15787:                     onUpdateSupply={handleUpdateSupply}
+15788:                     onDeleteSupply={handleDeleteSupply}
+15789:                     onSetUltimaCompraInsumo={handleSetUltimaCompraInsumo}
+15790:                     onAddSupplyPurchase={handleAddSupplyPurchase}
+15791:                     onUpdateSupplyPurchase={handleUpdateSupplyPurchase}
+15792:                     onDeleteSupplyPurchase={handleDeleteSupplyPurchase}
+15793:                     onAddSeparatedProduct={handleAddSeparatedProduct}
+15794:                     onSetSupplyResale={handleSetSupplyResale}
+15795:                     onUpdateRecipe={handleUpdateRecipe}
+15796:                     onAddRecipeItem={handleAddRecipeItem}
+15797:                     onUpdateRecipeItem={handleUpdateRecipeItem}
+15798:                     onDeleteRecipeItem={handleDeleteRecipeItem}
+15799:                     onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+15800:                     onSetUltimaCompraRevenda={handleSetUltimaCompraRevenda}
+15801:                     onAddResalePurchase={handleAddResalePurchase}
+15802:                     onUpdateResalePurchase={handleUpdateResalePurchase}
+15803:                     onDeleteResalePurchase={handleDeleteResalePurchase}
+15804:                     onChangeCatalogType={handleChangeCatalogType}
+15805:                   />
+15806:                 ) : <CmvSetupNotice />
+15807:               )}
+15808: 
+15809:               {activeTab === 'cmv' && (
+15810:                 cmvReady ? (
+15811:                   <CmvView
+15812:                     products={products}
+15813:                     recipes={recipes}
+15814:                     recipeItems={recipeItems}
+15815:                     supplies={supplies}
+15816:                     supplyPurchases={supplyPurchases}
+15817:                     separatedProducts={separatedProducts}
+15818:                     resalePurchases={resalePurchases}
+15819:                     currentUnit={currentUnit}
+15820:                     unitName={getUnitName(units, currentUnit)}
+15821:                     onUpdateProduct={handleUpdateProduct}
+15822:                     onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+15823:                     onUpdateRecipe={handleUpdateRecipe}
+15824:                     onAddRecipeItem={handleAddRecipeItem}
+15825:                     onUpdateRecipeItem={handleUpdateRecipeItem}
+15826:                     onDeleteRecipeItem={handleDeleteRecipeItem}
+15827:                   />
+15828:                 ) : <CmvSetupNotice />
+15829:               )}
+15830: 
+15831:               {activeTab === 'fornecedores' && (
+15832:                 cmvReady ? (
+15833:                   <SuppliersView
+15834:                     supplies={supplies}
+15835:                     supplyPurchases={supplyPurchases}
+15836:                     separatedProducts={separatedProducts}
+15837:                     resalePurchases={resalePurchases}
+15838:                     currentUnit={currentUnit}
+15839:                     unitName={getUnitName(units, currentUnit)}
+15840:                   />
+15841:                 ) : <CmvSetupNotice />
+15842:               )}
+15843:             </main>
+15844: 
+15845:             {/* Fechada, a folha não guarda nada: o open corta ela antes dos
+15846:                 estados, então produto, quantidade e data começam do zero a
+15847:                 cada abertura */}
+15848:             <QuickAddSheet
+15849:               open={quickAddOpen}
+15850:               currentUnit={currentUnit}
+15851:               slots={slots}
+15852:               products={products}
+15853:               showcaseType={showcaseFilter}
+15854:               onChangeShowcaseType={setShowcaseFilter}
+15855:               onQuickAllocate={handleQuickAllocate}
+15856:               onClose={() => setQuickAddOpen(false)}
+15857:             />
+15858: 
+15859:             <SlotAddModal
+15860:               slot={slotToFill}
+15861:               itemsInSlot={slotToFill ? slotItems.filter((i) => i.slotId === slotToFill.id) : []}
+15862:               /* O móvel inteiro, e não só o espaço sugerido: é ele que diz se
+15863:                  o produto digitado já está exposto em algum lugar daqui */
+15864:               itemsInShowcase={slotToFill ? itemsOfShowcase(slots, slotItems, slotToFill) : []}
+15865:               products={products}
+15866:               onClose={() => setSlotToFill(null)}
+15867:               onConfirm={handleQuickAllocate}
+15868:             />
+15869: 
+15870:             {/* A chave remonta a janela a cada abertura: o modo (venda ou
+15871:                 perda) e a quantidade sempre começam do zero */}
+15872:             {decreaseTarget && (
+15873:               <ItemDecreaseModal
+15874:                 key={`${decreaseTarget.item.id}:${decreaseTarget.mode}`}
+15875:                 item={slotItems.find((i) => i.id === decreaseTarget.item.id) || decreaseTarget.item}
+15876:                 initialMode={decreaseTarget.mode}
+15877:                 onClose={() => setDecreaseTarget(null)}
+15878:                 onRecordSale={handleRecordSale}
+15879:                 onRecordLoss={handleRecordLoss}
+15880:                 onRecordSellAll={handleRecordSellAll}
+15881:               />
+15882:             )}
+15883: 
+15884:             {/* A chave remonta a conferência a cada abertura: ela sempre começa
+15885:                 no primeiro item da vitrine que está aberta */}
+15886:             {checklistAberto && (
+15887:               <ShowcaseQuickChecklist
+15888:                 key={showcaseFilter}
+15889:                 currentUnit={currentUnit}
+15890:                 slots={slots}
+15891:                 slotItems={slotItems}
+15892:                 products={products}
+15893:                 standardPlans={standardPlans}
+15894:                 showcaseType={showcaseFilter}
+15895:                 onRecordSale={handleRecordSale}
+15896:                 onRecordLoss={handleRecordLoss}
+15897:                 onSetQty={handleSetQty}
+15898:                 onUndoBaixa={desfazerBaixa}
+15899:                 onClose={() => setChecklistAberto(false)}
+15900:               />
+15901:             )}
+15902: 
+15903:             {undoBaixa && (
+15904:               <UndoBaixaBar info={undoBaixa} onUndo={handleUndoBaixa} onDismiss={() => setUndoBaixa(null)} />
+15905:             )}
+15906: 
+15907:             <footer className="mt-auto border-t hairline">
+15908:               {/* No celular da vitrine o + fica preso no canto de baixo: o
+15909:                   rodapé abre espaço para não ficar embaixo dele */}
+15910:               <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-between items-center gap-2 ${
+15911:                 activeTab === 'vitrine' ? 'pb-24 lg:pb-4' : ''
+15912:               }`}>
+15913:                 <div className="flex items-center gap-2">
+15914:                   <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'dot-last' : 'dot-fresh'}`} />
+15915:                   <span className="t-caption">
+15916:                     {pendingWrites > 0
+15917:                       ? 'Salvando no Supabase…'
+15918:                       : lastSync
+15919:                         ? `Salvo no Supabase · ${lastSync.toLocaleTimeString('pt-BR')}`
+15920:                         : 'Conectado ao Supabase'}
+15921:                   </span>
+15922:                   <button
+15923:                     onClick={() => reload()}
+15924:                     title="Buscar as alterações das outras unidades agora"
+15925:                     className="t-caption underline underline-offset-2 hover:text-[#1d1d1f] transition-colors"
+15926:                   >
+15927:                     Atualizar
+15928:                   </button>
+15929:                 </div>
+15930:                 <div className="t-caption">
+15931:                   Unidade <strong className="text-[#1d1d1f] font-bold">{getUnitName(units, currentUnit)}</strong>
+15932:                 </div>
+15933:               </div>
+15934:             </footer>
+15935:           </div>
+15936:         );
+15937:       }
+15938: 
+15939:       const root = ReactDOM.createRoot(document.getElementById('root'));
+15940:       root.render(<App />);
+15941:     </script>
+15942:   </body>
+15943: </html>
