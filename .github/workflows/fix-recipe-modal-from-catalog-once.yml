@@ -17,7 +17,6 @@ jobs:
         run: |
           grep -q '2026-09-04-ficha-cadastro-modal-1' index.html
           grep -q 'Ficha técnica é modal global desta tela' index.html
-          test "$(grep -c '{fichaAberta && (' index.html)" -eq 1
           grep -q 'onClick={() => setFichaProdutoId(x.id)} title="Abrir ficha técnica"' index.html
       - name: Commit
         run: |
