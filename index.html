@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-04-carrinho-esquerda-item-1" />
+    <meta name="app-version" content="2026-09-04-ficha-tipo-picker-largo-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2742,7 +2742,8 @@
         title,
         disabled = false,
         inputProps = {},
-        emptyLabel = 'Nada encontrado'
+        emptyLabel = 'Nada encontrado',
+        panelMinWidth = 0
       }) => {
         const [open, setOpen] = useState(false);
         const [active, setActive] = useState(-1);
@@ -2770,12 +2771,15 @@
           const r = el.getBoundingClientRect();
           const below = window.innerHeight - r.bottom;
           const flip = below < 180 && r.top > below;
+          const larguraDesejada = Math.max(r.width, Number(panelMinWidth) || 0);
+          const larguraPainel = Math.min(Math.max(160, window.innerWidth - 16), larguraDesejada);
+          const esquerdaPainel = Math.max(8, Math.min(r.left, window.innerWidth - larguraPainel - 8));
           setBox({
-            left: r.left,
-            width: r.width,
+            left: esquerdaPainel,
+            width: larguraPainel,
             top: flip ? null : r.bottom + 6,
             bottom: flip ? window.innerHeight - r.top + 6 : null,
-            maxHeight: Math.max(120, Math.min(260, (flip ? r.top : below) - 16))
+            maxHeight: Math.max(120, Math.min(300, (flip ? r.top : below) - 16))
           });
         };
 
@@ -12228,6 +12232,11 @@
                 onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
                 onUpdateItem={onUpdateRecipeItem}
                 onDeleteItem={onDeleteRecipeItem}
+                catalogTypeOptions={TIPOS_TABELA.filter((t) => ['producao', 'insumo', 'revenda'].includes(t.value))}
+                onChangeProductType={(novoTipo) => {
+                  const linha = cadastrosUnificados.find((c) => c.tipo === 'producao' && c.id === fichaAberta.produto.id);
+                  if (linha) alterarTipoDaTabela(linha, novoTipo);
+                }}
               />
             )}
 
@@ -12296,7 +12305,9 @@
         onUpdateRecipe,
         onAddItem,
         onUpdateItem,
-        onDeleteItem
+        onDeleteItem,
+        catalogTypeOptions = [],
+        onChangeProductType
       }) => {
         const [novoComponente, setNovoComponente] = useState('');
 
@@ -12327,7 +12338,7 @@
           const comprados = supplyOptions.map((o) => ({
             ...o,
             value: `insumo:${o.value}`,
-            hint: `Comprado${o.hint ? ` · ${o.hint}` : ''}`
+            hint: `Insumo${o.hint ? ` · ${o.hint}` : ''}`
           }));
 
           const fabricados = products
@@ -12343,8 +12354,8 @@
                 value: `produto:${p.id}`,
                 label: p.name,
                 hint: custoP > 0
-                  ? `Fabricação própria · ${formatCurrencyBR(custoP)}/${unidadeP}${equivalenciaP}`
-                  : `Fabricação própria · sem ficha/custo${equivalenciaP}`
+                  ? `Produção · ${formatCurrencyBR(custoP)}/${unidadeP}${equivalenciaP}`
+                  : `Produção · sem ficha/custo${equivalenciaP}`
               };
             });
 
@@ -12396,12 +12407,27 @@
             <div className="relative bg-white rounded-[24px] w-full max-w-5xl max-h-[88vh] overflow-y-auto shadow-[0_24px_64px_rgba(0,0,0,0.24)] border hairline my-auto">
               <div className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3 pb-4 border-b hairline">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="t-overline flex items-center gap-1.5 mb-1">
                   <Icons.ClipboardList className="w-3.5 h-3.5" />
                   Ficha técnica
                 </div>
-                <h3 className="t-title truncate">{produto.name}</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <h3 className="t-title truncate flex-1">{produto.name}</h3>
+                  {onChangeProductType && (
+                    <div className="w-full sm:w-40 shrink-0">
+                      <label className="t-nano block mb-1">Tipo do cadastro</label>
+                      <PickerField
+                        value="producao"
+                        options={catalogTypeOptions}
+                        onPick={(opt) => onChangeProductType(opt.value)}
+                        className="field h-8 pl-2.5 text-[12px] font-bold"
+                        panelMinWidth={190}
+                        title="Alterar o tipo deste produto"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               <button type="button" onClick={onClose} title="Fechar ficha" className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
                 <Icons.X className="w-4 h-4" />
@@ -12480,7 +12506,7 @@
             </div>
 
             <div className="py-4 border-b hairline">
-              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_260px] gap-3 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                 <div className="min-w-0">
                   <label className="t-caption block mb-1">Adicionar insumo</label>
                   <PickerField
@@ -12489,6 +12515,7 @@
                     onPick={adicionar}
                     placeholder="Escolha um insumo…"
                     className="field field-sm"
+                    panelMinWidth={520}
                   />
                 </div>
 
@@ -12504,6 +12531,7 @@
                     placeholder="Produto da casa…"
                     className="field field-sm bg-black/[0.018]"
                     emptyLabel="Nenhum produto disponível"
+                    panelMinWidth={520}
                   />
                 </div>
               </div>
@@ -12553,7 +12581,7 @@
                     return (
                       <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                         <td className="py-2.5 pr-3">
-                          <div className="w-40 sm:w-56">
+                          <div className="w-60 sm:w-72">
                             <PickerField
                               value={seletorValue}
                               options={opcoesComponentes}
@@ -12564,6 +12592,7 @@
                               }}
                               placeholder="Ingrediente"
                               className="field h-8 pl-2.5 text-[12px] font-semibold"
+                              panelMinWidth={520}
                             />
                           </div>
                         </td>
@@ -15853,17 +15882,24 @@
               return;
             }
 
-            // Produção: só sai desta tabela quando não existe nada ligado a ela.
-            const temLigacao =
+            // Produção: a própria ficha pode ser removida na conversão. O que
+            // continua bloqueando é vínculo operacional externo: vitrine, histórico
+            // ou este produto sendo componente de outra ficha.
+            const receitasDoProduto = recipes.filter((x) => x.productId === id);
+            const idsReceitasDoProduto = new Set(receitasDoProduto.map((x) => x.id));
+            const temLigacaoExterna =
               slotItems.some((x) => x.productId === id) ||
               standardPlans.some((x) => x.productId === id) ||
-              recipes.some((x) => x.productId === id) ||
               recipeItems.some((x) => x.componentProductId === id) ||
               saleRecords.some((x) => x.productId === id) ||
               lossRecords.some((x) => x.productId === id) ||
               productionRecords.some((x) => x.productId === id);
-            if (temLigacao) {
-              throw new Error(`“${nome}” já tem ficha, vitrine ou histórico de produção/venda. Para não perder vínculos, ele não pode trocar de Produção automaticamente.`);
+            if (temLigacaoExterna) {
+              throw new Error(`“${nome}” tem vitrine, histórico ou é usado em outra ficha. Para não perder vínculos, ele não pode trocar de Produção automaticamente.`);
+            }
+            if (receitasDoProduto.length > 0) {
+              const apagarFicha = window.confirm(`“${nome}” tem ficha técnica. Ao mudar de Produção para ${novoTipo === 'insumo' ? 'Insumo' : 'Revenda'}, essa ficha será removida. Continuar?`);
+              if (!apagarFicha) return;
             }
 
             const origem = products.find((x) => x.id === id) || item.source;
@@ -15873,6 +15909,10 @@
             const { error } = await sb.from('products').delete().eq('id', id);
             if (error) throw error;
             setProducts((prev) => prev.filter((x) => x.id !== id));
+            if (idsReceitasDoProduto.size > 0) {
+              setRecipes((prev) => prev.filter((x) => !idsReceitasDoProduto.has(x.id)));
+              setRecipeItems((prev) => prev.filter((x) => !idsReceitasDoProduto.has(x.recipeId)));
+            }
           });
         };
 
