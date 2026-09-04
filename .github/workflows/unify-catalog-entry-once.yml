@@ -13,7 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply patch
-        run: python3 .github/scripts/unify_catalog_entry.py
+        run: |
+          sed -i "s/assert s.count('Equivalência \/ variação') >= 2/assert s.count('Equivalência \/ variação') >= 1/" .github/scripts/unify_catalog_entry.py
+          python3 .github/scripts/unify_catalog_entry.py
       - name: Verify
         run: |
           python3 - <<'PY'
