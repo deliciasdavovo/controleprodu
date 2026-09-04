@@ -1,0 +1,41 @@
+name: Unify catalog entry
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/unify_catalog_entry.py'
+      - '.github/workflows/unify-catalog-entry-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 .github/scripts/unify_catalog_entry.py
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+            '2026-09-04-cadastros-unificados-1',
+            "{ id: 'insumos', label: 'Cadastros'",
+            'Revenda apenas · comprado pronto para vender',
+            'Ex.: 1 fatia = 30 g · 1 un = 500 g.',
+            'Revenda apenas: a compra abaixo alimenta diretamente custo e CMV.',
+            'const temInsumo', 'const temRevenda'
+          ]
+          for c in checks: assert c in s, c
+          assert "activeTab === 'produtos'" not in s
+          assert 'Também é revenda?</label>' not in s
+          print('verify ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "DDV Catalog"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Unify catalog and purchase entry"
+          git push
