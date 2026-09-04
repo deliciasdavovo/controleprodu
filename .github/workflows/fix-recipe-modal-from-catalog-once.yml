@@ -1,0 +1,29 @@
+name: Fix recipe modal from catalog
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-recipe-modal-from-catalog-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/fix_recipe_modal_from_catalog.py
+      - name: Verify
+        run: |
+          grep -q '2026-09-04-ficha-cadastro-modal-1' index.html
+          grep -q 'Ficha técnica é modal global desta tela' index.html
+          test "$(grep -c '{fichaAberta && (' index.html)" -eq 1
+          grep -q 'onClick={() => setFichaProdutoId(x.id)} title="Abrir ficha técnica"' index.html
+      - name: Commit
+        run: |
+          git config user.name 'DDV Catalog'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix recipe modal from catalog table'
+          git push
