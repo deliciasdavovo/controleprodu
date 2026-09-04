@@ -16,19 +16,19 @@ jobs:
           from pathlib import Path
           s = Path('index.html').read_text(encoding='utf-8').splitlines()
           markers = [
-            'const SuppliesRecipesView',
-            'const RecipeEditor',
-            'const opcoesInsumos',
-            'Fabricação própria',
-            'Adicionar insumo',
-            '<RecipeEditor',
-            'const PickerField'
+            'const handleChangeCatalogType',
+            'onChangeCatalogType={',
+            'const PickerField',
+            'createPortal(',
+            'option.hint',
+            'visible.map',
+            'const RecipeEditor'
           ]
           seen=[]
           for m in markers:
             for i,line in enumerate(s):
               if m in line:
-                a=max(0,i-25); b=min(len(s),i+90)
+                a=max(0,i-35); b=min(len(s),i+150)
                 key=(a,b)
                 if key in seen: continue
                 seen.append(key)
