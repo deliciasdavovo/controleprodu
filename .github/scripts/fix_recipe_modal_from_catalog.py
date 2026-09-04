@@ -13,7 +13,7 @@ elif new_version not in s:
 block = '''                {fichaAberta && (\n                  <RecipeEditor\n                    produto={fichaAberta.produto}\n                    ficha={fichaAberta.ficha}\n                    custoUn={fichaAberta.custoUn}\n                    supplies={supplies}\n                    supplyPurchases={supplyPurchases}\n                    supplyOptions={supplyOptions}\n                    products={products}\n                    recipes={recipes}\n                    recipeItems={recipeItems}\n                    onClose={() => setFichaProdutoId(null)}\n                    onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}\n                    onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}\n                    onUpdateItem={onUpdateRecipeItem}\n                    onDeleteItem={onDeleteRecipeItem}\n                  />\n                )}\n'''
 
 if s.count(block) != 1:
-    raise SystemExit(f'expected exactly one recipe editor block, found {s.count(block)}')
+    raise SystemExit(f'expected exactly one catalog recipe editor block, found {s.count(block)}')
 
 # Remove o editor de dentro do painel Fichas. Ali ele só renderizava quando a aba
 # Fichas técnicas estava ativa, então o botão da tabela de Cadastros parecia não fazer nada.
@@ -26,11 +26,12 @@ if anchor not in s:
 outside = '''            {/* Ficha técnica é modal global desta tela: pode ser aberta tanto\n                pela tabela de Cadastros quanto pela aba Fichas técnicas. */}\n            {fichaAberta && (\n              <RecipeEditor\n                produto={fichaAberta.produto}\n                ficha={fichaAberta.ficha}\n                custoUn={fichaAberta.custoUn}\n                supplies={supplies}\n                supplyPurchases={supplyPurchases}\n                supplyOptions={supplyOptions}\n                products={products}\n                recipes={recipes}\n                recipeItems={recipeItems}\n                onClose={() => setFichaProdutoId(null)}\n                onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}\n                onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}\n                onUpdateItem={onUpdateRecipeItem}\n                onDeleteItem={onDeleteRecipeItem}\n              />\n            )}\n\n'''
 s = s.replace(anchor, outside + anchor, 1)
 
-# Validações simples para impedir um commit que deixe dois modais ou nenhum.
-if s.count('{fichaAberta && (') != 1:
-    raise SystemExit(f'expected one global fichaAberta modal, found {s.count("{fichaAberta && (")}')
+# Há outro fichaAberta independente na tela de CMV. Validamos apenas o modal
+# desta tela por marcadores próprios, em vez de contar o arquivo inteiro.
 if 'Ficha técnica é modal global desta tela' not in s:
-    raise SystemExit('global modal marker missing')
+    raise SystemExit('global catalog modal marker missing')
+if s.count(outside) != 1:
+    raise SystemExit('global catalog recipe modal was not inserted exactly once')
 if 'onClick={() => setFichaProdutoId(x.id)} title="Abrir ficha técnica"' not in s:
     raise SystemExit('catalog recipe button missing')
 
