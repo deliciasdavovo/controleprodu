@@ -1,0 +1,40 @@
+name: Fix shared resale purchase cost
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/fix_resale_cost_shared_history.py'
+      - '.github/workflows/fix-resale-cost-shared-history-once.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python3 .github/scripts/fix_resale_cost_shared_history.py
+      - name: Verify
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+            '2026-09-04-cmv-revenda-historico-1',
+            'const custoRevendaComHistoricoCompartilhado',
+            'normalizeName(s.name) === normalizeName(item.productName)',
+            "base === 'g' && venda === 'kg'",
+            'custoRevendaComHistoricoCompartilhado(\n              item,',
+            '[separatedProducts, currentUnit, resalePurchases, supplies, supplyPurchases]',
+          ]
+          for c in checks:
+              assert c in s, c
+          print('verify ok')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "DDV CMV"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Use shared purchase history for resale CMV"
+          git push
