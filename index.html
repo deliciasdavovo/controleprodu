@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-03-equivalencia-insumo-1" />
+    <meta name="app-version" content="2026-09-04-cmv-revenda-historico-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2096,6 +2096,55 @@
           if (qtd > 0 && Number(uc.cost) > 0) return Number(uc.cost) / qtd;
         }
         return Number(item.cost) || 0;
+      };
+
+      // Revendas novas usam resale_purchases. Dados antigos/importados podem
+      // ter a compra no mesmo item de supplies/supply_purchases. O CMV usa
+      // primeiro a compra própria da revenda e só então reaproveita esse
+      // histórico, convertendo a unidade quando necessário.
+      const custoRevendaComHistoricoCompartilhado = (
+        item,
+        resalePurchases,
+        supplies,
+        supplyPurchases
+      ) => {
+        const direto = custoRevenda(item, resalePurchases);
+        if (direto > 0) return direto;
+
+        const insumo = (supplies || []).find(
+          (s) => normalizeName(s.name) === normalizeName(item.productName)
+        );
+        if (!insumo) return 0;
+
+        const custoBase = custoUnitarioInsumo(insumo.id, supplyPurchases);
+        if (!(custoBase > 0)) return 0;
+
+        const base = String(insumo.unit || 'un');
+        const venda = String(item.priceUnit || item.unitOfMeasure || 'un');
+
+        if (base === venda) return custoBase;
+        if (base === 'g' && venda === 'kg') return custoBase * 1000;
+        if (base === 'kg' && venda === 'g') return custoBase / 1000;
+        if (base === 'ml' && venda === 'L') return custoBase * 1000;
+        if (base === 'L' && venda === 'ml') return custoBase / 1000;
+
+        const alt = String(insumo.variationUnit || '');
+        const fator = Number(insumo.variationFactor) || 0;
+        if (fator > 0 && alt) {
+          // Base diferente de un: 1 unidade alternativa = fator unidades-base.
+          if (base !== 'un' && alt === venda) return custoBase * fator;
+
+          // Base un: 1 un = fator unidades alternativas.
+          if (base === 'un') {
+            if (alt === venda) return custoBase / fator;
+            if (alt === 'g' && venda === 'kg') return (custoBase / fator) * 1000;
+            if (alt === 'kg' && venda === 'g') return (custoBase / fator) / 1000;
+            if (alt === 'ml' && venda === 'L') return (custoBase / fator) * 1000;
+            if (alt === 'L' && venda === 'ml') return (custoBase / fator) / 1000;
+          }
+        }
+
+        return 0;
       };
 
       // Reúne a ficha de um produto num objeto só, com o custo já somado.
@@ -10750,7 +10799,7 @@
 
             const compraRevenda = ultimaCompra(comprasDaRevenda(rev.id));
             const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases);
-            const custoDaRevenda = custoRevenda(rev, resalePurchases);
+            const custoDaRevenda = custoRevendaComHistoricoCompartilhado(rev, resalePurchases, supplies, supplyPurchases);
             return {
               key: `insumo_revenda:${x.id}:${rev.id}`,
               tipo: 'insumo_revenda', id: x.id, resaleId: rev.id,
@@ -10770,7 +10819,7 @@
               key: `revenda:${x.id}`,
               tipo: 'revenda', id: x.id, name: x.productName, source: x,
               unidade: x.priceUnit || 'un', compra: ultimaCompra(comprasDaRevenda(x.id)),
-              compraOrigem: 'revenda', custo: custoRevenda(x, resalePurchases)
+              compraOrigem: 'revenda', custo: custoRevendaComHistoricoCompartilhado(x, resalePurchases, supplies, supplyPurchases)
             }));
 
           return [...insumos, ...revendas, ...producao].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -11399,7 +11448,12 @@
                       ) : revendaDaUnidade.map((item) => {
                         const compras = comprasDaRevenda(item.id);
                         const uc = ultimaCompra(compras);
-                        const custo = custoRevenda(item, resalePurchases);
+                        const custo = custoRevendaComHistoricoCompartilhado(
+              item,
+              resalePurchases,
+              supplies,
+              supplyPurchases
+            );
                         return (
                           <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                             <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
@@ -11989,7 +12043,7 @@
               lucro,
               margem: preco > 0 ? (lucro / preco) * 100 : 0
             };
-          }), [separatedProducts, resalePurchases, currentUnit]);
+          }), [separatedProducts, resalePurchases, currentUnit, supplies, supplyPurchases]);
 
         // O placar do topo. A média junta os dois mundos porque a pergunta que
         // ela responde é do negócio inteiro ("quanto do meu faturamento vira
