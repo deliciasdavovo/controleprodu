@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-04-formulario-unico-enter-1" />
+    <meta name="app-version" content="2026-09-04-ficha-cadastro-modal-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12065,24 +12065,6 @@
                   </div>
                 )}
 
-                {fichaAberta && (
-                  <RecipeEditor
-                    produto={fichaAberta.produto}
-                    ficha={fichaAberta.ficha}
-                    custoUn={fichaAberta.custoUn}
-                    supplies={supplies}
-                    supplyPurchases={supplyPurchases}
-                    supplyOptions={supplyOptions}
-                    products={products}
-                    recipes={recipes}
-                    recipeItems={recipeItems}
-                    onClose={() => setFichaProdutoId(null)}
-                    onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
-                    onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
-                    onUpdateItem={onUpdateRecipeItem}
-                    onDeleteItem={onDeleteRecipeItem}
-                  />
-                )}
               </div>
             )}
 
@@ -12223,6 +12205,27 @@
                   Comprou o fardo e vende a lata? Deixe a unidade da compra diferente da de venda — a conta se vira.
                 </p>
               </div>
+            )}
+
+            {/* Ficha técnica é modal global desta tela: pode ser aberta tanto
+                pela tabela de Cadastros quanto pela aba Fichas técnicas. */}
+            {fichaAberta && (
+              <RecipeEditor
+                produto={fichaAberta.produto}
+                ficha={fichaAberta.ficha}
+                custoUn={fichaAberta.custoUn}
+                supplies={supplies}
+                supplyPurchases={supplyPurchases}
+                supplyOptions={supplyOptions}
+                products={products}
+                recipes={recipes}
+                recipeItems={recipeItems}
+                onClose={() => setFichaProdutoId(null)}
+                onUpdateRecipe={(campos) => onUpdateRecipe(fichaAberta.produto.id, campos)}
+                onAddItem={(component) => onAddRecipeItem(fichaAberta.produto.id, component)}
+                onUpdateItem={onUpdateRecipeItem}
+                onDeleteItem={onDeleteRecipeItem}
+              />
             )}
 
             {/* Histórico de compras, o mesmo para insumo e revenda */}
