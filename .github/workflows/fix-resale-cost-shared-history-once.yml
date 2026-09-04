@@ -25,10 +25,14 @@ jobs:
             'normalizeName(s.name) === normalizeName(item.productName)',
             "base === 'g' && venda === 'kg'",
             'custoRevendaComHistoricoCompartilhado(\n              item,',
-            '[separatedProducts, currentUnit, resalePurchases, supplies, supplyPurchases]',
           ]
           for c in checks:
               assert c in s, c
+          a=s.index('const linhasRevenda = useMemo')
+          b=s.index('const placar = useMemo', a)
+          trecho=s[a:b]
+          assert 'supplies' in trecho
+          assert 'supplyPurchases' in trecho
           print('verify ok')
           PY
       - name: Commit
