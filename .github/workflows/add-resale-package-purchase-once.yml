@@ -1,0 +1,31 @@
+name: Add resale package purchase
+on:
+  push:
+    paths:
+      - '.github/workflows/add-resale-package-purchase-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/add_resale_package_purchase.py
+      - name: Verify
+        run: |
+          grep -q '2026-09-05-revenda-compra-volume-1' index.html
+          grep -Fq 'const lerUnidadeCompraVolume = (valor) => {' index.html
+          grep -Fq 'Qtd. volumes' index.html
+          grep -Fq 'Un./volume' index.html
+          grep -Fq "compraPorVolume={(item.priceUnit || 'un') === 'un'}" index.html
+          grep -Fq 'purchaseUnit: unidadeCompraSalva' index.html
+      - name: Commit
+        run: |
+          git config user.name 'DDV Resale Package Purchase'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Support resale purchases by package volume'
+          git push
