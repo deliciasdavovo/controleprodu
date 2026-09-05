@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-05-fornecedor-anterior-enter-1" />
+    <meta name="app-version" content="2026-09-05-revenda-compra-volume-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2079,9 +2079,61 @@
       // Custo por unidade de venda de um item de revenda. A compra pode vir
       // numa unidade diferente da venda (compra o quilo, vende em gramas), e
       // é a última compra que manda — o campo de custo é só o espelho dela.
+      const TIPOS_VOLUME_REVENDA = [
+        { value: 'caixa', label: 'Caixa' },
+        { value: 'pacote', label: 'Pacote' },
+        { value: 'fardo', label: 'Fardo' },
+        { value: 'display', label: 'Display' },
+        { value: 'bandeja', label: 'Bandeja' },
+        { value: 'outro', label: 'Outro' }
+      ];
+
+      // A unidade da compra continua em um campo texto do banco. Para revenda
+      // vendida por unidade guardamos, por exemplo, pack:caixa:50. A quantidade
+      // salva e sempre o total de unidades (2 caixas x 50 = 100 un), portanto
+      // CMV, custo unitario e historico antigo continuam compativeis.
+      const lerUnidadeCompraVolume = (valor) => {
+        const match = String(valor || '').match(/^pack:([a-z_]+):([0-9]+(?:\.[0-9]+)?)$/i);
+        if (!match) return null;
+        const unidades = Number(match[2]) || 0;
+        return unidades > 0 ? { tipo: String(match[1]).toLowerCase(), unidades } : null;
+      };
+
+      const criarUnidadeCompraVolume = (tipo, unidades) =>
+        `pack:${String(tipo || 'caixa').toLowerCase()}:${Number(unidades) || 1}`;
+
+      const unidadeCompraEfetiva = (unidade) =>
+        lerUnidadeCompraVolume(unidade) ? 'un' : (unidade || 'un');
+
+      const pluralVolumeRevenda = (tipo, qtd = 2) => {
+        const singular = Number(qtd) === 1;
+        const nomes = {
+          caixa: singular ? 'caixa' : 'caixas',
+          pacote: singular ? 'pacote' : 'pacotes',
+          fardo: singular ? 'fardo' : 'fardos',
+          display: singular ? 'display' : 'displays',
+          bandeja: singular ? 'bandeja' : 'bandejas',
+          outro: singular ? 'volume' : 'volumes'
+        };
+        return nomes[tipo] || (singular ? 'volume' : 'volumes');
+      };
+
+      const numeroCurtoBR = (valor) => Number(valor || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3
+      });
+
+      const resumoCompraVolume = (compra) => {
+        const pacote = lerUnidadeCompraVolume(compra?.purchaseUnit);
+        if (!pacote) return '';
+        const total = Number(compra?.qty) || 0;
+        const volumes = pacote.unidades > 0 ? total / pacote.unidades : 0;
+        return `${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(pacote.tipo, volumes)} × ${numeroCurtoBR(pacote.unidades)} un = ${numeroCurtoBR(total)} un`;
+      };
+
       const converterQtdRevenda = (qtd, origem, destino) => {
         const n = Number(qtd) || 0;
-        const de = origem || 'un';
+        const de = unidadeCompraEfetiva(origem || 'un');
         const para = destino || 'un';
         if (!n || de === para) return n;
         if (de === 'g' && para === 'kg') return n / 1000;
@@ -10722,17 +10774,21 @@
         compras,
         unidadeBase,
         unidadesCompra = null,
+        compraPorVolume = false,
         fornecedores = [],
         onAdd,
         onUpdate,
         onDelete,
         onClose
       }) => {
+        const pacoteAnterior = lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit);
         const BLANK = {
           supplier: '',
           purchaseDate: getTodayDateString(),
           qty: '',
           purchaseUnit: unidadesCompra ? unidadesCompra[0] : '',
+          packageType: pacoteAnterior?.tipo || 'caixa',
+          unitsPerPackage: pacoteAnterior?.unidades ? String(pacoteAnterior.unidades) : '',
           cost: ''
         };
         const [draft, setDraft] = useState(BLANK);
@@ -10748,14 +10804,22 @@
 
         const salvar = (e) => {
           e.preventDefault();
-          const qty = Number(draft.qty) || 0;
+          const qtdInformada = Number(draft.qty) || 0;
+          const unidadesPorVolume = compraPorVolume ? (Number(draft.unitsPerPackage) || 0) : 0;
+          const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
           const cost = Number(draft.cost) || 0;
-          if (qty <= 0 || cost <= 0) return;
+          if (qtdInformada <= 0 || cost <= 0) return;
+          if (compraPorVolume && unidadesPorVolume <= 0) {
+            window.alert('Informe quantas unidades vêm em cada embalagem.');
+            return;
+          }
           onAdd({
             supplier: draft.supplier.trim(),
             purchaseDate: draft.purchaseDate || null,
             qty,
-            purchaseUnit: draft.purchaseUnit || undefined,
+            purchaseUnit: compraPorVolume
+              ? criarUnidadeCompraVolume(draft.packageType, unidadesPorVolume)
+              : (draft.purchaseUnit || undefined),
             cost
           });
           setDraft({ ...BLANK, supplier: draft.supplier, purchaseDate: draft.purchaseDate });
@@ -10802,20 +10866,45 @@
                       className="field field-sm"
                     />
                   </div>
-                  <div className={unidadesCompra ? 'col-span-3 sm:col-span-1' : 'col-span-6 sm:col-span-2'}>
-                    <label className="t-caption block mb-1">Qtd</label>
+                  <div className={unidadesCompra ? 'col-span-3 sm:col-span-2' : 'col-span-6 sm:col-span-2'}>
+                    <label className="t-caption block mb-1">{compraPorVolume ? 'Qtd. volumes' : 'Qtd'}</label>
                     <input
                       type="number"
                       min="0"
                       step="0.001"
                       value={draft.qty}
                       onChange={(e) => setField('qty', e.target.value)}
-                      placeholder={unidadeBase === 'un' ? 'ex: 12' : 'ex: 5000'}
-                      title={`Quantidade comprada, em ${unidadeBase}`}
+                      placeholder={compraPorVolume ? 'ex: 2' : (unidadeBase === 'un' ? 'ex: 12' : 'ex: 5000')}
+                      title={compraPorVolume ? 'Quantidade de caixas, pacotes, fardos ou outros volumes comprados' : `Quantidade comprada, em ${unidadeBase}`}
                       className="field field-sm text-right tnum no-spin"
                     />
                   </div>
-                  {unidadesCompra && (
+                  {compraPorVolume ? (
+                    <>
+                      <div className="col-span-3 sm:col-span-2">
+                        <label className="t-caption block mb-1">Embalagem</label>
+                        <select
+                          value={draft.packageType}
+                          onChange={(e) => setField('packageType', e.target.value)}
+                          className="field field-sm field-select"
+                        >
+                          {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-3 sm:col-span-2">
+                        <label className="t-caption block mb-1">Un./volume</label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={draft.unitsPerPackage}
+                          onChange={(e) => setField('unitsPerPackage', e.target.value)}
+                          placeholder={pacoteAnterior?.unidades ? String(pacoteAnterior.unidades) : 'ex: 12'}
+                          className="field field-sm text-right tnum no-spin"
+                        />
+                      </div>
+                    </>
+                  ) : unidadesCompra && (
                     <div className="col-span-3 sm:col-span-2">
                       <label className="t-caption block mb-1">Unid.</label>
                       <select
@@ -10896,7 +10985,7 @@
                               onChange={(e) => onUpdate({ ...c, qty: Number(e.target.value) || 0 })}
                               className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
                             />
-                            <span className="t-micro">{c.purchaseUnit || unidadeBase}</span>
+                            <span className="t-micro max-w-44 text-right">{resumoCompraVolume(c) || unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
                           </div>
                         </td>
                         <td className="py-2 px-3">
@@ -10911,7 +11000,7 @@
                         </td>
                         <td className="py-2 px-3 text-right">
                           <span className="t-body tnum">
-                            {formatPrecoInsumo(custoUnitDe(c), c.purchaseUnit || unidadeBase)}
+                            {formatPrecoInsumo(custoUnitDe(c), unidadeCompraEfetiva(c.purchaseUnit || unidadeBase))}
                           </span>
                           {idx === 0 && <div className="t-nano ink-quiet">é este que vale</div>}
                         </td>
@@ -11034,6 +11123,8 @@
           qty: '',
           cost: '',
           purchaseUnit: 'un',
+          packageType: 'caixa',
+          unitsPerPackage: '',
           responsible: '',
           productCategory: 'salgado',
           shelfLifeDays: 2,
@@ -11052,6 +11143,7 @@
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
+        const compraPorVolume = temRevenda && (draft.priceUnit || 'un') === 'un';
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -11080,6 +11172,10 @@
               ...(revendaExistente ? comprasDaRevenda(revendaExistente.id) : [])
             ])
           : null;
+        const compraRevendaExistente = revendaExistente
+          ? ultimaCompra(comprasDaRevenda(revendaExistente.id))
+          : null;
+        const volumeAnterior = lerUnidadeCompraVolume(compraRevendaExistente?.purchaseUnit);
 
         const unidadeBaseDaRevenda = (unidade) => {
           const u = String(unidade || 'un');
@@ -11209,6 +11305,8 @@
             const x = supplies.find((i) => String(i.id) === id);
             if (!x) return;
             const rev = revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name));
+            const compraRev = rev ? ultimaCompra(comprasDaRevenda(rev.id)) : null;
+            const volumeRev = lerUnidadeCompraVolume(compraRev?.purchaseUnit);
             const usoInterno = x.supplyClass === 'embalagem' || x.supplyClass === 'limpeza';
             setDraft((d) => ({
               ...d,
@@ -11222,7 +11320,9 @@
               resaleAlso: usoInterno ? false : !!rev,
               price: rev?.price || '',
               priceUnit: rev?.priceUnit || d.priceUnit || 'un',
-              purchaseUnit: rev?.priceUnit || d.purchaseUnit || x.unit || 'un',
+              purchaseUnit: volumeRev ? 'un' : (rev?.priceUnit || d.purchaseUnit || x.unit || 'un'),
+              packageType: volumeRev?.tipo || d.packageType || 'caixa',
+              unitsPerPackage: volumeRev?.unidades ? String(volumeRev.unidades) : d.unitsPerPackage,
               resaleCategory: rev?.category || d.resaleCategory || 'revenda'
             }));
             return;
@@ -11232,6 +11332,8 @@
             const x = revendaDaUnidade.find((i) => String(i.id) === id);
             if (!x) return;
             const ins = supplies.find((i) => normalizeName(i.name) === normalizeName(x.productName));
+            const compraRev = ultimaCompra(comprasDaRevenda(x.id));
+            const volumeRev = lerUnidadeCompraVolume(compraRev?.purchaseUnit);
             setDraft((d) => ({
               ...d,
               type: 'insumo',
@@ -11244,7 +11346,9 @@
               resaleAlso: true,
               price: x.price || '',
               priceUnit: x.priceUnit || 'un',
-              purchaseUnit: x.priceUnit || 'un',
+              purchaseUnit: volumeRev ? 'un' : (x.priceUnit || 'un'),
+              packageType: volumeRev?.tipo || d.packageType || 'caixa',
+              unitsPerPackage: volumeRev?.unidades ? String(volumeRev.unidades) : d.unitsPerPackage,
               resaleCategory: x.category || 'revenda'
             }));
           }
@@ -11280,10 +11384,22 @@
             return;
           }
 
-          const qty = Number(draft.qty) || 0;
+          const qtdInformada = Number(draft.qty) || 0;
           const cost = Number(draft.cost) || 0;
-          if ((qty > 0 || cost > 0) && !(qty > 0 && cost > 0)) {
+          const unidadesPorVolume = compraPorVolume
+            ? (Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0)
+            : 0;
+          const tipoVolume = draft.packageType || volumeAnterior?.tipo || 'caixa';
+          const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
+          const unidadeCompraSalva = compraPorVolume
+            ? criarUnidadeCompraVolume(tipoVolume, unidadesPorVolume)
+            : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un');
+          if ((qtdInformada > 0 || cost > 0) && !(qtdInformada > 0 && cost > 0)) {
             window.alert('Para registrar a compra, preencha quantidade e valor pago.');
+            return;
+          }
+          if (compraPorVolume && qtdInformada > 0 && cost > 0 && unidadesPorVolume <= 0) {
+            window.alert('Informe quantas unidades vêm em cada embalagem.');
             return;
           }
 
@@ -11314,7 +11430,7 @@
 
             if (insumo?.id && qty > 0 && cost > 0) {
               const qtdBase = temRevenda
-                ? qtdCompraNaBase(qty, draft.purchaseUnit || draft.unit, insumo.unit || draft.unit)
+                ? qtdCompraNaBase(qty, unidadeCompraEfetiva(unidadeCompraSalva), insumo.unit || draft.unit)
                 : qty;
               await onAddSupplyPurchase(insumo.id, {
                 supplier: String(draft.supplier || '').trim(),
@@ -11348,7 +11464,7 @@
                 supplier: String(draft.supplier || '').trim(),
                 purchaseDate: draft.purchaseDate || getTodayDateString(),
                 qty,
-                purchaseUnit: draft.purchaseUnit || draft.priceUnit || 'un',
+                purchaseUnit: unidadeCompraSalva,
                 cost
               });
             }
@@ -11367,6 +11483,8 @@
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
             purchaseUnit: d.purchaseUnit,
+            packageType: d.packageType || 'caixa',
+            unitsPerPackage: d.unitsPerPackage,
             resaleCategory: d.resaleCategory,
             purchaseDate: getTodayDateString()
           }));
@@ -11681,13 +11799,15 @@
                       </div>
 
                       <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Qtd. comprada{temInsumo && !temRevenda ? ` (${draft.unit})` : ''}</label>
+                        <label className="t-caption block mb-1">{compraPorVolume ? 'Qtd. volumes' : `Qtd. comprada${temInsumo && !temRevenda ? ` (${draft.unit})` : ''}`}</label>
                         <NumeroBRField
                           value={modoProducao ? '' : draft.qty}
                           disabled={modoProducao}
                           decimals={3}
                           onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}
-                          placeholder={compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0'}
+                          placeholder={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
+                            ? numeroCurtoBR((Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades))
+                            : (compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0')}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
@@ -11695,13 +11815,38 @@
                       <div className="col-span-4 sm:col-span-3 lg:col-span-1">
                         <label className="t-caption block mb-1">Un. compra</label>
                         <select
-                          value={temInsumo && !temRevenda ? draft.unit : draft.purchaseUnit}
-                          disabled={modoProducao || (temInsumo && !temRevenda)}
+                          value={compraPorVolume ? 'un' : (temInsumo && !temRevenda ? draft.unit : draft.purchaseUnit)}
+                          disabled={modoProducao || compraPorVolume || (temInsumo && !temRevenda)}
                           onChange={(e) => setDraft((d) => ({ ...d, purchaseUnit: e.target.value }))}
                           className="field field-md field-select disabled:opacity-50"
                         >
                           {['un', 'kg', 'g', 'L', 'ml'].map((u) => <option key={u} value={u}>{u}</option>)}
                         </select>
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
+                        <label className="t-caption block mb-1">Embalagem</label>
+                        <select
+                          value={compraPorVolume ? draft.packageType : ''}
+                          disabled={!compraPorVolume}
+                          onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
+                          className="field field-md field-select disabled:opacity-50"
+                        >
+                          {!compraPorVolume && <option value="">—</option>}
+                          {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
+                        <label className="t-caption block mb-1">Un./volume</label>
+                        <NumeroBRField
+                          value={compraPorVolume ? draft.unitsPerPackage : ''}
+                          disabled={!compraPorVolume}
+                          decimals={0}
+                          onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
+                          placeholder={volumeAnterior?.unidades ? numeroCurtoBR(volumeAnterior.unidades) : 'ex: 12'}
+                          className="field field-md text-right tnum disabled:opacity-50"
+                        />
                       </div>
 
                       <div className="col-span-8 sm:col-span-3 lg:col-span-2">
@@ -11715,34 +11860,6 @@
                           placeholder={compraExistente?.cost ? Number(compraExistente.cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
-                      </div>
-
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Preço venda</label>
-                        <NumeroBRField
-                          value={modoProducao || temRevenda ? draft.price : ''}
-                          disabled={!modoProducao && !temRevenda}
-                          decimals={2}
-                          fixedDecimals={true}
-                          onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
-                          placeholder="0,00"
-                          className="field field-md text-right tnum disabled:opacity-50"
-                        />
-                      </div>
-
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Vende por</label>
-                        <select
-                          value={modoProducao || temRevenda ? draft.priceUnit : ''}
-                          disabled={!modoProducao && !temRevenda}
-                          onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {!modoProducao && !temRevenda && <option value="">—</option>}
-                          <option value="un">un</option>
-                          <option value="kg">kg</option>
-                          {!modoProducao && <option value="g">g</option>}
-                        </select>
                       </div>
                     </div>
 
@@ -11759,7 +11876,33 @@
                           className="field field-md text-center tnum disabled:opacity-50"
                         />
                       </div>
-                      <div className="col-span-6 sm:col-span-9 lg:col-span-7">
+                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
+                        <label className="t-caption block mb-1">Preço venda</label>
+                        <NumeroBRField
+                          value={modoProducao || temRevenda ? draft.price : ''}
+                          disabled={!modoProducao && !temRevenda}
+                          decimals={2}
+                          fixedDecimals={true}
+                          onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
+                          placeholder="0,00"
+                          className="field field-md text-right tnum disabled:opacity-50"
+                        />
+                      </div>
+                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
+                        <label className="t-caption block mb-1">Vende por</label>
+                        <select
+                          value={modoProducao || temRevenda ? draft.priceUnit : ''}
+                          disabled={!modoProducao && !temRevenda}
+                          onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
+                          className="field field-md field-select disabled:opacity-50"
+                        >
+                          {!modoProducao && !temRevenda && <option value="">—</option>}
+                          <option value="un">un</option>
+                          <option value="kg">kg</option>
+                          {!modoProducao && <option value="g">g</option>}
+                        </select>
+                      </div>
+                      <div className="col-span-12 sm:col-span-6 lg:col-span-5">
                         <div className="rounded-xl bg-black/[0.035] px-3 py-2 t-micro min-h-11 flex items-center">
                           {tipoCadastroAtual === 'embalagem'
                             ? 'Embalagem · uso interno. Não precisa escolher Insumo/Revenda.'
@@ -11770,7 +11913,18 @@
                                 : temRevenda && temInsumo
                                   ? 'Insumo + revenda: a mesma compra alimenta o custo do insumo e o CMV da revenda.'
                                   : temRevenda
-                                    ? 'Revenda: a compra alimenta diretamente custo e CMV.'
+                                    ? (compraPorVolume
+                                      ? (() => {
+                                          const volumes = Number(draft.qty) || 0;
+                                          const porVolume = Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0;
+                                          const total = volumes * porVolume;
+                                          const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                                          const calculo = total > 0
+                                            ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                            : '';
+                                          return `Revenda por unidade: informe os volumes comprados e quantas unidades vêm em cada embalagem${calculo}.`;
+                                        })()
+                                      : 'Revenda: a compra alimenta diretamente custo e CMV.')
                                     : 'Insumo: a compra alimenta o custo usado nas fichas técnicas.'}
                         </div>
                       </div>
@@ -11843,6 +11997,7 @@
                         ) : cadastrosFiltrados.map((linha) => {
                           const x = linha.source;
                           const c = linha.compra;
+                          const volumeCompraLinha = c ? lerUnidadeCompraVolume(c.purchaseUnit) : null;
                           const ehSupply = ['insumo', 'embalagem', 'limpeza', 'insumo_revenda'].includes(linha.tipo);
                           const venda = linha.tipo === 'insumo_revenda'
                             ? linha.resaleSource
@@ -11932,10 +12087,19 @@
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : (
                                   <div className="flex items-center justify-end gap-1">
-                                    <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => atualizarCompraLinha(linha,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
-                                    {linha.tipo === 'revenda' || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda') ? (
-                                      <div className="w-14"><PickerField value={c?.purchaseUnit || (linha.resaleSource || x).priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => atualizarCompraLinha(linha,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
-                                    ) : <span className="t-micro">{x.unit}</span>}
+                                    {volumeCompraLinha ? (
+                                      <div className="min-w-[170px] text-right">
+                                        <div className="t-micro font-semibold whitespace-nowrap">{resumoCompraVolume(c)}</div>
+                                        <div className="t-nano">total comprado</div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => atualizarCompraLinha(linha,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
+                                        {linha.tipo === 'revenda' || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda') ? (
+                                          <div className="w-14"><PickerField value={unidadeCompraEfetiva(c?.purchaseUnit || (linha.resaleSource || x).priceUnit || 'un')} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => atualizarCompraLinha(linha,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
+                                        ) : <span className="t-micro">{x.unit}</span>}
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -12350,6 +12514,7 @@
                   compras={comprasDaRevenda(item.id)}
                   unidadeBase={item.priceUnit || 'un'}
                   unidadesCompra={['un', 'kg', 'g']}
+                  compraPorVolume={(item.priceUnit || 'un') === 'un'}
                   fornecedores={fornecedores}
                   onAdd={(c) => onAddResalePurchase(item.id, c)}
                   onUpdate={onUpdateResalePurchase}
