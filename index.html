@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-05-autocomplete-enter-1" />
+    <meta name="app-version" content="2026-09-05-formato-br-entrada-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2912,6 +2912,76 @@
               document.body
             )}
           </>
+        );
+      };
+
+      // Campo numérico com leitura brasileira, mas valor interno normalizado.
+      // Ex.: 1200 -> 1.200; 24,975 -> 24,975; dinheiro 1 -> 1,00 ao sair.
+      const NumeroBRField = ({
+        value = '',
+        onValueChange,
+        decimals = 3,
+        fixedDecimals = false,
+        onBlur,
+        onFocus,
+        ...props
+      }) => {
+        const ref = useRef(null);
+
+        const formatValue = (v) => {
+          if (v === '' || v === null || v === undefined) return '';
+          const n = Number(v);
+          if (!Number.isFinite(n)) return '';
+          return n.toLocaleString('pt-BR', {
+            minimumFractionDigits: fixedDecimals ? decimals : 0,
+            maximumFractionDigits: decimals
+          });
+        };
+
+        const [text, setText] = useState(() => formatValue(value));
+
+        useEffect(() => {
+          if (document.activeElement !== ref.current) setText(formatValue(value));
+        }, [value, decimals, fixedDecimals]);
+
+        const handleChange = (e) => {
+          const raw = String(e.target.value || '')
+            .replace(/\s/g, '')
+            .replace(/[^\d,]/g, '');
+          const hasComma = raw.includes(',');
+          const partes = raw.split(',');
+          let inteiro = partes.shift() || '';
+          const decimal = partes.join('').slice(0, decimals);
+
+          inteiro = inteiro.replace(/^0+(?=\d)/, '');
+          if (!inteiro && (hasComma || decimal)) inteiro = '0';
+
+          const agrupado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+          const display = agrupado + (hasComma ? `,${decimal}` : '');
+          setText(display);
+
+          const normalized = display
+            ? display.replace(/\./g, '').replace(',', '.')
+            : '';
+          onValueChange(normalized);
+        };
+
+        const handleBlur = (e) => {
+          setText(formatValue(value));
+          if (onBlur) onBlur(e);
+        };
+
+        return (
+          <input
+            ref={ref}
+            type="text"
+            inputMode="decimal"
+            value={text}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onFocus={onFocus}
+            {...props}
+          />
         );
       };
 
@@ -11601,15 +11671,13 @@
 
                       <div className="col-span-6 sm:col-span-3 lg:col-span-2">
                         <label className="t-caption block mb-1">Qtd. comprada{temInsumo && !temRevenda ? ` (${draft.unit})` : ''}</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
+                        <NumeroBRField
                           value={modoProducao ? '' : draft.qty}
                           disabled={modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, qty: e.target.value }))}
-                          placeholder={compraExistente?.qty ? String(compraExistente.qty) : '0'}
-                          className="field field-md text-right tnum no-spin disabled:opacity-50"
+                          decimals={3}
+                          onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}
+                          placeholder={compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0'}
+                          className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
 
@@ -11627,29 +11695,27 @@
 
                       <div className="col-span-8 sm:col-span-3 lg:col-span-2">
                         <label className="t-caption block mb-1">Valor pago</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <NumeroBRField
                           value={modoProducao ? '' : draft.cost}
                           disabled={modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, cost: e.target.value }))}
-                          placeholder={compraExistente?.cost ? String(compraExistente.cost) : '0,00'}
-                          className="field field-md text-right tnum no-spin disabled:opacity-50"
+                          decimals={2}
+                          fixedDecimals={true}
+                          onValueChange={(cost) => setDraft((d) => ({ ...d, cost }))}
+                          placeholder={compraExistente?.cost ? Number(compraExistente.cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+                          className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
 
                       <div className="col-span-4 sm:col-span-3 lg:col-span-1">
                         <label className="t-caption block mb-1">Preço venda</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <NumeroBRField
                           value={modoProducao || temRevenda ? draft.price : ''}
                           disabled={!modoProducao && !temRevenda}
-                          onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+                          decimals={2}
+                          fixedDecimals={true}
+                          onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
                           placeholder="0,00"
-                          className="field field-md text-right tnum no-spin disabled:opacity-50"
+                          className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
 
