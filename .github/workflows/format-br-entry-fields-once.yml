@@ -1,0 +1,30 @@
+name: Format BR entry fields
+on:
+  push:
+    paths:
+      - '.github/workflows/format-br-entry-fields-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/format_br_entry_fields.py
+      - name: Verify
+        run: |
+          grep -q '2026-09-05-formato-br-entrada-1' index.html
+          grep -Fq 'const NumeroBRField = ({' index.html
+          grep -Fq 'onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}' index.html
+          grep -Fq 'onValueChange={(cost) => setDraft((d) => ({ ...d, cost }))}' index.html
+          grep -Fq 'onValueChange={(price) => setDraft((d) => ({ ...d, price }))}' index.html
+      - name: Commit
+        run: |
+          git config user.name 'DDV Numeric Format'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Format quantity and money inputs in pt-BR'
+          git push
