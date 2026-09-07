@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-07-picker-foco-teclado-1" />
+    <meta name="app-version" content="2026-09-07-sugestoes-enter-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1931,6 +1931,21 @@
       const calcularCmv = (custo, preco) =>
         preco > 0 && custo > 0 ? (custo / preco) * 100 : 0;
 
+      // A última data que a loja digitou num lançamento, em QUALQUER item.
+      // Quem senta para lançar a compra da semana tem uma pilha de notas do
+      // mesmo dia: repetir a data a cada item é trabalho à toa. Vale a data do
+      // lançamento mais recente (pela hora em que foi criado, não pela data da
+      // nota), que é a última que a pessoa escolheu de fato.
+      const ultimaDataLancada = (...listasDeCompras) => {
+        const comData = listasDeCompras
+          .flat()
+          .filter((c) => c && c.purchaseDate);
+        if (!comData.length) return '';
+        return comData.reduce((maisNova, c) =>
+          (c.criadoEm || '') > (maisNova.criadoEm || '') ? c : maisNova
+        ).purchaseDate;
+      };
+
       // Compras da mais recente para a mais antiga. A data manda; sem data, ou
       // com duas no mesmo dia, vale a que foi lançada por último.
       const comprasOrdenadas = (compras) =>
@@ -2975,8 +2990,14 @@
         onValueChange,
         decimals = 3,
         fixedDecimals = false,
+        // O número que aparece em cinza quando o campo está vazio: a
+        // quantidade, o valor ou o volume da última compra daquele item.
+        // Enter num campo vazio aceita esse número, em vez de pular adiante e
+        // deixar o campo em branco — o cinza é dica, não valor.
+        sugestao = '',
         onBlur,
         onFocus,
+        onKeyDown,
         ...props
       }) => {
         const ref = useRef(null);
@@ -3024,6 +3045,24 @@
           if (onBlur) onBlur(e);
         };
 
+        const handleKeyDown = (e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const n = Number(sugestao);
+            const vazio = String(text || '').trim() === '';
+            if (vazio && sugestao !== '' && sugestao !== null && Number.isFinite(n) && n > 0) {
+              // O formulário avança no Enter por um onKeyDown no <form>; o
+              // stopPropagation segura esse Enter para ele aceitar a sugestão.
+              // O Enter seguinte volta a avançar, como no campo de fornecedor.
+              e.preventDefault();
+              e.stopPropagation();
+              setText(formatValue(n));
+              onValueChange(String(n));
+              return;
+            }
+          }
+          if (onKeyDown) onKeyDown(e);
+        };
+
         return (
           <input
             ref={ref}
@@ -3033,6 +3072,7 @@
             onChange={handleChange}
             onBlur={handleBlur}
             onFocus={onFocus}
+            onKeyDown={handleKeyDown}
             {...props}
           />
         );
@@ -10777,6 +10817,7 @@
         unidadesCompra = null,
         compraPorVolume = false,
         fornecedores = [],
+        dataSugerida = '',
         onAdd,
         onUpdate,
         onDelete,
@@ -10785,7 +10826,7 @@
         const pacoteAnterior = lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit);
         const BLANK = {
           supplier: '',
-          purchaseDate: getTodayDateString(),
+          purchaseDate: dataSugerida || getTodayDateString(),
           qty: '',
           purchaseUnit: unidadesCompra ? unidadesCompra[0] : '',
           packageType: pacoteAnterior?.tipo || 'caixa',
@@ -11120,7 +11161,8 @@
           variationFactor: '',
           resaleAlso: false,
           supplier: '',
-          purchaseDate: getTodayDateString(),
+          // Vazio quer dizer "usa a data sugerida" — a última que foi lançada
+          purchaseDate: '',
           qty: '',
           cost: '',
           purchaseUnit: 'un',
@@ -11135,6 +11177,13 @@
         };
         const [draft, setDraft] = useState(BLANK_ENTRY);
         const nomeRef = useRef(null);
+
+        // A data que os campos de data começam preenchidos. Sem lançamento
+        // nenhum ainda, hoje.
+        const dataSugerida = useMemo(
+          () => ultimaDataLancada(supplyPurchases, resalePurchases) || getTodayDateString(),
+          [supplyPurchases, resalePurchases]
+        );
 
         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
@@ -11379,7 +11428,7 @@
               type: 'producao',
               productCategory: d.productCategory,
               priceUnit: d.priceUnit,
-              purchaseDate: getTodayDateString()
+              purchaseDate: ''
             }));
             setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
             return;
@@ -11435,7 +11484,7 @@
                 : qty;
               await onAddSupplyPurchase(insumo.id, {
                 supplier: String(draft.supplier || '').trim(),
-                purchaseDate: draft.purchaseDate || getTodayDateString(),
+                purchaseDate: draft.purchaseDate || dataSugerida,
                 qty: qtdBase,
                 cost
               });
@@ -11463,7 +11512,7 @@
             if (revenda?.id && qty > 0 && cost > 0) {
               await onAddResalePurchase(revenda.id, {
                 supplier: String(draft.supplier || '').trim(),
-                purchaseDate: draft.purchaseDate || getTodayDateString(),
+                purchaseDate: draft.purchaseDate || dataSugerida,
                 qty,
                 purchaseUnit: unidadeCompraSalva,
                 cost
@@ -11487,7 +11536,7 @@
             packageType: d.packageType || 'caixa',
             unitsPerPackage: d.unitsPerPackage,
             resaleCategory: d.resaleCategory,
-            purchaseDate: getTodayDateString()
+            purchaseDate: ''
           }));
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
@@ -11792,11 +11841,15 @@
                         <label className="t-caption block mb-1">Data</label>
                         <input
                           type="date"
-                          value={modoProducao ? '' : draft.purchaseDate}
+                          value={modoProducao ? '' : (draft.purchaseDate || dataSugerida)}
                           disabled={modoProducao}
                           onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))}
+                          title="Começa na última data lançada — troque se esta nota for de outro dia"
                           className="field field-md disabled:opacity-50"
                         />
+                        {!modoProducao && (draft.purchaseDate || dataSugerida) !== getTodayDateString() && (
+                          <div className="t-nano mt-0.5">última lançada · não é hoje</div>
+                        )}
                       </div>
 
                       <div className="col-span-6 sm:col-span-3 lg:col-span-2">
@@ -11809,6 +11862,9 @@
                           placeholder={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
                             ? numeroCurtoBR((Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades))
                             : (compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0')}
+                          sugestao={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
+                            ? (Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades)
+                            : (compraExistente?.qty || '')}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
@@ -11846,6 +11902,7 @@
                           decimals={0}
                           onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
                           placeholder={volumeAnterior?.unidades ? numeroCurtoBR(volumeAnterior.unidades) : 'ex: 12'}
+                          sugestao={volumeAnterior?.unidades || ''}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
@@ -11859,6 +11916,7 @@
                           fixedDecimals={true}
                           onValueChange={(cost) => setDraft((d) => ({ ...d, cost }))}
                           placeholder={compraExistente?.cost ? Number(compraExistente.cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+                          sugestao={compraExistente?.cost || ''}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
@@ -12497,6 +12555,7 @@
                   compras={comprasDoInsumo(s.id)}
                   unidadeBase={s.unit}
                   fornecedores={fornecedores}
+                  dataSugerida={dataSugerida}
                   onAdd={(c) => onAddSupplyPurchase(s.id, c)}
                   onUpdate={onUpdateSupplyPurchase}
                   onDelete={onDeleteSupplyPurchase}
@@ -12517,6 +12576,7 @@
                   unidadesCompra={['un', 'kg', 'g']}
                   compraPorVolume={(item.priceUnit || 'un') === 'un'}
                   fornecedores={fornecedores}
+                  dataSugerida={dataSugerida}
                   onAdd={(c) => onAddResalePurchase(item.id, c)}
                   onUpdate={onUpdateResalePurchase}
                   onDelete={onDeleteResalePurchase}
