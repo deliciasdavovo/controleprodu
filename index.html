@@ -13258,6 +13258,9 @@
               tr { page-break-inside: avoid; }
               thead { display: table-header-group; }
               footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+              /* A dica é para a tela; no papel ela não faz sentido nenhum */
+              .dica { display: block; margin-top: 4px; font-style: italic; }
+              @media print { .dica { display: none; } }
             </style></head><body>
             <header>
               <h1>Preços a rever</h1>
@@ -13269,6 +13272,7 @@
               Meta de produção: bom até ${CMV_METAS.fabricacao.bom}%, atenção até ${CMV_METAS.fabricacao.atencao}%.
               Meta de revenda: bom até ${CMV_METAS.revenda.bom}%, atenção até ${CMV_METAS.revenda.atencao}%.
               O preço sugerido é o que levaria o item de volta à meta.
+              <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
             </footer>
           </body></html>`;
 
@@ -13334,12 +13338,12 @@
                     onClick={imprimirPrecos}
                     disabled={totalParaRever === 0}
                     title={totalParaRever
-                      ? 'Abrir a folha A4 pronta para imprimir, com produção e revenda separadas'
+                      ? 'Abre a folha A4 pronta. Na janela de impressão, escolha a impressora ou "Salvar como PDF" em Destino.'
                       : 'Nenhum preço fora da meta — nada para imprimir'}
                     className="btn btn-primary btn-sm disabled:opacity-40"
                   >
                     <Icons.ClipboardList className="w-3.5 h-3.5" />
-                    Imprimir preços a rever
+                    Imprimir ou salvar em PDF
                     {totalParaRever > 0 && <span className="tnum font-bold">({totalParaRever})</span>}
                   </button>
                   <button
