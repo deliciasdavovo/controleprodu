@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-08-folha-precos-a4-1" />
+    <meta name="app-version" content="2026-09-08-imprimir-no-celular-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13261,7 +13261,9 @@
               /* A dica é para a tela; no papel ela não faz sentido nenhum */
               .dica { display: block; margin-top: 4px; font-style: italic; }
               @media print { .dica { display: none; } }
+                ${BARRA_ACOES_CSS}
             </style></head><body>
+            ${BARRA_ACOES_HTML}
             <header>
               <h1>Preços a rever</h1>
               <div class="sub">${escaparHtml(unitName)} · ${formatDateBR(getTodayDateString())} · ${totalParaRever} ${totalParaRever === 1 ? 'item' : 'itens'} fora da meta</div>
@@ -13283,8 +13285,15 @@
           }
           janela.document.write(html);
           janela.document.close();
-          // O print só depois de a folha estar montada, senão sai em branco
-          janela.onload = () => { janela.focus(); janela.print(); };
+          // No computador a janela de impressão abre sozinha, que é o gesto
+          // esperado ali. No celular não: a folha abre e quem manda é o botão
+          // no topo dela — tela pequena não é lugar para um diálogo surgir
+          // sem aviso, e o onload nem sempre chega a disparar.
+          if (window.matchMedia('(min-width: 900px)').matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
+            if (janela.document.readyState === 'complete') setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
         };
 
         // O placar do topo. A média junta os dois mundos porque a pergunta que
@@ -13775,6 +13784,556 @@
         );
       };
 
+
+      // ==========================================
+      // RELATÓRIO DE APOIO À COMPRA — AS CONTAS
+      //
+      // Transforma o histórico de compras em uma leitura de decisão: o preço
+      // de hoje contra o da última compra, contra o típico do período e contra
+      // o melhor preço recente. Quem decide é o supervisor; o relatório só
+      // coloca os números lado a lado.
+      //
+      // A janela é de 90 dias. Preço de insumo muda de estação e de safra:
+      // comparar com o ano passado diria pouco sobre a compra de amanhã.
+      // ==========================================
+      const DIAS_JANELA_COMPRA = 90;
+      // Com menos de três compras não há o que chamar de "preço habitual" —
+      // duas notas não formam faixa, formam uma reta entre dois pontos.
+      const MIN_COMPRAS_CONFIAVEL = 3;
+
+      const mediana = (nums) => {
+        const v = [...nums].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+        if (!v.length) return 0;
+        const meio = Math.floor(v.length / 2);
+        return v.length % 2 ? v[meio] : (v[meio - 1] + v[meio]) / 2;
+      };
+
+      // Percentil por interpolação linear — com poucos pontos, arredondar para
+      // o vizinho jogaria a faixa longe demais
+      const percentil = (nums, p) => {
+        const v = [...nums].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+        if (!v.length) return 0;
+        if (v.length === 1) return v[0];
+        const pos = (v.length - 1) * p;
+        const base = Math.floor(pos);
+        const resto = pos - base;
+        return v[base] + (v[base + 1] !== undefined ? (v[base + 1] - v[base]) * resto : 0);
+      };
+
+      // A unidade em que o item é falado: quem compra farinha pensa em reais
+      // por quilo, não por grama.
+      const unidadeDeReferencia = (unidade) => {
+        const u = String(unidade || 'un').toLowerCase();
+        if (u === 'g' || u === 'kg') return 'kg';
+        if (u === 'ml' || u === 'l') return 'L';
+        return 'un';
+      };
+
+      // A quantidade de uma compra na unidade de referência do item. Sem isto,
+      // uma compra de 500 g e outra de 5 kg do mesmo queijo dariam preços
+      // unitários mil vezes diferentes e a análise inteira desandaria.
+      const qtdNaReferencia = (qty, unidadeCompra, unidadeRef) => {
+        const n = Number(qty) || 0;
+        const pacote = lerUnidadeCompraVolume(unidadeCompra);
+        // Compra por volume: a quantidade está em caixas, e cada uma traz N
+        if (pacote) return n * pacote.unidades;
+        const u = String(unidadeCompra || 'un').toLowerCase();
+        if (unidadeRef === 'kg') return u === 'g' ? n / 1000 : n;
+        if (unidadeRef === 'L') return u === 'ml' ? n / 1000 : n;
+        return n;
+      };
+
+      const diasEntre = (isoA, isoB) => {
+        if (!isoA || !isoB) return null;
+        const a = new Date(`${isoA}T00:00:00`);
+        const b = new Date(`${isoB}T00:00:00`);
+        if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+        return Math.round((b - a) / 86400000);
+      };
+
+      // A situação do preço de hoje. Olha as quatro referências que o
+      // supervisor olharia: a faixa habitual, a mediana, o melhor preço
+      // recente e o quanto o preço andou desde a última compra.
+      const situacaoDoPreco = ({ precoAtual, faixaMin, faixaMax, medianaPreco, menorPreco, varPct, confiavel }) => {
+        if (!confiavel) {
+          return {
+            chave: 'insuficiente',
+            label: 'HISTÓRICO INSUFICIENTE',
+            simbolo: '–',
+            orientacao: 'Histórico insuficiente para uma análise confiável. Acompanhar a próxima compra.'
+          };
+        }
+        if (precoAtual <= faixaMin || (menorPreco > 0 && precoAtual <= menorPreco * 1.03)) {
+          return {
+            chave: 'bom',
+            label: 'BOM PREÇO',
+            simbolo: '▼',
+            orientacao: 'Bom momento de preço. Vale verificar a quantidade necessária.'
+          };
+        }
+        if (precoAtual <= faixaMax) {
+          return {
+            chave: 'normal',
+            label: 'PREÇO NORMAL',
+            simbolo: '=',
+            orientacao: 'Preço dentro do padrão. Acompanhar a próxima compra.'
+          };
+        }
+        const acimaDaMediana = medianaPreco > 0 ? ((precoAtual - medianaPreco) / medianaPreco) * 100 : 0;
+        if (acimaDaMediana > 10 || (varPct !== null && varPct > 10)) {
+          return {
+            chave: 'alto',
+            label: 'PREÇO ALTO',
+            simbolo: '▲',
+            orientacao: 'Preço acima do histórico recente. Vale negociar e comparar outros fornecedores.'
+          };
+        }
+        return {
+          chave: 'atencao',
+          label: 'ATENÇÃO',
+          simbolo: '▲',
+          orientacao: 'Preço acima da faixa normal. Vale cotar com outros fornecedores antes de confirmar a compra.'
+        };
+      };
+
+      // Um item analisado, do jeito que ele aparece no relatório
+      const analisarItemDeCompra = (compras, hoje) => {
+        const ordenadas = [...compras].sort((a, b) => {
+          const d = (a.data || '').localeCompare(b.data || '');
+          return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
+        });
+        if (!ordenadas.length) return null;
+
+        const unidadeRef = unidadeDeReferencia(ordenadas[0].unidade);
+        const pontos = ordenadas
+          .map((c) => {
+            const qtd = qtdNaReferencia(c.qty, c.unidade, unidadeRef);
+            return qtd > 0 && c.cost > 0
+              ? { data: c.data, fornecedor: c.fornecedor, qtd, custo: c.cost, preco: c.cost / qtd }
+              : null;
+          })
+          .filter(Boolean);
+        if (!pontos.length) return null;
+
+        const precos = pontos.map((p) => p.preco);
+        const atual = pontos[pontos.length - 1];
+        const anterior = pontos.length > 1 ? pontos[pontos.length - 2] : null;
+
+        const varUnit = anterior ? atual.preco - anterior.preco : null;
+        const varPct = anterior && anterior.preco > 0 ? (varUnit / anterior.preco) * 100 : null;
+
+        const medianaPreco = mediana(precos);
+        const menorPreco = Math.min(...precos);
+        // Faixa por quartis: uma compra muito cara ou muito barata fica de fora
+        // da referência em vez de puxá-la, como faria a média simples
+        const faixaMin = percentil(precos, 0.25);
+        const faixaMax = percentil(precos, 0.75);
+
+        const qtdHabitual = mediana(pontos.map((p) => p.qtd));
+        const varQtd = qtdHabitual > 0 ? atual.qtd - qtdHabitual : 0;
+        const varQtdPct = qtdHabitual > 0 ? (varQtd / qtdHabitual) * 100 : 0;
+
+        // Intervalo médio entre compras, para saber quando a próxima chega
+        const intervalos = [];
+        for (let i = 1; i < pontos.length; i += 1) {
+          const d = diasEntre(pontos[i - 1].data, pontos[i].data);
+          if (d !== null && d > 0) intervalos.push(d);
+        }
+        const intervaloMedio = intervalos.length
+          ? Math.round(intervalos.reduce((a, b) => a + b, 0) / intervalos.length)
+          : null;
+        const diasDesdeUltima = diasEntre(atual.data, hoje);
+
+        const confiavel = pontos.length >= MIN_COMPRAS_CONFIAVEL;
+        const situacao = situacaoDoPreco({
+          precoAtual: atual.preco, faixaMin, faixaMax, medianaPreco, menorPreco, varPct, confiavel
+        });
+
+        // Por fornecedor: é aqui que a cotação vira conversa de negociação
+        const porFornecedor = {};
+        pontos.forEach((p) => {
+          const f = porFornecedor[p.fornecedor] || { nome: p.fornecedor, precos: [], qtdTotal: 0, ultimaData: '', ultimoPreco: 0 };
+          f.precos.push(p.preco);
+          f.qtdTotal += p.qtd;
+          if ((p.data || '') >= f.ultimaData) { f.ultimaData = p.data || ''; f.ultimoPreco = p.preco; }
+          porFornecedor[p.fornecedor] = f;
+        });
+        const fornecedores = Object.values(porFornecedor).map((f) => ({
+          nome: f.nome,
+          ultimoPreco: f.ultimoPreco,
+          ultimaData: f.ultimaData,
+          medio: f.precos.reduce((a, b) => a + b, 0) / f.precos.length,
+          mediana: mediana(f.precos),
+          menor: Math.min(...f.precos),
+          qtdTotal: f.qtdTotal,
+          compras: f.precos.length
+        })).sort((a, b) => a.ultimoPreco - b.ultimoPreco);
+
+        return {
+          unidadeRef,
+          compras: pontos.length,
+          precoAtual: atual.preco,
+          dataAtual: atual.data,
+          fornecedorAtual: atual.fornecedor,
+          qtdAtual: atual.qtd,
+          precoAnterior: anterior ? anterior.preco : null,
+          dataAnterior: anterior ? anterior.data : null,
+          varUnit,
+          varPct,
+          medianaPreco,
+          varMedianaUnit: atual.preco - medianaPreco,
+          varMedianaPct: medianaPreco > 0 ? ((atual.preco - medianaPreco) / medianaPreco) * 100 : 0,
+          menorPreco,
+          varMenorUnit: atual.preco - menorPreco,
+          varMenorPct: menorPreco > 0 ? ((atual.preco - menorPreco) / menorPreco) * 100 : 0,
+          faixaMin,
+          faixaMax,
+          qtdHabitual,
+          varQtd,
+          varQtdPct,
+          intervaloMedio,
+          diasDesdeUltima,
+          // O que a variação do preço custa numa compra do tamanho de sempre
+          impacto: varUnit !== null && qtdHabitual > 0 ? varUnit * qtdHabitual : 0,
+          confiavel,
+          situacao,
+          fornecedores,
+          // Só é "melhor preço recente" — preço não é o único critério de
+          // fornecedor, e o relatório não vai fingir que é
+          melhorRecente: fornecedores.length > 1 ? fornecedores[0] : null
+        };
+      };
+
+      // O relatório inteiro: os itens analisados mais o resumo do período
+      const montarRelatorioDeCompra = (compras, hoje) => {
+        const limite = new Date(`${hoje}T00:00:00`);
+        limite.setDate(limite.getDate() - DIAS_JANELA_COMPRA);
+        const desde = limite.toISOString().slice(0, 10);
+
+        const naJanela = compras.filter((c) => c.data && c.data >= desde && c.data <= hoje);
+        const porItem = {};
+        naJanela.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
+
+        const itens = Object.entries(porItem)
+          .map(([itemId, lista]) => {
+            const analise = analisarItemDeCompra(lista, hoje);
+            return analise ? { itemId, item: lista[0].item, tipo: lista[0].tipo, ...analise } : null;
+          })
+          .filter(Boolean);
+
+        // Estável é o que praticamente não andou — abaixo de 2% é ruído de
+        // arredondamento de nota, não movimento de preço
+        const subiu = itens.filter((i) => i.varPct !== null && i.varPct > 2);
+        const caiu = itens.filter((i) => i.varPct !== null && i.varPct < -2);
+        const estaveis = itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) <= 2);
+
+        return {
+          desde,
+          ate: hoje,
+          itens,
+          resumo: {
+            subiu: subiu.length,
+            caiu: caiu.length,
+            estaveis: estaveis.length,
+            acimaDoPadrao: itens.filter((i) => i.situacao.chave === 'alto' || i.situacao.chave === 'atencao').length,
+            bomPreco: itens.filter((i) => i.situacao.chave === 'bom').length,
+            semHistorico: itens.filter((i) => !i.confiavel).length,
+            impactoAltas: subiu.reduce((s, i) => s + Math.max(0, i.impacto), 0),
+            economiaQuedas: caiu.reduce((s, i) => s + Math.min(0, i.impacto), 0)
+          },
+          maioresAltas: [...subiu].sort((a, b) => b.varPct - a.varPct).slice(0, 5),
+          maioresQuedas: [...caiu].sort((a, b) => a.varPct - b.varPct).slice(0, 5),
+          acimaDoPadrao: itens.filter((i) => i.situacao.chave === 'alto' || i.situacao.chave === 'atencao')
+            .sort((a, b) => b.varMedianaPct - a.varMedianaPct),
+          oportunidades: itens.filter((i) => i.situacao.chave === 'bom' || (i.varPct !== null && i.varPct < -2))
+            .sort((a, b) => (a.varPct === null ? 0 : a.varPct) - (b.varPct === null ? 0 : b.varPct))
+        };
+      };
+
+      // ==========================================
+      // RELATÓRIO DE APOIO À COMPRA — A FOLHA
+      //
+      // O mesmo documento serve a três leituras: rolado no celular, mandado
+      // por WhatsApp e impresso em A4. Por isso os dados de cada item vêm em
+      // blocos verticais, e não em tabela larga — tabela de doze colunas é
+      // ilegível num telefone.
+      //
+      // A cor é apoio, nunca a informação: toda situação vem escrita por
+      // extenso e com um símbolo, para a folha continuar de pé impressa em
+      // preto e branco.
+      // ==========================================
+      // ==========================================
+      // A BARRA DE AÇÕES DAS FOLHAS
+      //
+      // Disparar o print sozinho não funciona no celular: numa página criada
+      // por document.write o onload muitas vezes já passou quando o handler é
+      // registrado, e aí a folha abre sem nada acontecer. Um botão dentro da
+      // própria folha não depende de evento nenhum — a pessoa toca quando
+      // quiser, e o navegador abre a impressão, onde "Salvar como PDF" guarda
+      // o arquivo para mandar no WhatsApp depois.
+      //
+      // A barra é da tela; no papel ela some.
+      // ==========================================
+      const BARRA_ACOES_HTML = `
+        <div class="acoes">
+          <button type="button" class="acao-imprimir" onclick="window.print()">Imprimir ou salvar em PDF</button>
+          <span class="acoes-dica">No celular: toque no botão, escolha <strong>Salvar como PDF</strong> em Destino e depois compartilhe o arquivo.</span>
+        </div>`;
+
+      const BARRA_ACOES_CSS = `
+        .acoes { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center;
+                 gap: 8px 14px; padding: 10px 0 12px; margin-bottom: 6px; background: #fff;
+                 border-bottom: 1px solid #ddd; }
+        .acao-imprimir { font: inherit; font-size: 12pt; font-weight: 700; line-height: 1.2; color: #fff;
+                         background: #0E0937; border: 0; border-radius: 8px; padding: 12px 18px;
+                         min-height: 48px; cursor: pointer; }
+        .acao-imprimir:active { transform: scale(.98); }
+        .acoes-dica { font-size: 10.5pt; color: #555; flex: 1 1 240px; }
+        @media print { .acoes { display: none !important; } }`;
+
+      const relPreco = (v, unidade) => `${formatCurrencyBR(v)}/${unidade}`;
+
+      // Variação sempre nas duas medidas: sozinho, o percentual esconde o
+      // tamanho da conta, e o valor esconde a proporção
+      const relVariacao = (valor, pct, unidade) => {
+        if (valor === null || valor === undefined) return '<span class="quieto">sem compra anterior no período</span>';
+        const sobe = valor > 0.0001;
+        const desce = valor < -0.0001;
+        const classe = sobe ? 'sobe' : desce ? 'desce' : 'igual';
+        const sinal = sobe ? '+' : desce ? '−' : '';
+        const seta = sobe ? '▲' : desce ? '▼' : '=';
+        const pctTexto = pct === null || pct === undefined
+          ? ''
+          : ` | ${sinal}${Math.abs(pct).toFixed(1).replace('.', ',')}%`;
+        return `<span class="var ${classe}">${seta} ${sinal}${formatCurrencyBR(Math.abs(valor))}${unidade ? '/' + unidade : ''}${pctTexto}</span>`;
+      };
+
+      const relLinha = (rotulo, valor) => `<div class="linha"><span class="rot">${rotulo}</span><span class="val">${valor}</span></div>`;
+
+      const relResumoItem = (i) => `<li><span class="li-nome">${escaparHtml(i.item)}</span>${relVariacao(i.varUnit, i.varPct, i.unidadeRef)}</li>`;
+
+      const relBlocoProduto = (i) => {
+        const quantidade = i.qtdHabitual > 0 && Math.abs(i.varQtdPct) >= 20
+          ? `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="aviso">⚠ ${i.varQtdPct > 0 ? '+' : '−'}${Math.abs(i.varQtdPct).toFixed(0)}% do habitual (${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef})</span>`
+          : `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="quieto">· habitual ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}</span>`;
+
+        const frequencia = i.intervaloMedio
+          ? `a cada ${i.intervaloMedio} ${i.intervaloMedio === 1 ? 'dia' : 'dias'}${i.diasDesdeUltima !== null ? ` <span class="quieto">· última há ${i.diasDesdeUltima} ${i.diasDesdeUltima === 1 ? 'dia' : 'dias'}</span>` : ''}`
+          : '<span class="quieto">poucas compras para calcular</span>';
+
+        const tabelaFornecedores = i.fornecedores.length > 1 ? `
+          <table class="forn">
+            <thead><tr>
+              <th>Fornecedor</th><th class="n">Último</th><th class="n">Mediana</th>
+              <th class="n">Menor</th><th class="n">Comprado</th><th class="n">Última</th>
+            </tr></thead>
+            <tbody>${i.fornecedores.map((f, idx) => `<tr>
+              <td class="f-nome">${idx === 0 ? '<span class="estrela">★</span> ' : ''}${escaparHtml(f.nome)}${idx === 0 ? '<div class="nota-forn">melhor preço recente</div>' : ''}</td>
+              <td class="n" data-rot="Último preço">${formatCurrencyBR(f.ultimoPreco)}</td>
+              <td class="n" data-rot="Mediana">${formatCurrencyBR(f.mediana)}</td>
+              <td class="n" data-rot="Menor">${formatCurrencyBR(f.menor)}</td>
+              <td class="n" data-rot="Comprado">${numeroCurtoBR(f.qtdTotal)} ${i.unidadeRef}</td>
+              <td class="n" data-rot="Última compra">${formatDateBR(f.ultimaData) || '—'}</td>
+            </tr>`).join('')}</tbody>
+          </table>` : '';
+
+        const impacto = i.impacto && Math.abs(i.impacto) >= 0.01
+          ? `<div class="impacto ${i.impacto > 0 ? 'sobe' : 'desce'}">
+               <span class="imp-rot">Impacto estimado numa compra habitual</span>
+               <span class="imp-val">${i.impacto > 0 ? '+' : '−'}${formatCurrencyBR(Math.abs(i.impacto))}</span>
+             </div>`
+          : '';
+
+        return `<section class="bloco">
+          <div class="bloco-topo">
+            <h3>${escaparHtml(i.item)}</h3>
+            <span class="selo s-${i.situacao.chave}">${i.situacao.simbolo} ${i.situacao.label}</span>
+          </div>
+          <div class="tipo">${escaparHtml(i.tipo)} · preço por ${i.unidadeRef} · ${i.compras} ${i.compras === 1 ? 'compra' : 'compras'} no período</div>
+
+          ${relLinha('Preço atual', `<strong>${relPreco(i.precoAtual, i.unidadeRef)}</strong> <span class="quieto">${formatDateBR(i.dataAtual)}</span>`)}
+          ${relLinha('Última compra antes desta', i.precoAnterior ? `${relPreco(i.precoAnterior, i.unidadeRef)} <span class="quieto">${formatDateBR(i.dataAnterior)}</span>` : '<span class="quieto">—</span>')}
+          ${relLinha('Variação', relVariacao(i.varUnit, i.varPct, i.unidadeRef))}
+
+          ${i.confiavel ? `
+            ${relLinha('Preço típico (mediana 90 dias)', `${relPreco(i.medianaPreco, i.unidadeRef)} &nbsp; ${relVariacao(i.varMedianaUnit, i.varMedianaPct, '')}`)}
+            ${relLinha('Faixa normal', `${formatCurrencyBR(i.faixaMin)} a ${formatCurrencyBR(i.faixaMax)}/${i.unidadeRef}`)}
+            ${relLinha('Melhor preço recente', `${relPreco(i.menorPreco, i.unidadeRef)} &nbsp; ${relVariacao(i.varMenorUnit, i.varMenorPct, '')}`)}
+          ` : `<div class="linha sem-base"><span class="rot">Preço típico, faixa normal e melhor preço</span><span class="val quieto">só a partir de ${MIN_COMPRAS_CONFIAVEL} compras no período</span></div>`}
+
+          ${relLinha('Fornecedor da última compra', escaparHtml(i.fornecedorAtual))}
+          ${relLinha('Quantidade da última compra', quantidade)}
+          ${relLinha('Frequência', frequencia)}
+
+          ${impacto}
+          ${tabelaFornecedores}
+
+          <div class="orientacao"><span class="ori-rot">Orientação</span> ${i.situacao.orientacao}</div>
+        </section>`;
+      };
+
+      const htmlRelatorioDeCompra = (rel, unidadeNome) => {
+        const r = rel.resumo;
+        const lista = (titulo, itens, vazio) => `
+          <div class="grupo">
+            <h2>${titulo}</h2>
+            ${itens.length ? `<ul class="resumo-lista">${itens.map(relResumoItem).join('')}</ul>` : `<p class="quieto">${vazio}</p>`}
+          </div>`;
+
+        // Só o que ajuda a decidir vira bloco detalhado. Item estável e dentro
+        // da faixa não precisa de meia página — ele aparece na lista do fim.
+        const detalhar = rel.itens
+          .filter((i) => i.situacao.chave !== 'normal' || (i.varPct !== null && Math.abs(i.varPct) > 2))
+          .sort((a, b) => {
+            const ordem = { alto: 0, atencao: 1, bom: 2, normal: 3, insuficiente: 4 };
+            const d = ordem[a.situacao.chave] - ordem[b.situacao.chave];
+            return d !== 0 ? d : Math.abs(b.varPct || 0) - Math.abs(a.varPct || 0);
+          });
+        const semDetalhe = rel.itens.filter((i) => !detalhar.includes(i));
+
+        return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Relatório de apoio à compra — ${escaparHtml(unidadeNome)}</title>
+          <style>
+            @page { size: A4 portrait; margin: 14mm 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111; margin: 0 auto; padding: 0 4vw 40px;
+                   font-size: 12pt; line-height: 1.45; max-width: 820px; }
+            @media print { body { padding: 0; max-width: none; } }
+
+            header { border-bottom: 2.5px solid #111; padding-bottom: 10px; margin-bottom: 16px; }
+            h1 { font-size: 18pt; margin: 0 0 2px; letter-spacing: -.01em; }
+            .cab { font-size: 10.5pt; color: #444; }
+
+            h2 { font-size: 13pt; margin: 20px 0 8px; padding: 5px 9px; background: #efefef;
+                 border-left: 4px solid #111; border-radius: 2px; }
+            h3 { font-size: 13.5pt; margin: 0; }
+
+            /* O placar do período: número grande, rótulo pequeno */
+            .placar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+            .caixa { flex: 1 1 130px; border: 1.5px solid #bbb; border-radius: 5px; padding: 8px 10px; }
+            .caixa .n { font-size: 20pt; font-weight: 800; line-height: 1.1; }
+            .caixa .r { font-size: 9.5pt; color: #444; text-transform: uppercase; letter-spacing: .03em; }
+            .caixa.sobe { border-color: #7D2027; } .caixa.sobe .n { color: #7D2027; }
+            .caixa.desce { border-color: #2E7D51; } .caixa.desce .n { color: #2E7D51; }
+
+            .dinheiro { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+            .dinheiro > div { flex: 1 1 200px; border: 1.5px solid #111; border-radius: 5px; padding: 9px 11px; }
+            .dinheiro .r { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .03em; color: #444; }
+            .dinheiro .v { font-size: 16pt; font-weight: 800; }
+
+            .resumo-lista { list-style: none; margin: 0; padding: 0; }
+            .resumo-lista li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+                               padding: 5px 0; border-bottom: 1px solid #ddd; }
+            .li-nome { font-weight: 600; }
+
+            /* Cada produto num bloco vertical: no celular a leitura é de cima
+               para baixo, e no papel o bloco não se parte entre páginas */
+            .bloco { border: 1.5px solid #999; border-radius: 6px; padding: 11px 13px; margin-top: 12px;
+                     page-break-inside: avoid; break-inside: avoid; }
+            .bloco-topo { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+            .tipo { font-size: 9.5pt; color: #555; margin: 2px 0 8px; }
+
+            .linha { display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+                     padding: 4px 0; border-bottom: 1px dotted #ccc; }
+            .rot { font-size: 10.5pt; color: #444; flex: 0 0 auto; }
+            .val { text-align: right; font-variant-numeric: tabular-nums; }
+
+            .selo { font-size: 10pt; font-weight: 800; padding: 3px 9px; border-radius: 999px;
+                    border: 1.5px solid #111; white-space: nowrap; }
+            .s-alto { background: #F6DEDE; border-color: #7D2027; color: #7D2027; }
+            .s-atencao { background: #FBEBCF; border-color: #8A5A00; color: #8A5A00; }
+            .s-normal { background: #eee; border-color: #555; color: #333; }
+            .s-bom { background: #DCEFE2; border-color: #2E7D51; color: #2E7D51; }
+            .s-insuficiente { background: #fff; border-color: #999; color: #555; }
+
+            .var { font-weight: 700; white-space: nowrap; }
+            .var.sobe { color: #7D2027; } .var.desce { color: #2E7D51; } .var.igual { color: #444; }
+            .quieto { color: #666; font-weight: 400; font-size: 10.5pt; }
+            .aviso { color: #8A5A00; font-weight: 700; font-size: 10.5pt; }
+
+            .impacto { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+                       margin-top: 9px; padding: 8px 10px; border: 2px solid #111; border-radius: 5px; }
+            .imp-rot { font-size: 10pt; text-transform: uppercase; letter-spacing: .03em; }
+            .imp-val { font-size: 15pt; font-weight: 800; }
+            .impacto.sobe { border-color: #7D2027; } .impacto.sobe .imp-val { color: #7D2027; }
+            .impacto.desce { border-color: #2E7D51; } .impacto.desce .imp-val { color: #2E7D51; }
+
+            .forn { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10.5pt; }
+            .forn th { text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .03em;
+                       border-bottom: 1.5px solid #111; padding: 4px 5px; }
+            .forn td { padding: 5px; border-bottom: 1px solid #ddd; vertical-align: top; }
+            .forn .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+            .estrela { font-weight: 800; }
+            @media screen and (max-width: 560px) {
+              .forn thead { display: none; }
+              .forn, .forn tbody, .forn tr, .forn td { display: block; width: auto; }
+              .forn tr { border: 1px solid #ccc; border-radius: 5px; padding: 6px 8px; margin-bottom: 7px; }
+              .forn td { border: 0; padding: 2px 0; display: flex; justify-content: space-between; gap: 10px; }
+              .forn td.f-nome { font-weight: 700; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 3px; display: block; }
+              .forn td.n::before { content: attr(data-rot); color: #555; font-weight: 400; }
+            }
+            .nota-forn { font-size: 8.5pt; color: #555; }
+
+            .orientacao { margin-top: 10px; padding: 8px 10px; background: #f4f4f4; border-radius: 4px; font-size: 11pt; }
+            .ori-rot { font-weight: 800; text-transform: uppercase; font-size: 9.5pt; letter-spacing: .03em; display: block; }
+
+            .estaveis { font-size: 10.5pt; color: #444; }
+            footer { margin-top: 20px; border-top: 1px solid #bbb; padding-top: 8px; font-size: 9.5pt; color: #555; }
+            .quebra { page-break-before: always; }
+            @media print {
+              .bloco:nth-of-type(3n) { page-break-after: always; }
+              .bloco:last-of-type { page-break-after: auto; }
+            }
+            .sem-base .val { text-align: right; }
+            @media screen { .quebra { border-top: 3px double #ccc; margin-top: 24px; padding-top: 8px; } }
+            ${BARRA_ACOES_CSS}
+          </style></head><body>
+
+          ${BARRA_ACOES_HTML}
+
+          <header>
+            <h1>Relatório de apoio à compra</h1>
+            <div class="cab">
+              ${escaparHtml(unidadeNome)} · período de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)} (${DIAS_JANELA_COMPRA} dias)<br>
+              Emitido em ${formatDateBR(rel.ate)} · ${rel.itens.length} ${rel.itens.length === 1 ? 'item comprado' : 'itens comprados'} no período
+            </div>
+          </header>
+
+          <h2>Resumo do período</h2>
+          <div class="placar">
+            <div class="caixa sobe"><div class="n">▲ ${r.subiu}</div><div class="r">com alta</div></div>
+            <div class="caixa desce"><div class="n">▼ ${r.caiu}</div><div class="r">com queda</div></div>
+            <div class="caixa"><div class="n">= ${r.estaveis}</div><div class="r">estáveis</div></div>
+            <div class="caixa"><div class="n">${r.acimaDoPadrao}</div><div class="r">acima do padrão</div></div>
+            <div class="caixa"><div class="n">${r.bomPreco}</div><div class="r">com bom preço</div></div>
+          </div>
+          <div class="dinheiro">
+            <div><div class="r">Impacto estimado das altas</div><div class="v sobe" style="color:#7D2027">+${formatCurrencyBR(r.impactoAltas)}</div></div>
+            <div><div class="r">Economia estimada nas quedas</div><div class="v" style="color:#2E7D51">−${formatCurrencyBR(Math.abs(r.economiaQuedas))}</div></div>
+          </div>
+          <p class="quieto">Estimado sobre a quantidade habitual de cada item — o que a variação de preço custa numa compra do tamanho de sempre.${r.semHistorico ? ` ${r.semHistorico} ${r.semHistorico === 1 ? 'item tem' : 'itens têm'} histórico curto demais para classificar.` : ''}</p>
+
+          ${lista('Maiores altas', rel.maioresAltas, 'Nenhum item subiu de preço no período.')}
+          ${lista('Maiores quedas', rel.maioresQuedas, 'Nenhum item caiu de preço no período.')}
+          ${lista('Acima do padrão', rel.acimaDoPadrao, 'Nenhum item acima da faixa normal.')}
+          ${lista('Oportunidades de preço', rel.oportunidades, 'Nenhuma oportunidade no período.')}
+
+          ${detalhar.length ? `<div class="quebra"></div><h2>Análise por produto</h2>${detalhar.map(relBlocoProduto).join('')}` : ''}
+
+          ${semDetalhe.length ? `<h2>Demais itens, dentro do padrão</h2>
+            <p class="estaveis">${semDetalhe.map((i) => `${escaparHtml(i.item)} (${relPreco(i.precoAtual, i.unidadeRef)})`).join(' · ')}</p>` : ''}
+
+          <footer>
+            Faixa normal: o miolo dos preços do período (do primeiro ao terceiro quartil), para uma compra muito cara ou muito barata não distorcer a referência.
+            Preço típico: a mediana. Impacto: variação do preço × quantidade habitual.
+            As orientações são apoio à decisão — a compra é decisão do supervisor.
+
+          </footer>
+          <style>@media print { .dica { display: none; } }</style>
+        </body></html>`;
+      };
+
       const SuppliersView = ({
         supplies,
         supplyPurchases,
@@ -13888,6 +14447,23 @@
             };
           });
         }, [compras]);
+
+        // O relatório de apoio à compra. Sai numa janela própria: dali a
+        // pessoa imprime, salva em PDF ou manda no WhatsApp.
+        const imprimirRelatorioDeCompra = () => {
+          const rel = montarRelatorioDeCompra(todas, getTodayDateString());
+          if (!rel.itens.length) {
+            window.alert(`Nenhuma compra lançada nos últimos ${DIAS_JANELA_COMPRA} dias — não há o que analisar ainda.`);
+            return;
+          }
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
+            return;
+          }
+          janela.document.write(htmlRelatorioDeCompra(rel, unitName));
+          janela.document.close();
+        };
 
         // A planilha de compras: uma linha por item E fornecedor, que é a
         // forma de comparar. Cada linha carrega junto o resumo do item (melhor
@@ -14167,14 +14743,24 @@
                 </div>
                 {/* A planilha para ir às compras: cada item com cada fornecedor
                     e o preço de cada um, para comparar fora da tela */}
-                <button
-                  onClick={exportarCompras}
-                  title="Baixar o relatório de compras, para abrir no Excel ou no Google Planilhas"
-                  className="btn btn-secondary btn-sm"
-                >
-                  <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                  Exportar relatório de compras
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={imprimirRelatorioDeCompra}
+                    disabled={todas.length === 0}
+                    title="Abre o relatório de apoio à compra: resumo do período, análise por produto e comparação de fornecedores. Dá para ler no celular, mandar no WhatsApp ou imprimir em A4."
+                    className="btn btn-primary btn-sm disabled:opacity-40"
+                  >
+                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                    Relatório de apoio à compra
+                  </button>
+                  <button
+                    onClick={exportarCompras}
+                    title="Baixar a lista completa em planilha, para abrir no Excel ou no Google Planilhas"
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Baixar planilha
+                  </button>
+                </div>
               </div>
             </div>
 
