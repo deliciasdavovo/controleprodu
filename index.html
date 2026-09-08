@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-07-sugestoes-enter-1" />
+    <meta name="app-version" content="2026-09-08-exportar-planilhas-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2137,6 +2137,45 @@
         minimumFractionDigits: 0,
         maximumFractionDigits: 3
       });
+
+      // ==========================================
+      // EXPORTAR PARA PLANILHA
+      //
+      // CSV separado por ponto e vírgula e com BOM no começo: é assim que o
+      // Excel em português abre o arquivo já com as colunas separadas e os
+      // números entendidos como números. O Google Planilhas lê o mesmo
+      // arquivo sem ajuste.
+      //
+      // Número vai sem separador de milhar e com vírgula decimal — com o
+      // ponto do milhar o Excel leria "1.234,56" como texto.
+      // ==========================================
+      const csvTexto = (v) => {
+        const t = String(v === null || v === undefined ? '' : v);
+        return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+      };
+
+      const csvNumero = (v, casas = 2) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return '';
+        return n.toFixed(casas).replace('.', ',');
+      };
+
+      const baixarCSV = (nomeArquivo, colunas, linhas) => {
+        const conteudo = [colunas.map(csvTexto).join(';')]
+          .concat(linhas.map((linha) => linha.map(csvTexto).join(';')))
+          .join('\r\n');
+        const blob = new Blob(['\uFEFF' + conteudo], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeArquivo;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+
+      const nomeComData = (base) => `${base}-${getTodayDateString()}.csv`;
 
       const resumoCompraVolume = (compra) => {
         const pacote = lerUnidadeCompraVolume(compra?.purchaseUnit);
@@ -13052,6 +13091,84 @@
             };
           }), [separatedProducts, resalePurchases, currentUnit, supplies, supplyPurchases]);
 
+        // O que precisa de decisão de preço: o que está fora da meta e o que
+        // nem chega a fechar conta (sem preço ou sem custo). Produto dentro da
+        // meta não entra — a planilha é uma lista de trabalho, não um retrato
+        // do cardápio inteiro.
+        const precosParaRever = useMemo(() => {
+          const oQueFalta = (calculavel, preco, custo, natureza, cmv) => {
+            if (preco <= 0) return 'cadastrar o preço de venda';
+            if (custo <= 0) {
+              return natureza === 'fabricacao'
+                ? 'montar a ficha técnica (ou digitar o custo)'
+                : 'lançar a compra para o custo sair';
+            }
+            const meta = CMV_METAS[natureza];
+            if (cmv > meta.atencao) return 'CMV alto — subir o preço ou baixar o custo';
+            if (cmv > meta.bom) return 'CMV em atenção — revisar preço ou custo';
+            return '';
+          };
+
+          const montar = (nome, categoria, unidadePreco, preco, custo, calculavel, cmv, natureza, tipo) => {
+            const falta = oQueFalta(calculavel, preco, custo, natureza, cmv);
+            if (!falta) return null;
+            const sugerido = custo > 0 ? precoSugerido(custo, natureza) : 0;
+            return {
+              tipo,
+              nome,
+              categoria,
+              unidadePreco,
+              preco,
+              custo,
+              cmv,
+              calculavel,
+              situacao: calculavel ? getCmvStatus(cmv, natureza).label : 'conta não fecha',
+              sugerido,
+              diferenca: sugerido > 0 && preco > 0 ? sugerido - preco : 0,
+              diferencaPct: sugerido > 0 && preco > 0 ? ((sugerido - preco) / preco) * 100 : 0,
+              falta
+            };
+          };
+
+          const daProducao = linhasProducao.map((l) => montar(
+            l.produto.name, l.produto.category || '', l.produto.priceUnit || 'un',
+            l.preco, l.custoUn, l.calculavel, l.cmv, 'fabricacao', 'Produção'
+          ));
+          const daRevenda = linhasRevenda.map((l) => montar(
+            l.item.productName, l.item.category || '', l.item.priceUnit || 'un',
+            l.preco, l.custo, l.calculavel, l.cmv, 'revenda', 'Revenda'
+          ));
+
+          // Pior primeiro; o que não fecha conta vai para o fim, porque ali a
+          // decisão não é de preço, é de cadastro
+          return [...daProducao, ...daRevenda].filter(Boolean).sort((a, b) => {
+            if (a.calculavel !== b.calculavel) return a.calculavel ? -1 : 1;
+            return b.cmv - a.cmv;
+          });
+        }, [linhasProducao, linhasRevenda]);
+
+        const exportarPrecos = () => {
+          baixarCSV(
+            nomeComData(`precos-a-rever-${currentUnit}`),
+            ['Tipo', 'Produto', 'Categoria', 'Vendido por', 'Preço atual', 'Custo',
+             'CMV %', 'Situação', 'Preço sugerido', 'Diferença R$', 'Diferença %', 'O que fazer'],
+            precosParaRever.map((x) => [
+              x.tipo,
+              x.nome,
+              x.categoria,
+              x.unidadePreco,
+              x.preco > 0 ? csvNumero(x.preco) : '',
+              x.custo > 0 ? csvNumero(x.custo) : '',
+              x.calculavel ? csvNumero(x.cmv, 1) : '',
+              x.situacao,
+              x.sugerido > 0 ? csvNumero(x.sugerido) : '',
+              x.diferenca ? csvNumero(x.diferenca) : '',
+              x.diferencaPct ? csvNumero(x.diferencaPct, 1) : '',
+              x.falta
+            ])
+          );
+        };
+
         // O placar do topo. A média junta os dois mundos porque a pergunta que
         // ela responde é do negócio inteiro ("quanto do meu faturamento vira
         // custo de mercadoria?"); o alerta, não — cada produto é medido pela
@@ -13088,10 +13205,31 @@
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="t-display">CMV</h2>
-              <p className="t-body mt-1">
-                {unitName} · quanto de cada venda vai embora em custo de mercadoria.
-              </p>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="t-display">CMV</h2>
+                  <p className="t-body mt-1">
+                    {unitName} · quanto de cada venda vai embora em custo de mercadoria.
+                  </p>
+                </div>
+                {/* A planilha do que precisa de decisão: o que está fora da
+                    meta e o que nem fecha conta. Quem vai mexer em preço mexe
+                    numa lista, não na tela inteira. */}
+                <button
+                  onClick={exportarPrecos}
+                  disabled={precosParaRever.length === 0}
+                  title={precosParaRever.length
+                    ? 'Baixar a lista de preços a rever, para abrir no Excel ou no Google Planilhas'
+                    : 'Nenhum preço fora da meta — nada para exportar'}
+                  className="btn btn-secondary btn-sm disabled:opacity-40"
+                >
+                  <Icons.ClipboardList className="w-3.5 h-3.5" />
+                  Exportar preços a rever
+                  {precosParaRever.length > 0 && (
+                    <span className="tnum font-bold">({precosParaRever.length})</span>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -13623,6 +13761,58 @@
           });
         }, [compras]);
 
+        // A planilha de compras: uma linha por item E fornecedor, que é a
+        // forma de comparar. Cada linha carrega junto o resumo do item (melhor
+        // preço, quanto dá para economizar, quanto o preço andou), para o
+        // filtro do Excel responder sozinho "de quem eu compro isto".
+        //
+        // Os preços saem na unidade grande (kg, L, un), que é como se fala de
+        // preço de insumo — R$ 0,005/g não diz nada a ninguém.
+        const exportarCompras = () => {
+          const linhas = [];
+          [...porItem]
+            .sort((a, b) => a.item.localeCompare(b.item, 'pt-BR'))
+            .forEach((i) => {
+              const grande = (v) => precoNaUnidadeGrande(v, i.unidade);
+              const unidadePreco = grande(0).label;
+              const melhor = i.maisBarato;
+              (i.medias.length ? i.medias : [null]).forEach((f) => {
+                const diferencaParaMelhor = f && melhor && melhor.medio > 0 && f.medio > 0
+                  ? ((f.medio - melhor.medio) / melhor.medio) * 100
+                  : 0;
+                linhas.push([
+                  i.item,
+                  i.tipo,
+                  unidadePreco,
+                  f ? f.nome : 'Sem fornecedor',
+                  f ? csvNumero(grande(f.medio).valor) : '',
+                  f ? formatDateBR(f.ultima) : '',
+                  melhor ? melhor.nome : '',
+                  melhor ? csvNumero(grande(melhor.medio).valor) : '',
+                  f && melhor && f.nome !== melhor.nome ? csvNumero(diferencaParaMelhor, 1) : '',
+                  i.medias.length,
+                  i.compras,
+                  csvNumero(grande(i.atual.custoUnit).valor),
+                  i.atual.fornecedor,
+                  formatDateBR(i.atual.data),
+                  i.atual.variacaoPct === null || i.atual.variacaoPct === undefined
+                    ? ''
+                    : csvNumero(i.atual.variacaoPct, 1)
+                ]);
+              });
+            });
+
+          baixarCSV(
+            nomeComData(`compras-fornecedores-${currentUnit}`),
+            ['Item', 'Tipo', 'Preço por', 'Fornecedor', 'Preço médio deste fornecedor',
+             'Última compra dele', 'Fornecedor mais barato', 'Preço do mais barato',
+             'Quanto este está acima do melhor %', 'Nº de fornecedores', 'Nº de compras',
+             'Preço da última compra', 'Fornecedor da última compra', 'Data da última compra',
+             'Variação da última compra %'],
+            linhas
+          );
+        };
+
         const itensOrdenados = useMemo(() => [...porItem].sort((a, b) => {
           const va = a.atual.variacaoPct;
           const vb = b.atual.variacaoPct;
@@ -13840,10 +14030,24 @@
             )}
 
             <div>
-              <h2 className="t-display">Fornecedores</h2>
-              <p className="t-body mt-1">
-                {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
-              </p>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="t-display">Fornecedores</h2>
+                  <p className="t-body mt-1">
+                    {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
+                  </p>
+                </div>
+                {/* A planilha para ir às compras: cada item com cada fornecedor
+                    e o preço de cada um, para comparar fora da tela */}
+                <button
+                  onClick={exportarCompras}
+                  title="Baixar o relatório de compras, para abrir no Excel ou no Google Planilhas"
+                  className="btn btn-secondary btn-sm"
+                >
+                  <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                  Exportar relatório de compras
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
