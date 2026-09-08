@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-toda-variacao-1" />
+    <meta name="app-version" content="2026-09-09-folha-compra-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13793,10 +13793,9 @@
       // o melhor preço recente. Quem decide é o supervisor; o relatório só
       // coloca os números lado a lado.
       //
-      // A janela é de 90 dias. Preço de insumo muda de estação e de safra:
-      // comparar com o ano passado diria pouco sobre a compra de amanhã.
+      // Todo o histórico lançado entra: cada item é comparado com a compra
+      // anterior dele mesmo, seja ela de ontem ou de meses atrás.
       // ==========================================
-      const DIAS_JANELA_COMPRA = 90;
       // Um relatório que ninguém lê inteiro não decide nada. Com o catálogo de
       // uma padaria de verdade — mais de cem itens — detalhar todos daria umas
       // trinta páginas. Detalham-se os que pesam; o resto vai em lista.
@@ -14011,14 +14010,23 @@
       };
 
       // O relatório inteiro: os itens analisados mais o resumo do período
+      //
+      // Sem janela de dias. Cortar em 90 dias parecia prudente e fazia o
+      // contrário: quem compra farinha toda semana tinha o que comparar, mas
+      // quem compra fermento a cada quatro meses aparecia com uma compra só —
+      // e uma compra sozinha não tem preço anterior, então o item sumia da
+      // folha inteira. Numa casa que lança nota de verdade sobravam dois ou
+      // três itens.
+      //
+      // A tela de Fornecedores sempre comparou cada compra com a anterior do
+      // mesmo item, sem olhar data. A folha lê a mesma coisa, e por isso
+      // bate com o que está na tela.
       const montarRelatorioDeCompra = (compras, hoje) => {
-        const limite = new Date(`${hoje}T00:00:00`);
-        limite.setDate(limite.getDate() - DIAS_JANELA_COMPRA);
-        const desde = limite.toISOString().slice(0, 10);
-
-        const naJanela = compras.filter((c) => c.data && c.data >= desde && c.data <= hoje);
+        const lancadas = compras.filter((c) => c.data && c.data <= hoje);
         const porItem = {};
-        naJanela.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
+        lancadas.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
+        const datas = lancadas.map((c) => c.data).sort();
+        const desde = datas[0] || hoje;
 
         const itens = Object.entries(porItem)
           .map(([itemId, lista]) => {
@@ -14027,11 +14035,11 @@
           })
           .filter(Boolean);
 
-        // Estável é o que praticamente não andou — abaixo de 2% é ruído de
-        // arredondamento de nota, não movimento de preço
-        const subiu = itens.filter((i) => i.varPct !== null && i.varPct > 2);
-        const caiu = itens.filter((i) => i.varPct !== null && i.varPct < -2);
-        const estaveis = itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) <= 2);
+        // Mesmo piso da folha: abaixo de 0,1% é sobra de arredondamento de
+        // centavo, não movimento de preço
+        const subiu = itens.filter((i) => i.varPct !== null && i.varPct >= 0.1);
+        const caiu = itens.filter((i) => i.varPct !== null && i.varPct <= -0.1);
+        const estaveis = itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) < 0.1);
 
         return {
           desde,
@@ -14051,7 +14059,7 @@
           maioresQuedas: [...caiu].sort((a, b) => a.varPct - b.varPct).slice(0, 5),
           acimaDoPadrao: itens.filter((i) => i.situacao.chave === 'alto' || i.situacao.chave === 'atencao')
             .sort((a, b) => b.varMedianaPct - a.varMedianaPct),
-          oportunidades: itens.filter((i) => i.situacao.chave === 'bom' || (i.varPct !== null && i.varPct < -2))
+          oportunidades: itens.filter((i) => i.situacao.chave === 'bom' || (i.varPct !== null && i.varPct <= -0.1))
             .sort((a, b) => (a.varPct === null ? 0 : a.varPct) - (b.varPct === null ? 0 : b.varPct))
         };
       };
@@ -14106,35 +14114,39 @@
         @media print { .acoes { display: none !important; } }`;
 
       // ==========================================
-      // RELATÓRIO DE PREÇOS — A FOLHA
+      // RELATÓRIO DE PREÇOS DE COMPRA — A FOLHA
       //
-      // Uma tabela, e só. A versão anterior espalhava o mesmo item por quatro
-      // listas e ainda repetia num bloco detalhado — quem lia via a muçarela
-      // quatro vezes e não sabia qual olhar. Agora é uma linha por item, na
-      // ordem do que mais subiu para o que mais caiu.
+      // Feita à imagem da folha "Preços a rever": mesma A4, mesma letra, mesma
+      // faixa cinza separando as seções, mesma coluna em branco no fim para
+      // escrever a decisão à caneta. São duas folhas da mesma casa e servem ao
+      // mesmo gesto — sair da mesa com o papel na mão e resolver.
       //
-      // Item que não mexeu no preço fica de fora: a folha é sobre o que mudou.
+      // Aqui não entra desenho. A versão anterior trazia uma barrinha por
+      // item: bonita de longe e inútil de perto, porque o número já estava
+      // escrito ao lado e a barra só repetia, pior.
       //
-      // A barrinha da variação é o único desenho, e ela é o que deixa a folha
-      // legível de relance — o tamanho diz o tanto, o lado diz a direção. Ela
-      // sobrevive ao preto e branco, e o número está escrito ao lado de
-      // qualquer jeito.
+      // A folha se parte em dois: o que subiu e o que caiu. São duas conversas
+      // diferentes — uma é cotar e negociar, a outra é aproveitar — e numa
+      // lista só era preciso ler linha por linha para saber de qual se trata.
+      //
+      // Dentro de cada parte a ordem é o dinheiro, não a porcentagem. Um
+      // tempero que subiu 40% custa dois reais a mais; a muçarela que subiu
+      // 7% custa sessenta. Ordenar por porcentagem põe o tempero no topo, e é
+      // a muçarela que precisa de telefonema.
       // ==========================================
       // Cada item lido de cima para baixo. Vale sempre no formato de celular e,
       // no de imprimir, só quando a tela é estreita demais para a tabela.
       const REGRAS_CARTAO = (alvo) => `
-        ${alvo} thead { display: none; }
+        ${alvo} thead, ${alvo} colgroup, ${alvo} .cotar { display: none; }
         ${alvo} table, ${alvo} tbody, ${alvo} tr, ${alvo} td { display: block; width: auto; }
-        ${alvo} tr { border: 1px solid #ddd; border-radius: 6px; padding: 9px 11px; margin-bottom: 9px; }
-        ${alvo} tbody tr:nth-child(even) { background: #fff; }
+        ${alvo} tr { border: 1px solid #bbb; border-radius: 4px; padding: 9px 11px; margin-bottom: 9px; }
         ${alvo} td { border: 0; padding: 2px 0; text-align: left; }
-        ${alvo} td.n { text-align: left; }
-        ${alvo} td[data-rot]::before { content: attr(data-rot) ': '; color: #666; font-weight: 400; font-size: 9.5pt; }
-        ${alvo} .c-item { font-size: 13pt; font-weight: 700; border-bottom: 1px solid #eee;
-                          padding-bottom: 5px; margin-bottom: 4px; }
-        ${alvo} .c-barra { padding: 3px 0 5px; }
-        ${alvo} .var .pct { display: inline; margin-left: 8px; }
-        ${alvo} .c-sit { margin-top: 4px; }`;
+        ${alvo} td.num { text-align: left; }
+        ${alvo} td[data-rot]::before { content: attr(data-rot) ': '; color: #555; font-weight: 400; font-size: 10pt; }
+        ${alvo} .nome { font-size: 13.5pt; font-weight: 700; border-bottom: 1px solid #eee;
+                        padding-bottom: 5px; margin-bottom: 4px; }
+        ${alvo} .mudou { font-size: 13pt; }
+        ${alvo} .mudou .pct { display: inline; margin-left: 8px; }`;
 
       // Os dois formatos. O PDF sai do tamanho da página, e não da tela: em A4
       // o relatório chega ao celular como uma folha larga para apertar e
@@ -14144,58 +14156,62 @@
         celular: {
           pagina: '@page { size: 105mm 210mm; margin: 8mm 7mm; }',
           corpo: 'font-size: 11pt;',
-          classe: 'cartoes',
-          titulo: 'Preços que mudaram'
+          classe: 'cartoes'
         },
         a4: {
-          pagina: '@page { size: A4 portrait; margin: 12mm 10mm; }',
-          corpo: 'font-size: 11pt;',
-          classe: '',
-          titulo: 'Preços que mudaram'
+          pagina: '@page { size: A4 portrait; margin: 14mm 12mm; }',
+          corpo: 'font-size: 11.5pt;',
+          classe: ''
         }
       };
 
       const relSinal = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
 
-      const relBarraVariacao = (pct, maiorPct) => {
-        const escala = Math.max(maiorPct, 1);
-        const largura = Math.min(100, (Math.abs(pct) / escala) * 100);
-        const sobe = pct > 0;
-        return `<span class="barra ${sobe ? 'sobe' : 'desce'}">
-          <span class="barra-tira" style="width:${largura.toFixed(0)}%"></span>
-        </span>`;
-      };
-
       const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4') => {
         const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
-        // Todo item cujo preço mudou desde a compra anterior, do que mais subiu
-        // ao que mais caiu. O piso de 0,1% existe só para não entrar sobra de
-        // arredondamento de centavo — quem manteve o preço fica de fora, e
-        // quem mudou entra, mesmo que pouco.
-        const linhas = rel.itens
-          .filter((i) => i.varPct !== null && Math.abs(i.varPct) >= 0.1)
-          .sort((a, b) => b.varPct - a.varPct);
 
-        const maiorPct = Math.max(...linhas.map((i) => Math.abs(i.varPct)), 1);
-        const subiram = linhas.filter((i) => i.varPct > 0);
-        const cairam = linhas.filter((i) => i.varPct < 0);
+        // Todo item cujo preço mudou desde a compra anterior. O piso de 0,1%
+        // existe só para não entrar sobra de arredondamento de centavo — quem
+        // manteve o preço fica de fora, e quem mudou entra, mesmo que pouco.
+        const mudaram = rel.itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) >= 0.1);
+        // Dentro de cada bloco, o que pesa mais no bolso vem primeiro
+        const porDinheiro = (a, b) => Math.abs(b.impacto) - Math.abs(a.impacto) || Math.abs(b.varPct) - Math.abs(a.varPct);
+        const subiram = mudaram.filter((i) => i.varPct > 0).sort(porDinheiro);
+        const cairam = mudaram.filter((i) => i.varPct < 0).sort(porDinheiro);
+        const iguais = rel.itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) < 0.1).length;
         const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
         const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
         const linhaDaTabela = (i) => `<tr>
-          <td class="c-item">${escaparHtml(i.item)}</td>
-          <td class="n" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
-          <td class="n antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
-          <td class="c-barra">${relBarraVariacao(i.varPct, maiorPct)}</td>
-          <td class="n var ${i.varPct > 0 ? 'sobe' : 'desce'}">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
-          <td class="n" data-rot="Impacto na compra">${Math.abs(i.impacto) >= 0.01 ? `<span class="${i.impacto > 0 ? 'sobe' : 'desce'}">${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}</span>` : '<span class="quieto">—</span>'}</td>
-          <td class="c-sit">${i.confiavel ? `<span class="sit s-${i.situacao.chave}">${i.situacao.label}</span>` : '<span class="quieto">sem base</span>'}</td>
-          <td class="c-forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
+          <td class="nome">${escaparHtml(i.item)}</td>
+          <td class="num" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
+          <td class="num antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
+          <td class="num mudou ${i.varPct > 0 ? 'sobe' : 'desce'}" data-rot="Mudou">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
+          <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
+          <td class="forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
+          <td class="cotar"></td>
         </tr>`;
+
+        const secao = (titulo, itens, classe, resumo) => `
+          <section class="bloco">
+            <h2 class="${classe}">${titulo} (${itens.length}) <span class="conta">${resumo}</span></h2>
+            ${itens.length ? `<table>
+              <colgroup>
+                <col class="c-item"><col class="c-num"><col class="c-num"><col class="c-mudou">
+                <col class="c-num"><col class="c-forn"><col class="c-cotar">
+              </colgroup>
+              <thead><tr>
+                <th>Item</th><th class="num">Agora</th><th class="num">Antes</th>
+                <th class="num">Mudou</th><th class="num">Na compra</th>
+                <th>Fornecedor</th><th class="cotar">Novo preço</th>
+              </tr></thead>
+              <tbody>${itens.map(linhaDaTabela).join('')}</tbody>
+            </table>` : '<p class="vazio">Nenhum item nesta lista.</p>'}
+          </section>`;
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Preços que mudaram — ${escaparHtml(unidadeNome)}</title>
+          <title>Preços de compra — ${escaparHtml(unidadeNome)}</title>
           <style>
             ${fmt.pagina}
             * { box-sizing: border-box; }
@@ -14204,85 +14220,80 @@
             @media print { body { padding: 0; max-width: none; } }
             ${BARRA_ACOES_CSS}
 
-            header { border-bottom: 2.5px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
-            h1 { font-size: 17pt; margin: 0 0 2px; }
-            .cab { font-size: 10pt; color: #444; }
+            header { border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 14px; }
+            h1 { font-size: 17pt; margin: 0; }
+            .sub { font-size: 10.5pt; color: #444; margin-top: 3px; }
 
-            /* O placar em uma linha só: quantos subiram, quantos caíram, e o
-               que isso custa numa compra do tamanho de sempre */
-            .placar { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 9px 0 12px;
-                      border-bottom: 1px solid #ddd; margin-bottom: 12px; }
-            .placar div { font-size: 10pt; color: #444; }
-            .placar b { display: block; font-size: 15pt; color: #111; }
+            /* O placar responde à pergunta da folha antes de qualquer linha:
+               quanto a mudança de preços custa numa compra de sempre */
+            .placar { display: flex; flex-wrap: wrap; gap: 8px 26px; padding: 10px 0 12px;
+                      border-bottom: 1px solid #ccc; margin-bottom: 4px; }
+            .placar div { font-size: 10.5pt; color: #444; }
+            .placar b { display: block; font-size: 17pt; color: #111; }
             .placar .sobe b { color: #7D2027; } .placar .desce b { color: #1E6B44; }
 
-            table { width: 100%; border-collapse: collapse; }
-            th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: #444;
-                 text-align: left; border-bottom: 1.5px solid #111; padding: 5px 6px; }
-            td { padding: 6px; border-bottom: 1px solid #e2e2de; vertical-align: middle; }
+            h2 { font-size: 13pt; margin: 18px 0 7px; padding: 4px 8px; background: #eee; border-radius: 3px; }
+            h2.sobe { color: #7D2027; } h2.desce { color: #1E6B44; }
+            h2 .conta { font-size: 10pt; font-weight: 600; color: #444; }
+
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            .c-item { width: 24%; }
+            .c-num { width: 12%; }
+            .c-mudou { width: 13%; }
+            .c-forn { width: 18%; }
+            .c-cotar { width: 9%; }
+            th, td { padding: 6px 7px; border-bottom: 1px solid #ccc; text-align: left; vertical-align: middle; }
+            th { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1.5px solid #111; hyphens: auto; }
+            td.num { white-space: nowrap; }
+            .num { text-align: right; font-variant-numeric: tabular-nums; }
             tr { page-break-inside: avoid; }
             thead { display: table-header-group; }
-            tbody tr:nth-child(even) { background: #fafaf9; }
 
-            .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-            .c-item { font-weight: 600; }
-            .un { font-size: 8.5pt; color: #666; font-weight: 400; }
+            .nome { font-weight: 600; }
+            .un { font-size: 9pt; color: #666; font-weight: 400; }
             .antes { color: #666; }
-            .var { font-weight: 700; }
-            .var .pct { display: block; font-size: 9pt; font-weight: 600; }
+            .mudou { font-weight: 700; }
+            .mudou .pct { display: block; font-size: 9.5pt; font-weight: 600; }
+            .forte { font-weight: 700; }
             .sobe { color: #7D2027; } .desce { color: #1E6B44; }
             .quieto { color: #777; font-weight: 400; }
-
-            /* A barra: o tamanho é o tanto, o lado é a direção */
-            .c-barra { width: 74px; padding-left: 2px; padding-right: 2px; }
-            .barra { display: block; height: 11px; background: #f0efec; border-radius: 2px; overflow: hidden; }
-            .barra-tira { display: block; height: 100%; border-radius: 2px; }
-            .barra.sobe .barra-tira { background: #b23b3b; }
-            .barra.desce .barra-tira { background: #2E7D51; float: right; }
-
-            .sit { font-size: 8.5pt; font-weight: 800; padding: 2px 7px; border-radius: 999px;
-                   border: 1.2px solid currentColor; white-space: nowrap; }
-            .s-alto { color: #7D2027; } .s-atencao { color: #8A5A00; }
-            .s-normal { color: #555; } .s-bom { color: #1E6B44; }
-            .c-forn { font-size: 9.5pt; color: #333; }
-            .c-sit { white-space: nowrap; }
+            .forn { font-size: 10pt; }
+            /* Espaço para anotar a cotação nova na hora do telefonema */
+            .cotar { border-bottom: 1px solid #999; }
+            .vazio { color: #666; font-style: italic; margin: 6px 0 0; }
+            footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+            .dica { display: block; margin-top: 4px; font-style: italic; }
+            @media print { .dica { display: none; } }
 
             ${REGRAS_CARTAO('body.cartoes')}
-            /* Tabela de oito colunas não cabe num telefone: na tela estreita
+            /* Tabela de sete colunas não cabe num telefone: na tela estreita
                ela vira cartão mesmo no formato de imprimir */
             @media screen and (max-width: 620px) { ${REGRAS_CARTAO('body')} }
-
-            .nada { padding: 20px 0; color: #555; }
-            footer { margin-top: 14px; border-top: 1px solid #ccc; padding-top: 7px; font-size: 9pt; color: #555; }
           </style></head><body class="${fmt.classe}">
 
           ${barraAcoes(formato)}
 
           <header>
-            <h1>${fmt.titulo}</h1>
-            <div class="cab">${escaparHtml(unidadeNome)} · últimos ${DIAS_JANELA_COMPRA} dias · emitido em ${formatDateBR(rel.ate)}</div>
+            <h1>Preços de compra</h1>
+            <div class="sub">${escaparHtml(unidadeNome)} · ${formatDateBR(rel.ate)} · ${mudaram.length} ${mudaram.length === 1 ? 'item mudou' : 'itens mudaram'} de preço desde a compra anterior</div>
           </header>
 
           <div class="placar">
-            <div class="sobe"><b>▲ ${subiram.length}</b> subiram de preço</div>
-            <div class="desce"><b>▼ ${cairam.length}</b> caíram de preço</div>
-            <div class="sobe"><b>${relSinal(1)}${formatCurrencyBR(impactoAltas)}</b> a mais nas altas</div>
-            <div class="desce"><b>−${formatCurrencyBR(Math.abs(economiaQuedas))}</b> a menos nas quedas</div>
+            <div class="sobe"><b>+${formatCurrencyBR(impactoAltas)}</b> a mais, somando as altas</div>
+            <div class="desce"><b>−${formatCurrencyBR(Math.abs(economiaQuedas))}</b> a menos, somando as quedas</div>
+            <div><b>${iguais}</b> ${iguais === 1 ? 'item segue' : 'itens seguem'} no mesmo preço</div>
           </div>
 
-          ${linhas.length ? `<table>
-            <thead><tr>
-              <th>Item</th><th class="n">Agora</th><th class="n">Antes</th>
-              <th colspan="2">Variação</th><th class="n">Impacto</th>
-              <th>Situação</th><th>Fornecedor</th>
-            </tr></thead>
-            <tbody>${linhas.map(linhaDaTabela).join('')}</tbody>
-          </table>` : '<p class="nada">Nenhum item mudou de preço no período.</p>'}
+          ${mudaram.length
+            ? secao('▲ Subiram de preço', subiram, 'sobe', `+${formatCurrencyBR(impactoAltas)} na próxima compra`)
+              + secao('▼ Caíram de preço', cairam, 'desce', `−${formatCurrencyBR(Math.abs(economiaQuedas))} na próxima compra`)
+            : '<p class="vazio">Nenhum item mudou de preço desde a compra anterior.</p>'}
 
           <footer>
-            Comparação com a compra anterior do mesmo item. Impacto: a variação multiplicada pela quantidade que a casa costuma comprar.
-            Situação compara o preço de hoje com a faixa habitual do período — "sem base" é item com poucas compras para comparar.
-            Itens que não mudaram de preço não entram nesta folha.
+            Cada item é comparado com a compra anterior dele mesmo, seja ela de ontem ou de meses atrás — as compras vão de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}.
+            "Na compra" é a mudança de preço multiplicada pela quantidade que a casa costuma comprar de uma vez: é o que entra ou sai do caixa na próxima compra.
+            Item que não mudou de preço não entra na folha. A coluna "Novo preço" fica em branco para anotar a cotação na hora do telefonema.
+            <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
           </footer>
         </body></html>`;
       };
@@ -14406,7 +14417,7 @@
         const imprimirRelatorioDeCompra = (formato) => {
           const rel = montarRelatorioDeCompra(todas, getTodayDateString());
           if (!rel.itens.length) {
-            window.alert(`Nenhuma compra lançada nos últimos ${DIAS_JANELA_COMPRA} dias — não há o que analisar ainda.`);
+            window.alert("Nenhuma compra lançada ainda — não há o que analisar.");
             return;
           }
           const janela = window.open('', '_blank');
@@ -14416,6 +14427,15 @@
           }
           janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato));
           janela.document.close();
+          // Igual à folha de "Preços a rever": no computador a impressão abre
+          // sozinha, que é o gesto esperado ali; no celular quem manda é o
+          // botão no topo da folha, porque o onload de uma página criada por
+          // document.write muitas vezes nem chega a disparar.
+          if (window.matchMedia("(min-width: 900px)").matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
+            if (janela.document.readyState === "complete") setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
         };
 
         const itensOrdenados = useMemo(() => [...porItem].sort((a, b) => {
