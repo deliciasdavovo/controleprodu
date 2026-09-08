@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-carrinho-na-folha-1" />
+    <meta name="app-version" content="2026-09-09-categorias-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13679,6 +13679,17 @@
 
       // Junta as compras de insumo e as de revenda numa lista só e marca, em
       // cada uma, quanto o preço andou desde a compra anterior daquele item.
+      // A casa não compra "insumo": compra ingrediente, embalagem, produto de
+      // limpeza e mercadoria de revenda. São quatro contas diferentes, com
+      // fornecedores diferentes, e o cadastro já distingue as três primeiras
+      // em supplyClass — faltava a tela de fornecedores ler isso.
+      const CATEGORIA_DA_COMPRA = {
+        insumo: 'Ingrediente',
+        embalagem: 'Embalagem',
+        limpeza: 'Limpeza'
+      };
+      const CATEGORIAS_COMPRA = ['Ingrediente', 'Revenda', 'Embalagem', 'Limpeza'];
+
       const reunirCompras = (supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit) => {
         const compras = [];
 
@@ -13688,7 +13699,7 @@
               id: c.id,
               itemId: `s${s.id}`,
               item: s.name,
-              tipo: 'Insumo',
+              tipo: CATEGORIA_DA_COMPRA[s.supplyClass] || 'Ingrediente',
               unidade: s.unit,
               fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
               data: c.purchaseDate || '',
@@ -14177,7 +14188,7 @@
 
       const relSinal = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
 
-      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4') => {
+      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4', categoria = 'todos') => {
         const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
 
         // Todo item cujo preço mudou desde a compra anterior. O piso de 0,1%
@@ -14254,7 +14265,7 @@
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Preços de compra — ${escaparHtml(unidadeNome)}</title>
+          <title>Preços de compra${categoria === 'todos' ? '' : ` (${escaparHtml(categoria)})`} — ${escaparHtml(unidadeNome)}</title>
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
           <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14342,7 +14353,7 @@
           ${barraAcoes(formato)}
 
           <header>
-            <h1>Preços de compra</h1>
+            <h1>Preços de compra${categoria === 'todos' ? '' : ` — ${escaparHtml(categoria)}`}</h1>
             <div class="sub">${escaparHtml(unidadeNome)} · ${formatDateBR(rel.ate)} · ${mudaram.length} ${mudaram.length === 1 ? 'item mudou' : 'itens mudaram'} de preço desde a compra anterior</div>
           </header>
 
@@ -14482,10 +14493,17 @@
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
+        // A folha segue a categoria escolhida na tela, mas NÃO o filtro de
+        // data. Comparar preço exige a compra anterior, e ela costuma estar
+        // fora do mês que a pessoa está olhando: filtrar por data aqui faria
+        // a folha voltar a sair com dois itens.
         const imprimirRelatorioDeCompra = (formato) => {
-          const rel = montarRelatorioDeCompra(todas, getTodayDateString());
+          const base = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
+          const rel = montarRelatorioDeCompra(base, getTodayDateString());
           if (!rel.itens.length) {
-            window.alert("Nenhuma compra lançada ainda — não há o que analisar.");
+            window.alert(tipoFiltro === 'todos'
+              ? "Nenhuma compra lançada ainda — não há o que analisar."
+              : `Nenhuma compra de ${tipoFiltro.toLowerCase()} lançada ainda — não há o que analisar.`);
             return;
           }
           const janela = window.open('', '_blank');
@@ -14493,7 +14511,7 @@
             window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
             return;
           }
-          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato));
+          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato, tipoFiltro));
           janela.document.close();
           // Igual à folha de "Preços a rever": no computador a impressão abre
           // sozinha, que é o gesto esperado ali; no celular quem manda é o
@@ -14874,7 +14892,7 @@
             </div>
 
             <div className="segmented w-full sm:w-auto sm:inline-flex">
-              {['todos', 'Insumo', 'Revenda'].map((t) => (
+              {['todos', ...CATEGORIAS_COMPRA].map((t) => (
                 <button key={t} onClick={() => setTipoFiltro(t)} data-active={tipoFiltro === t} className="flex-1 sm:flex-none h-8 px-4">
                   {t === 'todos' ? 'Todos' : t}
                 </button>
