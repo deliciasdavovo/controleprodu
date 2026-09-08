@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-folha-compra-2" />
+    <meta name="app-version" content="2026-09-09-carrinho-na-folha-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13975,6 +13975,9 @@
         return {
           unidadeRef,
           compras: pontos.length,
+          // As compras cruas, na mesma ordem do carrinho da tela: a mais nova
+          // em cima. A folha imprime isso embaixo de cada item.
+          historico: [...ordenadas].reverse(),
           // A série do período, para o desenho da linha de preço
           serie: pontos.map((p) => ({ data: p.data, preco: p.preco })),
           precoAtual: atual.preco,
@@ -14137,16 +14140,23 @@
       // Cada item lido de cima para baixo. Vale sempre no formato de celular e,
       // no de imprimir, só quando a tela é estreita demais para a tabela.
       const REGRAS_CARTAO = (alvo) => `
-        ${alvo} thead, ${alvo} colgroup, ${alvo} .cotar { display: none; }
-        ${alvo} table, ${alvo} tbody, ${alvo} tr, ${alvo} td { display: block; width: auto; }
-        ${alvo} tr { border: 1px solid #bbb; border-radius: 4px; padding: 9px 11px; margin-bottom: 9px; }
-        ${alvo} td { border: 0; padding: 2px 0; text-align: left; }
-        ${alvo} td.num { text-align: left; }
-        ${alvo} td[data-rot]::before { content: attr(data-rot) ': '; color: #555; font-weight: 400; font-size: 10pt; }
+        ${alvo} .lista > thead, ${alvo} .lista > colgroup, ${alvo} .cotar { display: none; }
+        ${alvo} .lista, ${alvo} .lista > tbody, ${alvo} .lista > tbody > tr,
+        ${alvo} .lista > tbody > tr > td { display: block; width: auto; }
+        ${alvo} .lista > tbody { border: 1px solid #bbb; border-radius: 4px; padding: 9px 11px; margin-bottom: 9px; }
+        ${alvo} .lista > tbody > tr { border: 0; }
+        ${alvo} .lista > tbody > tr > td { border: 0; padding: 2px 0; text-align: left; }
+        ${alvo} .lista > tbody > tr > td.num { text-align: left; }
+        ${alvo} .lista > tbody > tr > td[data-rot]::before { content: attr(data-rot) ': '; color: #555; font-weight: 400; font-size: 10pt; }
         ${alvo} .nome { font-size: 13.5pt; font-weight: 700; border-bottom: 1px solid #eee;
                         padding-bottom: 5px; margin-bottom: 4px; }
         ${alvo} .mudou { font-size: 13pt; }
-        ${alvo} .mudou .pct { display: inline; margin-left: 8px; }`;
+        ${alvo} .mudou .pct { display: inline; margin-left: 8px; }
+        /* O carrinho fica apertado na página estreita: some a coluna que se
+           deduz do resto e a letra encolhe, mas continua sendo a tabela */
+        ${alvo} .hist { padding-top: 6px !important; }
+        ${alvo} .hist-tab { font-size: 7.5pt; }
+        ${alvo} .hist-tab .c-tipo { display: none; }`;
 
       // Os dois formatos. O PDF sai do tamanho da página, e não da tela: em A4
       // o relatório chega ao celular como uma folha larga para apertar e
@@ -14182,20 +14192,53 @@
         const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
         const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
-        const linhaDaTabela = (i) => `<tr>
-          <td class="nome">${escaparHtml(i.item)}</td>
-          <td class="num" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
-          <td class="num antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
-          <td class="num mudou ${i.varPct > 0 ? 'sobe' : 'desce'}" data-rot="Mudou">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
-          <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
-          <td class="forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
-          <td class="cotar"></td>
-        </tr>`;
+        // O carrinho da tela, impresso: as mesmas colunas do histórico que a
+        // pessoa abre na aba, na mesma ordem, a compra mais nova em cima. Seis
+        // compras bastam para ver o preço andando; o resto vira uma contagem.
+        const COMPRAS_NA_FOLHA = 6;
+
+        const carrinho = (i) => {
+          const linhas = (i.historico || []).slice(0, COMPRAS_NA_FOLHA);
+          if (!linhas.length) return '';
+          const restam = (i.historico || []).length - linhas.length;
+          return `<tr class="hist"><td colspan="7">
+            <table class="hist-tab">
+              <thead><tr>
+                <th>Data</th><th>Fornecedor</th><th class="c-tipo">Tipo</th>
+                <th class="num">Quantidade</th><th class="num">Valor pago</th><th class="num">Custo unit.</th>
+              </tr></thead>
+              <tbody>${linhas.map((c) => `<tr>
+                <td class="data">${c.data ? formatDateBR(c.data) : '—'}</td>
+                <td class="forn">${c.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(c.fornecedor)}</td>
+                <td class="c-tipo"><span class="tipo">${escaparHtml(c.tipo)}</span></td>
+                <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+                <td class="num forte">${formatCurrencyBR(c.cost)}</td>
+                <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+            ${restam > 0 ? `<p class="mais">e mais ${restam} ${restam === 1 ? 'compra anterior' : 'compras anteriores'} no sistema.</p>` : ''}
+          </td></tr>`;
+        };
+
+        // Um tbody por item, para o resumo e o carrinho nunca se separarem
+        // numa virada de página
+        const linhaDaTabela = (i) => `<tbody class="item">
+          <tr class="cabeca">
+            <td class="nome">${escaparHtml(i.item)}</td>
+            <td class="num" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
+            <td class="num antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
+            <td class="num mudou ${i.varPct > 0 ? 'sobe' : 'desce'}" data-rot="Mudou">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
+            <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
+            <td class="forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
+            <td class="cotar"></td>
+          </tr>
+          ${carrinho(i)}
+        </tbody>`;
 
         const secao = (titulo, itens, classe, resumo) => `
           <section class="bloco">
             <h2 class="${classe}">${titulo} (${itens.length}) <span class="conta">${resumo}</span></h2>
-            ${itens.length ? `<table>
+            ${itens.length ? `<table class="lista">
               <colgroup>
                 <col class="c-item"><col class="c-num"><col class="c-num"><col class="c-mudou">
                 <col class="c-num"><col class="c-forn"><col class="c-cotar">
@@ -14205,18 +14248,24 @@
                 <th class="num">Mudou</th><th class="num">Na compra</th>
                 <th>Fornecedor</th><th class="cotar">Novo preço</th>
               </tr></thead>
-              <tbody>${itens.map(linhaDaTabela).join('')}</tbody>
+              ${itens.map(linhaDaTabela).join('')}
             </table>` : '<p class="vazio">Nenhum item nesta lista.</p>'}
           </section>`;
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Preços de compra — ${escaparHtml(unidadeNome)}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
           <style>
             ${fmt.pagina}
             * { box-sizing: border-box; }
-            body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111;
-                   margin: 0 auto; padding: 0 4vw 40px; ${fmt.corpo} max-width: 900px; }
+            /* A mesma fonte do site: a folha impressa e a tela têm de parecer
+               a mesma coisa. Se a Manrope não carregar, a pilha do sistema
+               segura sem trocar a medida da página. */
+            body { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+                   color: #111; margin: 0 auto; padding: 0 4vw 40px; ${fmt.corpo} max-width: 900px; }
             @media print { body { padding: 0; max-width: none; } }
             ${BARRA_ACOES_CSS}
 
@@ -14264,6 +14313,25 @@
             footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
             .dica { display: block; margin-top: 4px; font-style: italic; }
             @media print { .dica { display: none; } }
+
+            /* O carrinho: o histórico do item como ele aparece na aba, com as
+               mesmas colunas e a compra mais nova em cima. Recuado e mais
+               claro, para o olho ler primeiro a linha do item e só descer
+               aqui quando quiser conferir de onde veio o preço. */
+            tbody.item { page-break-inside: avoid; }
+            tr.cabeca > td { border-bottom: 0; }
+            tr.hist > td { padding: 0 0 12px 8px; border-bottom: 1px solid #ccc; }
+            .hist-tab { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8.5pt; }
+            .hist-tab th { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .03em; color: #666;
+                           border-bottom: 1px solid #ddd; padding: 3px 6px 3px 0; font-weight: 700; }
+            .hist-tab td { padding: 3px 6px 3px 0; border-bottom: 0; color: #333; }
+            .hist-tab tr + tr td { border-top: 1px solid #eee; }
+            .hist-tab .data { white-space: nowrap; }
+            .hist-tab .forn { font-weight: 600; font-size: 8.5pt; }
+            .hist-tab .num { text-align: right; white-space: nowrap; padding-right: 0; padding-left: 6px; }
+            .hist-tab .tipo { font-size: 7pt; text-transform: uppercase; letter-spacing: .04em;
+                              border: 1px solid #ccc; border-radius: 999px; padding: 1px 6px; color: #555; }
+            .mais { margin: 4px 0 0; font-size: 8pt; color: #777; font-style: italic; }
 
             ${REGRAS_CARTAO('body.cartoes')}
             /* Tabela de sete colunas não cabe num telefone: na tela estreita
