@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-tabela-de-precos-1" />
+    <meta name="app-version" content="2026-09-09-dois-formatos-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14086,6 +14086,14 @@
           <span class="acoes-dica">No celular: toque no botão, escolha <strong>Salvar como PDF</strong> em Destino e depois compartilhe o arquivo.</span>
         </div>`;
 
+      // A folha do celular já diz para onde vai; a de A4 fala de impressora
+      const barraAcoes = (formato) => formato === 'celular'
+        ? `<div class="acoes">
+             <button type="button" class="acao-imprimir" onclick="window.print()">Salvar em PDF para mandar</button>
+             <span class="acoes-dica">Toque no botão e escolha <strong>Salvar como PDF</strong> em Destino. O arquivo fica no celular, pronto para o WhatsApp.</span>
+           </div>`
+        : BARRA_ACOES_HTML;
+
       const BARRA_ACOES_CSS = `
         .acoes { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center;
                  gap: 8px 14px; padding: 10px 0 12px; margin-bottom: 6px; background: #fff;
@@ -14112,6 +14120,41 @@
       // sobrevive ao preto e branco, e o número está escrito ao lado de
       // qualquer jeito.
       // ==========================================
+      // Cada item lido de cima para baixo. Vale sempre no formato de celular e,
+      // no de imprimir, só quando a tela é estreita demais para a tabela.
+      const REGRAS_CARTAO = (alvo) => `
+        ${alvo} thead { display: none; }
+        ${alvo} table, ${alvo} tbody, ${alvo} tr, ${alvo} td { display: block; width: auto; }
+        ${alvo} tr { border: 1px solid #ddd; border-radius: 6px; padding: 9px 11px; margin-bottom: 9px; }
+        ${alvo} tbody tr:nth-child(even) { background: #fff; }
+        ${alvo} td { border: 0; padding: 2px 0; text-align: left; }
+        ${alvo} td.n { text-align: left; }
+        ${alvo} td[data-rot]::before { content: attr(data-rot) ': '; color: #666; font-weight: 400; font-size: 9.5pt; }
+        ${alvo} .c-item { font-size: 13pt; font-weight: 700; border-bottom: 1px solid #eee;
+                          padding-bottom: 5px; margin-bottom: 4px; }
+        ${alvo} .c-barra { padding: 3px 0 5px; }
+        ${alvo} .var .pct { display: inline; margin-left: 8px; }
+        ${alvo} .c-sit { margin-top: 4px; }`;
+
+      // Os dois formatos. O PDF sai do tamanho da página, e não da tela: em A4
+      // o relatório chega ao celular como uma folha larga para apertar e
+      // ampliar. A página estreita tem quase a proporção de um telefone, então
+      // o mesmo PDF se lê rolando, sem zoom.
+      const FORMATOS_RELATORIO = {
+        celular: {
+          pagina: '@page { size: 105mm 210mm; margin: 8mm 7mm; }',
+          corpo: 'font-size: 11pt;',
+          classe: 'cartoes',
+          titulo: 'Preços que mudaram'
+        },
+        a4: {
+          pagina: '@page { size: A4 portrait; margin: 12mm 10mm; }',
+          corpo: 'font-size: 11pt;',
+          classe: '',
+          titulo: 'Preços que mudaram'
+        }
+      };
+
       const relSinal = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
 
       const relBarraVariacao = (pct, maiorPct) => {
@@ -14123,7 +14166,8 @@
         </span>`;
       };
 
-      const htmlRelatorioDeCompra = (rel, unidadeNome) => {
+      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4') => {
+        const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
         // Só o que mexeu de preço, do que mais subiu ao que mais caiu
         const linhas = rel.itens
           .filter((i) => i.varPct !== null && Math.abs(i.varPct) > 2)
@@ -14150,11 +14194,11 @@
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Preços que mudaram — ${escaparHtml(unidadeNome)}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm 10mm; }
+            ${fmt.pagina}
             * { box-sizing: border-box; }
             body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111;
-                   margin: 0 auto; padding: 0 4vw 40px; font-size: 11pt; max-width: 900px; }
-            @media print { body { padding: 0; max-width: none; font-size: 10pt; } }
+                   margin: 0 auto; padding: 0 4vw 40px; ${fmt.corpo} max-width: 900px; }
+            @media print { body { padding: 0; max-width: none; } }
             ${BARRA_ACOES_CSS}
 
             header { border-bottom: 2.5px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
@@ -14200,32 +14244,19 @@
             .c-forn { font-size: 9.5pt; color: #333; }
             .c-sit { white-space: nowrap; }
 
-            /* Tabela de oito colunas não cabe num telefone. Na tela estreita
-               cada item vira um cartão, lido de cima para baixo; no papel e no
-               computador ela continua tabela. */
-            @media screen and (max-width: 620px) {
-              thead { display: none; }
-              table, tbody, tr, td { display: block; width: auto; }
-              tr { border: 1px solid #ddd; border-radius: 6px; padding: 9px 11px; margin-bottom: 9px; }
-              tbody tr:nth-child(even) { background: #fff; }
-              td { border: 0; padding: 2px 0; text-align: left; }
-              td.n { text-align: left; }
-              td[data-rot]::before { content: attr(data-rot) ': '; color: #666; font-weight: 400; font-size: 9.5pt; }
-              .c-item { font-size: 13pt; font-weight: 700; border-bottom: 1px solid #eee;
-                        padding-bottom: 5px; margin-bottom: 4px; }
-              .c-barra { padding: 3px 0 5px; }
-              .var .pct { display: inline; margin-left: 8px; }
-              .c-sit { margin-top: 4px; }
-            }
+            ${REGRAS_CARTAO('body.cartoes')}
+            /* Tabela de oito colunas não cabe num telefone: na tela estreita
+               ela vira cartão mesmo no formato de imprimir */
+            @media screen and (max-width: 620px) { ${REGRAS_CARTAO('body')} }
 
             .nada { padding: 20px 0; color: #555; }
             footer { margin-top: 14px; border-top: 1px solid #ccc; padding-top: 7px; font-size: 9pt; color: #555; }
-          </style></head><body>
+          </style></head><body class="${fmt.classe}">
 
-          ${BARRA_ACOES_HTML}
+          ${barraAcoes(formato)}
 
           <header>
-            <h1>Preços que mudaram</h1>
+            <h1>${fmt.titulo}</h1>
             <div class="cab">${escaparHtml(unidadeNome)} · últimos ${DIAS_JANELA_COMPRA} dias · emitido em ${formatDateBR(rel.ate)}</div>
           </header>
 
@@ -14369,7 +14400,7 @@
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
-        const imprimirRelatorioDeCompra = () => {
+        const imprimirRelatorioDeCompra = (formato) => {
           const rel = montarRelatorioDeCompra(todas, getTodayDateString());
           if (!rel.itens.length) {
             window.alert(`Nenhuma compra lançada nos últimos ${DIAS_JANELA_COMPRA} dias — não há o que analisar ainda.`);
@@ -14380,7 +14411,7 @@
             window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
             return;
           }
-          janela.document.write(htmlRelatorioDeCompra(rel, unitName));
+          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato));
           janela.document.close();
         };
 
@@ -14612,13 +14643,21 @@
                     e o preço de cada um, para comparar fora da tela */}
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={imprimirRelatorioDeCompra}
+                    onClick={() => imprimirRelatorioDeCompra('celular')}
                     disabled={todas.length === 0}
-                    title="Abre o relatório de apoio à compra: resumo do período, análise por produto e comparação de fornecedores. Dá para ler no celular, mandar no WhatsApp ou imprimir em A4."
+                    title="Relatório em página estreita, do tamanho da tela do telefone: sai um PDF que se lê rolando, sem apertar para ampliar. É o de mandar no WhatsApp."
                     className="btn btn-primary btn-sm disabled:opacity-40"
                   >
                     <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                    Relatório de apoio à compra
+                    Relatório para o celular
+                  </button>
+                  <button
+                    onClick={() => imprimirRelatorioDeCompra('a4')}
+                    disabled={todas.length === 0}
+                    title="O mesmo relatório em tabela, na folha A4, para imprimir e levar na mão"
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
+                  >
+                    Para imprimir (A4)
                   </button>
                 </div>
               </div>
