@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-08-exportar-planilhas-1" />
+    <meta name="app-version" content="2026-09-08-folha-precos-a4-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2174,6 +2174,36 @@
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       };
+
+      // Uma planilha com mais de um bloco: cada seção leva o próprio título e o
+      // próprio cabeçalho, com uma linha em branco entre elas. É o que deixa
+      // produção e revenda separadas no mesmo arquivo.
+      const baixarCSVSecoes = (nomeArquivo, secoes) => {
+        const linhas = [];
+        secoes.forEach((sec, i) => {
+          if (i > 0) linhas.push([]);
+          if (sec.titulo) linhas.push([sec.titulo]);
+          linhas.push(sec.colunas);
+          sec.linhas.forEach((l) => linhas.push(l));
+        });
+        const conteudo = linhas.map((l) => l.map(csvTexto).join(';')).join('\r\n');
+        const blob = new Blob(['\uFEFF' + conteudo], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeArquivo;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+
+      // O nome do produto vai para dentro do HTML da folha de impressão
+      const escaparHtml = (v) => String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 
       const nomeComData = (base) => `${base}-${getTodayDateString()}.csv`;
 
@@ -13091,82 +13121,166 @@
             };
           }), [separatedProducts, resalePurchases, currentUnit, supplies, supplyPurchases]);
 
-        // O que precisa de decisão de preço: o que está fora da meta e o que
-        // nem chega a fechar conta (sem preço ou sem custo). Produto dentro da
-        // meta não entra — a planilha é uma lista de trabalho, não um retrato
-        // do cardápio inteiro.
+        // Os preços fora da meta — CMV em atenção ou alto. Só entra o que tem
+        // conta fechada: produto sem preço ou sem custo não é decisão de preço,
+        // é cadastro faltando, e ia poluir uma lista feita para levar na mão.
+        //
+        // Produção e revenda saem separadas porque são decisões diferentes:
+        // uma mexe em receita e processo, a outra em fornecedor e margem.
         const precosParaRever = useMemo(() => {
-          const oQueFalta = (calculavel, preco, custo, natureza, cmv) => {
-            if (preco <= 0) return 'cadastrar o preço de venda';
-            if (custo <= 0) {
-              return natureza === 'fabricacao'
-                ? 'montar a ficha técnica (ou digitar o custo)'
-                : 'lançar a compra para o custo sair';
-            }
+          const montar = (nome, unidadePreco, preco, custo, calculavel, cmv, natureza) => {
+            if (!calculavel) return null;
             const meta = CMV_METAS[natureza];
-            if (cmv > meta.atencao) return 'CMV alto — subir o preço ou baixar o custo';
-            if (cmv > meta.bom) return 'CMV em atenção — revisar preço ou custo';
-            return '';
-          };
-
-          const montar = (nome, categoria, unidadePreco, preco, custo, calculavel, cmv, natureza, tipo) => {
-            const falta = oQueFalta(calculavel, preco, custo, natureza, cmv);
-            if (!falta) return null;
-            const sugerido = custo > 0 ? precoSugerido(custo, natureza) : 0;
+            if (cmv <= meta.bom) return null;
+            const sugerido = precoSugerido(custo, natureza);
             return {
-              tipo,
               nome,
-              categoria,
               unidadePreco,
               preco,
               custo,
               cmv,
-              calculavel,
-              situacao: calculavel ? getCmvStatus(cmv, natureza).label : 'conta não fecha',
+              situacao: getCmvStatus(cmv, natureza).label,
               sugerido,
               diferenca: sugerido > 0 && preco > 0 ? sugerido - preco : 0,
-              diferencaPct: sugerido > 0 && preco > 0 ? ((sugerido - preco) / preco) * 100 : 0,
-              falta
+              diferencaPct: sugerido > 0 && preco > 0 ? ((sugerido - preco) / preco) * 100 : 0
             };
           };
 
-          const daProducao = linhasProducao.map((l) => montar(
-            l.produto.name, l.produto.category || '', l.produto.priceUnit || 'un',
-            l.preco, l.custoUn, l.calculavel, l.cmv, 'fabricacao', 'Produção'
-          ));
-          const daRevenda = linhasRevenda.map((l) => montar(
-            l.item.productName, l.item.category || '', l.item.priceUnit || 'un',
-            l.preco, l.custo, l.calculavel, l.cmv, 'revenda', 'Revenda'
-          ));
+          const piorPrimeiro = (a, b) => b.cmv - a.cmv;
 
-          // Pior primeiro; o que não fecha conta vai para o fim, porque ali a
-          // decisão não é de preço, é de cadastro
-          return [...daProducao, ...daRevenda].filter(Boolean).sort((a, b) => {
-            if (a.calculavel !== b.calculavel) return a.calculavel ? -1 : 1;
-            return b.cmv - a.cmv;
-          });
+          return {
+            producao: linhasProducao
+              .map((l) => montar(l.produto.name, l.produto.priceUnit || 'un',
+                l.preco, l.custoUn, l.calculavel, l.cmv, 'fabricacao'))
+              .filter(Boolean).sort(piorPrimeiro),
+            revenda: linhasRevenda
+              .map((l) => montar(l.item.productName, l.item.priceUnit || 'un',
+                l.preco, l.custo, l.calculavel, l.cmv, 'revenda'))
+              .filter(Boolean).sort(piorPrimeiro)
+          };
         }, [linhasProducao, linhasRevenda]);
 
+        const totalParaRever = precosParaRever.producao.length + precosParaRever.revenda.length;
+
+        const COLUNAS_PRECOS = ['Produto', 'Vendido por', 'Preço atual', 'Custo',
+          'CMV %', 'Situação', 'Preço sugerido', 'Diferença R$', 'Diferença %'];
+
+        const linhaPreco = (x) => [
+          x.nome,
+          x.unidadePreco,
+          csvNumero(x.preco),
+          csvNumero(x.custo),
+          csvNumero(x.cmv, 1),
+          x.situacao,
+          csvNumero(x.sugerido),
+          csvNumero(x.diferenca),
+          csvNumero(x.diferencaPct, 1)
+        ];
+
         const exportarPrecos = () => {
-          baixarCSV(
-            nomeComData(`precos-a-rever-${currentUnit}`),
-            ['Tipo', 'Produto', 'Categoria', 'Vendido por', 'Preço atual', 'Custo',
-             'CMV %', 'Situação', 'Preço sugerido', 'Diferença R$', 'Diferença %', 'O que fazer'],
-            precosParaRever.map((x) => [
-              x.tipo,
-              x.nome,
-              x.categoria,
-              x.unidadePreco,
-              x.preco > 0 ? csvNumero(x.preco) : '',
-              x.custo > 0 ? csvNumero(x.custo) : '',
-              x.calculavel ? csvNumero(x.cmv, 1) : '',
-              x.situacao,
-              x.sugerido > 0 ? csvNumero(x.sugerido) : '',
-              x.diferenca ? csvNumero(x.diferenca) : '',
-              x.diferencaPct ? csvNumero(x.diferencaPct, 1) : '',
-              x.falta
-            ])
-          );
+          baixarCSVSecoes(nomeComData(`precos-a-rever-${currentUnit}`), [
+            { titulo: `PRODUÇÃO (${precosParaRever.producao.length})`, colunas: COLUNAS_PRECOS,
+              linhas: precosParaRever.producao.map(linhaPreco) },
+            { titulo: `REVENDA (${precosParaRever.revenda.length})`, colunas: COLUNAS_PRECOS,
+              linhas: precosParaRever.revenda.map(linhaPreco) }
+          ]);
+        };
+
+        // A folha de impressão. O CSV não manda no tamanho da letra nem na
+        // página — quem decide isso é o Excel de quem abrir. Para levar na mão
+        // até a loja, a folha é montada aqui: A4, letra graúda e as duas
+        // seções uma embaixo da outra.
+        const imprimirPrecos = () => {
+          const secao = (titulo, itens) => {
+            if (!itens.length) {
+              return `<h2>${titulo}</h2><p class="vazio">Nenhum item fora da meta.</p>`;
+            }
+            const linhas = itens.map((x) => `<tr>
+              <td class="nome">${escaparHtml(x.nome)}</td>
+              <td class="num">${formatCurrencyBR(x.preco)}<span class="un">/${escaparHtml(x.unidadePreco)}</span></td>
+              <td class="num">${formatCurrencyBR(x.custo)}</td>
+              <td class="num cmv ${x.situacao === 'Alto' ? 'alto' : 'atencao'}">${x.cmv.toFixed(1).replace('.', ',')}%</td>
+              <td class="sit">${x.situacao}</td>
+              <td class="num forte">${formatCurrencyBR(x.sugerido)}</td>
+              <td class="num">${x.diferenca > 0 ? '+' : ''}${formatCurrencyBR(x.diferenca)}</td>
+              <td class="assinar"></td>
+            </tr>`).join('');
+            return `<h2>${titulo}</h2>
+              <table>
+                <colgroup>
+                  <col class="c-produto"><col class="c-num"><col class="c-num">
+                  <col class="c-cmv"><col class="c-sit"><col class="c-num">
+                  <col class="c-num"><col class="c-assinar">
+                </colgroup>
+                <thead><tr>
+                  <th>Produto</th><th class="num">Preço atual</th><th class="num">Custo</th>
+                  <th class="num">CMV</th><th>Situação</th><th class="num">Sugerido</th>
+                  <th class="num">Diferença</th><th class="assinar">Novo preço</th>
+                </tr></thead>
+                <tbody>${linhas}</tbody>
+              </table>`;
+          };
+
+          const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+            <title>Preços a rever — ${escaparHtml(unitName)}</title>
+            <style>
+              /* A4 com margem de gráfica; o resto do tamanho vem daqui, não do
+                 navegador de quem imprime */
+              @page { size: A4 portrait; margin: 14mm 12mm; }
+              * { box-sizing: border-box; }
+              body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; font-size: 11.5pt; }
+              header { border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 14px; }
+              h1 { font-size: 17pt; margin: 0; }
+              .sub { font-size: 10.5pt; color: #444; margin-top: 3px; }
+              h2 { font-size: 13pt; margin: 18px 0 7px; padding: 4px 8px; background: #eee; border-radius: 3px; }
+              table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+              .c-produto { width: 26%; }
+              .c-num { width: 12%; }
+              .c-cmv { width: 8%; }
+              .c-sit { width: 9%; }
+              .c-assinar { width: 9%; }
+              th, td { padding: 6px 7px; border-bottom: 1px solid #ccc; text-align: left; vertical-align: middle; }
+              th { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1.5px solid #111; }
+              td.num { white-space: nowrap; }
+              .num { text-align: right; font-variant-numeric: tabular-nums; }
+              th { hyphens: auto; }
+              .nome { font-weight: 600; }
+              .un { font-size: 9pt; color: #666; }
+              .forte { font-weight: 700; }
+              .cmv { font-weight: 700; }
+              .cmv.alto { color: #7D2027; }
+              .cmv.atencao { color: #8A5A00; }
+              .sit { font-size: 10pt; }
+              /* Espaço para escrever o preço decidido na hora da reunião */
+              .assinar { width: 78px; border-bottom: 1px solid #999; }
+              .vazio { color: #666; font-style: italic; margin: 6px 0 0; }
+              /* Linha não parte no meio entre uma página e outra */
+              tr { page-break-inside: avoid; }
+              thead { display: table-header-group; }
+              footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+            </style></head><body>
+            <header>
+              <h1>Preços a rever</h1>
+              <div class="sub">${escaparHtml(unitName)} · ${formatDateBR(getTodayDateString())} · ${totalParaRever} ${totalParaRever === 1 ? 'item' : 'itens'} fora da meta</div>
+            </header>
+            ${secao(`Produção (${precosParaRever.producao.length})`, precosParaRever.producao)}
+            ${secao(`Revenda (${precosParaRever.revenda.length})`, precosParaRever.revenda)}
+            <footer>
+              Meta de produção: bom até ${CMV_METAS.fabricacao.bom}%, atenção até ${CMV_METAS.fabricacao.atencao}%.
+              Meta de revenda: bom até ${CMV_METAS.revenda.bom}%, atenção até ${CMV_METAS.revenda.atencao}%.
+              O preço sugerido é o que levaria o item de volta à meta.
+            </footer>
+          </body></html>`;
+
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela de impressão. Libere as janelas para este site e tente de novo.');
+            return;
+          }
+          janela.document.write(html);
+          janela.document.close();
+          // O print só depois de a folha estar montada, senão sai em branco
+          janela.onload = () => { janela.focus(); janela.print(); };
         };
 
         // O placar do topo. A média junta os dois mundos porque a pergunta que
@@ -13215,20 +13329,30 @@
                 {/* A planilha do que precisa de decisão: o que está fora da
                     meta e o que nem fecha conta. Quem vai mexer em preço mexe
                     numa lista, não na tela inteira. */}
-                <button
-                  onClick={exportarPrecos}
-                  disabled={precosParaRever.length === 0}
-                  title={precosParaRever.length
-                    ? 'Baixar a lista de preços a rever, para abrir no Excel ou no Google Planilhas'
-                    : 'Nenhum preço fora da meta — nada para exportar'}
-                  className="btn btn-secondary btn-sm disabled:opacity-40"
-                >
-                  <Icons.ClipboardList className="w-3.5 h-3.5" />
-                  Exportar preços a rever
-                  {precosParaRever.length > 0 && (
-                    <span className="tnum font-bold">({precosParaRever.length})</span>
-                  )}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={imprimirPrecos}
+                    disabled={totalParaRever === 0}
+                    title={totalParaRever
+                      ? 'Abrir a folha A4 pronta para imprimir, com produção e revenda separadas'
+                      : 'Nenhum preço fora da meta — nada para imprimir'}
+                    className="btn btn-primary btn-sm disabled:opacity-40"
+                  >
+                    <Icons.ClipboardList className="w-3.5 h-3.5" />
+                    Imprimir preços a rever
+                    {totalParaRever > 0 && <span className="tnum font-bold">({totalParaRever})</span>}
+                  </button>
+                  <button
+                    onClick={exportarPrecos}
+                    disabled={totalParaRever === 0}
+                    title={totalParaRever
+                      ? 'Baixar a mesma lista em planilha, para abrir no Excel ou no Google Planilhas'
+                      : 'Nenhum preço fora da meta — nada para exportar'}
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
+                  >
+                    Baixar planilha
+                  </button>
+                </div>
               </div>
             </div>
 
