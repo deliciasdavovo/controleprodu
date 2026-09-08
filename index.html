@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-08-relatorio-compra-1" />
+    <meta name="app-version" content="2026-09-08-imprimir-no-celular-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13261,7 +13261,9 @@
               /* A dica é para a tela; no papel ela não faz sentido nenhum */
               .dica { display: block; margin-top: 4px; font-style: italic; }
               @media print { .dica { display: none; } }
+                ${BARRA_ACOES_CSS}
             </style></head><body>
+            ${BARRA_ACOES_HTML}
             <header>
               <h1>Preços a rever</h1>
               <div class="sub">${escaparHtml(unitName)} · ${formatDateBR(getTodayDateString())} · ${totalParaRever} ${totalParaRever === 1 ? 'item' : 'itens'} fora da meta</div>
@@ -13283,8 +13285,15 @@
           }
           janela.document.write(html);
           janela.document.close();
-          // O print só depois de a folha estar montada, senão sai em branco
-          janela.onload = () => { janela.focus(); janela.print(); };
+          // No computador a janela de impressão abre sozinha, que é o gesto
+          // esperado ali. No celular não: a folha abre e quem manda é o botão
+          // no topo dela — tela pequena não é lugar para um diálogo surgir
+          // sem aviso, e o onload nem sempre chega a disparar.
+          if (window.matchMedia('(min-width: 900px)').matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
+            if (janela.document.readyState === 'complete') setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
         };
 
         // O placar do topo. A média junta os dois mundos porque a pergunta que
@@ -14053,6 +14062,35 @@
       // extenso e com um símbolo, para a folha continuar de pé impressa em
       // preto e branco.
       // ==========================================
+      // ==========================================
+      // A BARRA DE AÇÕES DAS FOLHAS
+      //
+      // Disparar o print sozinho não funciona no celular: numa página criada
+      // por document.write o onload muitas vezes já passou quando o handler é
+      // registrado, e aí a folha abre sem nada acontecer. Um botão dentro da
+      // própria folha não depende de evento nenhum — a pessoa toca quando
+      // quiser, e o navegador abre a impressão, onde "Salvar como PDF" guarda
+      // o arquivo para mandar no WhatsApp depois.
+      //
+      // A barra é da tela; no papel ela some.
+      // ==========================================
+      const BARRA_ACOES_HTML = `
+        <div class="acoes">
+          <button type="button" class="acao-imprimir" onclick="window.print()">Imprimir ou salvar em PDF</button>
+          <span class="acoes-dica">No celular: toque no botão, escolha <strong>Salvar como PDF</strong> em Destino e depois compartilhe o arquivo.</span>
+        </div>`;
+
+      const BARRA_ACOES_CSS = `
+        .acoes { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center;
+                 gap: 8px 14px; padding: 10px 0 12px; margin-bottom: 6px; background: #fff;
+                 border-bottom: 1px solid #ddd; }
+        .acao-imprimir { font: inherit; font-size: 12pt; font-weight: 700; line-height: 1.2; color: #fff;
+                         background: #0E0937; border: 0; border-radius: 8px; padding: 12px 18px;
+                         min-height: 48px; cursor: pointer; }
+        .acao-imprimir:active { transform: scale(.98); }
+        .acoes-dica { font-size: 10.5pt; color: #555; flex: 1 1 240px; }
+        @media print { .acoes { display: none !important; } }`;
+
       const relPreco = (v, unidade) => `${formatCurrencyBR(v)}/${unidade}`;
 
       // Variação sempre nas duas medidas: sozinho, o percentual esconde o
@@ -14249,7 +14287,10 @@
             }
             .sem-base .val { text-align: right; }
             @media screen { .quebra { border-top: 3px double #ccc; margin-top: 24px; padding-top: 8px; } }
+            ${BARRA_ACOES_CSS}
           </style></head><body>
+
+          ${BARRA_ACOES_HTML}
 
           <header>
             <h1>Relatório de apoio à compra</h1>
@@ -14287,7 +14328,7 @@
             Faixa normal: o miolo dos preços do período (do primeiro ao terceiro quartil), para uma compra muito cara ou muito barata não distorcer a referência.
             Preço típico: a mediana. Impacto: variação do preço × quantidade habitual.
             As orientações são apoio à decisão — a compra é decisão do supervisor.
-            <span class="dica" style="display:block;margin-top:5px;font-style:italic">Para guardar em PDF ou mandar no WhatsApp: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
+
           </footer>
           <style>@media print { .dica { display: none; } }</style>
         </body></html>`;
