@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-08-imprimir-no-celular-1" />
+    <meta name="app-version" content="2026-09-09-relatorio-visual-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13797,6 +13797,10 @@
       // comparar com o ano passado diria pouco sobre a compra de amanhã.
       // ==========================================
       const DIAS_JANELA_COMPRA = 90;
+      // Um relatório que ninguém lê inteiro não decide nada. Com o catálogo de
+      // uma padaria de verdade — mais de cem itens — detalhar todos daria umas
+      // trinta páginas. Detalham-se os que pesam; o resto vai em lista.
+      const MAX_BLOCOS_DETALHADOS = 10;
       // Com menos de três compras não há o que chamar de "preço habitual" —
       // duas notas não formam faixa, formam uma reta entre dois pontos.
       const MIN_COMPRAS_CONFIAVEL = 3;
@@ -13972,6 +13976,8 @@
         return {
           unidadeRef,
           compras: pontos.length,
+          // A série do período, para o desenho da linha de preço
+          serie: pontos.map((p) => ({ data: p.data, preco: p.preco })),
           precoAtual: atual.preco,
           dataAtual: atual.data,
           fornecedorAtual: atual.fornecedor,
@@ -14112,63 +14118,116 @@
 
       const relResumoItem = (i) => `<li><span class="li-nome">${escaparHtml(i.item)}</span>${relVariacao(i.varUnit, i.varPct, i.unidadeRef)}</li>`;
 
+      // ---- Os desenhos ----
+      //
+      // Duas figuras por produto, cada uma respondendo a uma pergunta:
+      //   a linha  → para onde o preço vem andando
+      //   a régua  → onde o preço de hoje cai dentro do que é normal
+      //
+      // Ambas sobrevivem ao preto e branco: a linha é traço, e a faixa normal
+      // é hachurada, não colorida. Os números ficam escritos ao lado — nenhuma
+      // informação depende de cor.
+
+      // A linha do preço no período. Traço fino, ponto grosso no de hoje.
+      const relLinhaDoPreco = (serie, tom) => {
+        if (!serie || serie.length < 2) return '';
+        const L = 260, A = 40, m = 5;
+        const precos = serie.map((p) => p.preco);
+        const min = Math.min(...precos);
+        const max = Math.max(...precos);
+        const faixa = max - min || 1;
+        const x = (i) => m + (i * (L - 2 * m)) / (serie.length - 1);
+        const y = (v) => A - m - ((v - min) / faixa) * (A - 2 * m);
+        const caminho = serie.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.preco).toFixed(1)}`).join(' ');
+        const ultimo = serie.length - 1;
+        return `<svg class="fig-linha" viewBox="0 0 ${L} ${A}" preserveAspectRatio="none" role="img"
+                     aria-label="Preço ao longo do período, de ${formatCurrencyBR(serie[0].preco)} a ${formatCurrencyBR(serie[ultimo].preco)}">
+          <path d="${caminho}" fill="none" stroke="#898781" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="${x(ultimo).toFixed(1)}" cy="${y(serie[ultimo].preco).toFixed(1)}" r="4.5" fill="${tom}" stroke="#fff" stroke-width="1.5"/>
+        </svg>`;
+      };
+
+      // A régua: do menor ao maior preço do período, com a faixa normal
+      // hachurada no meio e o preço de hoje marcado por um traço.
+      const relReguaDaFaixa = (i, tom) => {
+        if (!i.confiavel) return '';
+        const min = Math.min(i.menorPreco, i.precoAtual);
+        const max = Math.max(...[i.faixaMax, i.precoAtual, i.menorPreco]);
+        const span = max - min || 1;
+        const pos = (v) => Math.max(0, Math.min(100, ((v - min) / span) * 100));
+        const inicio = pos(i.faixaMin);
+        const largura = Math.max(2, pos(i.faixaMax) - inicio);
+        return `<div class="regua" role="img" aria-label="Preço de hoje ${formatCurrencyBR(i.precoAtual)}; faixa normal de ${formatCurrencyBR(i.faixaMin)} a ${formatCurrencyBR(i.faixaMax)}">
+          <div class="regua-trilho">
+            <div class="regua-faixa" style="left:${inicio.toFixed(1)}%;width:${largura.toFixed(1)}%"></div>
+            <div class="regua-hoje" style="left:${pos(i.precoAtual).toFixed(1)}%;background:${tom}"></div>
+          </div>
+          <div class="regua-legenda">
+            <span>${formatCurrencyBR(min)}</span>
+            <span class="regua-meio">faixa normal ${formatCurrencyBR(i.faixaMin)}–${formatCurrencyBR(i.faixaMax)}</span>
+            <span>${formatCurrencyBR(max)}</span>
+          </div>
+        </div>`;
+      };
+
+      const TOM_SITUACAO = {
+        alto: '#d03b3b', atencao: '#ec835a', normal: '#898781', bom: '#0ca30c', insuficiente: '#898781'
+      };
+
       const relBlocoProduto = (i) => {
-        const quantidade = i.qtdHabitual > 0 && Math.abs(i.varQtdPct) >= 20
-          ? `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="aviso">⚠ ${i.varQtdPct > 0 ? '+' : '−'}${Math.abs(i.varQtdPct).toFixed(0)}% do habitual (${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef})</span>`
-          : `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="quieto">· habitual ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}</span>`;
+        const tom = TOM_SITUACAO[i.situacao.chave] || '#898781';
 
-        const frequencia = i.intervaloMedio
-          ? `a cada ${i.intervaloMedio} ${i.intervaloMedio === 1 ? 'dia' : 'dias'}${i.diasDesdeUltima !== null ? ` <span class="quieto">· última há ${i.diasDesdeUltima} ${i.diasDesdeUltima === 1 ? 'dia' : 'dias'}</span>` : ''}`
-          : '<span class="quieto">poucas compras para calcular</span>';
+        const linhaQtd = i.qtdHabitual > 0 && Math.abs(i.varQtdPct) >= 20
+          ? `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="aviso">⚠ ${i.varQtdPct > 0 ? '+' : '−'}${Math.abs(i.varQtdPct).toFixed(0)}% do habitual</span>`
+          : `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef}`;
 
-        const tabelaFornecedores = i.fornecedores.length > 1 ? `
-          <table class="forn">
-            <thead><tr>
-              <th>Fornecedor</th><th class="n">Último</th><th class="n">Mediana</th>
-              <th class="n">Menor</th><th class="n">Comprado</th><th class="n">Última</th>
-            </tr></thead>
-            <tbody>${i.fornecedores.map((f, idx) => `<tr>
-              <td class="f-nome">${idx === 0 ? '<span class="estrela">★</span> ' : ''}${escaparHtml(f.nome)}${idx === 0 ? '<div class="nota-forn">melhor preço recente</div>' : ''}</td>
-              <td class="n" data-rot="Último preço">${formatCurrencyBR(f.ultimoPreco)}</td>
-              <td class="n" data-rot="Mediana">${formatCurrencyBR(f.mediana)}</td>
-              <td class="n" data-rot="Menor">${formatCurrencyBR(f.menor)}</td>
-              <td class="n" data-rot="Comprado">${numeroCurtoBR(f.qtdTotal)} ${i.unidadeRef}</td>
-              <td class="n" data-rot="Última compra">${formatDateBR(f.ultimaData) || '—'}</td>
-            </tr>`).join('')}</tbody>
-          </table>` : '';
+        const melhor = i.melhorRecente && i.melhorRecente.nome !== i.fornecedorAtual
+          ? `<div class="melhor"><span class="estrela">★</span> Melhor preço recente: <strong>${escaparHtml(i.melhorRecente.nome)}</strong> a ${formatCurrencyBR(i.melhorRecente.ultimoPreco)}/${i.unidadeRef} <span class="quieto">em ${formatDateBR(i.melhorRecente.ultimaData)}</span></div>`
+          : '';
 
         const impacto = i.impacto && Math.abs(i.impacto) >= 0.01
-          ? `<div class="impacto ${i.impacto > 0 ? 'sobe' : 'desce'}">
-               <span class="imp-rot">Impacto estimado numa compra habitual</span>
-               <span class="imp-val">${i.impacto > 0 ? '+' : '−'}${formatCurrencyBR(Math.abs(i.impacto))}</span>
+          ? `<div class="impacto">
+               <span class="imp-rot">Impacto numa compra habitual (${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef})</span>
+               <span class="imp-val" style="color:${i.impacto > 0 ? '#7D2027' : '#1E6B44'}">${i.impacto > 0 ? '+' : '−'}${formatCurrencyBR(Math.abs(i.impacto))}</span>
              </div>`
           : '';
 
-        return `<section class="bloco">
+        // Sem histórico, mediana e faixa seriam número inventado — só os fatos
+        const referencias = i.confiavel
+          ? `${relReguaDaFaixa(i, tom)}
+             <div class="refs">
+               <span>Preço típico <strong>${formatCurrencyBR(i.medianaPreco)}</strong></span>
+               <span>Melhor recente <strong>${formatCurrencyBR(i.menorPreco)}</strong></span>
+             </div>`
+          : `<div class="sem-base">Preço típico e faixa normal só a partir de ${MIN_COMPRAS_CONFIAVEL} compras no período.</div>`;
+
+        return `<section class="bloco" style="border-left-color:${tom}">
           <div class="bloco-topo">
             <h3>${escaparHtml(i.item)}</h3>
             <span class="selo s-${i.situacao.chave}">${i.situacao.simbolo} ${i.situacao.label}</span>
           </div>
-          <div class="tipo">${escaparHtml(i.tipo)} · preço por ${i.unidadeRef} · ${i.compras} ${i.compras === 1 ? 'compra' : 'compras'} no período</div>
 
-          ${relLinha('Preço atual', `<strong>${relPreco(i.precoAtual, i.unidadeRef)}</strong> <span class="quieto">${formatDateBR(i.dataAtual)}</span>`)}
-          ${relLinha('Última compra antes desta', i.precoAnterior ? `${relPreco(i.precoAnterior, i.unidadeRef)} <span class="quieto">${formatDateBR(i.dataAnterior)}</span>` : '<span class="quieto">—</span>')}
-          ${relLinha('Variação', relVariacao(i.varUnit, i.varPct, i.unidadeRef))}
+          <div class="hero">
+            <div class="hero-preco">${formatCurrencyBR(i.precoAtual)}<span class="hero-un">/${i.unidadeRef}</span></div>
+            <div class="hero-var">${relVariacao(i.varUnit, i.varPct, '')}
+              <span class="hero-antes">${i.precoAnterior ? `antes ${formatCurrencyBR(i.precoAnterior)}` : 'primeira compra do período'}</span>
+            </div>
+            ${relLinhaDoPreco(i.serie, tom)}
+          </div>
 
-          ${i.confiavel ? `
-            ${relLinha('Preço típico (mediana 90 dias)', `${relPreco(i.medianaPreco, i.unidadeRef)} &nbsp; ${relVariacao(i.varMedianaUnit, i.varMedianaPct, '')}`)}
-            ${relLinha('Faixa normal', `${formatCurrencyBR(i.faixaMin)} a ${formatCurrencyBR(i.faixaMax)}/${i.unidadeRef}`)}
-            ${relLinha('Melhor preço recente', `${relPreco(i.menorPreco, i.unidadeRef)} &nbsp; ${relVariacao(i.varMenorUnit, i.varMenorPct, '')}`)}
-          ` : `<div class="linha sem-base"><span class="rot">Preço típico, faixa normal e melhor preço</span><span class="val quieto">só a partir de ${MIN_COMPRAS_CONFIAVEL} compras no período</span></div>`}
-
-          ${relLinha('Fornecedor da última compra', escaparHtml(i.fornecedorAtual))}
-          ${relLinha('Quantidade da última compra', quantidade)}
-          ${relLinha('Frequência', frequencia)}
-
+          ${referencias}
           ${impacto}
-          ${tabelaFornecedores}
 
-          <div class="orientacao"><span class="ori-rot">Orientação</span> ${i.situacao.orientacao}</div>
+          <div class="fatos">
+            <span><b>Fornecedor</b> ${i.fornecedorAtual === 'Sem fornecedor'
+              ? '<span class="aviso">não lançado — sem ele não dá para comparar</span>'
+              : escaparHtml(i.fornecedorAtual)}</span>
+            <span><b>Última compra</b> ${linhaQtd} em ${formatDateBR(i.dataAtual)}</span>
+            <span><b>Frequência</b> ${i.intervaloMedio ? `a cada ${i.intervaloMedio} dias` : 'poucas compras'}${i.diasDesdeUltima !== null ? ` · há ${i.diasDesdeUltima} ${i.diasDesdeUltima === 1 ? 'dia' : 'dias'}` : ''}</span>
+          </div>
+
+          ${melhor}
+          <div class="orientacao">${i.situacao.orientacao}</div>
         </section>`;
       };
 
@@ -14180,16 +14239,27 @@
             ${itens.length ? `<ul class="resumo-lista">${itens.map(relResumoItem).join('')}</ul>` : `<p class="quieto">${vazio}</p>`}
           </div>`;
 
-        // Só o que ajuda a decidir vira bloco detalhado. Item estável e dentro
-        // da faixa não precisa de meia página — ele aparece na lista do fim.
-        const detalhar = rel.itens
-          .filter((i) => i.situacao.chave !== 'normal' || (i.varPct !== null && Math.abs(i.varPct) > 2))
+        // Só o que ajuda a decidir vira bloco. Dentro disso, manda o dinheiro:
+        // 8% num item de R$ 3 não muda o mês; 3% num item de R$ 400 muda. Item
+        // sem histórico nunca vira bloco — não há o que analisar nele.
+        const candidatos = rel.itens
+          .filter((i) => i.confiavel && (i.situacao.chave !== 'normal' || (i.varPct !== null && Math.abs(i.varPct) > 2)))
           .sort((a, b) => {
-            const ordem = { alto: 0, atencao: 1, bom: 2, normal: 3, insuficiente: 4 };
+            const ordem = { alto: 0, atencao: 1, bom: 2, normal: 3 };
             const d = ordem[a.situacao.chave] - ordem[b.situacao.chave];
-            return d !== 0 ? d : Math.abs(b.varPct || 0) - Math.abs(a.varPct || 0);
+            return d !== 0 ? d : Math.abs(b.impacto) - Math.abs(a.impacto);
           });
-        const semDetalhe = rel.itens.filter((i) => !detalhar.includes(i));
+        const detalhar = candidatos.slice(0, MAX_BLOCOS_DETALHADOS);
+        const sobraram = candidatos.slice(MAX_BLOCOS_DETALHADOS);
+        const estaveis = rel.itens.filter((i) => i.confiavel && !candidatos.includes(i));
+        const semBase = rel.itens.filter((i) => !i.confiavel);
+
+        const listaCompacta = (titulo, itens, comVariacao) => itens.length ? `
+          <h2>${titulo} <span class="conta">${itens.length}</span></h2>
+          <p class="compacta">${itens
+            .map((i) => `<span class="item-compacto">${escaparHtml(i.item)} <b>${formatCurrencyBR(i.precoAtual)}</b>${
+              comVariacao && i.varPct !== null ? ` <i class="${i.varPct > 0 ? 'sobe' : 'desce'}">${i.varPct > 0 ? '+' : '−'}${Math.abs(i.varPct).toFixed(0)}%</i>` : ''
+            }</span>`).join('')}</p>` : '';
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14229,15 +14299,43 @@
 
             /* Cada produto num bloco vertical: no celular a leitura é de cima
                para baixo, e no papel o bloco não se parte entre páginas */
-            .bloco { border: 1.5px solid #999; border-radius: 6px; padding: 11px 13px; margin-top: 12px;
-                     page-break-inside: avoid; break-inside: avoid; }
+            .bloco { border: 1px solid #d8d8d4; border-left: 5px solid #999; border-radius: 6px;
+                     padding: 12px 14px; margin-top: 12px; page-break-inside: avoid; break-inside: avoid; }
             .bloco-topo { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
-            .tipo { font-size: 9.5pt; color: #555; margin: 2px 0 8px; }
 
-            .linha { display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
-                     padding: 4px 0; border-bottom: 1px dotted #ccc; }
-            .rot { font-size: 10.5pt; color: #444; flex: 0 0 auto; }
-            .val { text-align: right; font-variant-numeric: tabular-nums; }
+            /* O número que a pessoa lê primeiro: preço de hoje e quanto andou.
+               Proporcional, não tabular — em corpo grande o tabular fica solto. */
+            .hero { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: end; margin: 8px 0 10px; }
+            .hero-preco { font-size: 26pt; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+            .hero-un { font-size: 12pt; font-weight: 600; color: #52514e; }
+            .hero-var { font-size: 12pt; }
+            .hero-antes { display: block; font-size: 10pt; color: #52514e; font-weight: 400; }
+            .fig-linha { grid-column: 1 / -1; width: 100%; height: 40px; margin-top: 4px; }
+
+            /* A régua do preço: onde hoje cai entre o menor e o maior do período */
+            .regua { margin: 4px 0 10px; }
+            .regua-trilho { position: relative; height: 14px; background: #efeee9; border-radius: 3px; }
+            .regua-faixa { position: absolute; top: 0; bottom: 0; border-radius: 2px;
+                           background: repeating-linear-gradient(135deg, #c9c8c2 0 3px, #e5e4de 3px 6px); }
+            .regua-hoje { position: absolute; top: -3px; bottom: -3px; width: 4px; border-radius: 2px;
+                          transform: translateX(-2px); }
+            .regua-legenda { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5pt;
+                             color: #52514e; margin-top: 3px; font-variant-numeric: tabular-nums; }
+            .regua-meio { color: #333; }
+
+            .refs { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 10.5pt; color: #52514e; margin-bottom: 8px; }
+            .refs strong, .fatos b { color: #111; }
+            .fatos { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 10.5pt; color: #52514e; margin-top: 8px; }
+            .fatos b { font-weight: 700; }
+            .melhor { margin-top: 7px; font-size: 11pt; }
+            .sem-base { font-size: 10.5pt; color: #52514e; font-style: italic; margin-bottom: 8px; }
+
+            .conta { font-size: 10pt; font-weight: 600; color: #52514e; }
+            .compacta { margin: 0 0 6px; line-height: 2.1; }
+            .item-compacto { display: inline-block; border: 1px solid #ddd; border-radius: 999px;
+                             padding: 3px 10px; margin: 0 5px 5px 0; font-size: 10.5pt; white-space: nowrap; }
+            .item-compacto i { font-style: normal; font-weight: 700; }
+            .item-compacto i.sobe { color: #7D2027; } .item-compacto i.desce { color: #1E6B44; }
 
             .selo { font-size: 10pt; font-weight: 800; padding: 3px 9px; border-radius: 999px;
                     border: 1.5px solid #111; white-space: nowrap; }
@@ -14253,7 +14351,7 @@
             .aviso { color: #8A5A00; font-weight: 700; font-size: 10.5pt; }
 
             .impacto { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-                       margin-top: 9px; padding: 8px 10px; border: 2px solid #111; border-radius: 5px; }
+                       padding: 7px 10px; border: 1.5px solid #111; border-radius: 5px; }
             .imp-rot { font-size: 10pt; text-transform: uppercase; letter-spacing: .03em; }
             .imp-val { font-size: 15pt; font-weight: 800; }
             .impacto.sobe { border-color: #7D2027; } .impacto.sobe .imp-val { color: #7D2027; }
@@ -14275,8 +14373,9 @@
             }
             .nota-forn { font-size: 8.5pt; color: #555; }
 
-            .orientacao { margin-top: 10px; padding: 8px 10px; background: #f4f4f4; border-radius: 4px; font-size: 11pt; }
-            .ori-rot { font-weight: 800; text-transform: uppercase; font-size: 9.5pt; letter-spacing: .03em; display: block; }
+            .orientacao { margin-top: 9px; padding: 8px 10px; background: #f4f4f4; border-radius: 4px;
+                          font-size: 11pt; }
+            .orientacao::before { content: '→ '; font-weight: 800; }
 
             .estaveis { font-size: 10.5pt; color: #444; }
             footer { margin-top: 20px; border-top: 1px solid #bbb; padding-top: 8px; font-size: 9.5pt; color: #555; }
@@ -14319,10 +14418,14 @@
           ${lista('Acima do padrão', rel.acimaDoPadrao, 'Nenhum item acima da faixa normal.')}
           ${lista('Oportunidades de preço', rel.oportunidades, 'Nenhuma oportunidade no período.')}
 
-          ${detalhar.length ? `<div class="quebra"></div><h2>Análise por produto</h2>${detalhar.map(relBlocoProduto).join('')}` : ''}
+          ${detalhar.length ? `<div class="quebra"></div>
+            <h2>O que pede decisão <span class="conta">${detalhar.length} de ${candidatos.length}</span></h2>
+            ${candidatos.length > detalhar.length ? `<p class="quieto">Os ${detalhar.length} de maior peso em dinheiro. Os outros ${sobraram.length} estão listados abaixo.</p>` : ''}
+            ${detalhar.map(relBlocoProduto).join('')}` : ''}
 
-          ${semDetalhe.length ? `<h2>Demais itens, dentro do padrão</h2>
-            <p class="estaveis">${semDetalhe.map((i) => `${escaparHtml(i.item)} (${relPreco(i.precoAtual, i.unidadeRef)})`).join(' · ')}</p>` : ''}
+          ${listaCompacta('Também fora da faixa', sobraram, true)}
+          ${listaCompacta('Dentro do padrão', estaveis, true)}
+          ${listaCompacta('Pouco histórico para analisar', semBase, false)}
 
           <footer>
             Faixa normal: o miolo dos preços do período (do primeiro ao terceiro quartil), para uma compra muito cara ou muito barata não distorcer a referência.
