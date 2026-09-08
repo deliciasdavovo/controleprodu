@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-relatorio-visual-1" />
+    <meta name="app-version" content="2026-09-09-dois-formatos-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14086,6 +14086,14 @@
           <span class="acoes-dica">No celular: toque no botão, escolha <strong>Salvar como PDF</strong> em Destino e depois compartilhe o arquivo.</span>
         </div>`;
 
+      // A folha do celular já diz para onde vai; a de A4 fala de impressora
+      const barraAcoes = (formato) => formato === 'celular'
+        ? `<div class="acoes">
+             <button type="button" class="acao-imprimir" onclick="window.print()">Salvar em PDF para mandar</button>
+             <span class="acoes-dica">Toque no botão e escolha <strong>Salvar como PDF</strong> em Destino. O arquivo fica no celular, pronto para o WhatsApp.</span>
+           </div>`
+        : BARRA_ACOES_HTML;
+
       const BARRA_ACOES_CSS = `
         .acoes { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center;
                  gap: 8px 14px; padding: 10px 0 12px; margin-bottom: 6px; background: #fff;
@@ -14097,343 +14105,182 @@
         .acoes-dica { font-size: 10.5pt; color: #555; flex: 1 1 240px; }
         @media print { .acoes { display: none !important; } }`;
 
-      const relPreco = (v, unidade) => `${formatCurrencyBR(v)}/${unidade}`;
-
-      // Variação sempre nas duas medidas: sozinho, o percentual esconde o
-      // tamanho da conta, e o valor esconde a proporção
-      const relVariacao = (valor, pct, unidade) => {
-        if (valor === null || valor === undefined) return '<span class="quieto">sem compra anterior no período</span>';
-        const sobe = valor > 0.0001;
-        const desce = valor < -0.0001;
-        const classe = sobe ? 'sobe' : desce ? 'desce' : 'igual';
-        const sinal = sobe ? '+' : desce ? '−' : '';
-        const seta = sobe ? '▲' : desce ? '▼' : '=';
-        const pctTexto = pct === null || pct === undefined
-          ? ''
-          : ` | ${sinal}${Math.abs(pct).toFixed(1).replace('.', ',')}%`;
-        return `<span class="var ${classe}">${seta} ${sinal}${formatCurrencyBR(Math.abs(valor))}${unidade ? '/' + unidade : ''}${pctTexto}</span>`;
-      };
-
-      const relLinha = (rotulo, valor) => `<div class="linha"><span class="rot">${rotulo}</span><span class="val">${valor}</span></div>`;
-
-      const relResumoItem = (i) => `<li><span class="li-nome">${escaparHtml(i.item)}</span>${relVariacao(i.varUnit, i.varPct, i.unidadeRef)}</li>`;
-
-      // ---- Os desenhos ----
+      // ==========================================
+      // RELATÓRIO DE PREÇOS — A FOLHA
       //
-      // Duas figuras por produto, cada uma respondendo a uma pergunta:
-      //   a linha  → para onde o preço vem andando
-      //   a régua  → onde o preço de hoje cai dentro do que é normal
+      // Uma tabela, e só. A versão anterior espalhava o mesmo item por quatro
+      // listas e ainda repetia num bloco detalhado — quem lia via a muçarela
+      // quatro vezes e não sabia qual olhar. Agora é uma linha por item, na
+      // ordem do que mais subiu para o que mais caiu.
       //
-      // Ambas sobrevivem ao preto e branco: a linha é traço, e a faixa normal
-      // é hachurada, não colorida. Os números ficam escritos ao lado — nenhuma
-      // informação depende de cor.
+      // Item que não mexeu no preço fica de fora: a folha é sobre o que mudou.
+      //
+      // A barrinha da variação é o único desenho, e ela é o que deixa a folha
+      // legível de relance — o tamanho diz o tanto, o lado diz a direção. Ela
+      // sobrevive ao preto e branco, e o número está escrito ao lado de
+      // qualquer jeito.
+      // ==========================================
+      // Cada item lido de cima para baixo. Vale sempre no formato de celular e,
+      // no de imprimir, só quando a tela é estreita demais para a tabela.
+      const REGRAS_CARTAO = (alvo) => `
+        ${alvo} thead { display: none; }
+        ${alvo} table, ${alvo} tbody, ${alvo} tr, ${alvo} td { display: block; width: auto; }
+        ${alvo} tr { border: 1px solid #ddd; border-radius: 6px; padding: 9px 11px; margin-bottom: 9px; }
+        ${alvo} tbody tr:nth-child(even) { background: #fff; }
+        ${alvo} td { border: 0; padding: 2px 0; text-align: left; }
+        ${alvo} td.n { text-align: left; }
+        ${alvo} td[data-rot]::before { content: attr(data-rot) ': '; color: #666; font-weight: 400; font-size: 9.5pt; }
+        ${alvo} .c-item { font-size: 13pt; font-weight: 700; border-bottom: 1px solid #eee;
+                          padding-bottom: 5px; margin-bottom: 4px; }
+        ${alvo} .c-barra { padding: 3px 0 5px; }
+        ${alvo} .var .pct { display: inline; margin-left: 8px; }
+        ${alvo} .c-sit { margin-top: 4px; }`;
 
-      // A linha do preço no período. Traço fino, ponto grosso no de hoje.
-      const relLinhaDoPreco = (serie, tom) => {
-        if (!serie || serie.length < 2) return '';
-        const L = 260, A = 40, m = 5;
-        const precos = serie.map((p) => p.preco);
-        const min = Math.min(...precos);
-        const max = Math.max(...precos);
-        const faixa = max - min || 1;
-        const x = (i) => m + (i * (L - 2 * m)) / (serie.length - 1);
-        const y = (v) => A - m - ((v - min) / faixa) * (A - 2 * m);
-        const caminho = serie.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.preco).toFixed(1)}`).join(' ');
-        const ultimo = serie.length - 1;
-        return `<svg class="fig-linha" viewBox="0 0 ${L} ${A}" preserveAspectRatio="none" role="img"
-                     aria-label="Preço ao longo do período, de ${formatCurrencyBR(serie[0].preco)} a ${formatCurrencyBR(serie[ultimo].preco)}">
-          <path d="${caminho}" fill="none" stroke="#898781" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <circle cx="${x(ultimo).toFixed(1)}" cy="${y(serie[ultimo].preco).toFixed(1)}" r="4.5" fill="${tom}" stroke="#fff" stroke-width="1.5"/>
-        </svg>`;
+      // Os dois formatos. O PDF sai do tamanho da página, e não da tela: em A4
+      // o relatório chega ao celular como uma folha larga para apertar e
+      // ampliar. A página estreita tem quase a proporção de um telefone, então
+      // o mesmo PDF se lê rolando, sem zoom.
+      const FORMATOS_RELATORIO = {
+        celular: {
+          pagina: '@page { size: 105mm 210mm; margin: 8mm 7mm; }',
+          corpo: 'font-size: 11pt;',
+          classe: 'cartoes',
+          titulo: 'Preços que mudaram'
+        },
+        a4: {
+          pagina: '@page { size: A4 portrait; margin: 12mm 10mm; }',
+          corpo: 'font-size: 11pt;',
+          classe: '',
+          titulo: 'Preços que mudaram'
+        }
       };
 
-      // A régua: do menor ao maior preço do período, com a faixa normal
-      // hachurada no meio e o preço de hoje marcado por um traço.
-      const relReguaDaFaixa = (i, tom) => {
-        if (!i.confiavel) return '';
-        const min = Math.min(i.menorPreco, i.precoAtual);
-        const max = Math.max(...[i.faixaMax, i.precoAtual, i.menorPreco]);
-        const span = max - min || 1;
-        const pos = (v) => Math.max(0, Math.min(100, ((v - min) / span) * 100));
-        const inicio = pos(i.faixaMin);
-        const largura = Math.max(2, pos(i.faixaMax) - inicio);
-        return `<div class="regua" role="img" aria-label="Preço de hoje ${formatCurrencyBR(i.precoAtual)}; faixa normal de ${formatCurrencyBR(i.faixaMin)} a ${formatCurrencyBR(i.faixaMax)}">
-          <div class="regua-trilho">
-            <div class="regua-faixa" style="left:${inicio.toFixed(1)}%;width:${largura.toFixed(1)}%"></div>
-            <div class="regua-hoje" style="left:${pos(i.precoAtual).toFixed(1)}%;background:${tom}"></div>
-          </div>
-          <div class="regua-legenda">
-            <span>${formatCurrencyBR(min)}</span>
-            <span class="regua-meio">faixa normal ${formatCurrencyBR(i.faixaMin)}–${formatCurrencyBR(i.faixaMax)}</span>
-            <span>${formatCurrencyBR(max)}</span>
-          </div>
-        </div>`;
+      const relSinal = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
+
+      const relBarraVariacao = (pct, maiorPct) => {
+        const escala = Math.max(maiorPct, 1);
+        const largura = Math.min(100, (Math.abs(pct) / escala) * 100);
+        const sobe = pct > 0;
+        return `<span class="barra ${sobe ? 'sobe' : 'desce'}">
+          <span class="barra-tira" style="width:${largura.toFixed(0)}%"></span>
+        </span>`;
       };
 
-      const TOM_SITUACAO = {
-        alto: '#d03b3b', atencao: '#ec835a', normal: '#898781', bom: '#0ca30c', insuficiente: '#898781'
-      };
+      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4') => {
+        const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
+        // Só o que mexeu de preço, do que mais subiu ao que mais caiu
+        const linhas = rel.itens
+          .filter((i) => i.varPct !== null && Math.abs(i.varPct) > 2)
+          .sort((a, b) => b.varPct - a.varPct);
 
-      const relBlocoProduto = (i) => {
-        const tom = TOM_SITUACAO[i.situacao.chave] || '#898781';
+        const maiorPct = Math.max(...linhas.map((i) => Math.abs(i.varPct)), 1);
+        const subiram = linhas.filter((i) => i.varPct > 0);
+        const cairam = linhas.filter((i) => i.varPct < 0);
+        const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
+        const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
-        const linhaQtd = i.qtdHabitual > 0 && Math.abs(i.varQtdPct) >= 20
-          ? `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef} <span class="aviso">⚠ ${i.varQtdPct > 0 ? '+' : '−'}${Math.abs(i.varQtdPct).toFixed(0)}% do habitual</span>`
-          : `${numeroCurtoBR(i.qtdAtual)} ${i.unidadeRef}`;
-
-        const melhor = i.melhorRecente && i.melhorRecente.nome !== i.fornecedorAtual
-          ? `<div class="melhor"><span class="estrela">★</span> Melhor preço recente: <strong>${escaparHtml(i.melhorRecente.nome)}</strong> a ${formatCurrencyBR(i.melhorRecente.ultimoPreco)}/${i.unidadeRef} <span class="quieto">em ${formatDateBR(i.melhorRecente.ultimaData)}</span></div>`
-          : '';
-
-        const impacto = i.impacto && Math.abs(i.impacto) >= 0.01
-          ? `<div class="impacto">
-               <span class="imp-rot">Impacto numa compra habitual (${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef})</span>
-               <span class="imp-val" style="color:${i.impacto > 0 ? '#7D2027' : '#1E6B44'}">${i.impacto > 0 ? '+' : '−'}${formatCurrencyBR(Math.abs(i.impacto))}</span>
-             </div>`
-          : '';
-
-        // Sem histórico, mediana e faixa seriam número inventado — só os fatos
-        const referencias = i.confiavel
-          ? `${relReguaDaFaixa(i, tom)}
-             <div class="refs">
-               <span>Preço típico <strong>${formatCurrencyBR(i.medianaPreco)}</strong></span>
-               <span>Melhor recente <strong>${formatCurrencyBR(i.menorPreco)}</strong></span>
-             </div>`
-          : `<div class="sem-base">Preço típico e faixa normal só a partir de ${MIN_COMPRAS_CONFIAVEL} compras no período.</div>`;
-
-        return `<section class="bloco" style="border-left-color:${tom}">
-          <div class="bloco-topo">
-            <h3>${escaparHtml(i.item)}</h3>
-            <span class="selo s-${i.situacao.chave}">${i.situacao.simbolo} ${i.situacao.label}</span>
-          </div>
-
-          <div class="hero">
-            <div class="hero-preco">${formatCurrencyBR(i.precoAtual)}<span class="hero-un">/${i.unidadeRef}</span></div>
-            <div class="hero-var">${relVariacao(i.varUnit, i.varPct, '')}
-              <span class="hero-antes">${i.precoAnterior ? `antes ${formatCurrencyBR(i.precoAnterior)}` : 'primeira compra do período'}</span>
-            </div>
-            ${relLinhaDoPreco(i.serie, tom)}
-          </div>
-
-          ${referencias}
-          ${impacto}
-
-          <div class="fatos">
-            <span><b>Fornecedor</b> ${i.fornecedorAtual === 'Sem fornecedor'
-              ? '<span class="aviso">não lançado — sem ele não dá para comparar</span>'
-              : escaparHtml(i.fornecedorAtual)}</span>
-            <span><b>Última compra</b> ${linhaQtd} em ${formatDateBR(i.dataAtual)}</span>
-            <span><b>Frequência</b> ${i.intervaloMedio ? `a cada ${i.intervaloMedio} dias` : 'poucas compras'}${i.diasDesdeUltima !== null ? ` · há ${i.diasDesdeUltima} ${i.diasDesdeUltima === 1 ? 'dia' : 'dias'}` : ''}</span>
-          </div>
-
-          ${melhor}
-          <div class="orientacao">${i.situacao.orientacao}</div>
-        </section>`;
-      };
-
-      const htmlRelatorioDeCompra = (rel, unidadeNome) => {
-        const r = rel.resumo;
-        const lista = (titulo, itens, vazio) => `
-          <div class="grupo">
-            <h2>${titulo}</h2>
-            ${itens.length ? `<ul class="resumo-lista">${itens.map(relResumoItem).join('')}</ul>` : `<p class="quieto">${vazio}</p>`}
-          </div>`;
-
-        // Só o que ajuda a decidir vira bloco. Dentro disso, manda o dinheiro:
-        // 8% num item de R$ 3 não muda o mês; 3% num item de R$ 400 muda. Item
-        // sem histórico nunca vira bloco — não há o que analisar nele.
-        const candidatos = rel.itens
-          .filter((i) => i.confiavel && (i.situacao.chave !== 'normal' || (i.varPct !== null && Math.abs(i.varPct) > 2)))
-          .sort((a, b) => {
-            const ordem = { alto: 0, atencao: 1, bom: 2, normal: 3 };
-            const d = ordem[a.situacao.chave] - ordem[b.situacao.chave];
-            return d !== 0 ? d : Math.abs(b.impacto) - Math.abs(a.impacto);
-          });
-        const detalhar = candidatos.slice(0, MAX_BLOCOS_DETALHADOS);
-        const sobraram = candidatos.slice(MAX_BLOCOS_DETALHADOS);
-        const estaveis = rel.itens.filter((i) => i.confiavel && !candidatos.includes(i));
-        const semBase = rel.itens.filter((i) => !i.confiavel);
-
-        const listaCompacta = (titulo, itens, comVariacao) => itens.length ? `
-          <h2>${titulo} <span class="conta">${itens.length}</span></h2>
-          <p class="compacta">${itens
-            .map((i) => `<span class="item-compacto">${escaparHtml(i.item)} <b>${formatCurrencyBR(i.precoAtual)}</b>${
-              comVariacao && i.varPct !== null ? ` <i class="${i.varPct > 0 ? 'sobe' : 'desce'}">${i.varPct > 0 ? '+' : '−'}${Math.abs(i.varPct).toFixed(0)}%</i>` : ''
-            }</span>`).join('')}</p>` : '';
+        const linhaDaTabela = (i) => `<tr>
+          <td class="c-item">${escaparHtml(i.item)}</td>
+          <td class="n" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
+          <td class="n antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
+          <td class="c-barra">${relBarraVariacao(i.varPct, maiorPct)}</td>
+          <td class="n var ${i.varPct > 0 ? 'sobe' : 'desce'}">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
+          <td class="n" data-rot="Impacto na compra">${Math.abs(i.impacto) >= 0.01 ? `<span class="${i.impacto > 0 ? 'sobe' : 'desce'}">${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}</span>` : '<span class="quieto">—</span>'}</td>
+          <td class="c-sit">${i.confiavel ? `<span class="sit s-${i.situacao.chave}">${i.situacao.label}</span>` : '<span class="quieto">sem base</span>'}</td>
+          <td class="c-forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
+        </tr>`;
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Relatório de apoio à compra — ${escaparHtml(unidadeNome)}</title>
+          <title>Preços que mudaram — ${escaparHtml(unidadeNome)}</title>
           <style>
-            @page { size: A4 portrait; margin: 14mm 12mm; }
+            ${fmt.pagina}
             * { box-sizing: border-box; }
-            body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111; margin: 0 auto; padding: 0 4vw 40px;
-                   font-size: 12pt; line-height: 1.45; max-width: 820px; }
+            body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; color: #111;
+                   margin: 0 auto; padding: 0 4vw 40px; ${fmt.corpo} max-width: 900px; }
             @media print { body { padding: 0; max-width: none; } }
-
-            header { border-bottom: 2.5px solid #111; padding-bottom: 10px; margin-bottom: 16px; }
-            h1 { font-size: 18pt; margin: 0 0 2px; letter-spacing: -.01em; }
-            .cab { font-size: 10.5pt; color: #444; }
-
-            h2 { font-size: 13pt; margin: 20px 0 8px; padding: 5px 9px; background: #efefef;
-                 border-left: 4px solid #111; border-radius: 2px; }
-            h3 { font-size: 13.5pt; margin: 0; }
-
-            /* O placar do período: número grande, rótulo pequeno */
-            .placar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-            .caixa { flex: 1 1 130px; border: 1.5px solid #bbb; border-radius: 5px; padding: 8px 10px; }
-            .caixa .n { font-size: 20pt; font-weight: 800; line-height: 1.1; }
-            .caixa .r { font-size: 9.5pt; color: #444; text-transform: uppercase; letter-spacing: .03em; }
-            .caixa.sobe { border-color: #7D2027; } .caixa.sobe .n { color: #7D2027; }
-            .caixa.desce { border-color: #2E7D51; } .caixa.desce .n { color: #2E7D51; }
-
-            .dinheiro { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-            .dinheiro > div { flex: 1 1 200px; border: 1.5px solid #111; border-radius: 5px; padding: 9px 11px; }
-            .dinheiro .r { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .03em; color: #444; }
-            .dinheiro .v { font-size: 16pt; font-weight: 800; }
-
-            .resumo-lista { list-style: none; margin: 0; padding: 0; }
-            .resumo-lista li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
-                               padding: 5px 0; border-bottom: 1px solid #ddd; }
-            .li-nome { font-weight: 600; }
-
-            /* Cada produto num bloco vertical: no celular a leitura é de cima
-               para baixo, e no papel o bloco não se parte entre páginas */
-            .bloco { border: 1px solid #d8d8d4; border-left: 5px solid #999; border-radius: 6px;
-                     padding: 12px 14px; margin-top: 12px; page-break-inside: avoid; break-inside: avoid; }
-            .bloco-topo { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
-
-            /* O número que a pessoa lê primeiro: preço de hoje e quanto andou.
-               Proporcional, não tabular — em corpo grande o tabular fica solto. */
-            .hero { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: end; margin: 8px 0 10px; }
-            .hero-preco { font-size: 26pt; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
-            .hero-un { font-size: 12pt; font-weight: 600; color: #52514e; }
-            .hero-var { font-size: 12pt; }
-            .hero-antes { display: block; font-size: 10pt; color: #52514e; font-weight: 400; }
-            .fig-linha { grid-column: 1 / -1; width: 100%; height: 40px; margin-top: 4px; }
-
-            /* A régua do preço: onde hoje cai entre o menor e o maior do período */
-            .regua { margin: 4px 0 10px; }
-            .regua-trilho { position: relative; height: 14px; background: #efeee9; border-radius: 3px; }
-            .regua-faixa { position: absolute; top: 0; bottom: 0; border-radius: 2px;
-                           background: repeating-linear-gradient(135deg, #c9c8c2 0 3px, #e5e4de 3px 6px); }
-            .regua-hoje { position: absolute; top: -3px; bottom: -3px; width: 4px; border-radius: 2px;
-                          transform: translateX(-2px); }
-            .regua-legenda { display: flex; justify-content: space-between; gap: 8px; font-size: 9.5pt;
-                             color: #52514e; margin-top: 3px; font-variant-numeric: tabular-nums; }
-            .regua-meio { color: #333; }
-
-            .refs { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 10.5pt; color: #52514e; margin-bottom: 8px; }
-            .refs strong, .fatos b { color: #111; }
-            .fatos { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 10.5pt; color: #52514e; margin-top: 8px; }
-            .fatos b { font-weight: 700; }
-            .melhor { margin-top: 7px; font-size: 11pt; }
-            .sem-base { font-size: 10.5pt; color: #52514e; font-style: italic; margin-bottom: 8px; }
-
-            .conta { font-size: 10pt; font-weight: 600; color: #52514e; }
-            .compacta { margin: 0 0 6px; line-height: 2.1; }
-            .item-compacto { display: inline-block; border: 1px solid #ddd; border-radius: 999px;
-                             padding: 3px 10px; margin: 0 5px 5px 0; font-size: 10.5pt; white-space: nowrap; }
-            .item-compacto i { font-style: normal; font-weight: 700; }
-            .item-compacto i.sobe { color: #7D2027; } .item-compacto i.desce { color: #1E6B44; }
-
-            .selo { font-size: 10pt; font-weight: 800; padding: 3px 9px; border-radius: 999px;
-                    border: 1.5px solid #111; white-space: nowrap; }
-            .s-alto { background: #F6DEDE; border-color: #7D2027; color: #7D2027; }
-            .s-atencao { background: #FBEBCF; border-color: #8A5A00; color: #8A5A00; }
-            .s-normal { background: #eee; border-color: #555; color: #333; }
-            .s-bom { background: #DCEFE2; border-color: #2E7D51; color: #2E7D51; }
-            .s-insuficiente { background: #fff; border-color: #999; color: #555; }
-
-            .var { font-weight: 700; white-space: nowrap; }
-            .var.sobe { color: #7D2027; } .var.desce { color: #2E7D51; } .var.igual { color: #444; }
-            .quieto { color: #666; font-weight: 400; font-size: 10.5pt; }
-            .aviso { color: #8A5A00; font-weight: 700; font-size: 10.5pt; }
-
-            .impacto { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-                       padding: 7px 10px; border: 1.5px solid #111; border-radius: 5px; }
-            .imp-rot { font-size: 10pt; text-transform: uppercase; letter-spacing: .03em; }
-            .imp-val { font-size: 15pt; font-weight: 800; }
-            .impacto.sobe { border-color: #7D2027; } .impacto.sobe .imp-val { color: #7D2027; }
-            .impacto.desce { border-color: #2E7D51; } .impacto.desce .imp-val { color: #2E7D51; }
-
-            .forn { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10.5pt; }
-            .forn th { text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .03em;
-                       border-bottom: 1.5px solid #111; padding: 4px 5px; }
-            .forn td { padding: 5px; border-bottom: 1px solid #ddd; vertical-align: top; }
-            .forn .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-            .estrela { font-weight: 800; }
-            @media screen and (max-width: 560px) {
-              .forn thead { display: none; }
-              .forn, .forn tbody, .forn tr, .forn td { display: block; width: auto; }
-              .forn tr { border: 1px solid #ccc; border-radius: 5px; padding: 6px 8px; margin-bottom: 7px; }
-              .forn td { border: 0; padding: 2px 0; display: flex; justify-content: space-between; gap: 10px; }
-              .forn td.f-nome { font-weight: 700; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 3px; display: block; }
-              .forn td.n::before { content: attr(data-rot); color: #555; font-weight: 400; }
-            }
-            .nota-forn { font-size: 8.5pt; color: #555; }
-
-            .orientacao { margin-top: 9px; padding: 8px 10px; background: #f4f4f4; border-radius: 4px;
-                          font-size: 11pt; }
-            .orientacao::before { content: '→ '; font-weight: 800; }
-
-            .estaveis { font-size: 10.5pt; color: #444; }
-            footer { margin-top: 20px; border-top: 1px solid #bbb; padding-top: 8px; font-size: 9.5pt; color: #555; }
-            .quebra { page-break-before: always; }
-            @media print {
-              .bloco:nth-of-type(3n) { page-break-after: always; }
-              .bloco:last-of-type { page-break-after: auto; }
-            }
-            .sem-base .val { text-align: right; }
-            @media screen { .quebra { border-top: 3px double #ccc; margin-top: 24px; padding-top: 8px; } }
             ${BARRA_ACOES_CSS}
-          </style></head><body>
 
-          ${BARRA_ACOES_HTML}
+            header { border-bottom: 2.5px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
+            h1 { font-size: 17pt; margin: 0 0 2px; }
+            .cab { font-size: 10pt; color: #444; }
+
+            /* O placar em uma linha só: quantos subiram, quantos caíram, e o
+               que isso custa numa compra do tamanho de sempre */
+            .placar { display: flex; flex-wrap: wrap; gap: 10px 26px; padding: 9px 0 12px;
+                      border-bottom: 1px solid #ddd; margin-bottom: 12px; }
+            .placar div { font-size: 10pt; color: #444; }
+            .placar b { display: block; font-size: 15pt; color: #111; }
+            .placar .sobe b { color: #7D2027; } .placar .desce b { color: #1E6B44; }
+
+            table { width: 100%; border-collapse: collapse; }
+            th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: #444;
+                 text-align: left; border-bottom: 1.5px solid #111; padding: 5px 6px; }
+            td { padding: 6px; border-bottom: 1px solid #e2e2de; vertical-align: middle; }
+            tr { page-break-inside: avoid; }
+            thead { display: table-header-group; }
+            tbody tr:nth-child(even) { background: #fafaf9; }
+
+            .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+            .c-item { font-weight: 600; }
+            .un { font-size: 8.5pt; color: #666; font-weight: 400; }
+            .antes { color: #666; }
+            .var { font-weight: 700; }
+            .var .pct { display: block; font-size: 9pt; font-weight: 600; }
+            .sobe { color: #7D2027; } .desce { color: #1E6B44; }
+            .quieto { color: #777; font-weight: 400; }
+
+            /* A barra: o tamanho é o tanto, o lado é a direção */
+            .c-barra { width: 74px; padding-left: 2px; padding-right: 2px; }
+            .barra { display: block; height: 11px; background: #f0efec; border-radius: 2px; overflow: hidden; }
+            .barra-tira { display: block; height: 100%; border-radius: 2px; }
+            .barra.sobe .barra-tira { background: #b23b3b; }
+            .barra.desce .barra-tira { background: #2E7D51; float: right; }
+
+            .sit { font-size: 8.5pt; font-weight: 800; padding: 2px 7px; border-radius: 999px;
+                   border: 1.2px solid currentColor; white-space: nowrap; }
+            .s-alto { color: #7D2027; } .s-atencao { color: #8A5A00; }
+            .s-normal { color: #555; } .s-bom { color: #1E6B44; }
+            .c-forn { font-size: 9.5pt; color: #333; }
+            .c-sit { white-space: nowrap; }
+
+            ${REGRAS_CARTAO('body.cartoes')}
+            /* Tabela de oito colunas não cabe num telefone: na tela estreita
+               ela vira cartão mesmo no formato de imprimir */
+            @media screen and (max-width: 620px) { ${REGRAS_CARTAO('body')} }
+
+            .nada { padding: 20px 0; color: #555; }
+            footer { margin-top: 14px; border-top: 1px solid #ccc; padding-top: 7px; font-size: 9pt; color: #555; }
+          </style></head><body class="${fmt.classe}">
+
+          ${barraAcoes(formato)}
 
           <header>
-            <h1>Relatório de apoio à compra</h1>
-            <div class="cab">
-              ${escaparHtml(unidadeNome)} · período de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)} (${DIAS_JANELA_COMPRA} dias)<br>
-              Emitido em ${formatDateBR(rel.ate)} · ${rel.itens.length} ${rel.itens.length === 1 ? 'item comprado' : 'itens comprados'} no período
-            </div>
+            <h1>${fmt.titulo}</h1>
+            <div class="cab">${escaparHtml(unidadeNome)} · últimos ${DIAS_JANELA_COMPRA} dias · emitido em ${formatDateBR(rel.ate)}</div>
           </header>
 
-          <h2>Resumo do período</h2>
           <div class="placar">
-            <div class="caixa sobe"><div class="n">▲ ${r.subiu}</div><div class="r">com alta</div></div>
-            <div class="caixa desce"><div class="n">▼ ${r.caiu}</div><div class="r">com queda</div></div>
-            <div class="caixa"><div class="n">= ${r.estaveis}</div><div class="r">estáveis</div></div>
-            <div class="caixa"><div class="n">${r.acimaDoPadrao}</div><div class="r">acima do padrão</div></div>
-            <div class="caixa"><div class="n">${r.bomPreco}</div><div class="r">com bom preço</div></div>
+            <div class="sobe"><b>▲ ${subiram.length}</b> subiram de preço</div>
+            <div class="desce"><b>▼ ${cairam.length}</b> caíram de preço</div>
+            <div class="sobe"><b>${relSinal(1)}${formatCurrencyBR(impactoAltas)}</b> a mais nas altas</div>
+            <div class="desce"><b>−${formatCurrencyBR(Math.abs(economiaQuedas))}</b> a menos nas quedas</div>
           </div>
-          <div class="dinheiro">
-            <div><div class="r">Impacto estimado das altas</div><div class="v sobe" style="color:#7D2027">+${formatCurrencyBR(r.impactoAltas)}</div></div>
-            <div><div class="r">Economia estimada nas quedas</div><div class="v" style="color:#2E7D51">−${formatCurrencyBR(Math.abs(r.economiaQuedas))}</div></div>
-          </div>
-          <p class="quieto">Estimado sobre a quantidade habitual de cada item — o que a variação de preço custa numa compra do tamanho de sempre.${r.semHistorico ? ` ${r.semHistorico} ${r.semHistorico === 1 ? 'item tem' : 'itens têm'} histórico curto demais para classificar.` : ''}</p>
 
-          ${lista('Maiores altas', rel.maioresAltas, 'Nenhum item subiu de preço no período.')}
-          ${lista('Maiores quedas', rel.maioresQuedas, 'Nenhum item caiu de preço no período.')}
-          ${lista('Acima do padrão', rel.acimaDoPadrao, 'Nenhum item acima da faixa normal.')}
-          ${lista('Oportunidades de preço', rel.oportunidades, 'Nenhuma oportunidade no período.')}
-
-          ${detalhar.length ? `<div class="quebra"></div>
-            <h2>O que pede decisão <span class="conta">${detalhar.length} de ${candidatos.length}</span></h2>
-            ${candidatos.length > detalhar.length ? `<p class="quieto">Os ${detalhar.length} de maior peso em dinheiro. Os outros ${sobraram.length} estão listados abaixo.</p>` : ''}
-            ${detalhar.map(relBlocoProduto).join('')}` : ''}
-
-          ${listaCompacta('Também fora da faixa', sobraram, true)}
-          ${listaCompacta('Dentro do padrão', estaveis, true)}
-          ${listaCompacta('Pouco histórico para analisar', semBase, false)}
+          ${linhas.length ? `<table>
+            <thead><tr>
+              <th>Item</th><th class="n">Agora</th><th class="n">Antes</th>
+              <th colspan="2">Variação</th><th class="n">Impacto</th>
+              <th>Situação</th><th>Fornecedor</th>
+            </tr></thead>
+            <tbody>${linhas.map(linhaDaTabela).join('')}</tbody>
+          </table>` : '<p class="nada">Nenhum item mudou de preço no período.</p>'}
 
           <footer>
-            Faixa normal: o miolo dos preços do período (do primeiro ao terceiro quartil), para uma compra muito cara ou muito barata não distorcer a referência.
-            Preço típico: a mediana. Impacto: variação do preço × quantidade habitual.
-            As orientações são apoio à decisão — a compra é decisão do supervisor.
-
+            Comparação com a compra anterior do mesmo item. Impacto: a variação multiplicada pela quantidade que a casa costuma comprar.
+            Situação compara o preço de hoje com a faixa habitual do período — "sem base" é item com poucas compras para comparar.
+            Itens que não mudaram de preço não entram nesta folha.
           </footer>
-          <style>@media print { .dica { display: none; } }</style>
         </body></html>`;
       };
 
@@ -14553,7 +14400,7 @@
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
-        const imprimirRelatorioDeCompra = () => {
+        const imprimirRelatorioDeCompra = (formato) => {
           const rel = montarRelatorioDeCompra(todas, getTodayDateString());
           if (!rel.itens.length) {
             window.alert(`Nenhuma compra lançada nos últimos ${DIAS_JANELA_COMPRA} dias — não há o que analisar ainda.`);
@@ -14564,60 +14411,8 @@
             window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
             return;
           }
-          janela.document.write(htmlRelatorioDeCompra(rel, unitName));
+          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato));
           janela.document.close();
-        };
-
-        // A planilha de compras: uma linha por item E fornecedor, que é a
-        // forma de comparar. Cada linha carrega junto o resumo do item (melhor
-        // preço, quanto dá para economizar, quanto o preço andou), para o
-        // filtro do Excel responder sozinho "de quem eu compro isto".
-        //
-        // Os preços saem na unidade grande (kg, L, un), que é como se fala de
-        // preço de insumo — R$ 0,005/g não diz nada a ninguém.
-        const exportarCompras = () => {
-          const linhas = [];
-          [...porItem]
-            .sort((a, b) => a.item.localeCompare(b.item, 'pt-BR'))
-            .forEach((i) => {
-              const grande = (v) => precoNaUnidadeGrande(v, i.unidade);
-              const unidadePreco = grande(0).label;
-              const melhor = i.maisBarato;
-              (i.medias.length ? i.medias : [null]).forEach((f) => {
-                const diferencaParaMelhor = f && melhor && melhor.medio > 0 && f.medio > 0
-                  ? ((f.medio - melhor.medio) / melhor.medio) * 100
-                  : 0;
-                linhas.push([
-                  i.item,
-                  i.tipo,
-                  unidadePreco,
-                  f ? f.nome : 'Sem fornecedor',
-                  f ? csvNumero(grande(f.medio).valor) : '',
-                  f ? formatDateBR(f.ultima) : '',
-                  melhor ? melhor.nome : '',
-                  melhor ? csvNumero(grande(melhor.medio).valor) : '',
-                  f && melhor && f.nome !== melhor.nome ? csvNumero(diferencaParaMelhor, 1) : '',
-                  i.medias.length,
-                  i.compras,
-                  csvNumero(grande(i.atual.custoUnit).valor),
-                  i.atual.fornecedor,
-                  formatDateBR(i.atual.data),
-                  i.atual.variacaoPct === null || i.atual.variacaoPct === undefined
-                    ? ''
-                    : csvNumero(i.atual.variacaoPct, 1)
-                ]);
-              });
-            });
-
-          baixarCSV(
-            nomeComData(`compras-fornecedores-${currentUnit}`),
-            ['Item', 'Tipo', 'Preço por', 'Fornecedor', 'Preço médio deste fornecedor',
-             'Última compra dele', 'Fornecedor mais barato', 'Preço do mais barato',
-             'Quanto este está acima do melhor %', 'Nº de fornecedores', 'Nº de compras',
-             'Preço da última compra', 'Fornecedor da última compra', 'Data da última compra',
-             'Variação da última compra %'],
-            linhas
-          );
         };
 
         const itensOrdenados = useMemo(() => [...porItem].sort((a, b) => {
@@ -14848,20 +14643,21 @@
                     e o preço de cada um, para comparar fora da tela */}
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={imprimirRelatorioDeCompra}
+                    onClick={() => imprimirRelatorioDeCompra('celular')}
                     disabled={todas.length === 0}
-                    title="Abre o relatório de apoio à compra: resumo do período, análise por produto e comparação de fornecedores. Dá para ler no celular, mandar no WhatsApp ou imprimir em A4."
+                    title="Relatório em página estreita, do tamanho da tela do telefone: sai um PDF que se lê rolando, sem apertar para ampliar. É o de mandar no WhatsApp."
                     className="btn btn-primary btn-sm disabled:opacity-40"
                   >
                     <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                    Relatório de apoio à compra
+                    Relatório para o celular
                   </button>
                   <button
-                    onClick={exportarCompras}
-                    title="Baixar a lista completa em planilha, para abrir no Excel ou no Google Planilhas"
-                    className="btn btn-secondary btn-sm"
+                    onClick={() => imprimirRelatorioDeCompra('a4')}
+                    disabled={todas.length === 0}
+                    title="O mesmo relatório em tabela, na folha A4, para imprimir e levar na mão"
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
                   >
-                    Baixar planilha
+                    Para imprimir (A4)
                   </button>
                 </div>
               </div>
