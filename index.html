@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-ritmo-1" />
+    <meta name="app-version" content="2026-09-10-volume-e-ficha-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1164,6 +1164,31 @@
          a planilha do pedido já fazia. O que é bloco dentro da célula, como o
          lote embaixo da data, continua na linha de baixo. */
       .tabela-larga th, .tabela-larga td { white-space: nowrap; }
+
+      /* A coluna que AGE fica presa na direita, como o nome do item já fica
+         preso na esquerda. Numa tabela de onze colunas dentro de um telefone
+         de 390 px, o botão da ficha técnica nascia setecentos pixels fora da
+         tela: quem não sabia que dava para arrastar de lado achava que ele
+         tinha sumido da aba. Agora ele está sempre à vista, e são os números
+         que passam por baixo. */
+      .tabela-larga th.col-acao, .tabela-larga td.col-acao {
+        position: sticky;
+        right: 0;
+        z-index: 11;
+        background: var(--bg-surface);
+        padding-left: 10px;
+      }
+      /* A sombrinha diz que há tabela por baixo, e não uma borda qualquer */
+      .tabela-larga th.col-acao::before, .tabela-larga td.col-acao::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -13px;
+        width: 13px;
+        pointer-events: none;
+        background: radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+      }
 
       .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
 
@@ -11262,7 +11287,15 @@
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
-        const compraPorVolume = temRevenda && (draft.priceUnit || 'un') === 'un';
+        // Embalagem e limpeza chegam em volume igual à revenda: ninguém compra
+        // "500 marmitex", compra duas caixas de 250. O cadastro já guarda essa
+        // conta em variationUnit/variationFactor ("1 caixa = 250 un"), então é
+        // de lá que sai a sugestão de quantas unidades vêm no volume.
+        //
+        // Só vale para o que se conta por unidade: detergente comprado em ml
+        // continua sendo ml, e caixa de ml não quer dizer nada.
+        const volumeDeClasseInterna = classeInterna && !temRevenda && (draft.unit || 'g') === 'un';
+        const compraPorVolume = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -11295,6 +11328,17 @@
           ? ultimaCompra(comprasDaRevenda(revendaExistente.id))
           : null;
         const volumeAnterior = lerUnidadeCompraVolume(compraRevendaExistente?.purchaseUnit);
+
+        // Quantas unidades vêm no volume, sugeridas. Na revenda saem da última
+        // compra, que guarda o formato no purchaseUnit ("pack:caixa:50"). A
+        // compra de insumo não guarda formato nenhum — só a quantidade em
+        // unidade base — então para embalagem e limpeza a sugestão vem do
+        // cadastro, que é onde a casa escreveu "1 caixa = 250 un".
+        const unidadesPorVolumeSugeridas = volumeDeClasseInterna
+          ? (Number(draft.variationFactor) > 0
+            ? Number(draft.variationFactor)
+            : (Number(supplyExistente?.variationFactor) > 0 ? Number(supplyExistente.variationFactor) : 0))
+          : (Number(volumeAnterior?.unidades) || 0);
 
         const unidadeBaseDaRevenda = (unidade) => {
           const u = String(unidade || 'un');
@@ -11506,7 +11550,7 @@
           const qtdInformada = Number(draft.qty) || 0;
           const cost = Number(draft.cost) || 0;
           const unidadesPorVolume = compraPorVolume
-            ? (Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0)
+            ? (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
             : 0;
           const tipoVolume = draft.packageType || volumeAnterior?.tipo || 'caixa';
           const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
@@ -11538,8 +11582,18 @@
             }
 
             if (insumo) {
-              const variationUnit = String(draft.variationUnit || '').trim() || null;
-              const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
+              // A compra de insumo guarda só a quantidade em unidade base — o
+              // formato do volume se perde. Quem lembra dele é o cadastro, em
+              // variationUnit/variationFactor. Então uma compra em volume de
+              // embalagem ou limpeza ensina o cadastro: "1 caixa = 250 un", e
+              // a próxima compra já nasce com a sugestão.
+              const aprendeuVolume = volumeDeClasseInterna && unidadesPorVolume > 0;
+              const variationUnit = aprendeuVolume
+                ? tipoVolume
+                : (String(draft.variationUnit || '').trim() || null);
+              const variationFactor = aprendeuVolume
+                ? unidadesPorVolume
+                : (Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null);
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)) {
                 onUpdateSupply({ ...insumo, variationUnit, variationFactor });
@@ -11970,8 +12024,8 @@
                           disabled={!compraPorVolume}
                           decimals={0}
                           onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
-                          placeholder={volumeAnterior?.unidades ? numeroCurtoBR(volumeAnterior.unidades) : 'ex: 12'}
-                          sugestao={volumeAnterior?.unidades || ''}
+                          placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
+                          sugestao={unidadesPorVolumeSugeridas || ''}
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
@@ -12032,7 +12086,19 @@
                       </div>
                       <div className="col-span-12 sm:col-span-6 lg:col-span-5">
                         <div className="rounded-xl bg-black/[0.035] px-3 py-2 t-micro min-h-11 flex items-center">
-                          {tipoCadastroAtual === 'embalagem'
+                          {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
+                            ? (() => {
+                                const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
+                                const volumes = Number(draft.qty) || 0;
+                                const porVolume = Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0;
+                                const total = volumes * porVolume;
+                                const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                                const calculo = total > 0
+                                  ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                  : '';
+                                return `${rotulo} · uso interno, comprado em volume: informe quantos volumes e quantas unidades vêm em cada um${calculo}.`;
+                              })()
+                            : tipoCadastroAtual === 'embalagem'
                             ? 'Embalagem · uso interno. Não precisa escolher Insumo/Revenda.'
                             : tipoCadastroAtual === 'limpeza'
                               ? 'Material de limpeza · uso interno. Não precisa escolher Insumo/Revenda.'
@@ -13459,7 +13525,7 @@
                         <th className="py-3 px-3 text-right font-bold">Lucro</th>
                         <th className="py-3 px-3 text-right font-bold">Margem</th>
                         <th className="py-3 px-3 text-center font-bold">Rende</th>
-                        <th className="py-3 pl-3 text-right font-bold">Ficha</th>
+                        <th className="py-3 pl-3 text-right font-bold col-acao">Ficha</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -13538,7 +13604,7 @@
                           <td className="py-2.5 px-3 text-center t-body tnum">
                             {ficha ? `${ficha.yieldQty} ${ficha.yieldUnit}` : <span className="ink-quiet">—</span>}
                           </td>
-                          <td className="py-2.5 pl-3 text-right">
+                          <td className="py-2.5 pl-3 text-right col-acao">
                             <button
                               type="button"
                               onClick={() => setFichaProdutoId(produto.id)}
