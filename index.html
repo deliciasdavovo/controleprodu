@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-10-volume-e-ficha-1" />
+    <meta name="app-version" content="2026-09-10-busca-ampla-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1896,6 +1896,57 @@
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
 
+      // ------------------------------------------
+      // BUSCA POR ITEM
+      //
+      // Quem digita numa lista de oitenta insumos não digita o nome inteiro,
+      // e muito menos o começo dele. Digita o pedaço que lembra: "chamyto"
+      // para achar "Iog. morango Chamyto", "acucar" sem cedilha nem acento
+      // para achar "Açúcar", "leite po" para achar "Leite em pó".
+      //
+      // Então a busca compara sem acento, sem pontuação e por pedaços soltos:
+      // cada palavra digitada precisa aparecer em algum lugar do nome, em
+      // qualquer ordem. É o mínimo para uma lista longa não obrigar a pessoa
+      // a lembrar como o item foi cadastrado.
+      //
+      // Isto NÃO é normalizeName: aquela decide se dois cadastros são o mesmo
+      // item, e afrouxar acento ali fundiria cadastros que a casa quis
+      // separados. Aqui só se decide o que mostrar na lista.
+      // ------------------------------------------
+      const chaveDeBusca = (texto) => String(texto || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+      const casaComBusca = (rotulo, termo) => {
+        const alvo = chaveDeBusca(rotulo);
+        const partes = chaveDeBusca(termo).split(' ').filter(Boolean);
+        if (!partes.length) return true;
+        return partes.every((parte) => alvo.includes(parte));
+      };
+
+      // Casar não basta: numa lista longa, o que casa por acaso no meio de uma
+      // palavra não pode ficar na frente do que casa no começo do nome.
+      const forcaDaBusca = (rotulo, termo) => {
+        const alvo = chaveDeBusca(rotulo);
+        const t = chaveDeBusca(termo);
+        if (!t) return 0;
+        if (alvo === t) return 4;
+        if (alvo.startsWith(t)) return 3;
+        if (new RegExp(`(^| )${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(alvo)) return 2;
+        return 1;
+      };
+
+      const ordenarPorBusca = (itens, termo, rotuloDe) => {
+        if (!chaveDeBusca(termo)) return itens;
+        return [...itens]
+          .map((x, i) => ({ x, i, f: forcaDaBusca(rotuloDe(x), termo) }))
+          .sort((a, b) => b.f - a.f || a.i - b.i)
+          .map((r) => r.x);
+      };
+
       // ==========================================
       // CMV — AS CONTAS
       //
@@ -2921,7 +2972,7 @@
         // preenchido mostra todas as opções, para poder trocar de uma vez
         const term = typed ? (isFree ? value : search).trim().toLowerCase() : '';
         const visible = term
-          ? options.filter((o) => o.label.toLowerCase().includes(term))
+          ? ordenarPorBusca(options.filter((o) => casaComBusca(o.label, term)), term, (o) => o.label)
           : options;
 
         // A lista fica presa ao corpo da página: assim ela não é cortada por
@@ -5645,7 +5696,7 @@
         // Item sem data de fabricação entra como se fosse de hoje, no fim da
         // fila; empate se resolve pelo espaço e depois pelo nome.
         const filteredItems = itemsInUnit
-          .filter((item) => item.productName.toLowerCase().includes(filterText.toLowerCase()))
+          .filter((item) => casaComBusca(item.productName, filterText))
           .sort((a, b) =>
             (a.manufactureDate || '9999-12-31').localeCompare(b.manufactureDate || '9999-12-31')
             || (slotOf(a)?.slotNumber || 0) - (slotOf(b)?.slotNumber || 0)
@@ -8133,7 +8184,7 @@
         const activeResponsible = lossResponsibles.includes(selectedResponsible) ? selectedResponsible : 'todos';
 
         const filteredLosses = unitLosses.filter((l) => {
-          const matchesText = l.productName.toLowerCase().includes(filterText.toLowerCase());
+          const matchesText = casaComBusca(l.productName, filterText);
           const matchesReason = selectedReason === 'todos' || l.reason === selectedReason;
           const matchesResponsible =
             activeResponsible === 'todos' || cleanResponsible(l.responsible) === activeResponsible;
@@ -10093,7 +10144,7 @@
         };
 
         const filtered = products.filter((p) => {
-          const matchesText = p.name.toLowerCase().includes(filterText.toLowerCase());
+          const matchesText = casaComBusca(p.name, filterText);
           const matchesResponsible =
             filterResponsible === 'todos' ||
             (filterResponsible === 'sem' ? !cleanResponsible(p.responsible) : cleanResponsible(p.responsible) === filterResponsible);
@@ -11730,7 +11781,7 @@
         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
 
         const cadastrosFiltrados = cadastrosUnificados.filter((x) => {
-          const bateTexto = x.name.toLowerCase().includes(busca.toLowerCase());
+          const bateTexto = casaComBusca(x.name, busca);
           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
           return bateTexto && bateTipo;
         });
@@ -14785,7 +14836,7 @@
         });
         const termo = busca.trim().toLowerCase();
         const compras = termo
-          ? porPeriodo.filter((c) => c.fornecedor.toLowerCase().includes(termo) || c.item.toLowerCase().includes(termo))
+          ? porPeriodo.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
           : porPeriodo;
 
         const mesesDisponiveis = useMemo(() => {
