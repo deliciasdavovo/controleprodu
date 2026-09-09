@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-10-busca-ampla-1" />
+    <meta name="app-version" content="2026-09-10-fornecedor-agrupado-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14818,6 +14818,9 @@
         const [dataInicio, setDataInicio] = useState('');
         const [dataFim, setDataFim] = useState('');
         const [historicoFornecedor, setHistoricoFornecedor] = useState(null);
+        // Fechado por padrão: com doze fornecedores e centenas de compras, a
+        // lista aberta era uma parede. Quem quer conferir uma nota abre a dela.
+        const [fornecedoresAbertos, setFornecedoresAbertos] = useState([]);
         const [historicoItem, setHistoricoItem] = useState(null);
 
         const todas = useMemo(
@@ -14986,16 +14989,75 @@
           }
         }), [porItem, ordem]);
 
+        // O mês de referência da comparação: o que a pessoa escolheu no filtro
+        // ou, se ela não escolheu nenhum, o mês da compra mais recente — que é
+        // o mês que ela tem em mente ao abrir a tela.
+        const mesReferencia = useMemo(() => {
+          if (mesFiltro) return mesFiltro;
+          const datas = porTipo.map((c) => c.data || '').filter(Boolean).sort();
+          return datas.length ? datas[datas.length - 1].slice(0, 7) : '';
+        }, [mesFiltro, porTipo]);
+
+        // O mês de referência é o mês corrente? Então ele ainda não acabou, e a
+        // comparação só é justa até o dia de hoje dos dois lados.
+        const hojeISO = getTodayDateString();
+        const mesEmCurso = mesReferencia === hojeISO.slice(0, 7);
+        const diaDeCorte = mesEmCurso ? Number(hojeISO.slice(8, 10)) : 0;
+
+        const rotuloMesReferencia = mesReferencia
+          ? new Date(`${mesReferencia}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '').replace(' de ', '/')
+          : '';
+
+        const mesAnteriorA = (chave) => {
+          if (!/^\d{4}-\d{2}$/.test(chave)) return '';
+          const d = new Date(`${chave}-01T12:00:00`);
+          d.setMonth(d.getMonth() - 1);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+
         const porFornecedor = useMemo(() => {
           const grupos = {};
           compras.forEach((c) => { (grupos[c.fornecedor] = grupos[c.fornecedor] || []).push(c); });
-          return Object.entries(grupos).map(([nome, lista]) => ({
-            nome,
-            lista,
-            total: lista.reduce((s, c) => s + c.cost, 0),
-            itens: new Set(lista.map((c) => c.itemId)).size,
-            recente: lista.reduce((m, c) => (c.data > m ? c.data : m), '')
-          })).sort((a, b) => {
+
+          // A comparação de mês sai de porTipo, e não de compras: o filtro de
+          // data da tela é justamente o que esconderia o mês anterior, e sem
+          // ele não há com o que comparar. A busca por texto continua valendo,
+          // porque ali a pessoa está mesmo estreitando o que quer ver.
+          const mesAnterior = mesAnteriorA(mesReferencia);
+          const base = termo
+            ? porTipo.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
+            : porTipo;
+          // Um mês em curso comparado com um mês inteiro dá −100% para quase
+          // todo mundo: no dia 2 de setembro ninguém comprou o que comprou em
+          // agosto inteiro, e o alarme não quer dizer nada. Enquanto o mês não
+          // fecha, os dois lados param no mesmo dia.
+          const soma = {};
+          base.forEach((c) => {
+            const chave = (c.data || '').slice(0, 7);
+            if (chave !== mesReferencia && chave !== mesAnterior) return;
+            if (diaDeCorte && Number((c.data || '').slice(8, 10)) > diaDeCorte) return;
+            const g = soma[c.fornecedor] || { mes: 0, anterior: 0 };
+            if (chave === mesReferencia) g.mes += c.cost; else g.anterior += c.cost;
+            soma[c.fornecedor] = g;
+          });
+
+          return Object.entries(grupos).map(([nome, lista]) => {
+            const m = soma[nome] || { mes: 0, anterior: 0 };
+            const varMes = m.mes - m.anterior;
+            return {
+              nome,
+              lista,
+              total: lista.reduce((s, c) => s + c.cost, 0),
+              itens: new Set(lista.map((c) => c.itemId)).size,
+              recente: lista.reduce((mx, c) => (c.data > mx ? c.data : mx), ''),
+              noMes: m.mes,
+              noMesAnterior: m.anterior,
+              varMes,
+              // Sem mês anterior não há porcentagem: dividir por zero não dá
+              // número, dá ilusão. O valor em reais já diz o que aconteceu.
+              varMesPct: m.anterior > 0 ? (varMes / m.anterior) * 100 : null
+            };
+          }).sort((a, b) => {
             switch (ordem) {
               case 'total_asc': return a.total - b.total;
               case 'compras_desc': return b.lista.length - a.lista.length;
@@ -15004,7 +15066,7 @@
               default: return b.total - a.total;
             }
           });
-        }, [compras, ordem]);
+        }, [compras, ordem, porTipo, termo, mesReferencia, diaDeCorte]);
 
         const extrato = useMemo(() => {
           const lista = [...compras].sort((a, b) => {
@@ -15432,26 +15494,80 @@
 
                 {/* ---------------- POR FORNECEDOR ---------------- */}
                 {visao === 'fornecedor' && (
-                  <div className="space-y-5">
-                    {porFornecedor.map((f) => (
-                      <div key={f.nome}>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-2">
-                          <h3 className="t-title">{f.nome}</h3>
-                          <span className="t-micro tnum">
-                            {formatCurrencyBR(f.total)} · {f.lista.length} {f.lista.length === 1 ? 'compra' : 'compras'} · {f.itens} {f.itens === 1 ? 'item' : 'itens'}
-                            {f.recente && ` · última em ${formatDateBR(f.recente)}`}
-                          </span>
+                  <div className="divide-hairline">
+                    {porFornecedor.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-2 pb-3">
+                        <span className="t-micro">
+                          {formatCurrencyBR(porFornecedor.reduce((s, f) => s + f.total, 0))} no período
+                          {rotuloMesReferencia && ` · ${rotuloMesReferencia} contra o mês anterior`}
+                          {diaDeCorte > 0 && `, os dois até o dia ${diaDeCorte}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFornecedoresAbertos(
+                            fornecedoresAbertos.length === porFornecedor.length ? [] : porFornecedor.map((f) => f.nome)
+                          )}
+                          className="btn btn-secondary btn-sm ml-auto"
+                        >
+                          {fornecedoresAbertos.length === porFornecedor.length ? 'Fechar todos' : 'Abrir todos'}
+                        </button>
+                      </div>
+                    )}
+                    {porFornecedor.map((f) => {
+                      const aberto = fornecedoresAbertos.includes(f.nome);
+                      const alternar = () => setFornecedoresAbertos((atual) => atual.includes(f.nome)
+                        ? atual.filter((n) => n !== f.nome)
+                        : [...atual, f.nome]);
+                      return (
+                      <div key={f.nome} className="py-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
+                          <button
+                            type="button"
+                            onClick={alternar}
+                            aria-expanded={aberto}
+                            title={aberto ? `Fechar as compras de ${f.nome}` : `Ver as compras de ${f.nome}`}
+                            className="flex items-center gap-2 text-left min-w-0 flex-1"
+                          >
+                            <Icons.ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${aberto ? 'rotate-90' : ''}`} />
+                            <span className="min-w-0">
+                              <span className="t-title block truncate">{f.nome}</span>
+                              <span className="t-micro tnum">
+                                {formatCurrencyBR(f.total)} · {f.lista.length} {f.lista.length === 1 ? 'compra' : 'compras'} · {f.itens} {f.itens === 1 ? 'item' : 'itens'}
+                                {f.recente && ` · última em ${formatDateBR(f.recente)}`}
+                              </span>
+                            </span>
+                          </button>
+                          {/* O mês contra o mês anterior: é a pergunta que se
+                              faz olhando um fornecedor — "estou gastando mais
+                              com ele do que no mês passado?" */}
+                          {rotuloMesReferencia && (f.noMes > 0 || f.noMesAnterior > 0) && (
+                            <span className="text-right shrink-0">
+                              <span className="t-micro block">{rotuloMesReferencia}</span>
+                              <span className="t-body tnum font-semibold">{formatCurrencyBR(f.noMes)}</span>
+                              {/* Não comprar de alguém não é uma queda de 100%:
+                                  é não ter comprado. O alarme fica para quando
+                                  houve compra dos dois lados e o valor mudou. */}
+                              <span className={`t-micro tnum block ${f.noMes === 0 || f.noMesAnterior === 0 ? '' : f.varMes > 0 ? 'ink-expired' : f.varMes < 0 ? 'ink-fresh' : ''}`}>
+                                {f.noMes === 0
+                                  ? `nada ainda · ${formatCurrencyBR(f.noMesAnterior)} no anterior`
+                                  : f.noMesAnterior === 0
+                                    ? 'nada no mês anterior'
+                                    : `${f.varMes > 0 ? '+' : f.varMes < 0 ? '−' : ''}${formatCurrencyBR(Math.abs(f.varMes))}${f.varMesPct === null ? '' : ` · ${f.varMesPct > 0 ? '+' : '−'}${Math.abs(f.varMesPct).toFixed(0)}%`}`}
+                              </span>
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() => setHistoricoFornecedor(f.nome)}
-                            className="btn btn-secondary btn-sm ml-auto"
+                            className="btn btn-secondary btn-sm shrink-0"
                             title={`Histórico de compras de ${f.nome}`}
                           >
                             <Icons.ShoppingCart className="w-3.5 h-3.5" />
                             Histórico
                           </button>
                         </div>
-                        <div className="rola-x">
+                        {aberto && (
+                        <div className="rola-x pb-3">
                           <table className="w-full text-left">
                             <thead>
                               <tr className="t-overline-sm border-b hairline">
@@ -15475,8 +15591,10 @@
                             </tbody>
                           </table>
                         </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
