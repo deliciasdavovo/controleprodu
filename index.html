@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-09-carrinho-na-folha-1" />
+    <meta name="app-version" content="2026-09-09-ritmo-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13679,6 +13679,17 @@
 
       // Junta as compras de insumo e as de revenda numa lista só e marca, em
       // cada uma, quanto o preço andou desde a compra anterior daquele item.
+      // A casa não compra "insumo": compra ingrediente, embalagem, produto de
+      // limpeza e mercadoria de revenda. São quatro contas diferentes, com
+      // fornecedores diferentes, e o cadastro já distingue as três primeiras
+      // em supplyClass — faltava a tela de fornecedores ler isso.
+      const CATEGORIA_DA_COMPRA = {
+        insumo: 'Ingrediente',
+        embalagem: 'Embalagem',
+        limpeza: 'Limpeza'
+      };
+      const CATEGORIAS_COMPRA = ['Ingrediente', 'Revenda', 'Embalagem', 'Limpeza'];
+
       const reunirCompras = (supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit) => {
         const compras = [];
 
@@ -13688,7 +13699,7 @@
               id: c.id,
               itemId: `s${s.id}`,
               item: s.name,
-              tipo: 'Insumo',
+              tipo: CATEGORIA_DA_COMPRA[s.supplyClass] || 'Ingrediente',
               unidade: s.unit,
               fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
               data: c.purchaseDate || '',
@@ -14177,7 +14188,7 @@
 
       const relSinal = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
 
-      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4') => {
+      const htmlRelatorioDeCompra = (rel, unidadeNome, formato = 'a4', categoria = 'todos') => {
         const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
 
         // Todo item cujo preço mudou desde a compra anterior. O piso de 0,1%
@@ -14254,7 +14265,7 @@
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Preços de compra — ${escaparHtml(unidadeNome)}</title>
+          <title>Preços de compra${categoria === 'todos' ? '' : ` (${escaparHtml(categoria)})`} — ${escaparHtml(unidadeNome)}</title>
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
           <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14342,7 +14353,7 @@
           ${barraAcoes(formato)}
 
           <header>
-            <h1>Preços de compra</h1>
+            <h1>Preços de compra${categoria === 'todos' ? '' : ` — ${escaparHtml(categoria)}`}</h1>
             <div class="sub">${escaparHtml(unidadeNome)} · ${formatDateBR(rel.ate)} · ${mudaram.length} ${mudaram.length === 1 ? 'item mudou' : 'itens mudaram'} de preço desde a compra anterior</div>
           </header>
 
@@ -14361,6 +14372,313 @@
             Cada item é comparado com a compra anterior dele mesmo, seja ela de ontem ou de meses atrás — as compras vão de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}.
             "Na compra" é a mudança de preço multiplicada pela quantidade que a casa costuma comprar de uma vez: é o que entra ou sai do caixa na próxima compra.
             Item que não mudou de preço não entra na folha. A coluna "Novo preço" fica em branco para anotar a cotação na hora do telefonema.
+            <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
+          </footer>
+        </body></html>`;
+      };
+
+
+      // ==========================================
+      // RITMO DE COMPRA — A CONTA DO MÊS
+      //
+      // A folha de preços responde "o preço mudou?". Esta responde outra
+      // pergunta, que ninguém consegue responder de cabeça: com que
+      // frequência a casa compra, e quanto isso dá por mês.
+      //
+      // Ninguém lembra que compra fermento a cada 47 dias nem que embalagem
+      // já é um quinto da conta. Está tudo lançado; só faltava somar.
+      //
+      // Duas leituras, nesta ordem: primeiro o mês a mês, que é a conta que
+      // se leva para a reunião, e depois item por item, que é onde se descobre
+      // o que volta toda semana.
+      // ==========================================
+      const MESES_NO_RITMO = 12;
+      const ITENS_NO_RITMO = 40;
+
+      const chaveDoMes = (data) => (data || '').slice(0, 7);
+
+      const nomeDoMes = (chave) => {
+        if (!/^\d{4}-\d{2}$/.test(chave)) return chave;
+        const t = new Date(`${chave}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+        return t.replace('.', '').replace(' de ', '/');
+      };
+
+      // Quantos meses um período cobre, contando o primeiro e o último. Um
+      // item comprado só ontem tem um mês de vida, não zero: dividir por zero
+      // daria "infinitas compras por mês", que é como um relatório mente.
+      const mesesEntre = (de, ate) => {
+        if (!de || !ate) return 1;
+        const a = new Date(`${de.slice(0, 7)}-01T12:00:00`);
+        const b = new Date(`${ate.slice(0, 7)}-01T12:00:00`);
+        const n = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1;
+        return Math.max(1, n);
+      };
+
+      const montarRitmoDeCompra = (compras, hoje) => {
+        const lancadas = compras.filter((c) => c.data && c.data <= hoje && c.cost > 0);
+        if (!lancadas.length) return null;
+
+        const datas = lancadas.map((c) => c.data).sort();
+        const desde = datas[0];
+        const ate = datas[datas.length - 1];
+
+        // ---- mês a mês, com a conta aberta por categoria ----
+        const porMes = {};
+        lancadas.forEach((c) => {
+          const k = chaveDoMes(c.data);
+          const m = porMes[k] || { chave: k, compras: 0, total: 0, itens: new Set(), fornecedores: new Set(), categorias: {} };
+          m.compras += 1;
+          m.total += c.cost;
+          m.itens.add(c.itemId);
+          if (c.fornecedor !== 'Sem fornecedor') m.fornecedores.add(c.fornecedor);
+          m.categorias[c.tipo] = (m.categorias[c.tipo] || 0) + c.cost;
+          porMes[k] = m;
+        });
+        // Mês sem compra nenhuma tem de aparecer como zero, e não sumir: se
+        // some, a linha de baixo deixa de ser o mês anterior e a comparação
+        // vira mentira — junho contra abril, dando +29996%. Zero também é
+        // notícia ("em maio não compramos nada").
+        const sequenciaDeMeses = (primeiro, ultimo) => {
+          const seq = [];
+          const d = new Date(`${primeiro}-01T12:00:00`);
+          const fim = new Date(`${ultimo}-01T12:00:00`);
+          while (d <= fim) {
+            seq.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            d.setMonth(d.getMonth() + 1);
+          }
+          return seq;
+        };
+        const chaves = Object.keys(porMes).sort();
+        const todosOsMeses = sequenciaDeMeses(chaves[0], chaveDoMes(hoje) >= chaves[chaves.length - 1] ? chaveDoMes(hoje) : chaves[chaves.length - 1])
+          .map((k) => porMes[k] || { chave: k, compras: 0, total: 0, itens: new Set(), fornecedores: new Set(), categorias: {} });
+
+        const meses = todosOsMeses
+          .slice(-MESES_NO_RITMO)
+          .map((m) => ({
+            chave: m.chave,
+            nome: nomeDoMes(m.chave),
+            compras: m.compras,
+            total: m.total,
+            itens: m.itens.size,
+            fornecedores: m.fornecedores.size,
+            categorias: m.categorias
+          }))
+          .reverse();
+        // Do mais novo para o mais velho na folha; a comparação é com o mês de
+        // baixo, que agora é mesmo o anterior no calendário. Mês anterior sem
+        // compra não gera porcentagem: dividir por zero não dá número, dá
+        // ilusão — o valor em reais já diz tudo.
+        meses.forEach((m, i) => {
+          const anterior = meses[i + 1];
+          m.varTotal = anterior ? m.total - anterior.total : null;
+          m.varPct = anterior && anterior.total > 0 ? (m.varTotal / anterior.total) * 100 : null;
+        });
+
+        // ---- item por item: com que frequência volta ----
+        const porItem = {};
+        lancadas.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
+        const itens = Object.entries(porItem).map(([itemId, lista]) => {
+          const emOrdem = [...lista].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+          const primeira = emOrdem[0];
+          const ultima = emOrdem[emOrdem.length - 1];
+          const gasto = emOrdem.reduce((s, c) => s + c.cost, 0);
+          // A vida do item conta da primeira compra até hoje: um item que a
+          // casa parou de comprar tem de aparecer com a frequência caindo
+          const mesesDeVida = mesesEntre(primeira.data, hoje);
+          const intervalos = [];
+          for (let i = 1; i < emOrdem.length; i += 1) {
+            const d = diasEntre(emOrdem[i - 1].data, emOrdem[i].data);
+            if (d !== null && d > 0) intervalos.push(d);
+          }
+          return {
+            itemId,
+            item: ultima.item,
+            categoria: ultima.tipo,
+            compras: emOrdem.length,
+            gasto,
+            mediaMensal: gasto / mesesDeVida,
+            vezesPorMes: emOrdem.length / mesesDeVida,
+            intervaloMedio: intervalos.length
+              ? Math.round(intervalos.reduce((a, b) => a + b, 0) / intervalos.length)
+              : null,
+            ultimaData: ultima.data,
+            diasDesdeUltima: diasEntre(ultima.data, hoje),
+            fornecedores: new Set(emOrdem.filter((c) => c.fornecedor !== 'Sem fornecedor').map((c) => c.fornecedor)).size
+          };
+        }).sort((a, b) => b.gasto - a.gasto);
+
+        const total = lancadas.reduce((s, c) => s + c.cost, 0);
+        const mesesDoPeriodo = mesesEntre(desde, ate);
+
+        return {
+          desde,
+          ate,
+          hoje,
+          total,
+          compras: lancadas.length,
+          mesesDoPeriodo,
+          mediaMensal: total / mesesDoPeriodo,
+          comprasPorMes: lancadas.length / mesesDoPeriodo,
+          itensDiferentes: itens.length,
+          fornecedores: new Set(lancadas.filter((c) => c.fornecedor !== 'Sem fornecedor').map((c) => c.fornecedor)).size,
+          meses,
+          itens
+        };
+      };
+
+      // ==========================================
+      // RITMO DE COMPRA — A FOLHA
+      //
+      // Mesma casa das outras duas folhas: A4, Manrope, faixa cinza nas
+      // seções, e o mesmo par de formatos (a estreita vira cartão).
+      // ==========================================
+      const REGRAS_CARTAO_RITMO = (alvo) => `
+        ${alvo} table.lista > thead, ${alvo} table.lista > colgroup { display: none; }
+        ${alvo} table.lista, ${alvo} table.lista > tbody, ${alvo} table.lista > tbody > tr,
+        ${alvo} table.lista > tbody > tr > td { display: block; width: auto; }
+        ${alvo} table.lista > tbody > tr { border: 1px solid #bbb; border-radius: 4px;
+                                           padding: 9px 11px; margin-bottom: 9px; background: #fff; }
+        ${alvo} table.lista > tbody > tr > td { border: 0; padding: 2px 0; text-align: left; }
+        ${alvo} table.lista > tbody > tr > td.num { text-align: left; }
+        ${alvo} table.lista > tbody > tr > td[data-rot]::before { content: attr(data-rot) ': '; color: #555; font-weight: 400; font-size: 10pt; }
+        ${alvo} .nome { font-size: 13pt; font-weight: 700; border-bottom: 1px solid #eee;
+                        padding-bottom: 5px; margin-bottom: 4px; }`;
+
+      const htmlRitmoDeCompra = (r, unidadeNome, formato = 'a4', categoria = 'todos') => {
+        const fmt = FORMATOS_RELATORIO[formato] || FORMATOS_RELATORIO.a4;
+        const itens = r.itens.slice(0, ITENS_NO_RITMO);
+        const sobraram = r.itens.length - itens.length;
+        const colunasCat = CATEGORIAS_COMPRA.filter((cat) => r.meses.some((m) => (m.categorias[cat] || 0) > 0));
+
+        const umaCasa = (v) => v.toFixed(1).replace('.', ',');
+
+        const linhaMes = (m) => `<tr>
+          <td class="nome ${m.compras ? '' : 'vazio'}">${m.nome}<span class="cat-sel">${m.compras ? `${m.compras} ${m.compras === 1 ? 'compra' : 'compras'}` : 'sem compras'}</span></td>
+          ${colunasCat.map((cat) => `<td class="num cat" data-rot="${cat}">${m.categorias[cat] ? formatCurrencyBR(m.categorias[cat]) : '<span class="quieto">—</span>'}</td>`).join('')}
+          <td class="num forte" data-rot="Total do mês">${formatCurrencyBR(m.total)}</td>
+          <td class="num ${m.varTotal === null || m.varTotal === 0 ? '' : m.varTotal > 0 ? 'sobe' : 'desce'}" data-rot="Contra o mês anterior">${m.varTotal === null || Math.abs(m.varTotal) < 0.01
+            ? '<span class="quieto">—</span>'
+            : `${relSinal(m.varTotal)}${formatCurrencyBR(Math.abs(m.varTotal))}${m.varPct === null ? '' : `<span class="pct">${relSinal(m.varPct)}${umaCasa(Math.abs(m.varPct))}%</span>`}`}</td>
+        </tr>`;
+
+        const linhaItem = (i) => `<tr>
+          <td class="nome">${escaparHtml(i.item)}<span class="cat-sel">${escaparHtml(i.categoria)}</span></td>
+          <td class="num" data-rot="Compras no período">${i.compras}</td>
+          <td class="num forte" data-rot="Vezes por mês">${umaCasa(i.vezesPorMes)}</td>
+          <td class="num" data-rot="Volta a cada">${i.intervaloMedio ? `${i.intervaloMedio} dias` : '<span class="quieto">1ª compra</span>'}</td>
+          <td class="num forte" data-rot="Média por mês">${formatCurrencyBR(i.mediaMensal)}</td>
+          <td class="num" data-rot="Gasto no período">${formatCurrencyBR(i.gasto)}</td>
+          <td class="num" data-rot="Última compra">${formatDateBR(i.ultimaData)}${i.diasDesdeUltima !== null ? `<span class="pct">há ${i.diasDesdeUltima} ${i.diasDesdeUltima === 1 ? 'dia' : 'dias'}</span>` : ''}</td>
+        </tr>`;
+
+        return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Ritmo de compra${categoria === 'todos' ? '' : ` (${escaparHtml(categoria)})`} — ${escaparHtml(unidadeNome)}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            ${fmt.pagina}
+            * { box-sizing: border-box; }
+            body { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+                   color: #111; margin: 0 auto; padding: 0 4vw 40px; ${fmt.corpo} max-width: 900px; }
+            @media print { body { padding: 0; max-width: none; } }
+            ${BARRA_ACOES_CSS}
+
+            header { border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 14px; }
+            h1 { font-size: 17pt; margin: 0; }
+            .sub { font-size: 10.5pt; color: #444; margin-top: 3px; }
+
+            .placar { display: flex; flex-wrap: wrap; gap: 8px 26px; padding: 10px 0 12px;
+                      border-bottom: 1px solid #ccc; margin-bottom: 4px; }
+            .placar div { font-size: 10.5pt; color: #444; }
+            .placar b { display: block; font-size: 17pt; color: #111; }
+
+            h2 { font-size: 13pt; margin: 18px 0 7px; padding: 4px 8px; background: #eee; border-radius: 3px; }
+            h2 .conta { font-size: 10pt; font-weight: 600; color: #444; }
+
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            th, td { padding: 6px 7px; border-bottom: 1px solid #ccc; text-align: left; vertical-align: middle; }
+            th { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1.5px solid #111; hyphens: auto; }
+            td.num { white-space: nowrap; }
+            .num { text-align: right; font-variant-numeric: tabular-nums; }
+            tr { page-break-inside: avoid; }
+            thead { display: table-header-group; }
+            tbody tr:nth-child(even) { background: #fafaf9; }
+
+            .nome { font-weight: 600; }
+            .forte { font-weight: 700; }
+            .cat { color: #444; }
+            .nome.vazio { color: #888; font-weight: 500; }
+            .cat-sel { display: block; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; color: #777; font-weight: 500; }
+            .pct { display: block; font-size: 9pt; font-weight: 600; }
+            .sobe { color: #7D2027; } .desce { color: #1E6B44; }
+            .quieto { color: #777; font-weight: 400; }
+            .mais { margin: 6px 0 0; font-size: 9pt; color: #777; font-style: italic; }
+            /* Quatro colunas de dinheiro numa linha só pedem letra menor: a
+               tabela do mês é a mais apertada da folha */
+            .mes-tab { font-size: 9.5pt; }
+            .mes-tab th { font-size: 8.5pt; }
+            footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+            .dica { display: block; margin-top: 4px; font-style: italic; }
+            @media print { .dica { display: none; } }
+
+            ${REGRAS_CARTAO_RITMO('body.cartoes')}
+            @media screen and (max-width: 620px) { ${REGRAS_CARTAO_RITMO('body')} }
+          </style></head><body class="${fmt.classe}">
+
+          ${barraAcoes(formato)}
+
+          <header>
+            <h1>Ritmo de compra${categoria === 'todos' ? '' : ` — ${escaparHtml(categoria)}`}</h1>
+            <div class="sub">${escaparHtml(unidadeNome)} · de ${formatDateBR(r.desde)} a ${formatDateBR(r.ate)} · emitido em ${formatDateBR(r.hoje)}</div>
+          </header>
+
+          <div class="placar">
+            <div><b>${formatCurrencyBR(r.mediaMensal)}</b> por mês, em média</div>
+            <div><b>${umaCasa(r.comprasPorMes)}</b> compras por mês</div>
+            <div><b>${r.itensDiferentes}</b> itens diferentes</div>
+            <div><b>${r.fornecedores}</b> fornecedores</div>
+          </div>
+
+          <section>
+            <h2>Mês a mês <span class="conta">${r.meses.length} ${r.meses.length === 1 ? 'mês' : 'meses'} · ${formatCurrencyBR(r.total)} no total</span></h2>
+            <table class="lista mes-tab">
+              <colgroup>
+                <col style="width:13%">
+                ${colunasCat.map(() => `<col style="width:${(53 / Math.max(colunasCat.length, 1)).toFixed(1)}%">`).join('')}
+                <col style="width:15%"><col style="width:19%">
+              </colgroup>
+              <thead><tr>
+                <th>Mês</th>
+                ${colunasCat.map((cat) => `<th class="num">${cat}</th>`).join('')}
+                <th class="num">Total</th><th class="num">Contra o mês anterior</th>
+              </tr></thead>
+              <tbody>${r.meses.map(linhaMes).join('')}</tbody>
+            </table>
+          </section>
+
+          <section>
+            <h2>Item por item <span class="conta">o que volta com mais frequência, do que mais pesa para o que menos pesa</span></h2>
+            <table class="lista">
+              <colgroup>
+                <col style="width:26%"><col style="width:10%"><col style="width:11%">
+                <col style="width:12%"><col style="width:14%"><col style="width:13%"><col style="width:14%">
+              </colgroup>
+              <thead><tr>
+                <th>Item</th><th class="num">Compras</th><th class="num">Vezes por mês</th>
+                <th class="num">Volta a cada</th><th class="num">Média por mês</th>
+                <th class="num">Gasto</th><th class="num">Última compra</th>
+              </tr></thead>
+              <tbody>${itens.map(linhaItem).join('')}</tbody>
+            </table>
+            ${sobraram > 0 ? `<p class="mais">e mais ${sobraram} ${sobraram === 1 ? 'item' : 'itens'} de menor gasto, fora desta lista.</p>` : ''}
+          </section>
+
+          <footer>
+            "Vezes por mês" e "Média por mês" contam desde a primeira compra do item até hoje — item que a casa parou de comprar aparece com a frequência caindo, e não congelada no passado.
+            "Volta a cada" é a média de dias entre uma compra e a seguinte.
+            O mês a mês compara cada mês com o de baixo, que é o anterior no tempo.
             <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
           </footer>
         </body></html>`;
@@ -14482,10 +14800,17 @@
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
+        // A folha segue a categoria escolhida na tela, mas NÃO o filtro de
+        // data. Comparar preço exige a compra anterior, e ela costuma estar
+        // fora do mês que a pessoa está olhando: filtrar por data aqui faria
+        // a folha voltar a sair com dois itens.
         const imprimirRelatorioDeCompra = (formato) => {
-          const rel = montarRelatorioDeCompra(todas, getTodayDateString());
+          const base = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
+          const rel = montarRelatorioDeCompra(base, getTodayDateString());
           if (!rel.itens.length) {
-            window.alert("Nenhuma compra lançada ainda — não há o que analisar.");
+            window.alert(tipoFiltro === 'todos'
+              ? "Nenhuma compra lançada ainda — não há o que analisar."
+              : `Nenhuma compra de ${tipoFiltro.toLowerCase()} lançada ainda — não há o que analisar.`);
             return;
           }
           const janela = window.open('', '_blank');
@@ -14493,12 +14818,36 @@
             window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
             return;
           }
-          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato));
+          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato, tipoFiltro));
           janela.document.close();
           // Igual à folha de "Preços a rever": no computador a impressão abre
           // sozinha, que é o gesto esperado ali; no celular quem manda é o
           // botão no topo da folha, porque o onload de uma página criada por
           // document.write muitas vezes nem chega a disparar.
+          if (window.matchMedia("(min-width: 900px)").matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
+            if (janela.document.readyState === "complete") setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
+        };
+
+        // O ritmo de compra: outra pergunta, outra folha. Segue a mesma
+        // categoria escolhida na tela, e também ignora o filtro de data — a
+        // folha é sobre o histórico inteiro, que é o que dá o ritmo.
+        const imprimirRitmoDeCompra = (formato) => {
+          const base = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
+          const r = montarRitmoDeCompra(base, getTodayDateString());
+          if (!r) {
+            window.alert("Nenhuma compra lançada ainda — não há ritmo para mostrar.");
+            return;
+          }
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
+            return;
+          }
+          janela.document.write(htmlRitmoDeCompra(r, unitName, formato, tipoFiltro));
+          janela.document.close();
           if (window.matchMedia("(min-width: 900px)").matches) {
             const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
             if (janela.document.readyState === "complete") setTimeout(abrirImpressao, 250);
@@ -14750,6 +15099,23 @@
                   >
                     Para imprimir (A4)
                   </button>
+                  <button
+                    onClick={() => imprimirRitmoDeCompra('a4')}
+                    disabled={todas.length === 0}
+                    title="Outra folha: quanto a casa gasta por mês, com a conta aberta por categoria, e com que frequência cada item volta"
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
+                  >
+                    <Icons.Calendar className="w-3.5 h-3.5" />
+                    Ritmo de compra (A4)
+                  </button>
+                  <button
+                    onClick={() => imprimirRitmoDeCompra('celular')}
+                    disabled={todas.length === 0}
+                    title="O ritmo de compra em página estreita, para ler no telefone e mandar no WhatsApp"
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
+                  >
+                    Ritmo (celular)
+                  </button>
                 </div>
               </div>
             </div>
@@ -14874,7 +15240,7 @@
             </div>
 
             <div className="segmented w-full sm:w-auto sm:inline-flex">
-              {['todos', 'Insumo', 'Revenda'].map((t) => (
+              {['todos', ...CATEGORIAS_COMPRA].map((t) => (
                 <button key={t} onClick={() => setTipoFiltro(t)} data-active={tipoFiltro === t} className="flex-1 sm:flex-none h-8 px-4">
                   {t === 'todos' ? 'Todos' : t}
                 </button>
