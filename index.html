@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-10-cruzada-1" />
+    <meta name="app-version" content="2026-09-10-ausentes-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14372,6 +14372,12 @@
         const subiram = mudaram.filter((i) => i.varPct > 0).sort(porDinheiro);
         const cairam = mudaram.filter((i) => i.varPct < 0).sort(porDinheiro);
         const iguais = rel.itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) < 0.1).length;
+        // Quem não entrou, e por quê. Numa casa de verdade a maioria dos itens
+        // fica de fora — comprou uma vez só, ou manteve o preço — e uma folha
+        // que não diz isso parece estar escondendo item. Quem procura o queijo
+        // que acabou de lançar precisa achar a resposta aqui, e não desconfiar
+        // do relatório.
+        const semAnterior = rel.itens.filter((i) => i.varPct === null).length;
         const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
         const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
@@ -14493,7 +14499,12 @@
             /* Espaço para anotar a cotação nova na hora do telefonema */
             .cotar { border-bottom: 1px solid #999; }
             .vazio { color: #666; font-style: italic; margin: 6px 0 0; }
-            footer { margin-top: 18px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
+            /* Uma caixa, não um rodapé: quem procura o item que sumiu tem de
+               tropeçar nesta linha antes de desconfiar do relatório. */
+            .ausentes { margin: 16px 0 0; padding: 9px 11px; font-size: 10pt; color: #333;
+                        background: #f4f4f2; border-left: 3px solid #999; border-radius: 3px; }
+            .ausentes strong { color: #111; }
+            footer { margin-top: 14px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
             .dica { display: block; margin-top: 4px; font-style: italic; }
             @media print { .dica { display: none; } }
 
@@ -14540,10 +14551,16 @@
               + secao('▼ Caíram de preço', cairam, 'desce', `−${formatCurrencyBR(Math.abs(economiaQuedas))} na próxima compra`)
             : '<p class="vazio">Nenhum item mudou de preço desde a compra anterior.</p>'}
 
+          ${(semAnterior > 0 || iguais > 0) ? `<p class="ausentes">
+            <strong>Não entraram nesta folha:</strong>
+            ${semAnterior > 0 ? `${semAnterior} ${semAnterior === 1 ? 'item comprado' : 'itens comprados'} uma vez só — sem compra anterior, não há preço com o que comparar` : ''}${semAnterior > 0 && iguais > 0 ? ' · ' : ''}${iguais > 0 ? `${iguais} ${iguais === 1 ? 'item que manteve' : 'itens que mantiveram'} o preço` : ''}.
+            Eles continuam na aba Fornecedores, em "Por item".
+          </p>` : ''}
+
           <footer>
             Cada item é comparado com a compra anterior dele mesmo, seja ela de ontem ou de meses atrás — as compras vão de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}.
             "Na compra" é a mudança de preço multiplicada pela quantidade que a casa costuma comprar de uma vez: é o que entra ou sai do caixa na próxima compra.
-            Item que não mudou de preço não entra na folha. A coluna "Novo preço" fica em branco para anotar a cotação na hora do telefonema.
+            A coluna "Novo preço" fica em branco para anotar a cotação na hora do telefonema.
             <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
           </footer>
         </body></html>`;
