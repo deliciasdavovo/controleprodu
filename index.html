@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-10-valor-calculado-1" />
+    <meta name="app-version" content="2026-09-10-cruzada-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1171,6 +1171,8 @@
          tela: quem não sabia que dava para arrastar de lado achava que ele
          tinha sumido da aba. Agora ele está sempre à vista, e são os números
          que passam por baixo. */
+      /* Na planilha cruzada a última coluna é o total, e ela também fica
+         presa: rolar até dezembro sem perder de vista quanto deu no ano. */
       .tabela-larga th.col-acao, .tabela-larga td.col-acao {
         position: sticky;
         right: 0;
@@ -14567,6 +14569,21 @@
 
       const chaveDoMes = (data) => (data || '').slice(0, 7);
 
+      // Todos os meses entre um e outro, sem buraco. Mês sem compra nenhuma
+      // tem de aparecer zerado numa linha do tempo: se ele some, a coluna ao
+      // lado deixa de ser o mês seguinte e a leitura vira outra coisa.
+      const sequenciaDeMeses = (primeiro, ultimo) => {
+        if (!/^\d{4}-\d{2}$/.test(primeiro) || !/^\d{4}-\d{2}$/.test(ultimo)) return [];
+        const seq = [];
+        const d = new Date(`${primeiro}-01T12:00:00`);
+        const fim = new Date(`${ultimo}-01T12:00:00`);
+        while (d <= fim) {
+          seq.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+          d.setMonth(d.getMonth() + 1);
+        }
+        return seq;
+      };
+
       const nomeDoMes = (chave) => {
         if (!/^\d{4}-\d{2}$/.test(chave)) return chave;
         const t = new Date(`${chave}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
@@ -14608,16 +14625,6 @@
         // some, a linha de baixo deixa de ser o mês anterior e a comparação
         // vira mentira — junho contra abril, dando +29996%. Zero também é
         // notícia ("em maio não compramos nada").
-        const sequenciaDeMeses = (primeiro, ultimo) => {
-          const seq = [];
-          const d = new Date(`${primeiro}-01T12:00:00`);
-          const fim = new Date(`${ultimo}-01T12:00:00`);
-          while (d <= fim) {
-            seq.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-            d.setMonth(d.getMonth() + 1);
-          }
-          return seq;
-        };
         const chaves = Object.keys(porMes).sort();
         const todosOsMeses = sequenciaDeMeses(chaves[0], chaveDoMes(hoje) >= chaves[chaves.length - 1] ? chaveDoMes(hoje) : chaves[chaves.length - 1])
           .map((k) => porMes[k] || { chave: k, compras: 0, total: 0, itens: new Set(), fornecedores: new Set(), categorias: {} });
@@ -15067,6 +15074,61 @@
           d.setMonth(d.getMonth() - 1);
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         };
+
+        // ------------------------------------------
+        // A TABELA CRUZADA: MÊS NA COLUNA, FORNECEDOR NA LINHA
+        //
+        // A comparação de um mês contra o anterior responde "gastei mais com
+        // ele do que no mês passado?". Esta responde outra: como cada
+        // fornecedor se comportou ao longo do ano, todos lado a lado. É a
+        // planilha que a casa faria à mão, e por isso ela tem o formato de
+        // planilha — linha por fornecedor, coluna por mês, total nas duas
+        // pontas.
+        //
+        // Só faz sentido com o período inteiro à vista: filtrar um mês deixa
+        // a tabela com uma coluna só, que é a lista que já existe embaixo.
+        // ------------------------------------------
+        const MESES_NA_CRUZADA = 12;
+
+        const cruzadaMensal = useMemo(() => {
+          const soma = {};
+          const meses = new Set();
+          compras.forEach((c) => {
+            const mes = (c.data || '').slice(0, 7);
+            if (!/^\d{4}-\d{2}$/.test(mes)) return;
+            meses.add(mes);
+            const linha = soma[c.fornecedor] || {};
+            linha[mes] = (linha[mes] || 0) + c.cost;
+            soma[c.fornecedor] = linha;
+          });
+
+          // Do mais antigo para o mais novo, como se lê uma linha do tempo, e
+          // sem buraco: um mês sem compra nenhuma vira uma coluna de traços,
+          // que é informação. Se ele some, a coluna ao lado deixa de ser o mês
+          // seguinte e a linha do tempo mente.
+          const presentes = [...meses].sort();
+          if (!presentes.length) return null;
+          const colunas = sequenciaDeMeses(presentes[0], presentes[presentes.length - 1]).slice(-MESES_NA_CRUZADA);
+          if (!colunas.length) return null;
+
+          const linhas = Object.entries(soma).map(([nome, porMes]) => {
+            const valores = colunas.map((m) => porMes[m] || 0);
+            return { nome, valores, total: valores.reduce((a, b) => a + b, 0) };
+          }).sort((a, b) => b.total - a.total);
+
+          const totaisPorMes = colunas.map((_, i) => linhas.reduce((s, l) => s + l.valores[i], 0));
+          return {
+            colunas,
+            rotulos: colunas.map((m) => nomeDoMes(m)),
+            linhas,
+            totaisPorMes,
+            total: totaisPorMes.reduce((a, b) => a + b, 0),
+            // A escala do sombreado: a maior célula da tabela. Sem ela, cada
+            // linha teria a própria escala e as cores mentiriam ao comparar
+            // um fornecedor com outro.
+            maiorCelula: Math.max(0, ...linhas.flatMap((l) => l.valores))
+          };
+        }, [compras]);
 
         const porFornecedor = useMemo(() => {
           const grupos = {};
@@ -15548,6 +15610,63 @@
                 {/* ---------------- POR FORNECEDOR ---------------- */}
                 {visao === 'fornecedor' && (
                   <div className="divide-hairline">
+                    {/* A planilha: mês na coluna, fornecedor na linha. Só com o
+                        período inteiro à vista — filtrar um mês deixaria uma
+                        coluna só, que é a lista logo abaixo. */}
+                    {!mesFiltro && !dataInicio && !dataFim && cruzadaMensal && cruzadaMensal.colunas.length > 1 && (
+                      <div className="pb-4">
+                        <div className="flex flex-wrap items-baseline gap-x-3 pb-2">
+                          <h3 className="t-title">Mês a mês</h3>
+                          <span className="t-micro">
+                            quanto foi para cada fornecedor em cada mês
+                            {cruzadaMensal.colunas.length === MESES_NA_CRUZADA && ` · últimos ${MESES_NA_CRUZADA} meses`}
+                          </span>
+                        </div>
+                        <div className="rola-x">
+                          <table className="w-full text-left tabela-larga cruzada">
+                            <thead>
+                              <tr className="t-overline-sm border-b hairline">
+                                <th className="py-2 pr-3 font-bold sticky left-0 bg-white z-10">Fornecedor</th>
+                                {cruzadaMensal.rotulos.map((r) => (
+                                  <th key={r} className="py-2 px-3 text-right font-bold">{r}</th>
+                                ))}
+                                <th className="py-2 pl-3 text-right font-bold col-acao">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cruzadaMensal.linhas.map((l) => (
+                                <tr key={l.nome} className="border-t hairline">
+                                  <td className="py-2 pr-3 t-body font-semibold sticky left-0 bg-white z-10 max-w-[190px] truncate" title={l.nome}>{l.nome}</td>
+                                  {l.valores.map((v, i) => (
+                                    <td
+                                      key={cruzadaMensal.colunas[i]}
+                                      className="py-2 px-3 text-right t-body tnum"
+                                      /* O sombreado é só apoio para o olho achar
+                                         o mês pesado; o número está escrito. */
+                                      style={v > 0 && cruzadaMensal.maiorCelula > 0
+                                        ? { background: `rgba(14, 9, 55, ${(0.05 + (v / cruzadaMensal.maiorCelula) * 0.16).toFixed(3)})` }
+                                        : undefined}
+                                    >
+                                      {v > 0 ? formatCurrencyBR(v) : <span className="ink-quiet">—</span>}
+                                    </td>
+                                  ))}
+                                  <td className="py-2 pl-3 text-right t-body tnum font-bold col-acao">{formatCurrencyBR(l.total)}</td>
+                                </tr>
+                              ))}
+                              <tr className="border-t hairline">
+                                <td className="py-2 pr-3 t-body font-bold sticky left-0 bg-white z-10">Total do mês</td>
+                                {cruzadaMensal.totaisPorMes.map((v, i) => (
+                                  <td key={cruzadaMensal.colunas[i]} className="py-2 px-3 text-right t-body tnum font-bold">
+                                    {v > 0 ? formatCurrencyBR(v) : <span className="ink-quiet">—</span>}
+                                  </td>
+                                ))}
+                                <td className="py-2 pl-3 text-right t-body tnum font-bold col-acao">{formatCurrencyBR(cruzadaMensal.total)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                     {porFornecedor.length > 1 && (
                       <div className="flex flex-wrap items-center gap-2 pb-3">
                         <span className="t-micro">
