@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-10-folha-legivel-1" />
+    <meta name="app-version" content="2026-09-11-ausentes-por-nome-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14091,6 +14091,10 @@
         if (!ordenadas.length) return null;
 
         const unidadeRef = unidadeDeReferencia(ordenadas[0].unidade);
+        // Uma compra sem quantidade ou sem valor não dá preço unitário: ela
+        // aparece no carrinho, mas não entra na conta. Isso precisa ser
+        // contado, e não engolido — item com duas compras, uma delas pela
+        // metade, some da folha e parece ter sido comprado uma vez só.
         const pontos = ordenadas
           .map((c) => {
             const qtd = qtdNaReferencia(c.qty, c.unidade, unidadeRef);
@@ -14099,6 +14103,7 @@
               : null;
           })
           .filter(Boolean);
+        const comprasIncompletas = ordenadas.length - pontos.length;
         if (!pontos.length) return null;
 
         const precos = pontos.map((p) => p.preco);
@@ -14158,6 +14163,7 @@
         return {
           unidadeRef,
           compras: pontos.length,
+          comprasIncompletas,
           // As compras cruas, na mesma ordem do carrinho da tela: a mais nova
           // em cima. A folha imprime isso embaixo de cada item.
           historico: [...ordenadas].reverse(),
@@ -14370,18 +14376,36 @@
         // Todo item cujo preço mudou desde a compra anterior. O piso de 0,1%
         // existe só para não entrar sobra de arredondamento de centavo — quem
         // manteve o preço fica de fora, e quem mudou entra, mesmo que pouco.
+        // A folha traz TODO item comprado, como a aba traz. Ela chegou a deixar
+        // de fora quem não mudou de preço, e a loja passou duas conversas
+        // achando que o relatório escondia item — com razão: some da folha o
+        // que está na tela, e a folha deixa de ser confiável.
+        //
+        // O que muda de lugar é a ordem, não a presença. Primeiro o que subiu,
+        // depois o que caiu, e por último o que não mexeu — porque a folha é
+        // levada para negociar, e negociar é sobre o que andou.
         const mudaram = rel.itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) >= 0.1);
         // Dentro de cada bloco, o que pesa mais no bolso vem primeiro
         const porDinheiro = (a, b) => Math.abs(b.impacto) - Math.abs(a.impacto) || Math.abs(b.varPct) - Math.abs(a.varPct);
         const subiram = mudaram.filter((i) => i.varPct > 0).sort(porDinheiro);
         const cairam = mudaram.filter((i) => i.varPct < 0).sort(porDinheiro);
-        const iguais = rel.itens.filter((i) => i.varPct !== null && Math.abs(i.varPct) < 0.1).length;
-        // Quem não entrou, e por quê. Numa casa de verdade a maioria dos itens
-        // fica de fora — comprou uma vez só, ou manteve o preço — e uma folha
-        // que não diz isso parece estar escondendo item. Quem procura o queijo
-        // que acabou de lançar precisa achar a resposta aqui, e não desconfiar
-        // do relatório.
-        const semAnterior = rel.itens.filter((i) => i.varPct === null).length;
+        const parados = rel.itens
+          .filter((i) => i.varPct === null || Math.abs(i.varPct) < 0.1)
+          .sort((a, b) => a.item.localeCompare(b.item, 'pt-BR'));
+        const iguais = parados.filter((i) => i.varPct !== null).length;
+
+        // Uma compra lançada sem quantidade ou sem valor não dá preço unitário:
+        // ela aparece no carrinho e some da conta, e o item fica parecendo que
+        // foi comprado uma vez só. Não é motivo para esconder o item — é um
+        // lançamento para conferir, e a folha avisa pelo nome.
+        const pelaMetade = rel.itens.filter((i) => i.comprasIncompletas > 0);
+        const NOMES_NA_LISTA = 40;
+        const listaDeNomes = (itens) => {
+          const nomes = itens.map((i) => escaparHtml(i.item)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+          const mostrados = nomes.slice(0, NOMES_NA_LISTA);
+          const restam = nomes.length - mostrados.length;
+          return mostrados.join(' · ') + (restam > 0 ? ` · e mais ${restam}` : '');
+        };
         const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
         const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
@@ -14415,20 +14439,27 @@
 
         // Um tbody por item, para o resumo e o carrinho nunca se separarem
         // numa virada de página
-        const linhaDaTabela = (i) => `<tbody class="item">
+        const linhaDaTabela = (i, comCarrinho = true) => {
+          const mexeu = i.varPct !== null && Math.abs(i.varPct) >= 0.1;
+          return `<tbody class="item${comCarrinho ? '' : ' solta'}">
           <tr class="cabeca">
-            <td class="nome">${escaparHtml(i.item)}</td>
+            <td class="nome">${escaparHtml(i.item)}${i.comprasIncompletas > 0 ? '<span class="alerta">compra pela metade</span>' : ''}</td>
             <td class="num" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
-            <td class="num antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
-            <td class="num mudou ${i.varPct > 0 ? 'sobe' : 'desce'}" data-rot="Mudou">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
-            <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
+            <td class="num antes" data-rot="Antes">${i.precoAnterior === null ? '<span class="quieto">—</span>' : formatCurrencyBR(i.precoAnterior)}</td>
+            <td class="num mudou ${mexeu ? (i.varPct > 0 ? 'sobe' : 'desce') : ''}" data-rot="Mudou">${i.varPct === null
+              ? '<span class="quieto peq">1ª compra</span>'
+              : mexeu
+                ? `${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span>`
+                : '<span class="quieto peq">sem mudança</span>'}</td>
+            <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${mexeu && Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
             <td class="forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
             <td class="cotar"></td>
           </tr>
-          ${carrinho(i)}
+          ${comCarrinho ? carrinho(i) : ''}
         </tbody>`;
+        };
 
-        const secao = (titulo, itens, classe, resumo) => `
+        const secao = (titulo, itens, classe, resumo, comCarrinho = true) => `
           <section class="bloco">
             <h2 class="${classe}">${titulo} (${itens.length}) <span class="conta">${resumo}</span></h2>
             ${itens.length ? `<table class="lista">
@@ -14441,7 +14472,7 @@
                 <th class="num">Mudou</th><th class="num">Na compra</th>
                 <th>Fornecedor</th><th class="cotar">Cotei</th>
               </tr></thead>
-              ${itens.map(linhaDaTabela).join('')}
+              ${itens.map((i) => linhaDaTabela(i, comCarrinho)).join('')}
             </table>` : '<p class="vazio">Nenhum item nesta lista.</p>'}
           </section>`;
 
@@ -14475,7 +14506,12 @@
             .placar .sobe b { color: #7D2027; } .placar .desce b { color: #1E6B44; }
 
             h2 { font-size: 13pt; margin: 18px 0 7px; padding: 4px 8px; background: #eee; border-radius: 3px; }
-            h2.sobe { color: #7D2027; } h2.desce { color: #1E6B44; }
+            h2.sobe { color: #7D2027; } h2.desce { color: #1E6B44; } h2.parado { color: #444; }
+            /* O item com lançamento pela metade é marcado onde ele está, e não
+               só no rodapé: quem passa o olho na linha precisa ver que aquele
+               histórico está incompleto. */
+            .alerta { display: block; font-size: 8pt; font-weight: 700; text-transform: uppercase;
+                      letter-spacing: .04em; color: #8A5A00; margin-top: 1px; }
             h2 .conta { font-size: 10pt; font-weight: 600; color: #444; }
 
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -14506,15 +14542,25 @@
             .forte { font-weight: 700; }
             .sobe { color: #7D2027; } .desce { color: #1E6B44; }
             .quieto { color: #777; font-weight: 400; }
+            /* Nas colunas estreitas o texto que ocupa o lugar do número entra
+               menor: é um recado, não um valor, e não pode empurrar a coluna. */
+            .peq { font-size: 8.5pt; }
             .forn { font-size: 10pt; }
             /* Espaço para anotar a cotação nova na hora do telefonema */
             .cotar { border-bottom: 1px solid #999; }
             .vazio { color: #666; font-style: italic; margin: 6px 0 0; }
             /* Uma caixa, não um rodapé: quem procura o item que sumiu tem de
                tropeçar nesta linha antes de desconfiar do relatório. */
-            .ausentes { margin: 16px 0 0; padding: 9px 11px; font-size: 10pt; color: #333;
-                        background: #f4f4f2; border-left: 3px solid #999; border-radius: 3px; }
-            .ausentes strong { color: #111; }
+            .ausentes { margin: 18px 0 0; padding: 10px 12px; font-size: 9.5pt; color: #333;
+                        background: #f4f4f2; border-left: 3px solid #999; border-radius: 3px;
+                        page-break-inside: avoid; }
+            .ausentes h2 { font-size: 11pt; margin: 0 0 7px; padding: 0; background: none; }
+            .grupo-fora { margin-bottom: 8px; }
+            .fora-rot strong { color: #111; }
+            /* Os nomes em texto corrido: são muitos, e uma lista em coluna
+               comeria uma página inteira só para dizer o que não mudou. */
+            .fora-nomes { margin-top: 2px; color: #555; line-height: 1.45; }
+            .fora-pe { margin: 8px 0 0; font-style: italic; color: #555; }
             footer { margin-top: 14px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
             .dica { display: block; margin-top: 4px; font-style: italic; }
             @media print { .dica { display: none; } }
@@ -14534,6 +14580,14 @@
             /* A faixa cinza apagou a linha de escrever junto com as outras
                bordas; ela precisa voltar, senão não há onde anotar a cotação. */
             tbody.item > tr.cabeca > td.cotar { border-bottom: 1px solid #999; background: #fff; }
+            /* Sem carrinho embaixo, a faixa não tem o que anunciar: 48 linhas
+               de fundo cinza viram 48 cabeçalhos e a seção fica mais pesada
+               que a que interessa. Aqui é tabela simples. */
+            tbody.item.solta > tr.cabeca > td { background: none; border-top: 0;
+                                                border-bottom: 1px solid #e2e2de;
+                                                padding-top: 5px; padding-bottom: 5px; }
+            tbody.item.solta > tr.cabeca > td.nome { font-size: 10.5pt; font-weight: 600; }
+            tbody.item.solta > tr.cabeca > td.cotar { border-bottom: 1px solid #999; }
             tr.hist > td { padding: 4px 0 14px 8px; border-bottom: 0; }
             .hist-tab { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8.5pt; }
             .hist-tab th { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .03em; color: #666;
@@ -14571,11 +14625,15 @@
               + secao('▼ Caíram de preço', cairam, 'desce', `−${formatCurrencyBR(Math.abs(economiaQuedas))} na próxima compra`)
             : '<p class="vazio">Nenhum item mudou de preço desde a compra anterior.</p>'}
 
-          ${(semAnterior > 0 || iguais > 0) ? `<p class="ausentes">
-            <strong>Não entraram nesta folha:</strong>
-            ${semAnterior > 0 ? `${semAnterior} ${semAnterior === 1 ? 'item comprado' : 'itens comprados'} uma vez só — sem compra anterior, não há preço com o que comparar` : ''}${semAnterior > 0 && iguais > 0 ? ' · ' : ''}${iguais > 0 ? `${iguais} ${iguais === 1 ? 'item que manteve' : 'itens que mantiveram'} o preço` : ''}.
-            Eles continuam na aba Fornecedores, em "Por item".
-          </p>` : ''}
+          ${parados.length ? secao('● Sem mudança de preço', parados, 'parado',
+            'uma linha por item, sem o histórico — não há preço andando para acompanhar', false) : ''}
+
+          ${pelaMetade.length ? `<section class="ausentes">
+            <h2>Confira estes lançamentos</h2>
+            <div class="fora-rot"><strong>${pelaMetade.length} ${pelaMetade.length === 1 ? 'item tem compra lançada' : 'itens têm compra lançada'} sem quantidade ou sem valor.</strong>
+            Sem os dois não há preço unitário, e essa compra fica de fora da conta — o item aparece na folha, mas com menos histórico do que realmente tem.</div>
+            <div class="fora-nomes">${listaDeNomes(pelaMetade)}</div>
+          </section>` : ''}
 
           <footer>
             Cada item é comparado com a compra anterior dele mesmo, seja ela de ontem ou de meses atrás — as compras vão de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}.
