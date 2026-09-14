@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-resumo-pdf-destaque-1" />
+    <meta name="app-version" content="2026-09-14-maior-variacao-grafico-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14102,15 +14102,21 @@
         if (!pontos.length) return null;
 
         const precos = pontos.map((p) => p.preco);
-        // Na tela, "anterior" continua sendo a compra imediatamente anterior.
-        // No PDF por período, a comparação é outra: primeira compra com data
-        // dentro da janela escolhida contra a compra mais recente da janela.
+        // No relatório por período, o preço atual é comparado com a compra
+        // passada que produz a maior diferença absoluta dentro da janela.
         const pontosComData = pontos.filter((p) => p.data);
         const atual = compararPeriodo && pontosComData.length
           ? pontosComData[pontosComData.length - 1]
           : pontos[pontos.length - 1];
+        const referenciasPeriodo = pontosComData.slice(0, -1);
+        const referenciaMaiorVariacao = referenciasPeriodo.reduce((melhor, ponto) => {
+          if (!melhor) return ponto;
+          return Math.abs(atual.preco - ponto.preco) > Math.abs(atual.preco - melhor.preco)
+            ? ponto
+            : melhor;
+        }, null);
         const anterior = compararPeriodo
-          ? (pontosComData.length > 1 ? pontosComData[0] : null)
+          ? referenciaMaiorVariacao
           : (pontos.length > 1 ? pontos[pontos.length - 2] : null);
 
         const varUnit = anterior ? atual.preco - anterior.preco : null;
@@ -14478,11 +14484,11 @@
                           <strong class="valor">${formatCurrencyBR(i.precoAtual)}<small>/${i.unidadeRef}</small></strong>
                         </div>
                         <div class="dado antes">
-                          <span class="rotulo">Início do período</span>
+                          <span class="rotulo">Referência no período</span>
                           <strong class="valor">${i.precoAnterior !== null ? formatCurrencyBR(i.precoAnterior) : '—'}</strong>
                         </div>
                         <div class="dado mudou ${i.varPct > 0 ? 'sobe' : i.varPct < 0 ? 'desce' : ''}">
-                          <span class="rotulo">Variação do período</span>
+                          <span class="rotulo">Maior variação</span>
                           <strong class="valor">${variacao}</strong>
                           ${percentual ? `<small>${percentual}</small>` : ''}
                         </div>
@@ -14514,8 +14520,8 @@
                 <col class="c-num"><col class="c-forn"><col class="c-cotar">
               </colgroup>
               <thead><tr>
-                <th>Item</th><th class="num">Agora</th><th class="num">Início</th>
-                <th class="num">Variação no período</th><th class="num">Na compra</th>
+                <th>Item</th><th class="num">Agora</th><th class="num">Referência</th>
+                <th class="num">Maior variação</th><th class="num">Na compra</th>
                 <th>Fornecedor</th><th class="cotar">Cotei</th>
               </tr></thead>
               ${itens.map(linhaDaTabela).join('')}
@@ -14702,7 +14708,7 @@
           </p>` : ''}
 
           <footer>
-            A variação compara a primeira compra com data e a compra mais recente dentro ${rel.periodoMeses === 12 ? 'do último ano' : `dos últimos ${rel.periodoMeses} meses`} — de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}. Produtos sem data aparecem em “Dados a completar” e não entram no cálculo da variação.
+            A variação compara a compra mais recente com a compra passada que produz a maior diferença absoluta dentro ${rel.periodoMeses === 12 ? 'do último ano' : `dos últimos ${rel.periodoMeses} meses`} — de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}. Produtos sem data aparecem em “Dados a completar” e não entram no cálculo da variação.
             "Na compra" é a mudança de preço multiplicada pela quantidade que a casa costuma comprar de uma vez: é o que entra ou sai do caixa na próxima compra.
             A coluna "Cotei" fica em branco para anotar o preço novo na hora do telefonema.
             <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
@@ -15330,6 +15336,94 @@
               </body></html>`;
       };
 
+      const GraficoVariacaoPreco = ({ compras, periodo }) => {
+        const pontos = [...compras]
+          .filter((c) => c.data && c.custoUnit > 0)
+          .sort((a, b) => {
+            const d = (a.data || '').localeCompare(b.data || '');
+            return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
+          })
+          .map((c) => {
+            const preco = precoNaUnidadeGrande(c.custoUnit, c.unidade);
+            return { ...c, valorGrafico: preco.valor, unidadeGrafico: preco.label };
+          });
+
+        const periodoTexto = periodo === '12' ? 'último 1 ano' : 'últimos ' + periodo + ' meses';
+        if (pontos.length < 2) {
+          return (
+            <div className="card p-5 mt-5 text-center">
+              <div className="t-callout font-semibold">Ainda não há pontos suficientes para o gráfico</div>
+              <p className="t-micro mt-1">São necessárias pelo menos duas compras com data e preço nos {periodoTexto}.</p>
+            </div>
+          );
+        }
+
+        const largura = 820;
+        const altura = 270;
+        const margemX = 64;
+        const margemY = 36;
+        const valores = pontos.map((p) => p.valorGrafico);
+        const minimo = Math.min(...valores);
+        const maximo = Math.max(...valores);
+        const amplitudeBase = maximo - minimo || Math.max(maximo * 0.1, 1);
+        const minimoEscala = Math.max(0, minimo - amplitudeBase * 0.18);
+        const maximoEscala = maximo + amplitudeBase * 0.18;
+        const amplitude = maximoEscala - minimoEscala || 1;
+        const x = (indice) => margemX + (indice * (largura - margemX * 2)) / Math.max(1, pontos.length - 1);
+        const y = (valor) => altura - margemY - ((valor - minimoEscala) / amplitude) * (altura - margemY * 2);
+        const linha = pontos.map((p, indice) => x(indice) + ',' + y(p.valorGrafico)).join(' ');
+        const grades = [maximoEscala, (maximoEscala + minimoEscala) / 2, minimoEscala];
+        const indicesComRotulo = new Set([
+          0,
+          pontos.length - 1,
+          valores.indexOf(minimo),
+          valores.indexOf(maximo)
+        ]);
+
+        return (
+          <div className="card p-4 sm:p-5 mt-5">
+            <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
+              <div>
+                <div className="t-overline">Variação de preços</div>
+                <div className="t-callout font-semibold mt-1">Histórico dos {periodoTexto}</div>
+              </div>
+              <div className="t-micro tnum">
+                {formatCurrencyBR(pontos[0].valorGrafico)} → {formatCurrencyBR(pontos[pontos.length - 1].valorGrafico)}/{pontos[pontos.length - 1].unidadeGrafico}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <svg viewBox={'0 0 ' + largura + ' ' + altura} className="w-full min-w-[620px] h-auto" role="img" aria-label={'Gráfico da variação de preços nos ' + periodoTexto}>
+                {grades.map((valor, indice) => (
+                  <g key={'grade-' + indice}>
+                    <line x1={margemX} x2={largura - margemX} y1={y(valor)} y2={y(valor)} stroke="rgba(60,60,67,0.13)" strokeWidth="1" />
+                    <text x={margemX - 8} y={y(valor) + 4} textAnchor="end" fontSize="11" fill="#6e6e73">
+                      {formatCurrencyBR(valor)}
+                    </text>
+                  </g>
+                ))}
+                <polyline points={linha} fill="none" stroke="#0e0937" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                {pontos.map((p, indice) => (
+                  <g key={String(p.id) + '-' + indice}>
+                    <circle cx={x(indice)} cy={y(p.valorGrafico)} r="6" fill="#ffffff" stroke="#0e0937" strokeWidth="3">
+                      <title>{formatDateBR(p.data) + ' · ' + p.fornecedor + ' · ' + formatCurrencyBR(p.valorGrafico) + '/' + p.unidadeGrafico}</title>
+                    </circle>
+                    {(pontos.length <= 7 || indicesComRotulo.has(indice)) && (
+                      <text x={x(indice)} y={Math.max(15, y(p.valorGrafico) - 13)} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1d1d1f">
+                        {formatCurrencyBR(p.valorGrafico)}
+                      </text>
+                    )}
+                  </g>
+                ))}
+              </svg>
+            </div>
+            <div className="flex justify-between gap-4 t-nano tnum mt-1">
+              <span>{formatDateBR(pontos[0].data)}</span>
+              <span>{formatDateBR(pontos[pontos.length - 1].data)}</span>
+            </div>
+          </div>
+        );
+      };
+
       const SuppliersView = ({
         supplies,
         supplyPurchases,
@@ -15352,13 +15446,14 @@
         // lista aberta era uma parede. Quem quer conferir uma nota abre a dela.
         const [fornecedoresAbertos, setFornecedoresAbertos] = useState([]);
         const [historicoItem, setHistoricoItem] = useState(null);
+        const [graficoHistoricoAberto, setGraficoHistoricoAberto] = useState(false);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
         const [referenciaHistoricoPorItem, setReferenciaHistoricoPorItem] = useState({});
 
         const alterarPeriodoVariacao = (valor) => {
           setPeriodoRelatorioPrecos(valor);
-          // Ao trocar o período, cada produto volta para a compra mais antiga
-          // da nova janela — a referência padrão da variação do período.
+          // Ao trocar o período, cada produto volta automaticamente para a
+          // compra que produz a maior variação dentro da nova janela.
           setReferenciaHistoricoPorItem({});
         };
 
@@ -15420,18 +15515,26 @@ const inicioPeriodoVariacao = useMemo(() => {
               const d = (a.data || '').localeCompare(b.data || '');
               return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
             });
-            const inicio = pontos[0];
             const atual = pontos[pontos.length - 1];
-            const temComparacao = pontos.length > 1 && inicio.custoUnit > 0;
-            const variacaoUnit = temComparacao ? atual.custoUnit - inicio.custoUnit : null;
+            const historico = pontos.slice(0, -1);
+            const indiceMaiorVariacao = historico.reduce((melhorIndice, ponto, indice) => {
+              if (melhorIndice < 0) return indice;
+              const melhor = historico[melhorIndice];
+              return Math.abs(atual.custoUnit - ponto.custoUnit) > Math.abs(atual.custoUnit - melhor.custoUnit)
+                ? indice
+                : melhorIndice;
+            }, -1);
+            const referencia = indiceMaiorVariacao >= 0 ? historico[indiceMaiorVariacao] : null;
+            const variacaoUnit = referencia ? atual.custoUnit - referencia.custoUnit : null;
             resultado[itemId] = {
-              inicio: temComparacao ? inicio : null,
+              inicio: referencia,
               atual,
-              // Todas as compras anteriores à atual ficam disponíveis para
-              // navegar na tabela, da mais antiga para a mais recente.
-              historico: pontos.slice(0, -1),
+              // Todas as compras anteriores à atual continuam disponíveis nas
+              // setas; por padrão abrimos a que gera a maior variação.
+              historico,
+              indiceMaiorVariacao,
               variacaoUnit,
-              variacaoPct: temComparacao ? (variacaoUnit / inicio.custoUnit) * 100 : null
+              variacaoPct: referencia && referencia.custoUnit > 0 ? (variacaoUnit / referencia.custoUnit) * 100 : null
             };
           });
           return resultado;
@@ -15453,8 +15556,8 @@ const resumoFornecedoresPeriodo = useMemo(() => {
             && c.fornecedor !== 'Sem fornecedor'
           );
 
-          // Mesmo item + mesmo fornecedor: primeira compra contra a mais
-          // recente. Só aumentos entram na lista de negociação.
+          // Mesmo item + mesmo fornecedor: procura o maior aumento entre
+          // duas compras em ordem cronológica dentro do período.
           const gruposNegociacao = {};
           validas.forEach((c) => {
             const chave = `${c.itemId}|${normalizeName(c.fornecedor)}`;
@@ -15466,21 +15569,30 @@ const resumoFornecedoresPeriodo = useMemo(() => {
               return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
             });
             if (pontos.length < 2) return null;
-            const inicio = pontos[0];
-            const atual = pontos[pontos.length - 1];
-            const diferenca = atual.custoUnit - inicio.custoUnit;
-            const percentual = inicio.custoUnit > 0 ? (diferenca / inicio.custoUnit) * 100 : null;
-            if (!(diferenca > 0) || !(percentual >= 0.1)) return null;
+            let maiorAumento = null;
+            pontos.forEach((atual, indiceAtual) => {
+              for (let indiceInicio = 0; indiceInicio < indiceAtual; indiceInicio += 1) {
+                const inicio = pontos[indiceInicio];
+                const diferenca = atual.custoUnit - inicio.custoUnit;
+                const percentual = inicio.custoUnit > 0 ? (diferenca / inicio.custoUnit) * 100 : null;
+                if (!(diferenca > 0) || !(percentual >= 0.1)) continue;
+                if (
+                  !maiorAumento
+                  || diferenca > maiorAumento.diferenca
+                  || (diferenca === maiorAumento.diferenca && percentual > maiorAumento.percentual)
+                ) {
+                  maiorAumento = { inicio, atual, diferenca, percentual };
+                }
+              }
+            });
+            if (!maiorAumento) return null;
             return {
               chave,
-              item: atual.item,
-              tipo: atual.tipo,
-              unidade: atual.unidade,
-              fornecedor: atual.fornecedor,
-              inicio,
-              atual,
-              diferenca,
-              percentual
+              item: maiorAumento.atual.item,
+              tipo: maiorAumento.atual.tipo,
+              unidade: maiorAumento.atual.unidade,
+              fornecedor: maiorAumento.atual.fornecedor,
+              ...maiorAumento
             };
           }).filter(Boolean).sort((a, b) =>
             b.percentual - a.percentual || b.diferenca - a.diferenca
@@ -15571,6 +15683,16 @@ const resumoFornecedoresPeriodo = useMemo(() => {
             })
           : [];
 
+        const comprasGraficoHistoricoItem = historicoItem
+          ? todas.filter((c) =>
+              c.itemId === historicoItem.itemId
+              && c.data
+              && c.data >= inicioPeriodoVariacao
+              && c.data <= getTodayDateString()
+              && c.custoUnit > 0
+            )
+          : [];
+
         const placar = useMemo(() => ({
           fornecedores: new Set(porPeriodo.filter((c) => c.fornecedor !== 'Sem fornecedor').map((c) => c.fornecedor)).size,
           compras: porPeriodo.length,
@@ -15579,7 +15701,7 @@ const resumoFornecedoresPeriodo = useMemo(() => {
         }), [porPeriodo]);
 
         // Um resumo por item. A compra de referência é navegável:
-        // começa na mais antiga do período e pode avançar até a penúltima.
+        // começa na maior variação do período e pode ir às demais compras.
 const porItem = useMemo(() => {
           const grupos = {};
           compras.forEach((c) => { (grupos[c.itemId] = grupos[c.itemId] || []).push(c); });
@@ -15592,7 +15714,13 @@ const porItem = useMemo(() => {
             const periodo = variacaoPorItem[atualVisivel.itemId] || null;
             const atualBase = periodo?.atual || atualVisivel;
             const historicoPeriodo = periodo?.historico || [];
-            const indicePedido = Number(referenciaHistoricoPorItem[atualVisivel.itemId] ?? 0);
+            const referenciaEscolhida = Object.prototype.hasOwnProperty.call(
+              referenciaHistoricoPorItem,
+              atualVisivel.itemId
+            );
+            const indicePedido = referenciaEscolhida
+              ? Number(referenciaHistoricoPorItem[atualVisivel.itemId])
+              : Number(periodo?.indiceMaiorVariacao ?? 0);
             const referenciaIndex = historicoPeriodo.length
               ? Math.max(0, Math.min(indicePedido, historicoPeriodo.length - 1))
               : 0;
@@ -16257,9 +16385,33 @@ const porItem = useMemo(() => {
                         {(dataInicio || dataFim) ? ` · ${dataInicio ? formatDateBR(dataInicio) : 'início'} até ${dataFim ? formatDateBR(dataFim) : 'hoje'}` : ''}
                       </p>
                     </div>
-                    <button type="button" onClick={() => setHistoricoItem(null)} className="btn btn-secondary btn-sm">Fechar</button>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGraficoHistoricoAberto((aberto) => !aberto)}
+                        className="btn btn-secondary btn-md"
+                      >
+                        {graficoHistoricoAberto ? 'Esconder gráfico' : 'Mostrar gráfico'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGraficoHistoricoAberto(false);
+                          setHistoricoItem(null);
+                        }}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Fechar
+                      </button>
+                    </div>
                   </div>
                   <div className="overflow-auto max-h-[68vh] px-5 sm:px-6 pb-5">
+                    {graficoHistoricoAberto && (
+                      <GraficoVariacaoPreco
+                        compras={comprasGraficoHistoricoItem}
+                        periodo={periodoRelatorioPrecos}
+                      />
+                    )}
                     {comprasHistoricoItem.length === 0 ? (
                       <p className="t-body text-center py-10 ink-quiet">Nenhuma compra deste item no período selecionado.</p>
                     ) : (
@@ -16562,7 +16714,10 @@ const porItem = useMemo(() => {
                             <td className="py-2.5 pl-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => setHistoricoItem({ itemId: i.itemId, item: i.item })}
+                                onClick={() => {
+                                  setGraficoHistoricoAberto(false);
+                                  setHistoricoItem({ itemId: i.itemId, item: i.item });
+                                }}
                                 title={`Histórico de compras de ${i.item}`}
                                 className="btn btn-secondary btn-sm mx-auto"
                               >
