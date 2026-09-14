@@ -15246,7 +15246,7 @@
         </body></html>`;
       };
 
-      const htmlResumoFornecedoresPeriodo = ({ resumo, unidadeNome, periodo, categoria, busca }) {
+      const htmlResumoFornecedoresPeriodo = ({ resumo, unidadeNome, periodo, categoria, busca }) => {
               const periodoTexto = periodo === '12' ? 'Último 1 ano' : `Últimos ${periodo} meses`;
               const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
               const linhasNegociacao = resumo.negociacoes.map((n) => `<tr>
