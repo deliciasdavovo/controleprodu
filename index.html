@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-fornecedores-relatorio-a4-1" />
+    <meta name="app-version" content="2026-09-14-fornecedores-relatorios-a4-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15699,26 +15699,26 @@
                     {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
                   </p>
                 </div>
-                {/* Um único relatório gerencial em A4. Ele leva os filtros da
-                    tela e reúne os resumos e as tabelas da aba. */}
+                {/* O relatório original de preços continua disponível; o
+                    relatório completo é a visão gerencial que segue os filtros
+                    da página. O relatório de ritmo foi retirado desta aba. */}
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => imprimirRelatorioDeCompra('a4')}
+                    disabled={todas.length === 0}
+                    title="Relatório de preços de compra em A4, com comparação, variações e histórico"
+                    className="btn btn-primary btn-sm disabled:opacity-40"
+                  >
+                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                    Relatório de preços (A4)
+                  </button>
                   <button
                     onClick={imprimirRelatorioCompleto}
                     disabled={compras.length === 0}
                     title="Gera um relatório A4 completo com os filtros que estão aplicados nesta página"
-                    className="btn btn-primary btn-sm disabled:opacity-40"
-                  >
-                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                    Relatório completo (A4)
-                  </button>
-                  <button
-                    onClick={() => imprimirRitmoDeCompra('a4')}
-                    disabled={todas.length === 0}
-                    title="Outra folha: quanto a casa gasta por mês, com a conta aberta por categoria, e com que frequência cada item volta"
                     className="btn btn-secondary btn-sm disabled:opacity-40"
                   >
-                    <Icons.Calendar className="w-3.5 h-3.5" />
-                    Ritmo de compra (A4)
+                    Relatório completo da página (A4)
                   </button>
                 </div>
               </div>
