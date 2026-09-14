@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-volume-compra-grafico-3" />
+    <meta name="app-version" content="2026-09-14-volume-compra-grafico-4" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2404,6 +2404,12 @@
         if (compra?.unidade === 'un' && volumeComercial && fator > 0 && compra?.custoUnit > 0) {
           const precoVolume = compra.custoUnit * fator;
           return `${formatCurrencyBR(precoVolume)}/${tipo === 'outro' ? 'volume' : tipo} · ${numeroCurtoBR(fator)} un`;
+        }
+        // Registros antigos de embalagem não guardavam o tamanho da caixa.
+        // Neles mostramos o total realmente pago e o total de unidades, sem
+        // inventar quantas caixas havia na nota.
+        if (compra?.unidade === 'un' && compra?.cost > 0 && compra?.qty > 0) {
+          return `${formatCurrencyBR(compra.cost)} no volume comprado · ${numeroCurtoBR(compra.qty)} un`;
         }
         return '';
       };
