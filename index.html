@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-maior-variacao-grafico-1" />
+    <meta name="app-version" content="2026-09-14-volume-compra-grafico-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2392,6 +2392,22 @@
       const formatPrecoInsumo = (custoUnit, unidade) => {
         const p = precoNaUnidadeGrande(custoUnit, unidade);
         return `${formatCurrencyBR(p.valor)}/${p.label}`;
+      };
+
+      // Mostra a embalagem comercial que realmente se compra. O preço por
+      // unidade continua sendo a base da comparação, mas caixa/pacote dá a
+      // referência prática da nota e evita confundir sachê com unidade solta.
+      const detalheVolumeCompra = (compra) => {
+        const fator = Number(compra?.unidadesPorVolume) || 0;
+        const tipo = String(compra?.volumeTipo || 'volume').toLowerCase();
+        if (compra?.unidade === 'un' && fator > 0 && compra?.custoUnit > 0) {
+          const precoVolume = compra.custoUnit * fator;
+          return `${formatCurrencyBR(precoVolume)}/${tipo} · ${numeroCurtoBR(fator)} un`;
+        }
+        if (compra?.cost > 0 && compra?.qty > 0) {
+          return `${formatCurrencyBR(compra.cost)} no volume · ${numeroCurtoBR(compra.qty)} ${compra.unidade || 'un'}`;
+        }
+        return '';
       };
 
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
@@ -13877,7 +13893,11 @@
               data: c.purchaseDate || '',
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
-              cost: Number(c.cost) || 0
+              cost: Number(c.cost) || 0,
+              volumeTipo: s.unit === 'un' && Number(s.variationFactor) > 0
+                ? (s.variationUnit || 'volume')
+                : '',
+              unidadesPorVolume: s.unit === 'un' ? (Number(s.variationFactor) || 0) : 0
             });
           });
         });
@@ -13888,6 +13908,7 @@
           );
 
           resalePurchases.filter((c) => c.separatedProductId === p.id).forEach((c) => {
+            const volumeCompra = lerUnidadeCompraVolume(c.purchaseUnit);
             // Quando "Também é revenda" está marcado, a mesma entrada grava o
             // custo nos dois lados para alimentar ficha técnica e CMV. Na tela
             // de fornecedores, porém, é UMA compra só. O espelho de revenda é
@@ -13918,7 +13939,9 @@
               data: c.purchaseDate || '',
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
-              cost: Number(c.cost) || 0
+              cost: Number(c.cost) || 0,
+              volumeTipo: volumeCompra?.tipo || '',
+              unidadesPorVolume: Number(volumeCompra?.unidades) || 0
             });
           });
         });
@@ -15258,14 +15281,14 @@
               const linhasNegociacao = resumo.negociacoes.map((n) => `<tr>
                 <td><b>${escaparHtml(n.item)}</b><small>${escaparHtml(n.tipo)}</small></td>
                 <td><b>${escaparHtml(n.fornecedor)}</b></td>
-                <td class="num">${formatPrecoInsumo(n.inicio.custoUnit, n.unidade)}<small>${formatDateBR(n.inicio.data)}</small></td>
-                <td class="num">${formatPrecoInsumo(n.atual.custoUnit, n.unidade)}<small>${formatDateBR(n.atual.data)}</small></td>
+                <td class="num">${formatPrecoInsumo(n.inicio.custoUnit, n.unidade)}<small><b>${escaparHtml(detalheVolumeCompra(n.inicio))}</b></small><small>${formatDateBR(n.inicio.data)}</small></td>
+                <td class="num">${formatPrecoInsumo(n.atual.custoUnit, n.unidade)}<small><b>${escaparHtml(detalheVolumeCompra(n.atual))}</b></small><small>${formatDateBR(n.atual.data)}</small></td>
                 <td class="num alta">+${formatPrecoInsumo(n.diferenca, n.unidade)}<small>+${n.percentual.toFixed(1).replace('.', ',')}%</small></td>
               </tr>`).join('');
               const linhasPreferencia = resumo.preferencias.map((p) => `<tr>
                 <td><b>${escaparHtml(p.item)}</b><small>${escaparHtml(p.tipo)}</small></td>
-                <td class="recomendado"><b>${escaparHtml(p.melhor.fornecedor)}</b><strong>${formatPrecoInsumo(p.melhor.custoUnit, p.unidade)}</strong><small>${formatDateBR(p.melhor.data)}</small></td>
-                <td>${p.outros.map((o) => `<span class="alternativa"><b>${escaparHtml(o.fornecedor)}</b> · ${formatPrecoInsumo(o.custoUnit, o.unidade)} · ${formatDateBR(o.data)}</span>`).join('')}</td>
+                <td class="recomendado"><b>${escaparHtml(p.melhor.fornecedor)}</b><strong>${formatPrecoInsumo(p.melhor.custoUnit, p.unidade)}</strong><small><b>${escaparHtml(detalheVolumeCompra(p.melhor))}</b></small><small>${formatDateBR(p.melhor.data)}</small></td>
+                <td>${p.outros.map((o) => `<span class="alternativa"><b>${escaparHtml(o.fornecedor)}</b> · ${formatPrecoInsumo(o.custoUnit, o.unidade)}<small>${escaparHtml(detalheVolumeCompra(o))}</small><small>${formatDateBR(o.data)}</small></span>`).join('')}</td>
                 <td class="num economia"><b>${p.percentual.toFixed(1).replace('.', ',')}%</b><small>mais barato que a próxima opção</small></td>
               </tr>`).join('');
       
@@ -16240,10 +16263,12 @@ const porItem = useMemo(() => {
                                   <td className="py-2.5 px-3 t-body">{n.fornecedor}</td>
                                   <td className="py-2.5 px-3 text-right t-body tnum">
                                     {formatPrecoInsumo(n.inicio.custoUnit, n.unidade)}
+                                    <span className="t-callout font-bold block mt-1">{detalheVolumeCompra(n.inicio)}</span>
                                     <span className="t-nano ink-quiet block">{formatDateBR(n.inicio.data)}</span>
                                   </td>
                                   <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
                                     {formatPrecoInsumo(n.atual.custoUnit, n.unidade)}
+                                    <span className="t-callout font-bold block mt-1">{detalheVolumeCompra(n.atual)}</span>
                                     <span className="t-nano ink-quiet block">{formatDateBR(n.atual.data)}</span>
                                   </td>
                                   <td className="py-2.5 pl-3 text-right t-body tnum font-bold ink-expired">
@@ -16282,6 +16307,7 @@ const porItem = useMemo(() => {
                                     <span key={o.id || o.fornecedor} className="inline-flex flex-col rounded-xl bg-black/[0.045] px-3 py-2">
                                       <strong className="t-callout">{o.fornecedor}</strong>
                                       <span className="t-callout tnum font-semibold">{formatPrecoInsumo(o.custoUnit, o.unidade)}</span>
+                                      <span className="t-caption tnum font-bold">{detalheVolumeCompra(o)}</span>
                                       <span className="t-nano ink-quiet">{formatDateBR(o.data)}</span>
                                     </span>
                                   ))}
@@ -16291,6 +16317,7 @@ const porItem = useMemo(() => {
                                 <span className="t-overline-sm block">Prefira</span>
                                 <span className="t-title font-bold ink-fresh block mt-1">{p.melhor.fornecedor}</span>
                                 <span className="t-metric-xs tnum font-bold block mt-1">{formatPrecoInsumo(p.melhor.custoUnit, p.unidade)}</span>
+                                <span className="t-callout tnum font-bold block mt-1">{detalheVolumeCompra(p.melhor)}</span>
                                 <span className="t-caption ink-fresh font-bold block mt-1">
                                   {p.percentual.toFixed(1).replace('.', ',')}% mais barato que a próxima opção
                                 </span>
