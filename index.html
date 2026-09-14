@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-volume-compra-grafico-4" />
+    <meta name="app-version" content="2026-09-14-cadastro-opcoes-ocultas-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11343,7 +11343,20 @@
           resaleCategory: 'revenda'
         };
         const [draft, setDraft] = useState(BLANK_ENTRY);
+        const [opcoesExtrasCadastro, setOpcoesExtrasCadastro] = useState({
+          volume: false,
+          revenda: false,
+          equivalencia: false
+        });
         const nomeRef = useRef(null);
+
+        const alternarOpcaoExtraCadastro = (chave) => {
+          setOpcoesExtrasCadastro((atuais) => ({ ...atuais, [chave]: !atuais[chave] }));
+        };
+
+        const fecharOpcoesExtrasCadastro = () => {
+          setOpcoesExtrasCadastro({ volume: false, revenda: false, equivalencia: false });
+        };
 
         // A data que os campos de data começam preenchidos. Sem lançamento
         // nenhum ainda, hoje.
@@ -11368,7 +11381,8 @@
         // Só vale para o que se conta por unidade: detergente comprado em ml
         // continua sendo ml, e caixa de ml não quer dizer nada.
         const volumeDeClasseInterna = classeInterna && !temRevenda && (draft.unit || 'g') === 'un';
-        const compraPorVolume = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
+        const compraPorVolumeDisponivel = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
+        const compraPorVolume = compraPorVolumeDisponivel && opcoesExtrasCadastro.volume;
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -11523,6 +11537,7 @@
         // Um formulário só para qualquer entrada. O tipo muda a classificação
         // do cadastro, mas não troca a tela nem desmonta os campos digitados.
         const aplicarTipoEntrada = (tipo) => {
+          fecharOpcoesExtrasCadastro();
           setDraft((d) => {
             if (tipo === 'producao') {
               return {
@@ -11573,6 +11588,7 @@
         };
 
         const selecionarCadastro = (opt) => {
+          fecharOpcoesExtrasCadastro();
           const [tipo, id] = String(opt?.value || '').split(':');
 
           if (tipo === 'producao') {
@@ -11980,7 +11996,7 @@
                     </div>
                     <h3 className="t-title">Cadastro + compra</h3>
                     <p className="t-body mt-1.5">
-                      Um formulário só para tudo. Escolha o tipo no primeiro campo e siga com Enter. A equivalência fica na tabela abaixo para não atrapalhar o lançamento da compra.
+                      Um formulário só para tudo. Volume, preço de revenda e equivalência ficam fechados e você abre apenas quando precisar.
                     </p>
                   </div>
 
@@ -12057,6 +12073,94 @@
                       </div>
                     </div>
 
+                    {!modoProducao && (
+                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t hairline">
+                        {compraPorVolumeDisponivel && (
+                          <button
+                            type="button"
+                            onClick={() => alternarOpcaoExtraCadastro('volume')}
+                            className={`btn btn-sm ${opcoesExtrasCadastro.volume ? 'btn-primary' : 'btn-secondary'}`}
+                          >
+                            {opcoesExtrasCadastro.volume ? 'Ocultar volume/embalagem' : 'Adicionar volume/embalagem'}
+                          </button>
+                        )}
+                        {temRevenda && (
+                          <button
+                            type="button"
+                            onClick={() => alternarOpcaoExtraCadastro('revenda')}
+                            className={`btn btn-sm ${opcoesExtrasCadastro.revenda ? 'btn-primary' : 'btn-secondary'}`}
+                          >
+                            {opcoesExtrasCadastro.revenda ? 'Ocultar preço de revenda' : 'Adicionar preço de revenda'}
+                          </button>
+                        )}
+                        {temInsumo && (
+                          <button
+                            type="button"
+                            onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
+                            className={`btn btn-sm ${opcoesExtrasCadastro.equivalencia ? 'btn-primary' : 'btn-secondary'}`}
+                          >
+                            {opcoesExtrasCadastro.equivalencia ? 'Ocultar equivalência' : 'Adicionar equivalência'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {temInsumo && opcoesExtrasCadastro.equivalencia && (
+                      <div className="mt-3 rounded-2xl bg-black/[0.035] p-3 sm:p-4">
+                        <div className="t-overline-sm mb-2">Equivalência do item</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {draft.unit === 'un' ? (
+                            <>
+                              <span className="t-body font-semibold whitespace-nowrap">1 un =</span>
+                              <NumeroBRField
+                                value={draft.variationFactor}
+                                decimals={3}
+                                onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
+                                placeholder="ex: 30"
+                                className="field field-md text-right tnum w-24"
+                              />
+                              <div className="w-28 sm:w-36">
+                                <PickerField
+                                  value={draft.variationUnit}
+                                  options={UNIDADES_EQUIVALENCIA}
+                                  onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                                  onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                                  placeholder="g"
+                                  emptyLabel="Unidade nova"
+                                  className="field field-md"
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="t-body font-semibold">1</span>
+                              <div className="w-28 sm:w-36">
+                                <PickerField
+                                  value={draft.variationUnit}
+                                  options={UNIDADES_EQUIVALENCIA}
+                                  onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                                  onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                                  placeholder="fatia"
+                                  emptyLabel="Unidade nova"
+                                  className="field field-md"
+                                />
+                              </div>
+                              <span className="t-body font-semibold">=</span>
+                              <NumeroBRField
+                                value={draft.variationFactor}
+                                decimals={3}
+                                onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
+                                placeholder="ex: 30"
+                                className="field field-md text-right tnum w-24"
+                              />
+                              <span className="t-body font-semibold">{draft.unit}</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="t-micro mt-2">Exemplo: 1 un = 30 g. Essa informação também continua aparecendo na coluna Equiv. da tabela.</p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
                       <div className="col-span-12 sm:col-span-6 lg:col-span-3">
                         <label className="t-caption block mb-1">Fornecedor</label>
@@ -12130,31 +12234,32 @@
                         </select>
                       </div>
 
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Embalagem</label>
-                        <select
-                          value={compraPorVolume ? draft.packageType : ''}
-                          disabled={!compraPorVolume}
-                          onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {!compraPorVolume && <option value="">—</option>}
-                          {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                        </select>
-                      </div>
+                      {compraPorVolume && (
+                        <>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Embalagem</label>
+                            <select
+                              value={draft.packageType}
+                              onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
+                              className="field field-md field-select"
+                            >
+                              {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                            </select>
+                          </div>
 
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Un./volume</label>
-                        <NumeroBRField
-                          value={compraPorVolume ? draft.unitsPerPackage : ''}
-                          disabled={!compraPorVolume}
-                          decimals={0}
-                          onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
-                          placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
-                          sugestao={unidadesPorVolumeSugeridas || ''}
-                          className="field field-md text-right tnum disabled:opacity-50"
-                        />
-                      </div>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Un./volume</label>
+                            <NumeroBRField
+                              value={draft.unitsPerPackage}
+                              decimals={0}
+                              onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
+                              placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
+                              sugestao={unidadesPorVolumeSugeridas || ''}
+                              className="field field-md text-right tnum"
+                            />
+                          </div>
+                        </>
+                      )}
 
                       <div className="col-span-8 sm:col-span-3 lg:col-span-2">
                         <label className="t-caption block mb-1">Valor pago</label>
@@ -12184,32 +12289,33 @@
                           className="field field-md text-center tnum disabled:opacity-50"
                         />
                       </div>
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Preço venda</label>
-                        <NumeroBRField
-                          value={modoProducao || temRevenda ? draft.price : ''}
-                          disabled={!modoProducao && !temRevenda}
-                          decimals={2}
-                          fixedDecimals={true}
-                          onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
-                          placeholder="0,00"
-                          className="field field-md text-right tnum disabled:opacity-50"
-                        />
-                      </div>
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Vende por</label>
-                        <select
-                          value={modoProducao || temRevenda ? draft.priceUnit : ''}
-                          disabled={!modoProducao && !temRevenda}
-                          onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {!modoProducao && !temRevenda && <option value="">—</option>}
-                          <option value="un">un</option>
-                          <option value="kg">kg</option>
-                          {!modoProducao && <option value="g">g</option>}
-                        </select>
-                      </div>
+                      {(modoProducao || (temRevenda && opcoesExtrasCadastro.revenda)) && (
+                        <>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">{modoProducao ? 'Preço de venda' : 'Preço de revenda'}</label>
+                            <NumeroBRField
+                              value={draft.price}
+                              decimals={2}
+                              fixedDecimals={true}
+                              onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
+                              placeholder="0,00"
+                              className="field field-md text-right tnum"
+                            />
+                          </div>
+                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                            <label className="t-caption block mb-1">Vende por</label>
+                            <select
+                              value={draft.priceUnit}
+                              onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
+                              className="field field-md field-select"
+                            >
+                              <option value="un">un</option>
+                              <option value="kg">kg</option>
+                              {!modoProducao && <option value="g">g</option>}
+                            </select>
+                          </div>
+                        </>
+                      )}
                       <div className="col-span-12 sm:col-span-6 lg:col-span-5">
                         <div className="rounded-xl bg-black/[0.035] px-3 py-2 t-micro min-h-11 flex items-center">
                           {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
