@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-precos-periodo-pendencias-1" />
+    <meta name="app-version" content="2026-09-14-precos-cabecalho-produto-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14423,42 +14423,79 @@
         const COMPRAS_NA_FOLHA = 6;
 
         const carrinho = (i) => {
-          const linhas = (i.historico || []).slice(0, COMPRAS_NA_FOLHA);
-          if (!linhas.length) return '';
-          const restam = (i.historico || []).length - linhas.length;
-          return `<tr class="hist"><td colspan="7">
-            <table class="hist-tab">
-              <thead><tr>
-                <th>Data</th><th>Fornecedor</th><th class="c-tipo">Tipo</th>
-                <th class="num">Quantidade</th><th class="num">Valor pago</th><th class="num">Custo unit.</th>
-              </tr></thead>
-              <tbody>${linhas.map((c) => `<tr>
-                <td class="data">${c.data ? formatDateBR(c.data) : '—'}</td>
-                <td class="forn">${c.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(c.fornecedor)}</td>
-                <td class="c-tipo"><span class="tipo">${escaparHtml(c.tipo)}</span></td>
-                <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
-                <td class="num forte">${formatCurrencyBR(c.cost)}</td>
-                <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
-              </tr>`).join('')}</tbody>
-            </table>
-            ${restam > 0 ? `<p class="mais">e mais ${restam} ${restam === 1 ? 'compra anterior' : 'compras anteriores'} no sistema.</p>` : ''}
-          </td></tr>`;
+                  const linhas = (i.historico || []).slice(0, COMPRAS_NA_FOLHA);
+                  if (!linhas.length) return '';
+                  const restam = (i.historico || []).length - linhas.length;
+                  return `<div class="hist">
+                    <table class="hist-tab">
+                      <thead><tr>
+                        <th>Data</th><th>Fornecedor</th><th class="c-tipo">Tipo</th>
+                        <th class="num">Quantidade</th><th class="num">Valor pago</th><th class="num">Custo unit.</th>
+                      </tr></thead>
+                      <tbody>${linhas.map((c) => `<tr>
+                        <td class="data">${c.data ? formatDateBR(c.data) : 'Não informada'}</td>
+                        <td class="forn">${c.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Não informado</span>' : escaparHtml(c.fornecedor)}</td>
+                        <td class="c-tipo"><span class="tipo">${escaparHtml(c.tipo)}</span></td>
+                        <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+                        <td class="num forte">${formatCurrencyBR(c.cost)}</td>
+                        <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+                      </tr>`).join('')}</tbody>
+                    </table>
+                    ${restam > 0 ? `<p class="mais">e mais ${restam} ${restam === 1 ? 'compra anterior' : 'compras anteriores'} no sistema.</p>` : ''}
+                  </div>`;
         };
 
         // Um tbody por item, para o resumo e o carrinho nunca se separarem
         // numa virada de página
-        const linhaDaTabela = (i) => `<tbody class="item">
-          <tr class="cabeca">
-            <td class="nome">${escaparHtml(i.item)}</td>
-            <td class="num" data-rot="Agora">${formatCurrencyBR(i.precoAtual)}<span class="un">/${i.unidadeRef}</span></td>
-            <td class="num antes" data-rot="Antes">${formatCurrencyBR(i.precoAnterior)}</td>
-            <td class="num mudou ${i.varPct > 0 ? 'sobe' : 'desce'}" data-rot="Mudou">${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}<span class="pct">${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%</span></td>
-            <td class="num forte ${i.impacto > 0 ? 'sobe' : 'desce'}" data-rot="Na compra de ${numeroCurtoBR(i.qtdHabitual)} ${i.unidadeRef}">${Math.abs(i.impacto) >= 0.01 ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}` : '<span class="quieto">—</span>'}</td>
-            <td class="forn" data-rot="Fornecedor">${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">não lançado</span>' : escaparHtml(i.fornecedorAtual)}</td>
-            <td class="cotar"></td>
-          </tr>
-          ${carrinho(i)}
-        </tbody>`;
+        const linhaDaTabela = (i) => {
+                  const impacto = Math.abs(i.impacto) >= 0.01
+                    ? `${relSinal(i.impacto)}${formatCurrencyBR(Math.abs(i.impacto))}`
+                    : '—';
+                  const variacao = i.varPct === null
+                    ? '—'
+                    : `${relSinal(i.varUnit)}${formatCurrencyBR(Math.abs(i.varUnit))}`;
+                  const percentual = i.varPct === null
+                    ? ''
+                    : `${relSinal(i.varPct)}${Math.abs(i.varPct).toFixed(1).replace('.', ',')}%`;
+        
+                  return `<tbody class="item">
+                    <tr class="item-bloco"><td colspan="7">
+                      <div class="produto-resumo">
+                        <div class="produto-nome">
+                          <span class="rotulo">Item</span>
+                          <strong>${escaparHtml(i.item)}</strong>
+                        </div>
+                        <div class="dado">
+                          <span class="rotulo">Atual</span>
+                          <strong class="valor">${formatCurrencyBR(i.precoAtual)}<small>/${i.unidadeRef}</small></strong>
+                        </div>
+                        <div class="dado antes">
+                          <span class="rotulo">Anterior</span>
+                          <strong class="valor">${i.precoAnterior !== null ? formatCurrencyBR(i.precoAnterior) : '—'}</strong>
+                        </div>
+                        <div class="dado mudou ${i.varPct > 0 ? 'sobe' : i.varPct < 0 ? 'desce' : ''}">
+                          <span class="rotulo">Variação</span>
+                          <strong class="valor">${variacao}</strong>
+                          ${percentual ? `<small>${percentual}</small>` : ''}
+                        </div>
+                        <div class="dado ${i.impacto > 0 ? 'sobe' : i.impacto < 0 ? 'desce' : ''}">
+                          <span class="rotulo">Impacto</span>
+                          <strong class="valor">${impacto}</strong>
+                          <small>compra habitual</small>
+                        </div>
+                        <div class="dado fornecedor">
+                          <span class="rotulo">Fornecedor</span>
+                          <strong>${i.fornecedorAtual === 'Sem fornecedor' ? '<span class="quieto">Não informado</span>' : escaparHtml(i.fornecedorAtual)}</strong>
+                        </div>
+                        <div class="dado cotacao">
+                          <span class="rotulo">Cotei</span>
+                          <span class="linha-cotacao"></span>
+                        </div>
+                      </div>
+                      ${carrinho(i)}
+                    </td></tr>
+                  </tbody>`;
+        };
 
         const secao = (titulo, itens, classe, resumo) => `
           <section class="bloco">
@@ -14586,6 +14623,37 @@
             .hist-tab .tipo { font-size: 7pt; text-transform: uppercase; letter-spacing: .04em;
                               border: 1px solid #ccc; border-radius: 999px; padding: 1px 6px; color: #555; }
             .mais { margin: 4px 0 0; font-size: 8pt; color: #777; font-style: italic; }
+
+            /* Cada produto é uma peça única: o resumo e seu histórico não
+               podem se separar na virada da página. Os rótulos dentro da faixa
+               eliminam a ambiguidade e dão respiro entre valores e fornecedor. */
+            .lista > colgroup, .lista > thead { display: none; }
+            tbody.item { break-inside: avoid-page; page-break-inside: avoid; }
+            tr.item-bloco { break-inside: avoid-page; page-break-inside: avoid; }
+            tr.item-bloco > td { padding: 0 0 14px; border: 0; border-top: 2px solid #111; }
+            .produto-resumo { display: grid;
+                              grid-template-columns: minmax(0, 1.75fr) .82fr .82fr 1fr .95fr 1.1fr .72fr;
+                              align-items: stretch; background: #f3f3f1; }
+            .produto-resumo > div { min-width: 0; padding: 8px 6px; }
+            .produto-resumo > div + div { border-left: 1px solid #ddd; }
+            .produto-nome strong { display: block; font-size: 11pt; line-height: 1.22;
+                                   overflow-wrap: anywhere; }
+            .rotulo { display: block; margin-bottom: 3px; color: #666; font-size: 6.7pt;
+                      line-height: 1; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
+            .dado { font-variant-numeric: tabular-nums; }
+            .dado .valor { display: block; font-size: 10.2pt; line-height: 1.15; white-space: normal; }
+            .dado small { display: block; margin-top: 2px; color: inherit; font-size: 7.5pt;
+                          font-weight: 600; line-height: 1.15; }
+            .dado.fornecedor strong { display: block; font-size: 9.2pt; line-height: 1.2;
+                                      overflow-wrap: anywhere; }
+            .cotacao { background: #fff; }
+            .linha-cotacao { display: block; min-height: 20px; border-bottom: 1px solid #888; }
+            .hist { padding: 5px 0 0 8px; }
+            .hist-tab { break-inside: avoid; page-break-inside: avoid; }
+            @media screen and (max-width: 620px) {
+              .produto-resumo { grid-template-columns: 1.5fr 1fr 1fr; }
+              .produto-nome, .dado.fornecedor { grid-column: span 2; }
+            }
 
             ${REGRAS_CARTAO('body.cartoes')}
             /* Tabela de sete colunas não cabe num telefone: na tela estreita
