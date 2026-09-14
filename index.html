@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-fornecedores-relatorios-a4-2" />
+    <meta name="app-version" content="2026-09-14-precos-periodo-pendencias-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14207,12 +14207,25 @@
       // A tela de Fornecedores sempre comparou cada compra com a anterior do
       // mesmo item, sem olhar data. A folha lê a mesma coisa, e por isso
       // bate com o que está na tela.
-      const montarRelatorioDeCompra = (compras, hoje) => {
-        const lancadas = compras.filter((c) => c.data && c.data <= hoje);
+      const montarRelatorioDeCompra = (compras, hoje, meses = 3) => {
+        const quantidadeMeses = Number(meses) || 3;
+        const inicio = new Date(hoje + 'T12:00:00');
+        // Meses-calendário: em setembro, por exemplo, "3 meses" começa em
+        // 1º de julho e vai até hoje. Compras sem data entram sempre, pois não
+        // seria correto escondê-las em um relatório usado para corrigir dados.
+        inicio.setDate(1);
+        inicio.setMonth(inicio.getMonth() - (quantidadeMeses - 1));
+        const inicioPeriodo = [
+          inicio.getFullYear(),
+          String(inicio.getMonth() + 1).padStart(2, '0'),
+          '01'
+        ].join('-');
+        const lancadas = compras.filter((c) => !c.data || (c.data >= inicioPeriodo && c.data <= hoje));
         const porItem = {};
         lancadas.forEach((c) => { (porItem[c.itemId] = porItem[c.itemId] || []).push(c); });
-        const datas = lancadas.map((c) => c.data).sort();
-        const desde = datas[0] || hoje;
+        const datas = lancadas.map((c) => c.data).filter(Boolean).sort();
+        const desde = inicioPeriodo;
+        const incompletas = lancadas.filter((c) => !c.data || c.fornecedor === 'Sem fornecedor');
 
         const itens = Object.entries(porItem)
           .map(([itemId, lista]) => {
@@ -14230,6 +14243,8 @@
         return {
           desde,
           ate: hoje,
+          periodoMeses: quantidadeMeses,
+          incompletas,
           itens,
           resumo: {
             subiu: subiu.length,
@@ -14382,6 +14397,23 @@
         // que acabou de lançar precisa achar a resposta aqui, e não desconfiar
         // do relatório.
         const semAnterior = rel.itens.filter((i) => i.varPct === null).length;
+
+        const incompletas = rel.incompletas || [];
+        const linhasIncompletas = incompletas.map((c) => {
+          const faltas = [
+            !c.data ? 'Data' : '',
+            c.fornecedor === 'Sem fornecedor' ? 'Fornecedor' : ''
+          ].filter(Boolean).join(' e ');
+          return `<tr>
+            <td class="nome">${escaparHtml(c.item)}</td>
+            <td>${escaparHtml(c.tipo)}</td>
+            <td>${c.data ? formatDateBR(c.data) : '<strong>Não informada</strong>'}</td>
+            <td>${c.fornecedor === 'Sem fornecedor' ? '<strong>Não informado</strong>' : escaparHtml(c.fornecedor)}</td>
+            <td class="num">${c.qty > 0 ? `${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}` : '—'}</td>
+            <td class="num">${c.cost > 0 ? formatCurrencyBR(c.cost) : '—'}</td>
+            <td><strong>${escaparHtml(faltas)} pendente${faltas.includes(' e ') ? 's' : ''}</strong></td>
+          </tr>`;
+        }).join('');
         const impactoAltas = subiram.reduce((s, i) => s + Math.max(0, i.impacto), 0);
         const economiaQuedas = cairam.reduce((s, i) => s + Math.min(0, i.impacto), 0);
 
@@ -14515,6 +14547,14 @@
             .ausentes { margin: 16px 0 0; padding: 9px 11px; font-size: 10pt; color: #333;
                         background: #f4f4f2; border-left: 3px solid #999; border-radius: 3px; }
             .ausentes strong { color: #111; }
+            .pendencias { margin-bottom: 14px; }
+            .pendencias h2 { color: #7D2027; }
+            .pendencias th:nth-child(1) { width: 20%; }
+            .pendencias th:nth-child(2) { width: 12%; }
+            .pendencias th:nth-child(3) { width: 12%; }
+            .pendencias th:nth-child(4) { width: 17%; }
+            .pendencias th:nth-child(5), .pendencias th:nth-child(6) { width: 11%; }
+            .pendencias th:nth-child(7) { width: 17%; }
             footer { margin-top: 14px; font-size: 9.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
             .dica { display: block; margin-top: 4px; font-style: italic; }
             @media print { .dica { display: none; } }
@@ -14557,7 +14597,7 @@
 
           <header>
             <h1>Preços de compra${categoria === 'todos' ? '' : ` — ${escaparHtml(categoria)}`}</h1>
-            <div class="sub">${escaparHtml(unidadeNome)} · ${formatDateBR(rel.ate)} · ${mudaram.length} ${mudaram.length === 1 ? 'item mudou' : 'itens mudaram'} de preço desde a compra anterior</div>
+            <div class="sub">${escaparHtml(unidadeNome)} · últimos ${rel.periodoMeses} ${rel.periodoMeses === 1 ? 'mês' : 'meses'} · até ${formatDateBR(rel.ate)} · ${mudaram.length} ${mudaram.length === 1 ? 'item mudou' : 'itens mudaram'} de preço</div>
           </header>
 
           <div class="placar">
@@ -14566,6 +14606,14 @@
             <div><b>${iguais}</b> ${iguais === 1 ? 'item segue' : 'itens seguem'} no mesmo preço</div>
           </div>
 
+          ${incompletas.length ? `<section class="pendencias">
+            <h2>DADOS A COMPLETAR (${incompletas.length})</h2>
+            <p class="vazio">Estes produtos entram no relatório mesmo sem data ou fornecedor, para que possam ser conferidos e corrigidos.</p>
+            <table>
+              <thead><tr><th>Item</th><th>Categoria</th><th>Data</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Valor</th><th>Pendência</th></tr></thead>
+              <tbody>${linhasIncompletas}</tbody>
+            </table>
+          </section>` : ''}
           ${mudaram.length
             ? secao('▲ Subiram de preço', subiram, 'sobe', `+${formatCurrencyBR(impactoAltas)} na próxima compra`)
               + secao('▼ Caíram de preço', cairam, 'desce', `−${formatCurrencyBR(Math.abs(economiaQuedas))} na próxima compra`)
@@ -14578,7 +14626,7 @@
           </p>` : ''}
 
           <footer>
-            Cada item é comparado com a compra anterior dele mesmo, seja ela de ontem ou de meses atrás — as compras vão de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}.
+            Cada item é comparado com a compra anterior dentro dos últimos ${rel.periodoMeses} meses — de ${formatDateBR(rel.desde)} a ${formatDateBR(rel.ate)}. Produtos sem data aparecem em “Dados a completar” e não são excluídos pelo período.
             "Na compra" é a mudança de preço multiplicada pela quantidade que a casa costuma comprar de uma vez: é o que entra ou sai do caixa na próxima compra.
             A coluna "Cotei" fica em branco para anotar o preço novo na hora do telefonema.
             <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
@@ -15138,6 +15186,7 @@
         const [mesFiltro, setMesFiltro] = useState('');
         const [dataInicio, setDataInicio] = useState('');
         const [dataFim, setDataFim] = useState('');
+        const [periodoRelatorioPrecos, setPeriodoRelatorioPrecos] = useState('3');
         const [historicoFornecedor, setHistoricoFornecedor] = useState(null);
         // Fechado por padrão: com doze fornecedores e centenas de compras, a
         // lista aberta era uma parede. Quem quer conferir uma nota abre a dela.
@@ -15246,30 +15295,76 @@
         // fora do mês que a pessoa está olhando: filtrar por data aqui faria
         // a folha voltar a sair com dois itens.
         const imprimirRelatorioDeCompra = (formato) => {
-          const base = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
-          const rel = montarRelatorioDeCompra(base, getTodayDateString());
-          if (!rel.itens.length) {
-            window.alert(tipoFiltro === 'todos'
-              ? "Nenhuma compra lançada ainda — não há o que analisar."
-              : `Nenhuma compra de ${tipoFiltro.toLowerCase()} lançada ainda — não há o que analisar.`);
-            return;
-          }
-          const janela = window.open('', '_blank');
-          if (!janela) {
-            window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
-            return;
-          }
-          janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato, tipoFiltro));
-          janela.document.close();
-          // Igual à folha de "Preços a rever": no computador a impressão abre
-          // sozinha, que é o gesto esperado ali; no celular quem manda é o
-          // botão no topo da folha, porque o onload de uma página criada por
-          // document.write muitas vezes nem chega a disparar.
-          if (window.matchMedia("(min-width: 900px)").matches) {
-            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
-            if (janela.document.readyState === "complete") setTimeout(abrirImpressao, 250);
-            else janela.onload = () => setTimeout(abrirImpressao, 250);
-          }
+                  const porCategoria = tipoFiltro === 'todos'
+                    ? todas
+                    : todas.filter((c) => c.tipo === tipoFiltro);
+                  const baseCompras = termo
+                    ? porCategoria.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
+                    : porCategoria;
+        
+                  // Um cadastro sem nenhuma compra também precisa aparecer: é
+                  // justamente ele que precisa de fornecedor, data, quantidade e
+                  // valor. A lista por nome evita duplicar itens híbridos
+                  // (insumo + revenda) que representam o mesmo produto.
+                  const nomesComCompra = new Set(todas.map((c) => normalizeName(c.item)));
+                  const chavesSemCompra = new Set();
+                  const cadastros = [
+                    ...supplies.map((s) => ({
+                      itemId: `s${s.id}`,
+                      item: s.name,
+                      tipo: CATEGORIA_DA_COMPRA[s.supplyClass] || 'Ingrediente',
+                      unidade: s.unit || 'un'
+                    })),
+                    ...separatedProducts
+                      .filter((p) => p.unit === currentUnit)
+                      .map((p) => ({
+                        itemId: `r${p.id}`,
+                        item: p.productName,
+                        tipo: 'Revenda',
+                        unidade: p.priceUnit || 'un'
+                      }))
+                  ];
+                  const semCompra = cadastros.filter((c) => {
+                    const nome = normalizeName(c.item);
+                    const chave = `${c.tipo}|${nome}`;
+                    if (!nome || nomesComCompra.has(nome) || chavesSemCompra.has(chave)) return false;
+                    if (tipoFiltro !== 'todos' && c.tipo !== tipoFiltro) return false;
+                    if (termo && !casaComBusca(c.item, termo)) return false;
+                    chavesSemCompra.add(chave);
+                    return true;
+                  }).map((c) => ({
+                    ...c,
+                    id: `pendente-${c.itemId}`,
+                    fornecedor: 'Sem fornecedor',
+                    data: '',
+                    criadoEm: '',
+                    qty: 0,
+                    cost: 0,
+                    custoUnit: 0,
+                    variacaoUnit: null,
+                    variacaoPct: null
+                  }));
+        
+                  const base = [...baseCompras, ...semCompra];
+                  const rel = montarRelatorioDeCompra(base, getTodayDateString(), periodoRelatorioPrecos);
+                  if (!rel.itens.length && !rel.incompletas.length) {
+                    window.alert(tipoFiltro === 'todos'
+                      ? "Nenhum produto encontrado para este relatório."
+                      : `Nenhum produto de ${tipoFiltro.toLowerCase()} encontrado para este relatório.`);
+                    return;
+                  }
+                  const janela = window.open('', '_blank');
+                  if (!janela) {
+                    window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
+                    return;
+                  }
+                  janela.document.write(htmlRelatorioDeCompra(rel, unitName, formato, tipoFiltro));
+                  janela.document.close();
+                  if (window.matchMedia("(min-width: 900px)").matches) {
+                    const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) { /* a folha continua lá, com o botão */ } };
+                    if (janela.document.readyState === "complete") setTimeout(abrirImpressao, 250);
+                    else janela.onload = () => setTimeout(abrirImpressao, 250);
+                  }
         };
 
         // O ritmo de compra: outra pergunta, outra folha. Segue a mesma
@@ -15702,11 +15797,21 @@
                 {/* O relatório original de preços continua disponível; o
                     relatório completo é a visão gerencial que segue os filtros
                     da página. O relatório de ritmo foi retirado desta aba. */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={periodoRelatorioPrecos}
+                    onChange={(e) => setPeriodoRelatorioPrecos(e.target.value)}
+                    title="Período usado no relatório de preços"
+                    className="field field-sm field-select field-auto"
+                  >
+                    <option value="3">Últimos 3 meses</option>
+                    <option value="6">Últimos 6 meses</option>
+                    <option value="12">Último 1 ano</option>
+                  </select>
                   <button
                     onClick={() => imprimirRelatorioDeCompra('a4')}
-                    disabled={todas.length === 0}
-                    title="Relatório de preços de compra em A4, com comparação, variações e histórico"
+                    disabled={todas.length === 0 && supplies.length === 0 && separatedProducts.length === 0}
+                    title="Relatório de preços de compra em A4, incluindo produtos sem data ou fornecedor"
                     className="btn btn-primary btn-sm disabled:opacity-40"
                   >
                     <Icons.ShoppingCart className="w-3.5 h-3.5" />
