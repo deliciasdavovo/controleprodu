@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-variacao-na-tabela-1" />
+    <meta name="app-version" content="2026-09-14-resumo-fornecedores-periodo-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15268,6 +15268,7 @@
         // lista aberta era uma parede. Quem quer conferir uma nota abre a dela.
         const [fornecedoresAbertos, setFornecedoresAbertos] = useState([]);
         const [historicoItem, setHistoricoItem] = useState(null);
+        const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
 
         const todas = useMemo(
           () => reunirCompras(supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit),
@@ -15335,6 +15336,92 @@ const inicioPeriodoVariacao = useMemo(() => {
             };
           });
           return resultado;
+        }, [todas, tipoFiltro, termo, inicioPeriodoVariacao]);
+
+const resumoFornecedoresPeriodo = useMemo(() => {
+          const hoje = getTodayDateString();
+          const baseCategoria = tipoFiltro === 'todos'
+            ? todas
+            : todas.filter((c) => c.tipo === tipoFiltro);
+          const baseBusca = termo
+            ? baseCategoria.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
+            : baseCategoria;
+          const validas = baseBusca.filter((c) =>
+            c.data
+            && c.data >= inicioPeriodoVariacao
+            && c.data <= hoje
+            && c.custoUnit > 0
+            && c.fornecedor !== 'Sem fornecedor'
+          );
+
+          // Mesmo item + mesmo fornecedor: primeira compra contra a mais
+          // recente. Só aumentos entram na lista de negociação.
+          const gruposNegociacao = {};
+          validas.forEach((c) => {
+            const chave = `${c.itemId}|${normalizeName(c.fornecedor)}`;
+            (gruposNegociacao[chave] = gruposNegociacao[chave] || []).push(c);
+          });
+          const negociacoes = Object.entries(gruposNegociacao).map(([chave, lista]) => {
+            const pontos = [...lista].sort((a, b) => {
+              const d = (a.data || '').localeCompare(b.data || '');
+              return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
+            });
+            if (pontos.length < 2) return null;
+            const inicio = pontos[0];
+            const atual = pontos[pontos.length - 1];
+            const diferenca = atual.custoUnit - inicio.custoUnit;
+            const percentual = inicio.custoUnit > 0 ? (diferenca / inicio.custoUnit) * 100 : null;
+            if (!(diferenca > 0) || !(percentual >= 0.1)) return null;
+            return {
+              chave,
+              item: atual.item,
+              tipo: atual.tipo,
+              unidade: atual.unidade,
+              fornecedor: atual.fornecedor,
+              inicio,
+              atual,
+              diferenca,
+              percentual
+            };
+          }).filter(Boolean).sort((a, b) =>
+            b.percentual - a.percentual || b.diferenca - a.diferenca
+          );
+
+          // Mesmo item, fornecedores diferentes: compara o último preço de
+          // cada um dentro do período e recomenda o menor preço recente.
+          const gruposItem = {};
+          validas.forEach((c) => { (gruposItem[c.itemId] = gruposItem[c.itemId] || []).push(c); });
+          const preferencias = Object.entries(gruposItem).map(([itemId, lista]) => {
+            const ultimos = {};
+            lista.forEach((c) => {
+              const chaveFornecedor = normalizeName(c.fornecedor);
+              const existente = ultimos[chaveFornecedor];
+              const assinatura = `${c.data || ''}|${c.criadoEm || ''}`;
+              const assinaturaExistente = existente ? `${existente.data || ''}|${existente.criadoEm || ''}` : '';
+              if (!existente || assinatura >= assinaturaExistente) ultimos[chaveFornecedor] = c;
+            });
+            const precos = Object.values(ultimos).sort((a, b) => a.custoUnit - b.custoUnit);
+            if (precos.length < 2) return null;
+            const melhor = precos[0];
+            const segundo = precos[1];
+            const diferenca = segundo.custoUnit - melhor.custoUnit;
+            const percentual = segundo.custoUnit > 0 ? (diferenca / segundo.custoUnit) * 100 : 0;
+            if (!(diferenca > 0.000001)) return null;
+            return {
+              chave: itemId,
+              item: melhor.item,
+              tipo: melhor.tipo,
+              unidade: melhor.unidade,
+              melhor,
+              outros: precos.slice(1),
+              diferenca,
+              percentual
+            };
+          }).filter(Boolean).sort((a, b) =>
+            b.percentual - a.percentual || b.diferenca - a.diferenca
+          );
+
+          return { negociacoes, preferencias, comprasAnalisadas: validas.length };
         }, [todas, tipoFiltro, termo, inicioPeriodoVariacao]);
 
         const mesesDisponiveis = useMemo(() => {
@@ -15803,6 +15890,143 @@ const porItem = useMemo(() => {
 
         return (
           <div className="space-y-5">
+            {resumoPeriodoAberto && (
+              <div className="fixed inset-0 z-[190] flex items-end sm:items-center justify-center p-0 sm:p-6">
+                <button
+                  type="button"
+                  aria-label="Fechar resumo do período"
+                  onClick={() => setResumoPeriodoAberto(false)}
+                  className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+                />
+                <div className="relative w-full sm:max-w-5xl max-h-[92vh] overflow-hidden bg-white rounded-t-[26px] sm:rounded-[24px] shadow-2xl border hairline">
+                  <div className="px-5 sm:px-6 py-4 border-b hairline">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                        <Icons.ShoppingCart className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="t-overline">Resumo do período</div>
+                        <h3 className="t-title">Decisões com fornecedores</h3>
+                        <p className="t-micro mt-1">
+                          {periodoRelatorioPrecos === '12' ? 'Último 1 ano' : `Últimos ${periodoRelatorioPrecos} meses`}
+                          {' · '}{resumoFornecedoresPeriodo.comprasAnalisadas} compras analisadas
+                        </p>
+                      </div>
+                      <button type="button" onClick={() => setResumoPeriodoAberto(false)} className="btn btn-secondary btn-sm">Fechar</button>
+                    </div>
+                    <div className="segmented mt-4 w-full sm:w-auto sm:inline-flex">
+                      {[
+                        { valor: '3', rotulo: '3 meses' },
+                        { valor: '6', rotulo: '6 meses' },
+                        { valor: '9', rotulo: '9 meses' },
+                        { valor: '12', rotulo: '1 ano' }
+                      ].map((opcao) => (
+                        <button
+                          key={opcao.valor}
+                          type="button"
+                          onClick={() => setPeriodoRelatorioPrecos(opcao.valor)}
+                          data-active={periodoRelatorioPrecos === opcao.valor}
+                          className="flex-1 sm:flex-none h-8 px-4"
+                        >
+                          {opcao.rotulo}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="overflow-auto max-h-[72vh] px-5 sm:px-6 py-5 space-y-6">
+                    <section>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+                        <h4 className="t-title">Negocie com o fornecedor</h4>
+                        <span className="pill tone-expired">{resumoFornecedoresPeriodo.negociacoes.length}</span>
+                      </div>
+                      <p className="t-body ink-quiet mb-3">
+                        O mesmo fornecedor aumentou o preço deste produto dentro do período.
+                      </p>
+                      {resumoFornecedoresPeriodo.negociacoes.length === 0 ? (
+                        <div className="card p-5">
+                          <p className="t-body ink-quiet">Nenhum aumento do mesmo fornecedor neste período.</p>
+                        </div>
+                      ) : (
+                        <div className="card p-4 sm:p-5 rola-x">
+                          <table className="w-full text-left tabela-larga">
+                            <thead>
+                              <tr className="t-overline-sm border-b hairline">
+                                <th className="py-2 pr-3 font-bold">Produto</th>
+                                <th className="py-2 px-3 font-bold">Fornecedor</th>
+                                <th className="py-2 px-3 text-right font-bold">Início</th>
+                                <th className="py-2 px-3 text-right font-bold">Atual</th>
+                                <th className="py-2 pl-3 text-right font-bold">Aumento</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {resumoFornecedoresPeriodo.negociacoes.map((n) => (
+                                <tr key={n.chave} className="border-t hairline">
+                                  <td className="py-2.5 pr-3">
+                                    <span className="t-callout font-semibold">{n.item}</span>
+                                    <span className="t-nano ink-quiet block">{n.tipo}</span>
+                                  </td>
+                                  <td className="py-2.5 px-3 t-body">{n.fornecedor}</td>
+                                  <td className="py-2.5 px-3 text-right t-body tnum">
+                                    {formatPrecoInsumo(n.inicio.custoUnit, n.unidade)}
+                                    <span className="t-nano ink-quiet block">{formatDateBR(n.inicio.data)}</span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
+                                    {formatPrecoInsumo(n.atual.custoUnit, n.unidade)}
+                                    <span className="t-nano ink-quiet block">{formatDateBR(n.atual.data)}</span>
+                                  </td>
+                                  <td className="py-2.5 pl-3 text-right t-body tnum font-bold ink-expired">
+                                    +{formatPrecoInsumo(n.diferenca, n.unidade)}
+                                    <span className="t-nano block">+{n.percentual.toFixed(1).replace('.', ',')}%</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </section>
+
+                    <section>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+                        <h4 className="t-title">Prefira este fornecedor</h4>
+                        <span className="pill tone-fresh">{resumoFornecedoresPeriodo.preferencias.length}</span>
+                      </div>
+                      <p className="t-body ink-quiet mb-3">
+                        O preço mais recente deste fornecedor está abaixo das outras opções para o mesmo produto.
+                      </p>
+                      {resumoFornecedoresPeriodo.preferencias.length === 0 ? (
+                        <div className="card p-5">
+                          <p className="t-body ink-quiet">Nenhum produto com preços diferentes entre fornecedores neste período.</p>
+                        </div>
+                      ) : (
+                        <div className="card p-4 sm:p-5 space-y-1 divide-hairline">
+                          {resumoFornecedoresPeriodo.preferencias.map((p) => (
+                            <div key={p.chave} className="py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                              <div className="min-w-0 flex-1">
+                                <span className="t-callout font-semibold block">{p.item}</span>
+                                <span className="t-micro block">
+                                  Outras opções: {p.outros.map((o) => o.fornecedor + ' (' + formatPrecoInsumo(o.custoUnit, o.unidade) + ')').join(' · ')}
+                                </span>
+                              </div>
+                              <div className="sm:text-right shrink-0">
+                                <span className="t-overline-sm block">Prefira</span>
+                                <span className="t-body font-bold ink-fresh block">{p.melhor.fornecedor}</span>
+                                <span className="t-body tnum font-semibold">{formatPrecoInsumo(p.melhor.custoUnit, p.unidade)}</span>
+                                <span className="t-nano ink-fresh font-bold block">
+                                  {p.percentual.toFixed(1).replace('.', ',')}% mais barato que a próxima opção
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {historicoFornecedor && (
               <div className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center p-0 sm:p-6">
                 <button
@@ -15931,6 +16155,15 @@ const porItem = useMemo(() => {
                     relatório completo é a visão gerencial que segue os filtros
                     da página. O relatório de ritmo foi retirado desta aba. */}
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResumoPeriodoAberto(true)}
+                    disabled={todas.length === 0}
+                    title="Mostra onde negociar e qual fornecedor tem o menor preço no período"
+                    className="btn btn-secondary btn-sm disabled:opacity-40"
+                  >
+                    Resumo do período
+                  </button>
                   <button
                     onClick={() => imprimirRelatorioDeCompra('a4')}
                     disabled={todas.length === 0 && supplies.length === 0 && separatedProducts.length === 0}
