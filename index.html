@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-volume-compra-grafico-2" />
+    <meta name="app-version" content="2026-09-14-volume-compra-grafico-3" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2399,13 +2399,11 @@
       // referência prática da nota e evita confundir sachê com unidade solta.
       const detalheVolumeCompra = (compra) => {
         const fator = Number(compra?.unidadesPorVolume) || 0;
-        const tipo = String(compra?.volumeTipo || 'volume').toLowerCase();
-        if (compra?.unidade === 'un' && fator > 0 && compra?.custoUnit > 0) {
+        const tipo = String(compra?.volumeTipo || '').toLowerCase();
+        const volumeComercial = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipo);
+        if (compra?.unidade === 'un' && volumeComercial && fator > 0 && compra?.custoUnit > 0) {
           const precoVolume = compra.custoUnit * fator;
-          return `${formatCurrencyBR(precoVolume)}/${tipo} · ${numeroCurtoBR(fator)} un`;
-        }
-        if (compra?.cost > 0 && compra?.qty > 0) {
-          return `${formatCurrencyBR(compra.cost)} no volume · ${numeroCurtoBR(compra.qty)} ${compra.unidade || 'un'}`;
+          return `${formatCurrencyBR(precoVolume)}/${tipo === 'outro' ? 'volume' : tipo} · ${numeroCurtoBR(fator)} un`;
         }
         return '';
       };
@@ -13894,9 +13892,11 @@
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
               cost: Number(c.cost) || 0,
-              volumeTipo: s.unit === 'un' && Number(s.variationFactor) > 0
-                ? (s.variationUnit || 'volume')
-                : '',
+              volumeTipo: (
+                s.unit === 'un'
+                && ['caixa', 'pacote', 'fardo', 'display', 'bandeja'].includes(String(s.variationUnit || '').toLowerCase())
+                && Number(s.variationFactor) > 0
+              ) ? String(s.variationUnit).toLowerCase() : '',
               unidadesPorVolume: s.unit === 'un' ? (Number(s.variationFactor) || 0) : 0
             });
           });
