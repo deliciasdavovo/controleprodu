@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-resumo-fornecedores-periodo-1" />
+    <meta name="app-version" content="2026-09-14-historico-navegavel-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15269,6 +15269,18 @@
         const [fornecedoresAbertos, setFornecedoresAbertos] = useState([]);
         const [historicoItem, setHistoricoItem] = useState(null);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
+        const [referenciaHistoricoPorItem, setReferenciaHistoricoPorItem] = useState({});
+
+        const alterarPeriodoVariacao = (valor) => {
+          setPeriodoRelatorioPrecos(valor);
+          // Ao trocar o período, cada produto volta para a compra mais antiga
+          // da nova janela — a referência padrão da variação do período.
+          setReferenciaHistoricoPorItem({});
+        };
+
+        const selecionarReferenciaHistorico = (itemId, indice) => {
+          setReferenciaHistoricoPorItem((atual) => ({ ...atual, [itemId]: indice }));
+        };
 
         const todas = useMemo(
           () => reunirCompras(supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit),
@@ -15331,6 +15343,9 @@ const inicioPeriodoVariacao = useMemo(() => {
             resultado[itemId] = {
               inicio: temComparacao ? inicio : null,
               atual,
+              // Todas as compras anteriores à atual ficam disponíveis para
+              // navegar na tabela, da mais antiga para a mais recente.
+              historico: pontos.slice(0, -1),
               variacaoUnit,
               variacaoPct: temComparacao ? (variacaoUnit / inicio.custoUnit) * 100 : null
             };
@@ -15456,9 +15471,8 @@ const resumoFornecedoresPeriodo = useMemo(() => {
           itens: new Set(porPeriodo.map((c) => c.itemId)).size
         }), [porPeriodo]);
 
-        // Um resumo por item. Preço atual, início e variação usam o período
-        // escolhido no cabeçalho da tabela; os demais filtros definem quais
-        // linhas aparecem.
+        // Um resumo por item. A compra de referência é navegável:
+        // começa na mais antiga do período e pode avançar até a penúltima.
 const porItem = useMemo(() => {
           const grupos = {};
           compras.forEach((c) => { (grupos[c.itemId] = grupos[c.itemId] || []).push(c); });
@@ -15470,12 +15484,23 @@ const porItem = useMemo(() => {
             const atualVisivel = emOrdem[0];
             const periodo = variacaoPorItem[atualVisivel.itemId] || null;
             const atualBase = periodo?.atual || atualVisivel;
+            const historicoPeriodo = periodo?.historico || [];
+            const indicePedido = Number(referenciaHistoricoPorItem[atualVisivel.itemId] ?? 0);
+            const referenciaIndex = historicoPeriodo.length
+              ? Math.max(0, Math.min(indicePedido, historicoPeriodo.length - 1))
+              : 0;
+            const anterior = historicoPeriodo[referenciaIndex] || null;
+            const variacaoUnit = anterior && anterior.custoUnit > 0
+              ? atualBase.custoUnit - anterior.custoUnit
+              : null;
+            const variacaoPct = anterior && anterior.custoUnit > 0
+              ? (variacaoUnit / anterior.custoUnit) * 100
+              : null;
             const atual = {
               ...atualBase,
-              variacaoUnit: periodo?.variacaoUnit ?? null,
-              variacaoPct: periodo?.variacaoPct ?? null
+              variacaoUnit,
+              variacaoPct
             };
-            const anterior = periodo?.inicio || null;
             const fornecedoresDoItem = {};
             lista.forEach((c) => {
               if (!c.custoUnit) return;
@@ -15497,6 +15522,8 @@ const porItem = useMemo(() => {
               unidade: atualVisivel.unidade,
               atual,
               anterior,
+              historicoPeriodo,
+              referenciaIndex,
               compras: lista.length,
               medias,
               maisBarato,
@@ -15505,7 +15532,7 @@ const porItem = useMemo(() => {
                 : 0
             };
           });
-        }, [compras, variacaoPorItem]);
+        }, [compras, variacaoPorItem, referenciaHistoricoPorItem]);
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
@@ -15924,7 +15951,7 @@ const porItem = useMemo(() => {
                         <button
                           key={opcao.valor}
                           type="button"
-                          onClick={() => setPeriodoRelatorioPrecos(opcao.valor)}
+                          onClick={() => alterarPeriodoVariacao(opcao.valor)}
                           data-active={periodoRelatorioPrecos === opcao.valor}
                           className="flex-1 sm:flex-none h-8 px-4"
                         >
@@ -16324,12 +16351,12 @@ const porItem = useMemo(() => {
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
                           <th className="py-3 px-3 text-right font-bold">Preço atual</th>
-                          <th className="py-3 px-3 text-right font-bold">Início</th>
+                          <th className="py-3 px-3 text-right font-bold">Compras passadas</th>
                           <th className="py-2 px-3 text-right font-bold">
                             <span className="block mb-1">Variação</span>
                             <select
                               value={periodoRelatorioPrecos}
-                              onChange={(e) => setPeriodoRelatorioPrecos(e.target.value)}
+                              onChange={(e) => alterarPeriodoVariacao(e.target.value)}
                               onClick={(e) => e.stopPropagation()}
                               title="Escolher o período da variação"
                               className="field h-7 py-0 pl-2 pr-7 text-[10px] font-semibold ml-auto"
@@ -16357,8 +16384,42 @@ const porItem = useMemo(() => {
                             <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
                               {formatPrecoInsumo(i.atual.custoUnit, i.unidade)}
                             </td>
-                            <td className="py-2.5 px-3 text-right t-body tnum ink-quiet">
-                              {i.anterior && i.anterior.custoUnit > 0 ? formatPrecoInsumo(i.anterior.custoUnit, i.unidade) : '—'}
+                            <td className="py-2.5 px-3 text-right">
+                              {i.historicoPeriodo.length > 0 ? (
+                                <div className="min-w-[132px]">
+                                  <div className="flex items-center justify-end gap-1 mb-1">
+                                    <button
+                                      type="button"
+                                      aria-label="Compra anterior"
+                                      disabled={i.referenciaIndex === 0}
+                                      onClick={() => selecionarReferenciaHistorico(i.itemId, i.referenciaIndex - 1)}
+                                      className="w-6 h-6 rounded-full inline-flex items-center justify-center bg-black/[0.045] disabled:opacity-25"
+                                    >
+                                      <Icons.ChevronRight className="w-3 h-3 rotate-180" />
+                                    </button>
+                                    <span className="t-nano tnum w-10 text-center">
+                                      {i.referenciaIndex + 1} de {i.historicoPeriodo.length}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      aria-label="Próxima compra"
+                                      disabled={i.referenciaIndex >= i.historicoPeriodo.length - 1}
+                                      onClick={() => selecionarReferenciaHistorico(i.itemId, i.referenciaIndex + 1)}
+                                      className="w-6 h-6 rounded-full inline-flex items-center justify-center bg-black/[0.045] disabled:opacity-25"
+                                    >
+                                      <Icons.ChevronRight className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <span className="t-body tnum font-semibold block">
+                                    {formatPrecoInsumo(i.anterior.custoUnit, i.unidade)}
+                                  </span>
+                                  <span className="t-nano ink-quiet block truncate" title={i.anterior.fornecedor}>
+                                    {formatDateBR(i.anterior.data)} · {i.anterior.fornecedor}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="t-body ink-quiet">Sem compra anterior</span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-right">
                               <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
