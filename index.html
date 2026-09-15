@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-15-relatorio-tabela-limpa-1" />
+    <meta name="app-version" content="2026-09-15-relatorio-por-categoria-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15259,15 +15259,35 @@
           </td>`;
         };
 
-        const linhasItens = itens.map((i) => `<tr>
-          <td><b>${escaparHtml(i.item)}</b><small>${escaparHtml(i.tipo)}</small></td>
+        const linhaItem = (i) => `<tr>
+          <td><b>${escaparHtml(i.item)}</b></td>
           ${[0, 1, 2].map((posicao) => celulaCompraRecente(i.ultimasCompras?.[posicao])).join('')}
           <td class="num ${i.atual.variacaoPct > 0 ? 'sobe' : i.atual.variacaoPct < 0 ? 'desce' : ''}">${textoVariacao(i)}</td>
           <td>${i.medias.length > 1
             ? `<b>${escaparHtml(i.maisBarato.nome)}</b><small>${formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · até ${i.economiaPct.toFixed(0)}% de diferença</small>`
             : '<span class="quieto">Só um fornecedor</span>'}</td>
           <td class="num">${i.compras}</td>
-        </tr>`).join('');
+        </tr>`;
+
+        const rotulosCategoriaRelatorio = {
+          Ingrediente: 'Ingredientes',
+          Embalagem: 'Embalagens',
+          Limpeza: 'Limpeza',
+          Revenda: 'Revenda'
+        };
+        const categoriasPresentes = [
+          ...CATEGORIAS_COMPRA.filter((categoria) => itens.some((i) => i.tipo === categoria)),
+          ...[...new Set(itens.map((i) => i.tipo))].filter((categoria) => !CATEGORIAS_COMPRA.includes(categoria))
+        ];
+        const tabelasItensPorCategoria = categoriasPresentes.map((categoria) => {
+          const itensDaCategoria = itens.filter((i) => i.tipo === categoria);
+          const rotulo = rotulosCategoriaRelatorio[categoria] || categoria;
+          return `<table class="t-itens">
+            <caption><b>${escaparHtml(rotulo)}</b><span>${itensDaCategoria.length} ${itensDaCategoria.length === 1 ? 'item' : 'itens'}</span></caption>
+            <thead><tr><th>Item</th><th class="num">Última compra</th><th class="num">2ª última</th><th class="num">3ª última</th><th class="num">Variação</th><th>Mais barato</th><th class="num">Compras</th></tr></thead>
+            <tbody>${itensDaCategoria.map(linhaItem).join('')}</tbody>
+          </table>`;
+        }).join('');
 
         const linhasFornecedores = fornecedores.map((f) => `<tr>
           <td><b>${f.nome === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(f.nome)}</b></td>
@@ -15331,6 +15351,12 @@
             .t-itens th:nth-child(5) { width: 12%; }
             .t-itens th:nth-child(6) { width: 18%; }
             .t-itens th:nth-child(7) { width: 7%; }
+            .t-itens { margin-top: 10px; }
+            .t-itens caption { padding: 7px 9px; background: #e8e8e5; text-align: left; border: 1px solid #c8c8c5; border-bottom: 0; break-after: avoid; page-break-after: avoid; }
+            .t-itens caption b { font-size: 10pt; }
+            .t-itens caption span { color: #666; font-size: 7.5pt; margin-left: 7px; }
+            .t-itens th + th, .t-itens td + td { border-left: 1px solid #cfcfcb; }
+            .t-itens th { background: #f4f4f1; }
             .t-itens tbody tr:nth-child(even) { background: #f7f7f5; }
             .t-itens td { padding-top: 7px; padding-bottom: 7px; }
             .compra-recente .preco-unitario { display: block; color: #171717; font-size: 9.5pt; white-space: nowrap; }
@@ -15375,9 +15401,8 @@
 
           <section>
             <h2>Análise por item (${itens.length})</h2>
-            <p class="nota">Tabela em A4 horizontal: preço unitário em destaque; somente a data e o fornecedor aparecem menores em cada compra.</p>
-            <table class="t-itens"><thead><tr><th>Item</th><th class="num">Última compra</th><th class="num">2ª última</th><th class="num">3ª última</th><th class="num">Variação</th><th>Mais barato</th><th class="num">Compras</th></tr></thead>
-            <tbody>${linhasItens || '<tr><td colspan="7" class="quieto">Nenhum item nos filtros atuais.</td></tr>'}</tbody></table>
+            <p class="nota">Os produtos estão separados por categoria. As linhas verticais ajudam a acompanhar as três compras sem misturar as colunas.</p>
+            ${tabelasItensPorCategoria || '<p class="quieto">Nenhum item nos filtros atuais.</p>'}
           </section>
 
           <section>
