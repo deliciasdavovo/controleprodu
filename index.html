@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-15-relatorio-compras-em-blocos-1" />
+    <meta name="app-version" content="2026-09-15-relatorio-tabela-horizontal-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15250,43 +15250,26 @@
           <td class="num forte">${formatCurrencyBR(m.total)}</td>
         </tr>`).join('');
 
-        const rotulosCompraRecente = ['Última compra', '2ª última', '3ª última'];
-        const cartaoCompraRecente = (compra, posicao) => {
-          if (!compra) return `<div class="compra-pdf vazia"><span class="compra-rotulo">${rotulosCompraRecente[posicao]}</span><span>—</span></div>`;
-          return `<div class="compra-pdf">
-            <span class="compra-rotulo">${rotulosCompraRecente[posicao]}</span>
+        const celulaCompraRecente = (compra) => {
+          if (!compra) return '<td class="num quieto">—</td>';
+          return `<td class="num compra-recente">
             <b class="preco-unitario">${formatPrecoInsumo(compra.custoUnit, compra.unidade)}</b>
             <small>${formatCurrencyBR(compra.cost)} · valor da compra</small>
-            <small>${compra.data ? formatDateBR(compra.data) : 'sem data'} · ${escaparHtml(compra.fornecedor)}</small>
+            <small>${compra.data ? formatDateBR(compra.data) : 'sem data'}</small>
+            <small>${escaparHtml(compra.fornecedor)}</small>
             <small>${numeroCurtoBR(compra.qty || 0)} ${escaparHtml(compra.unidade)}</small>
-          </div>`;
+          </td>`;
         };
 
-        const linhasItens = itens.map((i) => {
-          const classeVariacao = i.atual.variacaoPct > 0 ? 'sobe' : i.atual.variacaoPct < 0 ? 'desce' : '';
-          const maisBaratoHtml = i.medias.length > 1
+        const linhasItens = itens.map((i) => `<tr>
+          <td><b>${escaparHtml(i.item)}</b><small>${escaparHtml(i.tipo)}</small></td>
+          ${[0, 1, 2].map((posicao) => celulaCompraRecente(i.ultimasCompras?.[posicao])).join('')}
+          <td class="num ${i.atual.variacaoPct > 0 ? 'sobe' : i.atual.variacaoPct < 0 ? 'desce' : ''}">${textoVariacao(i)}</td>
+          <td>${i.medias.length > 1
             ? `<b>${escaparHtml(i.maisBarato.nome)}</b><small>${formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · até ${i.economiaPct.toFixed(0)}% de diferença</small>`
-            : '<span class="quieto">Só um fornecedor</span>';
-          return `<article class="item-pdf">
-            <div class="item-cabecalho">
-              <div>
-                <b class="item-nome">${escaparHtml(i.item)}</b>
-                <small>${escaparHtml(i.tipo)} · ${i.compras} ${i.compras === 1 ? 'compra' : 'compras'}</small>
-              </div>
-              <div class="variacao-resumo ${classeVariacao}">
-                <span>Variação do período</span>
-                <b>${textoVariacao(i)}</b>
-              </div>
-            </div>
-            <div class="compras-grade">
-              ${[0, 1, 2].map((posicao) => cartaoCompraRecente(i.ultimasCompras?.[posicao], posicao)).join('')}
-            </div>
-            <div class="item-rodape">
-              <span>Fornecedor mais barato</span>
-              <div>${maisBaratoHtml}</div>
-            </div>
-          </article>`;
-        }).join('');
+            : '<span class="quieto">Só um fornecedor</span>'}</td>
+          <td class="num">${i.compras}</td>
+        </tr>`).join('');
 
         const linhasFornecedores = fornecedores.map((f) => `<tr>
           <td><b>${f.nome === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(f.nome)}</b></td>
@@ -15314,10 +15297,10 @@
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
           <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
           <style>
-            @page { size: A4 portrait; margin: 12mm 10mm; }
+            @page { size: A4 landscape; margin: 11mm 10mm; }
             * { box-sizing: border-box; }
             body { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                   color: #171717; margin: 0 auto; padding: 0 3vw 40px; max-width: 960px; font-size: 9pt; }
+                   color: #171717; margin: 0 auto; padding: 0 3vw 40px; max-width: 1180px; font-size: 9pt; }
             @media print { body { padding: 0; max-width: none; } }
             ${BARRA_ACOES_CSS}
             header { border-bottom: 2px solid #111; padding-bottom: 9px; margin-bottom: 10px; }
@@ -15345,24 +15328,15 @@
             .sobe { color: #7D2027; font-weight: 700; }
             .desce { color: #1E6B44; font-weight: 700; }
             .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-            .itens-lista { display: grid; gap: 8px; }
-            .item-pdf { border: 1px solid #cfcfcf; border-radius: 5px; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-            .item-pdf small { display: block; color: #666; font-size: 7.5pt; margin-top: 2px; }
-            .item-cabecalho { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 7px 8px; background: #ececea; }
-            .item-nome { display: block; font-size: 10pt; }
-            .variacao-resumo { min-width: 122px; text-align: right; font-variant-numeric: tabular-nums; }
-            .variacao-resumo span { display: block; color: #666; font-size: 7pt; text-transform: uppercase; letter-spacing: .035em; }
-            .variacao-resumo b { display: block; margin-top: 2px; }
-            .compras-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-            .compra-pdf { min-height: 72px; padding: 7px 8px; border-right: 1px solid #ddd; font-variant-numeric: tabular-nums; }
-            .compra-pdf:last-child { border-right: 0; }
-            .compra-pdf.vazia { color: #888; }
-            .compra-rotulo { display: block; color: #666; font-size: 7pt; text-transform: uppercase; letter-spacing: .035em; margin-bottom: 3px; }
-            .preco-unitario { display: block; font-size: 10.5pt; white-space: nowrap; }
-            .item-rodape { display: grid; grid-template-columns: 145px 1fr; align-items: start; gap: 8px; padding: 6px 8px; border-top: 1px solid #ddd; }
-            .item-rodape > span { color: #666; font-size: 7pt; text-transform: uppercase; letter-spacing: .035em; }
-            .item-rodape > div { text-align: right; }
-            .item-rodape small { margin-top: 1px; }
+            .t-itens th:nth-child(1) { width: 18%; }
+            .t-itens th:nth-child(2), .t-itens th:nth-child(3), .t-itens th:nth-child(4) { width: 15%; }
+            .t-itens th:nth-child(5) { width: 12%; }
+            .t-itens th:nth-child(6) { width: 18%; }
+            .t-itens th:nth-child(7) { width: 7%; }
+            .t-itens tbody tr:nth-child(even) { background: #f7f7f5; }
+            .t-itens td { padding-top: 7px; padding-bottom: 7px; }
+            .compra-recente .preco-unitario { display: block; color: #171717; font-size: 9.5pt; white-space: nowrap; }
+            .compra-recente small { line-height: 1.2; }
             .t-compras th:nth-child(1) { width: 11%; } .t-compras th:nth-child(2) { width: 23%; }
             .t-compras th:nth-child(3) { width: 21%; } .t-compras th:nth-child(4) { width: 13%; }
             .t-compras th:nth-child(5), .t-compras th:nth-child(6) { width: 16%; }
@@ -15403,8 +15377,9 @@
 
           <section>
             <h2>Análise por item (${itens.length})</h2>
-            <p class="nota">Cada produto aparece separado: as três compras ficam lado a lado, com o preço unitário em destaque e o valor total pago logo abaixo.</p>
-            <div class="itens-lista">${linhasItens || '<p class="quieto">Nenhum item nos filtros atuais.</p>'}</div>
+            <p class="nota">Tabela em A4 horizontal: preço unitário em destaque; valor total, data, fornecedor e quantidade aparecem menores em cada compra.</p>
+            <table class="t-itens"><thead><tr><th>Item</th><th class="num">Última compra</th><th class="num">2ª última</th><th class="num">3ª última</th><th class="num">Variação</th><th>Mais barato</th><th class="num">Compras</th></tr></thead>
+            <tbody>${linhasItens || '<tr><td colspan="7" class="quieto">Nenhum item nos filtros atuais.</td></tr>'}</tbody></table>
           </section>
 
           <section>
