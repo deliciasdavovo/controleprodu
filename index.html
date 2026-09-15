@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-15-cmv-historico-compartilhado-1" />
+    <meta name="app-version" content="2026-09-15-relatorios-descricoes-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16343,9 +16343,11 @@ const porItem = useMemo(() => {
                         <button
                           type="button"
                           onClick={imprimirResumoFornecedores}
+                          title="Gera o PDF com aumentos para negociar e fornecedores mais baratos no período selecionado"
                           className="btn btn-primary btn-md"
                         >
-                          Compartilhar em PDF
+                          <Icons.ClipboardList className="w-4 h-4" />
+                          Gerar PDF deste resumo
                         </button>
                         <button type="button" onClick={() => setResumoPeriodoAberto(false)} className="btn btn-secondary btn-md">Fechar</button>
                       </div>
@@ -16622,37 +16624,68 @@ const porItem = useMemo(() => {
                     {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
                   </p>
                 </div>
-                {/* O relatório original de preços continua disponível; o
-                    relatório completo é a visão gerencial que segue os filtros
-                    da página. O relatório de ritmo foi retirado desta aba. */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setResumoPeriodoAberto(true)}
-                    disabled={todas.length === 0}
-                    title="Mostra onde negociar e qual fornecedor tem o menor preço no período"
-                    className="btn btn-secondary btn-md disabled:opacity-40"
-                  >
-                    <Icons.ShoppingCart className="w-4 h-4" />
-                    Resumo do período
-                  </button>
-                  <button
-                    onClick={() => imprimirRelatorioDeCompra('a4')}
-                    disabled={todas.length === 0 && supplies.length === 0 && separatedProducts.length === 0}
-                    title="Relatório de preços de compra em A4, incluindo produtos sem data ou fornecedor"
-                    className="btn btn-primary btn-sm disabled:opacity-40"
-                  >
-                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                    Relatório de preços (A4)
-                  </button>
-                  <button
-                    onClick={imprimirRelatorioCompleto}
-                    disabled={compras.length === 0}
-                    title="Gera um relatório A4 completo com os filtros que estão aplicados nesta página"
-                    className="btn btn-secondary btn-sm disabled:opacity-40"
-                  >
-                    Relatório completo da página (A4)
-                  </button>
+                {/* Cada saída responde a uma pergunta diferente. O texto fica
+                    visível para não depender de descobrir pelo nome do PDF. */}
+                <div className="w-full xl:w-[800px]">
+                  <div className="t-overline mb-2">Escolha o relatório</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setResumoPeriodoAberto(true)}
+                      disabled={todas.length === 0}
+                      title="Aumentos para negociar e fornecedor mais barato em 3, 6, 9 meses ou 1 ano"
+                      className="min-h-[116px] rounded-2xl border hairline bg-white p-3.5 text-left flex items-start gap-3 hover:bg-black/[0.025] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                        <Icons.TrendingUp className="w-4 h-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <strong className="t-callout font-semibold block">Resumo para negociar</strong>
+                        <span className="t-nano ink-quiet block mt-1 leading-relaxed">
+                          Aumentos do mesmo fornecedor e quem vende cada produto mais barato.
+                        </span>
+                        <span className="t-overline-sm block mt-2">PDF · 3, 6, 9 meses ou 1 ano</span>
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => imprimirRelatorioDeCompra('a4')}
+                      disabled={todas.length === 0 && supplies.length === 0 && separatedProducts.length === 0}
+                      title="Variações de preço e histórico detalhado das compras de cada produto"
+                      className="min-h-[116px] rounded-2xl border hairline bg-white p-3.5 text-left flex items-start gap-3 hover:bg-black/[0.025] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                        <Icons.History className="w-4 h-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <strong className="t-callout font-semibold block">Variação de preços</strong>
+                        <span className="t-nano ink-quiet block mt-1 leading-relaxed">
+                          O que subiu ou caiu, maior variação e até 6 compras anteriores por produto.
+                        </span>
+                        <span className="t-overline-sm block mt-2">PDF A4 · inclui dados pendentes</span>
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={imprimirRelatorioCompleto}
+                      disabled={compras.length === 0}
+                      title="Totais, categorias, fornecedores e compras que correspondem aos filtros da página"
+                      className="min-h-[116px] rounded-2xl border hairline bg-white p-3.5 text-left flex items-start gap-3 hover:bg-black/[0.025] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                        <Icons.ClipboardList className="w-4 h-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <strong className="t-callout font-semibold block">Relatório completo</strong>
+                        <span className="t-nano ink-quiet block mt-1 leading-relaxed">
+                          Totais, categorias, fornecedores e compras conforme os filtros da página.
+                        </span>
+                        <span className="t-overline-sm block mt-2">PDF A4 · visão gerencial</span>
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
