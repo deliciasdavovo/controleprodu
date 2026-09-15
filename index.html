@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-14-cadastro-opcoes-ocultas-1" />
+    <meta name="app-version" content="2026-09-15-fornecedores-tres-compras-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15583,17 +15583,9 @@
         const [historicoItem, setHistoricoItem] = useState(null);
         const [graficoHistoricoAberto, setGraficoHistoricoAberto] = useState(false);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
-        const [referenciaHistoricoPorItem, setReferenciaHistoricoPorItem] = useState({});
 
         const alterarPeriodoVariacao = (valor) => {
           setPeriodoRelatorioPrecos(valor);
-          // Ao trocar o período, cada produto volta automaticamente para a
-          // compra que produz a maior variação dentro da nova janela.
-          setReferenciaHistoricoPorItem({});
-        };
-
-        const selecionarReferenciaHistorico = (itemId, indice) => {
-          setReferenciaHistoricoPorItem((atual) => ({ ...atual, [itemId]: indice }));
         };
 
         const todas = useMemo(
@@ -15848,18 +15840,11 @@ const porItem = useMemo(() => {
             const atualVisivel = emOrdem[0];
             const periodo = variacaoPorItem[atualVisivel.itemId] || null;
             const atualBase = periodo?.atual || atualVisivel;
-            const historicoPeriodo = periodo?.historico || [];
-            const referenciaEscolhida = Object.prototype.hasOwnProperty.call(
-              referenciaHistoricoPorItem,
-              atualVisivel.itemId
-            );
-            const indicePedido = referenciaEscolhida
-              ? Number(referenciaHistoricoPorItem[atualVisivel.itemId])
-              : Number(periodo?.indiceMaiorVariacao ?? 0);
-            const referenciaIndex = historicoPeriodo.length
-              ? Math.max(0, Math.min(indicePedido, historicoPeriodo.length - 1))
-              : 0;
-            const anterior = historicoPeriodo[referenciaIndex] || null;
+            // A variação continua usando a maior diferença do período escolhido.
+            // A tabela, porém, sempre mostra três posições fixas das compras
+            // mais recentes que correspondem aos filtros da página.
+            const anterior = periodo?.inicio || null;
+            const ultimasCompras = emOrdem.slice(0, 3);
             const variacaoUnit = anterior && anterior.custoUnit > 0
               ? atualBase.custoUnit - anterior.custoUnit
               : null;
@@ -15892,8 +15877,7 @@ const porItem = useMemo(() => {
               unidade: atualVisivel.unidade,
               atual,
               anterior,
-              historicoPeriodo,
-              referenciaIndex,
+              ultimasCompras,
               compras: lista.length,
               medias,
               maisBarato,
@@ -15902,7 +15886,7 @@ const porItem = useMemo(() => {
                 : 0
             };
           });
-        }, [compras, variacaoPorItem, referenciaHistoricoPorItem]);
+        }, [compras, variacaoPorItem]);
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
@@ -16765,8 +16749,9 @@ const porItem = useMemo(() => {
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
-                          <th className="py-3 px-3 text-right font-bold">Preço atual</th>
-                          <th className="py-3 px-3 text-right font-bold">Compras passadas</th>
+                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">Última compra</th>
+                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">2ª última</th>
+                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">3ª última</th>
                           <th className="py-2 px-3 text-right font-bold">
                             <span className="block mb-1">Variação</span>
                             <select
@@ -16782,7 +16767,6 @@ const porItem = useMemo(() => {
                               <option value="12">1 ano</option>
                             </select>
                           </th>
-                          <th className="py-3 px-3 font-bold">Fornecedor atual</th>
                           <th className="py-3 px-3 font-bold">Mais barato</th>
                           <th className="py-3 pl-3 text-center font-bold">Compras</th>
                         </tr>
@@ -16793,53 +16777,44 @@ const porItem = useMemo(() => {
                             <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
                               <div className="w-36 sm:w-52">
                                 <span className="t-callout font-semibold block truncate" title={i.item}>{i.item}</span>
-                                <span className="t-nano ink-quiet">{i.tipo} · {formatDateBR(i.atual.data) || 'sem data'}</span>
+                                <span className="t-nano ink-quiet">{i.tipo} · {formatDateBR(i.ultimasCompras[0]?.data) || 'sem data'}</span>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
-                              {formatPrecoInsumo(i.atual.custoUnit, i.unidade)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {i.historicoPeriodo.length > 0 ? (
-                                <div className="min-w-[132px]">
-                                  <div className="flex items-center justify-end gap-1 mb-1">
-                                    <button
-                                      type="button"
-                                      aria-label="Compra anterior"
-                                      disabled={i.referenciaIndex === 0}
-                                      onClick={() => selecionarReferenciaHistorico(i.itemId, i.referenciaIndex - 1)}
-                                      className="w-6 h-6 rounded-full inline-flex items-center justify-center bg-black/[0.045] disabled:opacity-25"
-                                    >
-                                      <Icons.ChevronRight className="w-3 h-3 rotate-180" />
-                                    </button>
-                                    <span className="t-nano tnum w-10 text-center">
-                                      {i.referenciaIndex + 1} de {i.historicoPeriodo.length}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      aria-label="Próxima compra"
-                                      disabled={i.referenciaIndex >= i.historicoPeriodo.length - 1}
-                                      onClick={() => selecionarReferenciaHistorico(i.itemId, i.referenciaIndex + 1)}
-                                      className="w-6 h-6 rounded-full inline-flex items-center justify-center bg-black/[0.045] disabled:opacity-25"
-                                    >
-                                      <Icons.ChevronRight className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <span className="t-body tnum font-semibold block">
-                                    {formatPrecoInsumo(i.anterior.custoUnit, i.unidade)}
-                                  </span>
-                                  <span className="t-nano ink-quiet block truncate" title={i.anterior.fornecedor}>
-                                    {formatDateBR(i.anterior.data)} · {i.anterior.fornecedor}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="t-body ink-quiet">Sem compra anterior</span>
-                              )}
-                            </td>
+                            {[0, 1, 2].map((posicao) => {
+                              const compra = i.ultimasCompras[posicao];
+                              const temVolume = compra
+                                && compra.unidadesPorVolume > 0
+                                && compra.volumeTipo;
+                              const valorDoVolume = temVolume
+                                ? compra.custoUnit * compra.unidadesPorVolume
+                                : 0;
+                              return (
+                                <td key={posicao} className="py-2.5 px-3 text-right align-top min-w-[168px]">
+                                  {compra ? (
+                                    <div className="leading-tight">
+                                      <span className="t-callout tnum font-semibold block">
+                                        {temVolume
+                                          ? `${formatCurrencyBR(valorDoVolume)}/${pluralVolumeRevenda(compra.volumeTipo, 1)}`
+                                          : formatCurrencyBR(compra.cost)}
+                                      </span>
+                                      <span className="t-nano ink-quiet tnum block mt-1">
+                                        {formatPrecoInsumo(compra.custoUnit, compra.unidade)}
+                                        {!temVolume ? ' · valor total pago' : ''}
+                                      </span>
+                                      <span className="t-nano ink-quiet block mt-0.5 truncate" title={compra.fornecedor}>
+                                        {compra.data ? formatDateBR(compra.data) : 'sem data'} · {compra.fornecedor}
+                                      </span>
+                                      <span className="t-nano ink-quiet tnum block mt-0.5">
+                                        {numeroCurtoBR(compra.qty || 0)} {compra.unidade}
+                                      </span>
+                                    </div>
+                                  ) : <span className="t-body ink-quiet">—</span>}
+                                </td>
+                              );
+                            })}
                             <td className="py-2.5 px-3 text-right">
                               <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
                             </td>
-                            <td className="py-2.5 px-3 t-body truncate max-w-[160px]" title={i.atual.fornecedor}>{i.atual.fornecedor}</td>
                             <td className="py-2.5 px-3">
                               {i.medias.length > 1 ? (
                                 <div className="leading-tight">
