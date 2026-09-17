@@ -15984,14 +15984,26 @@
           <td class="num forte">${formatCurrencyBR(f.total)}</td>
         </tr>`).join('');
 
-        const linhasCompras = extrato.map((c) => `<tr>
-          <td>${c.data ? formatDateBR(c.data) : '—'}</td>
-          <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
-          <td>${c.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(c.fornecedor)}</td>
-          <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
-          <td class="num forte">${formatCurrencyBR(c.cost)}</td>
-          <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
-        </tr>`).join('');
+        const linhasCompras = extrato.map((compra) => {
+          const itensDaCompra = compra.itens.map((c) => `<div class="compra-pdf-item">
+            <div>
+              <b>${escaparHtml(c.item)}</b>
+              <small>${escaparHtml(c.tipo)}</small>
+            </div>
+            <span class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</span>
+            <span class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</span>
+            <span class="num forte">${formatCurrencyBR(c.cost)}</span>
+          </div>`).join('');
+          return `<tr>
+            <td>${compra.data ? formatDateBR(compra.data) : '—'}</td>
+            <td>${compra.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(compra.fornecedor)}</td>
+            <td>${itensDaCompra}</td>
+            <td class="num total-compra-pdf">
+              <b>${formatCurrencyBR(compra.total)}</b>
+              <small>${compra.itens.length} ${compra.itens.length === 1 ? 'item' : 'itens'}</small>
+            </td>
+          </tr>`;
+        }).join('');
 
         // A matriz mês x fornecedor é a mesma que aparece na tela. Ela entra
         // no PDF antes dos detalhes por fornecedor para preservar a leitura
@@ -16079,9 +16091,9 @@
           : visao === 'compra'
             ? `<section>
                 <h2>Por compra (${extrato.length}${extrato.length < totalComprasFiltradas ? ' de ' + totalComprasFiltradas : ''})</h2>
-                <p class="nota">Mesma ordenação e mesma opção de quantidade de compras selecionadas na página.</p>
-                <table class="t-compras"><thead><tr><th>Data</th><th>Item</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
-                <tbody>${linhasCompras || '<tr><td colspan="6" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody></table>
+                <p class="nota">Uma compra reúne todos os itens do mesmo fornecedor na mesma data. A ordenação por valor considera o total da compra inteira.</p>
+                <table class="t-compras"><thead><tr><th>Data</th><th>Fornecedor</th><th>Itens da compra</th><th class="num">Total</th></tr></thead>
+                <tbody>${linhasCompras || '<tr><td colspan="4" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody></table>
               </section>`
             : `<section>
                 <h2>Por item (${itens.length})</h2>
@@ -16145,9 +16157,15 @@
             .t-itens td { padding-top: 7px; padding-bottom: 7px; }
             .compra-recente .preco-unitario { display: block; color: #171717; font-size: 9.5pt; white-space: nowrap; }
             .compra-recente small { line-height: 1.2; }
-            .t-compras th:nth-child(1) { width: 11%; } .t-compras th:nth-child(2) { width: 23%; }
-            .t-compras th:nth-child(3) { width: 21%; } .t-compras th:nth-child(4) { width: 13%; }
-            .t-compras th:nth-child(5), .t-compras th:nth-child(6) { width: 16%; }
+            .t-compras th:nth-child(1) { width: 12%; }
+            .t-compras th:nth-child(2) { width: 22%; }
+            .t-compras th:nth-child(3) { width: 50%; }
+            .t-compras th:nth-child(4) { width: 16%; }
+            .compra-pdf-item { display: grid; grid-template-columns: minmax(0, 1fr) 90px 100px 95px; gap: 7px; align-items: center; padding: 3px 0; border-bottom: 1px solid #ededeb; }
+            .compra-pdf-item:last-child { border-bottom: 0; }
+            .compra-pdf-item small { margin-top: 0; }
+            .total-compra-pdf b { display: block; font-size: 9.5pt; }
+            .total-compra-pdf small { margin-top: 2px; }
             .grupo-fornecedor { margin: 10px 0 16px; }
             .grupo-fornecedor-cabecalho { display: grid; grid-template-columns: minmax(0, 1fr) 150px 120px; gap: 8px; align-items: center; padding: 8px 9px; background: #ececea; border: 1px solid #cfcfcb; border-bottom: 0; break-after: avoid; page-break-after: avoid; }
             .grupo-fornecedor-cabecalho > div:not(.grupo-fornecedor-nome) { text-align: right; }
@@ -16905,7 +16923,7 @@ const porItem = useMemo(() => {
             itens: itensOrdenados,
             fornecedores: porFornecedor,
             extrato: comprasDetalhadas,
-            totalComprasFiltradas: compras.length,
+            totalComprasFiltradas: comprasAgrupadas.length,
             cruzadaMensal
           }));
           janela.document.close();
@@ -17053,16 +17071,40 @@ const porItem = useMemo(() => {
           });
         }, [compras, ordem, porTipo, termo, mesReferencia, diaDeCorte]);
 
+        // POR COMPRA: uma compra é a combinação fornecedor + data.
+        // Cada lançamento de item continua existindo dentro dela, mas não vira
+        // uma "compra" separada na tela. Isso reproduz a nota/pedido real:
+        // vários produtos do mesmo fornecedor no mesmo dia = uma compra.
+        const comprasAgrupadas = useMemo(() => {
+          const grupos = {};
+          compras.forEach((c) => {
+            const chave = `${c.fornecedor}||${c.data || 'sem-data'}`;
+            const atual = grupos[chave] || {
+              chave,
+              data: c.data || '',
+              fornecedor: c.fornecedor,
+              itens: [],
+              total: 0,
+              criadoEm: ''
+            };
+            atual.itens.push(c);
+            atual.total += c.cost;
+            if ((c.criadoEm || '') > atual.criadoEm) atual.criadoEm = c.criadoEm || '';
+            grupos[chave] = atual;
+          });
+          return Object.values(grupos);
+        }, [compras]);
+
         const extrato = useMemo(() => {
-          const lista = [...compras].sort((a, b) => {
+          const lista = [...comprasAgrupadas].sort((a, b) => {
             const d = (b.data || '').localeCompare(a.data || '');
             return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
           });
           if (ordem === 'antiga') lista.reverse();
-          if (ordem === 'valor_desc') lista.sort((a, b) => b.cost - a.cost);
-          if (ordem === 'valor_asc') lista.sort((a, b) => a.cost - b.cost);
+          if (ordem === 'valor_desc') lista.sort((a, b) => b.total - a.total);
+          if (ordem === 'valor_asc') lista.sort((a, b) => a.total - b.total);
           return limite === 'all' ? lista : lista.slice(0, Number(limite));
-        }, [compras, ordem, limite]);
+        }, [comprasAgrupadas, ordem, limite]);
 
         // As opções de ordenação mudam com a visão: ordenar por "maior
         // aumento" não quer dizer nada numa lista de fornecedores
@@ -17888,28 +17930,48 @@ const porItem = useMemo(() => {
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Data</th>
-                          <th className="py-3 px-3 font-bold">Item</th>
                           <th className="py-3 px-3 font-bold">Fornecedor</th>
-                          <th className="py-3 px-3 text-right font-bold">Qtd</th>
-                          <th className="py-3 px-3 text-right font-bold">Valor pago</th>
-                          <th className="py-3 px-3 text-right font-bold">Preço</th>
-                          <th className="py-3 pl-3 text-right font-bold">Variação</th>
+                          <th className="py-3 px-3 font-bold min-w-[520px]">Itens da compra</th>
+                          <th className="py-3 pl-3 text-right font-bold min-w-[120px]">Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {extrato.map((c) => (
-                          <tr key={c.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                            <td className="py-2.5 pr-3 t-body tnum sticky left-0 bg-white z-10">{formatDateBR(c.data) || '—'}</td>
-                            <td className="py-2.5 px-3">
-                              <span className="t-body font-semibold">{c.item}</span>
-                              <span className="t-nano ink-quiet block">{c.tipo}</span>
+                        {extrato.map((compra) => (
+                          <tr key={compra.chave} className="border-t hairline hover:bg-black/[0.015] transition-colors align-top">
+                            <td className="py-3 pr-3 t-body tnum sticky left-0 bg-white z-10">
+                              {formatDateBR(compra.data) || '—'}
                             </td>
-                            <td className="py-2.5 px-3 t-body truncate max-w-[160px]" title={c.fornecedor}>{c.fornecedor}</td>
-                            <td className="py-2.5 px-3 text-right t-body tnum">{c.qty} {c.unidade}</td>
-                            <td className="py-2.5 px-3 text-right t-body tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
-                            <td className="py-2.5 px-3 text-right t-body tnum">{formatPrecoInsumo(c.custoUnit, c.unidade)}</td>
-                            <td className="py-2.5 pl-3 text-right">
-                              <VariacaoBadge variacaoUnit={c.variacaoUnit} variacaoPct={c.variacaoPct} unidade={c.unidade} />
+                            <td className="py-3 px-3">
+                              <span className="t-body font-semibold block max-w-[190px] truncate" title={compra.fornecedor}>{compra.fornecedor}</span>
+                              <span className="t-nano ink-quiet">
+                                {compra.itens.length} {compra.itens.length === 1 ? 'item' : 'itens'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="divide-y divide-black/[0.06]">
+                                {compra.itens.map((c) => (
+                                  <div key={c.id} className="grid grid-cols-[minmax(150px,1fr)_90px_120px_110px] gap-3 items-center py-2 first:pt-1 last:pb-1">
+                                    <div className="min-w-0">
+                                      <span className="t-callout font-semibold block truncate" title={c.item}>{c.item}</span>
+                                      <span className="t-nano ink-quiet block">{c.tipo}</span>
+                                    </div>
+                                    <div className="text-right t-callout tnum whitespace-nowrap">
+                                      {numeroCurtoBR(c.qty)} {c.unidade}
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="t-callout tnum block">{formatPrecoInsumo(c.custoUnit, c.unidade)}</span>
+                                      <span className="t-nano ink-quiet">preço</span>
+                                    </div>
+                                    <div className="text-right t-callout tnum font-semibold whitespace-nowrap">
+                                      {formatCurrencyBR(c.cost)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-3 pl-3 text-right">
+                              <span className="t-body tnum font-bold block">{formatCurrencyBR(compra.total)}</span>
+                              <span className="t-nano ink-quiet">total da compra</span>
                             </td>
                           </tr>
                         ))}
