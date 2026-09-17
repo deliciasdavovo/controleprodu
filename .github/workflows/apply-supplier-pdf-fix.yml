@@ -1,12 +1,32 @@
-name: Validate branch workflow
+name: Apply supplier PDF fix
 
 on:
   push:
     branches:
       - fix/relatorio-fornecedores-filtros
+    paths:
+      - .github/workflows/apply-supplier-pdf-fix.yml
+
+permissions:
+  contents: write
 
 jobs:
-  validate:
+  patch:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "workflow ok"
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/relatorio-fornecedores-filtros
+      - name: Apply patch
+        run: python .github/scripts/patch_supplier_pdf.py
+      - name: Verify result
+        run: |
+          grep -q "const secaoVisualizacao = visao === 'fornecedor'" index.html
+          grep -q "Por fornecedor" index.html
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix supplier PDF to follow active filters and grouping"
+          git push origin HEAD:fix/relatorio-fornecedores-filtros
