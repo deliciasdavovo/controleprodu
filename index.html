@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-17-formulario-fluido-1" />
+    <meta name="app-version" content="2026-09-17-formulario-mono-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -534,94 +534,25 @@
         background: var(--bg-surface);
       }
 
-      /* Cadastro + compra: a informação digitada ganha uma voz diferente da
-         interface. Labels e botões continuam em Manrope; valores ficam em
-         serifada, como uma ficha preenchida à mão, sem perder legibilidade. */
+      /* No formulário de cadastro, só o conteúdo dos campos usa a fonte
+         monoespaçada. A estrutura continua sendo um único formulário. */
       .cadastro-form .field {
-        font-family: Georgia, 'Times New Roman', serif;
-        font-size: 15px;
-        letter-spacing: 0;
-        transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum' 1;
+        letter-spacing: -0.015em;
       }
       .cadastro-form .field::placeholder {
-        font-family: Georgia, 'Times New Roman', serif;
-        font-style: italic;
-        font-size: 13px;
+        font-family: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        letter-spacing: -0.01em;
       }
-      .cadastro-form .field:hover:not(:disabled) {
-        border-color: rgba(14, 9, 55, 0.32);
-      }
-      .cadastro-form .field:focus {
-        background: #fffefb;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 4px rgba(14, 9, 55, 0.12), 0 8px 22px rgba(14, 9, 55, 0.06);
-      }
-      .cadastro-step-title {
+      .cadastro-form label {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 16px 0 8px;
-        color: var(--ink-2);
-        font-size: 12px;
-        font-weight: 750;
-        letter-spacing: .01em;
+        min-height: 16px;
+        align-items: flex-end;
       }
-      .cadastro-step-title:first-child { margin-top: 0; }
-      .cadastro-step-number {
-        width: 22px;
-        height: 22px;
-        border-radius: 999px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 auto;
-        background: var(--accent);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-      }
-      .cadastro-grid {
-        padding: 12px;
-        border: 1px solid rgba(60, 60, 67, 0.10);
-        border-radius: 15px;
-        background: rgba(248, 248, 250, 0.52);
-        transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
-      }
-      .cadastro-grid:focus-within {
-        background: rgba(255, 255, 255, 0.96);
-        border-color: rgba(14, 9, 55, 0.22);
-        box-shadow: 0 10px 28px rgba(14, 9, 55, 0.055);
-      }
-      .cadastro-grid > div:focus-within > label {
-        color: var(--accent);
-        font-weight: 750;
-      }
-      .cadastro-shortcuts {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 9px;
-      }
-      .cadastro-shortcut {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.045);
-        color: var(--ink-3);
-        font-size: 10.5px;
-        font-weight: 650;
-      }
-      .cadastro-shortcut kbd {
-        font-family: Manrope, sans-serif;
-        font-size: 9.5px;
-        font-weight: 800;
-        color: var(--ink-1);
-      }
+      .cadastro-form .field-md { height: 40px; }
       @media (max-width: 639px) {
-        .cadastro-grid { padding: 10px; }
         .cadastro-form .field { font-size: 16px; }
       }
 
@@ -3449,12 +3380,7 @@
             value={text}
             onChange={handleChange}
             onBlur={handleBlur}
-            onFocus={(e) => {
-              // Comportamento de planilha: ao entrar no número, a próxima
-              // digitação substitui o valor inteiro sem precisar apagar.
-              e.currentTarget.select();
-              if (onFocus) onFocus(e);
-            }}
+            onFocus={onFocus}
             onKeyDown={handleKeyDown}
             title={props.title || 'Digite um número ou comece com = para fazer uma conta'}
             {...props}
@@ -12490,10 +12416,7 @@
                       <p className="t-body mt-1.5">
                         Um formulário só para tudo. Volume, preço de revenda e equivalência ficam fechados e você abre apenas quando precisar.
                       </p>
-                      <div className="cadastro-shortcuts">
-                        <span className="cadastro-shortcut"><kbd>Enter</kbd> avança para o próximo campo</span>
-                        <span className="cadastro-shortcut"><kbd>=</kbd> faz contas nos valores</span>
-                      </div>
+                      <p className="t-micro mt-1">Dica: nos campos de número ou valor, comece com <strong>=</strong> para fazer uma conta. Ex.: <strong>=12*6</strong>.</p>
                     </div>
                     <button type="button" onClick={() => setNotaColadaAberta(true)} className="btn btn-secondary btn-md shrink-0">
                       <Icons.ClipboardList className="w-4 h-4" />
@@ -12502,11 +12425,7 @@
                   </div>
 
                   <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form mt-5 pt-5 border-t hairline">
-                    <div className="cadastro-step-title">
-                      <span className="cadastro-step-number">1</span>
-                      <span>Identifique o item</span>
-                    </div>
-                    <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
                       <div className="col-span-6 sm:col-span-4 lg:col-span-2">
                         <label className="t-caption block mb-1">Tipo</label>
                         <select
@@ -12579,8 +12498,7 @@
                     </div>
 
                     {!modoProducao && (
-                      <div className="flex flex-wrap items-center gap-2 mt-4">
-                        <span className="t-caption mr-1">Informações opcionais</span>
+                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t hairline">
                         {compraPorVolumeDisponivel && (
                           <button
                             type="button"
@@ -12667,12 +12585,7 @@
                       </div>
                     )}
 
-                    {!modoProducao && (<>
-                      <div className="cadastro-step-title">
-                        <span className="cadastro-step-number">2</span>
-                        <span>Registre a compra</span>
-                      </div>
-                      <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
                       <div className="col-span-12 sm:col-span-6 lg:col-span-3">
                         <label className="t-caption block mb-1">Fornecedor</label>
                         {modoProducao ? (
@@ -12785,27 +12698,21 @@
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
-                      </div>
-                    </>)}
-
-                    <div className="cadastro-step-title">
-                      <span className="cadastro-step-number">{modoProducao ? '2' : '3'}</span>
-                      <span>{modoProducao ? 'Preço, validade e confirmação' : 'Confira e salve'}</span>
                     </div>
-                    <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
-                      {modoProducao && (
-                        <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                          <label className="t-caption block mb-1">Validade (dias)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={draft.shelfLifeDays}
-                            onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
-                            placeholder="—"
-                            className="field field-md text-center tnum"
-                          />
-                        </div>
-                      )}
+
+                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3">
+                      <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                        <label className="t-caption block mb-1">Validade (dias)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={modoProducao ? draft.shelfLifeDays : ''}
+                          disabled={!modoProducao}
+                          onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
+                          placeholder="—"
+                          className="field field-md text-center tnum disabled:opacity-50"
+                        />
+                      </div>
                       {(modoProducao || (temRevenda && opcoesExtrasCadastro.revenda)) && (
                         <>
                           <div className="col-span-6 sm:col-span-3 lg:col-span-2">
