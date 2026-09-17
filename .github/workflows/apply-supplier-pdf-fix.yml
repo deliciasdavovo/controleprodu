@@ -1,0 +1,200 @@
+name: Apply supplier PDF filter fix
+
+on:
+  push:
+    branches:
+      - fix/relatorio-fornecedores-filtros
+    paths:
+      - .github/workflows/apply-supplier-pdf-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/relatorio-fornecedores-filtros
+
+      - name: Patch supplier full report
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          old_signature = """      const htmlRelatorioCompletoFornecedores = ({
+        unidadeNome,
+        filtros,
+        compras,
+        itens,
+        fornecedores,
+        extrato,
+        totalComprasFiltradas
+      }) => {"""
+          new_signature = """      const htmlRelatorioCompletoFornecedores = ({
+        unidadeNome,
+        filtros,
+        visao,
+        compras,
+        itens,
+        fornecedores,
+        extrato,
+        totalComprasFiltradas
+      }) => {"""
+          if old_signature not in text:
+              raise SystemExit('Assinatura do relatório completo não encontrada')
+          text = text.replace(old_signature, new_signature, 1)
+
+          anchor = """        const linhasCompras = extrato.map((c) => `<tr>
+          <td>${c.data ? formatDateBR(c.data) : '—'}</td>
+          <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
+          <td>${c.fornecedor === 'Sem fornecedor' ? '<span class=\"quieto\">Sem fornecedor</span>' : escaparHtml(c.fornecedor)}</td>
+          <td class=\"num\">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+          <td class=\"num forte\">${formatCurrencyBR(c.cost)}</td>
+          <td class=\"num\">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+        </tr>`).join('');
+"""
+          if anchor not in text:
+              raise SystemExit('Âncora das compras detalhadas não encontrada')
+
+          addition = anchor + r'''
+
+        // O relatório completo acompanha a MESMA visualização escolhida na
+        // página. Os filtros já chegam em `compras`; aqui só muda a forma de
+        // apresentar os mesmos dados: item, fornecedor ou compra.
+        const blocosFornecedores = fornecedores.map((f) => {
+          const comprasDoFornecedor = [...f.lista].sort((a, b) => {
+            const d = (b.data || '').localeCompare(a.data || '');
+            return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+          });
+          const linhas = comprasDoFornecedor.map((c) => `<tr>
+            <td>${c.data ? formatDateBR(c.data) : '—'}</td>
+            <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
+            <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+            <td class="num forte">${formatCurrencyBR(c.cost)}</td>
+            <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+          </tr>`).join('');
+          return `<div class="grupo-fornecedor">
+            <div class="grupo-fornecedor-cabecalho">
+              <div class="grupo-fornecedor-nome">
+                <b>${f.nome === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(f.nome)}</b>
+                <small>${f.lista.length} ${f.lista.length === 1 ? 'compra' : 'compras'} · ${f.itens} ${f.itens === 1 ? 'item' : 'itens'}</small>
+              </div>
+              <div><span>Total filtrado</span><b>${formatCurrencyBR(f.total)}</b></div>
+              <div><span>Última compra</span><b>${f.recente ? formatDateBR(f.recente) : '—'}</b></div>
+            </div>
+            <table class="t-fornecedor-compras">
+              <thead><tr><th>Data</th><th>Item</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
+              <tbody>${linhas || '<tr><td colspan="5" class="quieto">Nenhuma compra neste grupo.</td></tr>'}</tbody>
+            </table>
+          </div>`;
+        }).join('');
+
+        const secaoVisualizacao = visao === 'fornecedor'
+          ? `<section>
+              <h2>Por fornecedor (${fornecedores.length})</h2>
+              <p class="nota">Os fornecedores estão na mesma ordem escolhida na página e cada grupo mostra somente as compras que passaram pelos filtros atuais.</p>
+              ${blocosFornecedores || '<p class="quieto">Nenhum fornecedor nos filtros atuais.</p>'}
+            </section>`
+          : visao === 'compra'
+            ? `<section>
+                <h2>Por compra (${extrato.length}${extrato.length < totalComprasFiltradas ? ` de ${totalComprasFiltradas}` : ''})</h2>
+                <p class="nota">Mesma ordenação e mesma opção “Últimas 10/25/50/Todas” selecionadas na página.</p>
+                <table class="t-compras"><thead><tr><th>Data</th><th>Item</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
+                <tbody>${linhasCompras || '<tr><td colspan="6" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody></table>
+              </section>`
+            : `<section>
+                <h2>Por item (${itens.length})</h2>
+                <p class="nota">Mesma ordenação da página. As três compras mais recentes, a variação e a comparação de fornecedores respeitam os filtros atuais.</p>
+                ${tabelasItensPorCategoria || '<p class="quieto">Nenhum item nos filtros atuais.</p>'}
+              </section>`;
+'''
+          text = text.replace(anchor, addition, 1)
+
+          css_anchor = """            .t-compras th:nth-child(1) { width: 11%; } .t-compras th:nth-child(2) { width: 23%; }
+            .t-compras th:nth-child(3) { width: 21%; } .t-compras th:nth-child(4) { width: 13%; }
+            .t-compras th:nth-child(5), .t-compras th:nth-child(6) { width: 16%; }
+"""
+          css_addition = css_anchor + """            .grupo-fornecedor { margin: 10px 0 16px; }
+            .grupo-fornecedor-cabecalho { display: grid; grid-template-columns: minmax(0, 1fr) 150px 120px; gap: 8px; align-items: center; padding: 8px 9px; background: #ececea; border: 1px solid #cfcfcb; border-bottom: 0; break-after: avoid; page-break-after: avoid; }
+            .grupo-fornecedor-cabecalho > div:not(.grupo-fornecedor-nome) { text-align: right; }
+            .grupo-fornecedor-cabecalho span, .grupo-fornecedor-cabecalho small { display: block; color: #666; font-size: 7.5pt; }
+            .grupo-fornecedor-cabecalho b { display: block; font-size: 10pt; }
+            .grupo-fornecedor-nome b { font-size: 11pt; }
+            .t-fornecedor-compras th:nth-child(1) { width: 12%; }
+            .t-fornecedor-compras th:nth-child(2) { width: 38%; }
+            .t-fornecedor-compras th:nth-child(3) { width: 14%; }
+            .t-fornecedor-compras th:nth-child(4), .t-fornecedor-compras th:nth-child(5) { width: 18%; }
+"""
+          if css_anchor not in text:
+              raise SystemExit('Âncora de CSS do relatório não encontrada')
+          text = text.replace(css_anchor, css_addition, 1)
+
+          start_marker = """          <div class=\"duas\">
+            <section>
+              <h2>Resumo por categoria</h2>
+"""
+          end_marker = """          <footer>
+            Este relatório usa os filtros que estavam aplicados na aba Fornecedores no momento da geração.
+"""
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Bloco principal do relatório completo não encontrado')
+
+          new_body = r'''          ${secaoVisualizacao}
+
+          <div class="duas">
+            <section>
+              <h2>Resumo por categoria</h2>
+              <table><thead><tr><th>Categoria</th><th class="num">Compras</th><th class="num">Itens</th><th class="num">Total</th></tr></thead>
+              <tbody>${linhasCategoria || '<tr><td colspan="4" class="quieto">Sem dados.</td></tr>'}</tbody></table>
+            </section>
+            <section>
+              <h2>Resumo por mês</h2>
+              <table><thead><tr><th>Mês</th><th class="num">Compras</th><th class="num">Itens</th><th class="num">Forn.</th><th class="num">Total</th></tr></thead>
+              <tbody>${linhasMes || '<tr><td colspan="5" class="quieto">Sem compras com data.</td></tr>'}</tbody></table>
+            </section>
+          </div>
+
+'''
+          text = text[:start] + new_body + text[end:]
+
+          call_anchor = """          janela.document.write(htmlRelatorioCompletoFornecedores({
+            unidadeNome: unitName,
+            filtros,
+            compras,
+"""
+          call_replacement = """          janela.document.write(htmlRelatorioCompletoFornecedores({
+            unidadeNome: unitName,
+            filtros,
+            visao,
+            compras,
+"""
+          if call_anchor not in text:
+              raise SystemExit('Chamada do relatório completo não encontrada')
+          text = text.replace(call_anchor, call_replacement, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify patch markers
+        shell: bash
+        run: |
+          grep -q "const secaoVisualizacao = visao === 'fornecedor'" index.html
+          grep -q "visao," index.html
+          grep -q "Por fornecedor (\${fornecedores.length})" index.html
+
+      - name: Commit patched index
+        shell: bash
+        run: |
+          git config user.name "chatgpt-fix"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix supplier PDF to follow active filters and grouping"
+          git push origin HEAD:fix/relatorio-fornecedores-filtros
