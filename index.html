@@ -15984,7 +15984,7 @@
           <td class="num forte">${formatCurrencyBR(f.total)}</td>
         </tr>`).join('');
 
-        const linhasCompras = extrato.map((compra) => {
+        const linhasCompras = visao === 'compra' ? extrato.map((compra) => {
           const itensDaCompra = compra.itens.map((c) => `<div class="compra-pdf-item">
             <div>
               <b>${escaparHtml(c.item)}</b>
@@ -16003,7 +16003,7 @@
               <small>${compra.itens.length} ${compra.itens.length === 1 ? 'item' : 'itens'}</small>
             </td>
           </tr>`;
-        }).join('');
+        }).join('') : '';
 
         // A matriz mês x fornecedor é a mesma que aparece na tela. Ela entra
         // no PDF antes dos detalhes por fornecedor para preservar a leitura
@@ -16887,12 +16887,7 @@ const porItem = useMemo(() => {
           // "Por compra". Nas outras visões, o relatório completo leva todas
           // as compras filtradas para não esconder dados por um seletor que a
           // pessoa nem está vendo.
-          const comprasDetalhadas = visao === 'compra'
-            ? extrato
-            : [...compras].sort((a, b) => {
-                const d = (b.data || '').localeCompare(a.data || '');
-                return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
-              });
+          const comprasDetalhadas = extrato;
 
           const filtros = {
             itens: [
