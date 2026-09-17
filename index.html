@@ -15862,6 +15862,7 @@
       // somente o extrato detalhado, exatamente como acontece na página.
       const htmlRelatorioCompletoFornecedores = ({
         unidadeNome,
+        tituloRelatorio,
         filtros,
         visao,
         compras,
@@ -16093,7 +16094,7 @@
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Relatório de fornecedores — ${escaparHtml(unidadeNome)}</title>
+          <title>${escaparHtml(tituloRelatorio)} — ${escaparHtml(unidadeNome)}</title>
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
           <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16175,7 +16176,7 @@
           </style></head><body>
           ${BARRA_ACOES_HTML}
           <header>
-            <h1>Relatório completo de fornecedores</h1>
+            <h1>${escaparHtml(tituloRelatorio)}</h1>
             <p class="sub">${escaparHtml(unidadeNome)} · gerado em ${escaparHtml(geradoEm)}</p>
           </header>
 
@@ -16847,6 +16848,23 @@ const porItem = useMemo(() => {
               : 'Todo o histórico';
           const rotuloOrdem = OPCOES_ORDEM[visao].find((o) => o.v === ordem)?.t || ordem;
 
+          // O título vira também o nome sugerido do PDF pelo navegador.
+          // Ele carrega os filtros que realmente identificam o relatório,
+          // sem poluir o nome com detalhes operacionais como a ordenação.
+          const rotulosCategoriaTitulo = {
+            Ingrediente: 'Ingredientes',
+            Embalagem: 'Embalagens',
+            Limpeza: 'Limpeza',
+            Revenda: 'Revenda'
+          };
+          const categoriaTitulo = tipoFiltro === 'todos'
+            ? 'Fornecedores'
+            : (rotulosCategoriaTitulo[tipoFiltro] || tipoFiltro);
+          const partesTituloRelatorio = [categoriaTitulo, rotulosVisao[visao]];
+          if (mesFiltro || dataInicio || dataFim) partesTituloRelatorio.push(rotuloPeriodo);
+          if (busca.trim()) partesTituloRelatorio.push(`Busca ${busca.trim()}`);
+          const tituloRelatorio = partesTituloRelatorio.join(' — ');
+
           // O limite de 10/25/50 só está aplicado quando a página está em
           // "Por compra". Nas outras visões, o relatório completo leva todas
           // as compras filtradas para não esconder dados por um seletor que a
@@ -16880,6 +16898,7 @@ const porItem = useMemo(() => {
           }
           janela.document.write(htmlRelatorioCompletoFornecedores({
             unidadeNome: unitName,
+            tituloRelatorio,
             filtros,
             visao,
             compras,
