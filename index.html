@@ -15664,7 +15664,8 @@
         itens,
         fornecedores,
         extrato,
-        totalComprasFiltradas
+        totalComprasFiltradas,
+        cruzadaMensal
       }) => {
         const fornecedoresUnicos = new Set(
           compras.filter((c) => c.fornecedor !== 'Sem fornecedor').map((c) => c.fornecedor)
@@ -15787,6 +15788,50 @@
           <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
         </tr>`).join('');
 
+        // A matriz mês x fornecedor é a mesma que aparece na tela. Ela entra
+        // no PDF antes dos detalhes por fornecedor para preservar a leitura
+        // gerencial: fornecedor na linha, mês na coluna e totais nas pontas.
+        const tabelaMesFornecedor = visao === 'fornecedor' && cruzadaMensal && cruzadaMensal.colunas.length > 1
+          ? (() => {
+              const tamanhoFonte = cruzadaMensal.colunas.length >= 9
+                ? '6.2pt'
+                : cruzadaMensal.colunas.length >= 6
+                  ? '6.8pt'
+                  : '7.8pt';
+              const linhas = cruzadaMensal.linhas.map((l) => `<tr>
+                <td class="mes-fornecedor-nome"><b>${escaparHtml(l.nome)}</b></td>
+                ${l.valores.map((v) => `<td class="num mes-valor"${v > 0 && cruzadaMensal.maiorCelula > 0
+                  ? ` style="background:rgba(14,9,55,${(0.05 + (v / cruzadaMensal.maiorCelula) * 0.16).toFixed(3)})"`
+                  : ''}>${v > 0 ? formatCurrencyBR(v) : '<span class="quieto">—</span>'}</td>`).join('')}
+                <td class="num forte mes-total">${formatCurrencyBR(l.total)}</td>
+              </tr>`).join('');
+              const totais = cruzadaMensal.totaisPorMes.map((v) =>
+                `<td class="num forte">${v > 0 ? formatCurrencyBR(v) : '<span class="quieto">—</span>'}</td>`
+              ).join('');
+              return `<div class="mes-fornecedor-bloco">
+                <div class="mes-fornecedor-titulo">
+                  <b>Mês a mês</b>
+                  <span>quanto foi para cada fornecedor em cada mês</span>
+                </div>
+                <table class="t-mes-fornecedor" style="font-size:${tamanhoFonte}">
+                  <thead><tr>
+                    <th>Fornecedor</th>
+                    ${cruzadaMensal.rotulos.map((r) => `<th class="num">${escaparHtml(r)}</th>`).join('')}
+                    <th class="num">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    ${linhas}
+                    <tr class="mes-total-linha">
+                      <td><b>Total do mês</b></td>
+                      ${totais}
+                      <td class="num forte">${formatCurrencyBR(cruzadaMensal.total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>`;
+            })()
+          : '';
+
         // O relatório completo acompanha a MESMA visualização escolhida na
         // página. Busca, categoria, período e demais filtros já chegam em
         // `compras`; aqui só muda a forma de apresentar os mesmos dados.
@@ -15822,6 +15867,8 @@
           ? `<section>
               <h2>Por fornecedor (${fornecedores.length})</h2>
               <p class="nota">Os fornecedores estão na mesma ordem escolhida na página e cada grupo mostra somente as compras que passaram pelos filtros atuais.</p>
+              ${tabelaMesFornecedor}
+              ${tabelaMesFornecedor ? '<div class="subtitulo-detalhes">Compras detalhadas por fornecedor</div>' : ''}
               ${blocosFornecedores || '<p class="quieto">Nenhum fornecedor nos filtros atuais.</p>'}
             </section>`
           : visao === 'compra'
@@ -15906,6 +15953,19 @@
             .t-fornecedor-compras th:nth-child(2) { width: 38%; }
             .t-fornecedor-compras th:nth-child(3) { width: 14%; }
             .t-fornecedor-compras th:nth-child(4), .t-fornecedor-compras th:nth-child(5) { width: 18%; }
+            .mes-fornecedor-bloco { margin: 10px 0 18px; break-inside: avoid-page; }
+            .mes-fornecedor-titulo { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+            .mes-fornecedor-titulo b { font-size: 11pt; }
+            .mes-fornecedor-titulo span { color: #666; font-size: 7.5pt; }
+            .t-mes-fornecedor { table-layout: fixed; border-top: 1px solid #cfcfcb; }
+            .t-mes-fornecedor th, .t-mes-fornecedor td { padding: 4px 3px; font-size: inherit; overflow-wrap: normal; }
+            .t-mes-fornecedor th:first-child, .t-mes-fornecedor td:first-child { width: 17%; text-align: left; }
+            .t-mes-fornecedor th:not(:first-child), .t-mes-fornecedor td:not(:first-child) { white-space: nowrap; }
+            .t-mes-fornecedor thead th { background: #f2f2ef; }
+            .t-mes-fornecedor .mes-fornecedor-nome { white-space: normal; }
+            .t-mes-fornecedor .mes-total { border-left: 1px solid #cfcfcb; }
+            .t-mes-fornecedor .mes-total-linha td { border-top: 1.5px solid #999; background: #f7f7f4; }
+            .subtitulo-detalhes { margin: 13px 0 5px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9.5pt; font-weight: 700; }
             footer { margin-top: 16px; padding-top: 7px; border-top: 1px solid #bbb; color: #666; font-size: 8pt; }
             @media screen and (max-width: 700px) { .duas { grid-template-columns: 1fr; } .placar { grid-template-columns: 1fr 1fr; } }
           </style></head><body>
@@ -16622,7 +16682,8 @@ const porItem = useMemo(() => {
             itens: itensOrdenados,
             fornecedores: porFornecedor,
             extrato: comprasDetalhadas,
-            totalComprasFiltradas: compras.length
+            totalComprasFiltradas: compras.length,
+            cruzadaMensal
           }));
           janela.document.close();
 
