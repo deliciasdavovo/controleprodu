@@ -534,17 +534,13 @@
         background: var(--bg-surface);
       }
 
-      /* Cadastro: um formulário só, mas com ritmo mais solto e leitura natural.
-         Os campos seguem a tipografia do sistema; números continuam alinhados
-         apenas onde a classe tnum é usada. */
-      .cadastro-form > .grid {
-        column-gap: 12px;
-        row-gap: 16px;
-      }
+      /* Cadastro: leitura em dois eixos.
+         Esquerda = o que é / de quem vem. Direita = quando, quanto e por quanto.
+         No celular os dois eixos viram uma sequência única, sem caixas mortas. */
       .cadastro-form .field {
         font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         letter-spacing: -0.01em;
-        background-color: rgba(255, 255, 255, 0.96);
+        background-color: rgba(255, 255, 255, 0.98);
         border-color: rgba(60, 60, 67, 0.13);
         transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
       }
@@ -560,12 +556,6 @@
         border-color: var(--accent);
         box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.12);
       }
-      .cadastro-form .field:disabled {
-        opacity: 1 !important;
-        background-color: rgba(118, 118, 128, 0.055);
-        border-color: rgba(60, 60, 67, 0.08);
-        color: var(--ink-4);
-      }
       .cadastro-form label {
         display: flex;
         min-height: 18px;
@@ -573,10 +563,121 @@
         line-height: 1.2;
         margin-bottom: 6px;
       }
-      .cadastro-form .field-md { height: 42px; }
+      .cadastro-form .field-md { height: 44px; }
+      .cadastro-opcoes {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 18px;
+      }
+      .cadastro-opcoes-titulo {
+        margin-right: 2px;
+        color: var(--ink-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+      }
+      .cadastro-duas-colunas {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+        align-items: stretch;
+      }
+      .cadastro-bloco {
+        min-width: 0;
+      }
+      .cadastro-bloco-identificacao {
+        padding-right: 26px;
+      }
+      .cadastro-bloco-compra {
+        padding-left: 26px;
+        border-left: 1px solid var(--hairline);
+      }
+      .cadastro-bloco-cabecalho {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 15px;
+      }
+      .cadastro-bloco-cabecalho strong {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.018em;
+        color: var(--ink-1);
+      }
+      .cadastro-bloco-cabecalho span {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+      .cadastro-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        column-gap: 12px;
+        row-gap: 15px;
+        align-items: end;
+      }
+      .cadastro-preco-calculado {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        margin-top: 14px;
+        padding: 9px 11px;
+        border-top: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .cadastro-preco-calculado span {
+        color: var(--ink-4);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .cadastro-preco-calculado b {
+        font-size: 15px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .cadastro-equivalencia {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--hairline);
+      }
+      .cadastro-rodape {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+        gap: 14px;
+        align-items: stretch;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--hairline);
+      }
+      .cadastro-rodape .cadastro-contexto {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: 9px 11px;
+        background: rgba(118, 118, 128, 0.055);
+        border-radius: 10px;
+      }
+      @media (max-width: 899px) {
+        .cadastro-duas-colunas { grid-template-columns: 1fr; }
+        .cadastro-bloco-identificacao { padding-right: 0; padding-bottom: 20px; }
+        .cadastro-bloco-compra {
+          padding-left: 0;
+          padding-top: 20px;
+          border-left: 0;
+          border-top: 1px solid var(--hairline);
+        }
+        .cadastro-rodape { grid-template-columns: 1fr; }
+      }
       @media (max-width: 639px) {
-        .cadastro-form > .grid { row-gap: 14px; }
+        .cadastro-grid { row-gap: 14px; }
         .cadastro-form .field { font-size: 16px; }
+        .cadastro-form .field-md { height: 46px; }
+        .cadastro-opcoes { margin-bottom: 15px; }
       }
 
       /* ==========================================
@@ -3169,6 +3270,13 @@
           else setSearch(texto);
         };
 
+        const handleFocus = (e) => {
+          // Em dinheiro, selecionar tudo ao entrar no campo deixa a troca do
+          // valor muito mais rápida; basta digitar o novo número.
+          if (moneyMode) requestAnimationFrame(() => e.target.select());
+          if (onFocus) onFocus(e);
+        };
+
         const handleKeyDown = (e) => {
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
@@ -3290,6 +3398,9 @@
         onValueChange,
         decimals = 3,
         fixedDecimals = false,
+        // Modo caixa: os dois últimos dígitos são sempre os centavos.
+        // 1 -> 0,01 · 12 -> 0,12 · 1234 -> 12,34.
+        moneyMode = false,
         // O número que aparece em cinza quando o campo está vazio: a
         // quantidade, o valor ou o volume da última compra daquele item.
         // Enter num campo vazio aceita esse número, em vez de pular adiante e
@@ -3307,7 +3418,7 @@
           const n = Number(v);
           if (!Number.isFinite(n)) return '';
           return n.toLocaleString('pt-BR', {
-            minimumFractionDigits: fixedDecimals ? decimals : 0,
+            minimumFractionDigits: (fixedDecimals || moneyMode) ? decimals : 0,
             maximumFractionDigits: decimals
           });
         };
@@ -3323,6 +3434,24 @@
           if (digitado.trim().startsWith('=')) {
             const formula = digitado.replace(/[^=\d.,+\-*/()×÷\s]/g, '');
             setText(formula);
+            return;
+          }
+
+          if (moneyMode) {
+            const digitos = digitado.replace(/\D/g, '');
+            if (!digitos) {
+              setText('');
+              onValueChange('');
+              return;
+            }
+            const escala = 10 ** decimals;
+            const numero = Number(digitos) / escala;
+            const display = numero.toLocaleString('pt-BR', {
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
+            });
+            setText(display);
+            onValueChange(numero.toFixed(decimals));
             return;
           }
 
@@ -3399,11 +3528,11 @@
           <input
             ref={ref}
             type="text"
-            inputMode="text"
+            inputMode={moneyMode ? 'numeric' : 'text'}
             value={text}
             onChange={handleChange}
             onBlur={handleBlur}
-            onFocus={onFocus}
+            onFocus={handleFocus}
             onKeyDown={handleKeyDown}
             title={props.title || 'Digite um número ou comece com = para fazer uma conta'}
             {...props}
@@ -12408,6 +12537,22 @@
           { id: 'fichas', label: 'Fichas técnicas' }
         ];
 
+        // Leitura imediata do lançamento: enquanto quantidade e valor são
+        // preenchidos, mostramos quanto aquela compra está custando por unidade.
+        const qtdDigitadaResumo = Number(draft.qty) || 0;
+        const unidadesPorVolumeResumo = Number(draft.unitsPerPackage) || Number(unidadesPorVolumeSugeridas) || 0;
+        const qtdBaseResumo = compraPorVolume
+          ? qtdDigitadaResumo * unidadesPorVolumeResumo
+          : qtdDigitadaResumo;
+        const custoUnitarioResumoEntrada = !modoProducao && qtdBaseResumo > 0 && Number(draft.cost) > 0
+          ? Number(draft.cost) / qtdBaseResumo
+          : 0;
+        const unidadeResumoEntrada = compraPorVolume
+          ? 'un'
+          : (temInsumo && !temRevenda
+            ? (draft.unit || 'un')
+            : (draft.purchaseUnit || draft.unit || 'un'));
+
         return (
           <div className="space-y-5">
             <div>
@@ -12437,7 +12582,7 @@
                       </div>
                       <h3 className="t-title">Cadastro + compra</h3>
                       <p className="t-body mt-1.5">
-                        Um formulário só para tudo. Volume, preço de revenda e equivalência ficam fechados e você abre apenas quando precisar.
+                        Identificação de um lado, compra do outro. O formulário mostra só o que se aplica ao tipo escolhido e mantém os extras fechados até você precisar.
                       </p>
                       <p className="t-micro mt-1">Dica: nos campos de número ou valor, comece com <strong>=</strong> para fazer uma conta. Ex.: <strong>=12*6</strong>.</p>
                     </div>
@@ -12448,87 +12593,16 @@
                   </div>
 
                   <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form mt-5 pt-5 border-t hairline">
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
-                      <div className="col-span-6 sm:col-span-4 lg:col-span-2">
-                        <label className="t-caption block mb-1">Tipo</label>
-                        <select
-                          value={tipoCadastroAtual}
-                          onChange={(e) => aplicarTipoEntrada(e.target.value)}
-                          className="field field-md field-select font-semibold"
-                        >
-                          {TIPOS_ENTRADA.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="col-span-12 sm:col-span-8 lg:col-span-4">
-                        <label className="t-caption block mb-1">Item</label>
-                        <PickerField
-                          inputRef={nomeRef}
-                          value={draft.name}
-                          options={opcoesCadastro}
-                          onType={(name) => setDraft((d) => ({ ...d, name }))}
-                          onPick={selecionarCadastro}
-                          placeholder={modoProducao ? 'Digite ou escolha um produto' : 'Digite ou escolha um item'}
-                          emptyLabel="Item novo — será cadastrado ao salvar"
-                          className="field field-md font-semibold"
-                        />
-                      </div>
-
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Unidade base</label>
-                        <select
-                          value={temInsumo ? draft.unit : ''}
-                          disabled={!temInsumo || !!supplyExistente}
-                          onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value, purchaseUnit: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {!temInsumo && <option value="">—</option>}
-                          {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="col-span-8 sm:col-span-5 lg:col-span-2">
-                        <label className="t-caption block mb-1">Categoria</label>
-                        <select
-                          value={modoProducao ? draft.productCategory : (temRevenda ? draft.resaleCategory : '')}
-                          disabled={!modoProducao && !temRevenda}
-                          onChange={(e) => setDraft((d) => modoProducao
-                            ? ({ ...d, productCategory: e.target.value })
-                            : ({ ...d, resaleCategory: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {!modoProducao && !temRevenda && <option value="">—</option>}
-                          {modoProducao
-                            ? PRODUCT_CATEGORIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-                            : [
-                                { value: 'revenda', label: 'Revenda' },
-                                { value: 'cafeteria', label: 'Cafeteria' },
-                                { value: 'encomenda', label: 'Encomenda' }
-                              ].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-4 lg:col-span-2">
-                        <label className="t-caption block mb-1">Responsável</label>
-                        <input
-                          value={modoProducao ? draft.responsible : ''}
-                          disabled={!modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, responsible: e.target.value }))}
-                          placeholder={modoProducao ? 'Quem produz' : '—'}
-                          className="field field-md disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
-
                     {!modoProducao && (
-                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t hairline">
+                      <div className="cadastro-opcoes">
+                        <span className="cadastro-opcoes-titulo">Opções</span>
                         {compraPorVolumeDisponivel && (
                           <button
                             type="button"
                             onClick={() => alternarOpcaoExtraCadastro('volume')}
                             className={`btn btn-sm ${opcoesExtrasCadastro.volume ? 'btn-primary' : 'btn-secondary'}`}
                           >
-                            {opcoesExtrasCadastro.volume ? 'Ocultar volume/embalagem' : 'Adicionar volume/embalagem'}
+                            {opcoesExtrasCadastro.volume ? 'Volume ativo' : 'Volume/embalagem'}
                           </button>
                         )}
                         {temRevenda && (
@@ -12537,7 +12611,7 @@
                             onClick={() => alternarOpcaoExtraCadastro('revenda')}
                             className={`btn btn-sm ${opcoesExtrasCadastro.revenda ? 'btn-primary' : 'btn-secondary'}`}
                           >
-                            {opcoesExtrasCadastro.revenda ? 'Ocultar preço de revenda' : 'Adicionar preço de revenda'}
+                            {opcoesExtrasCadastro.revenda ? 'Preço de revenda ativo' : 'Preço de revenda'}
                           </button>
                         )}
                         {temInsumo && (
@@ -12546,14 +12620,302 @@
                             onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
                             className={`btn btn-sm ${opcoesExtrasCadastro.equivalencia ? 'btn-primary' : 'btn-secondary'}`}
                           >
-                            {opcoesExtrasCadastro.equivalencia ? 'Ocultar equivalência' : 'Adicionar equivalência'}
+                            {opcoesExtrasCadastro.equivalencia ? 'Equivalência ativa' : 'Equivalência'}
                           </button>
                         )}
                       </div>
                     )}
 
+                    <div className="cadastro-duas-colunas">
+                      {/* ESQUERDA: identificação — o que é e de quem vem */}
+                      <section className="cadastro-bloco cadastro-bloco-identificacao">
+                        <div className="cadastro-bloco-cabecalho">
+                          <strong>Cadastro</strong>
+                          <span>identificação do item</span>
+                        </div>
+
+                        <div className="cadastro-grid">
+                          <div className="col-span-7 sm:col-span-5">
+                            <label className="t-caption">Tipo</label>
+                            <select
+                              value={tipoCadastroAtual}
+                              onChange={(e) => aplicarTipoEntrada(e.target.value)}
+                              className="field field-md field-select font-semibold"
+                            >
+                              {TIPOS_ENTRADA.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                            </select>
+                          </div>
+
+                          <div className="col-span-12">
+                            <label className="t-caption">Produto / item</label>
+                            <PickerField
+                              inputRef={nomeRef}
+                              value={draft.name}
+                              options={opcoesCadastro}
+                              onType={(name) => setDraft((d) => ({ ...d, name }))}
+                              onPick={selecionarCadastro}
+                              placeholder={modoProducao ? 'Digite ou escolha um produto' : 'Digite ou escolha um item'}
+                              emptyLabel="Item novo — será cadastrado ao salvar"
+                              className="field field-md font-semibold"
+                            />
+                          </div>
+
+                          {!modoProducao && (
+                            <div className="col-span-12">
+                              <label className="t-caption">Fornecedor</label>
+                              <PickerField
+                                value={draft.supplier}
+                                options={[
+                                  ...(compraExistente?.supplier
+                                    ? [{
+                                        value: compraExistente.supplier,
+                                        label: compraExistente.supplier,
+                                        hint: 'Última compra'
+                                      }]
+                                    : []),
+                                  ...fornecedores
+                                    .filter((f) => String(f || '').trim().toLocaleLowerCase('pt-BR') !== String(compraExistente?.supplier || '').trim().toLocaleLowerCase('pt-BR'))
+                                    .map((f) => ({ value: f, label: f }))
+                                ]}
+                                onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
+                                onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
+                                placeholder={compraExistente?.supplier || 'Digite ou escolha o fornecedor'}
+                                emptyLabel="Fornecedor novo"
+                                className="field field-md"
+                              />
+                            </div>
+                          )}
+
+                          {temInsumo && (
+                            <div className="col-span-6">
+                              <label className="t-caption">Unidade base</label>
+                              <select
+                                value={draft.unit}
+                                disabled={!!supplyExistente}
+                                onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value, purchaseUnit: e.target.value }))}
+                                className="field field-md field-select"
+                              >
+                                {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          {(modoProducao || temRevenda) && (
+                            <div className={modoProducao ? 'col-span-6' : (temInsumo ? 'col-span-6' : 'col-span-12')}>
+                              <label className="t-caption">Categoria</label>
+                              <select
+                                value={modoProducao ? draft.productCategory : draft.resaleCategory}
+                                onChange={(e) => setDraft((d) => modoProducao
+                                  ? ({ ...d, productCategory: e.target.value })
+                                  : ({ ...d, resaleCategory: e.target.value }))}
+                                className="field field-md field-select"
+                              >
+                                {modoProducao
+                                  ? PRODUCT_CATEGORIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
+                                  : [
+                                      { value: 'revenda', label: 'Revenda' },
+                                      { value: 'cafeteria', label: 'Cafeteria' },
+                                      { value: 'encomenda', label: 'Encomenda' }
+                                    ].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                            </div>
+                          )}
+
+                          {modoProducao && (
+                            <div className="col-span-12">
+                              <label className="t-caption">Responsável</label>
+                              <input
+                                value={draft.responsible}
+                                onChange={(e) => setDraft((d) => ({ ...d, responsible: e.target.value }))}
+                                placeholder="Quem produz"
+                                className="field field-md"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* DIREITA: compra/valores — quando, quanto e por quanto */}
+                      <section className="cadastro-bloco cadastro-bloco-compra">
+                        <div className="cadastro-bloco-cabecalho">
+                          <strong>{modoProducao ? 'Venda' : 'Compra'}</strong>
+                          <span>{modoProducao ? 'validade e preço' : 'data, quantidade e valor'}</span>
+                        </div>
+
+                        {modoProducao ? (
+                          <div className="cadastro-grid">
+                            <div className="col-span-6">
+                              <label className="t-caption">Validade (dias)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={draft.shelfLifeDays}
+                                onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
+                                placeholder="2"
+                                className="field field-md text-center tnum"
+                              />
+                            </div>
+                            <div className="col-span-8">
+                              <label className="t-caption justify-between gap-2">
+                                <span>Preço de venda</span>
+                                <span className="t-nano">vírgula fixa</span>
+                              </label>
+                              <NumeroBRField
+                                value={draft.price}
+                                decimals={2}
+                                fixedDecimals={true}
+                                moneyMode={true}
+                                onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
+                                placeholder="0,00"
+                                className="field field-md text-right tnum"
+                              />
+                            </div>
+                            <div className="col-span-4">
+                              <label className="t-caption">Vende por</label>
+                              <select
+                                value={draft.priceUnit}
+                                onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
+                                className="field field-md field-select"
+                              >
+                                <option value="un">un</option>
+                                <option value="kg">kg</option>
+                              </select>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="cadastro-grid">
+                              <div className="col-span-5">
+                                <label className="t-caption">Data</label>
+                                <input
+                                  type="date"
+                                  value={draft.purchaseDate || dataSugerida}
+                                  onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))}
+                                  title="Começa na última data lançada — troque se esta nota for de outro dia"
+                                  className="field field-md"
+                                />
+                                {(draft.purchaseDate || dataSugerida) !== getTodayDateString() && (
+                                  <div className="t-nano mt-1">última lançada · não é hoje</div>
+                                )}
+                              </div>
+
+                              <div className="col-span-7">
+                                <label className="t-caption">{compraPorVolume ? 'Qtd. volumes' : `Qtd. comprada${temInsumo && !temRevenda ? ` (${draft.unit})` : ''}`}</label>
+                                <NumeroBRField
+                                  value={draft.qty}
+                                  decimals={3}
+                                  onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}
+                                  placeholder={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
+                                    ? numeroCurtoBR((Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades))
+                                    : (compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0')}
+                                  sugestao={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
+                                    ? (Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades)
+                                    : (compraExistente?.qty || '')}
+                                  className="field field-md text-right tnum"
+                                />
+                              </div>
+
+                              <div className="col-span-8">
+                                <label className="t-caption justify-between gap-2">
+                                  <span>Valor pago</span>
+                                  <span className="t-nano">vírgula fixa</span>
+                                </label>
+                                <NumeroBRField
+                                  value={draft.cost}
+                                  decimals={2}
+                                  fixedDecimals={true}
+                                  moneyMode={true}
+                                  onValueChange={(cost) => setDraft((d) => ({ ...d, cost }))}
+                                  placeholder={valorPagoSugerido ? Number(valorPagoSugerido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+                                  sugestao={valorPagoSugerido}
+                                  className="field field-md text-right tnum"
+                                />
+                              </div>
+
+                              <div className="col-span-4">
+                                <label className="t-caption">Un. compra</label>
+                                <select
+                                  value={compraPorVolume ? 'un' : (temInsumo && !temRevenda ? draft.unit : draft.purchaseUnit)}
+                                  disabled={compraPorVolume || (temInsumo && !temRevenda)}
+                                  onChange={(e) => setDraft((d) => ({ ...d, purchaseUnit: e.target.value }))}
+                                  className="field field-md field-select"
+                                >
+                                  {['un', 'kg', 'g', 'L', 'ml'].map((u) => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                              </div>
+
+                              {compraPorVolume && (
+                                <>
+                                  <div className="col-span-6">
+                                    <label className="t-caption">Embalagem</label>
+                                    <select
+                                      value={draft.packageType}
+                                      onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
+                                      className="field field-md field-select"
+                                    >
+                                      {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="col-span-6">
+                                    <label className="t-caption">Un./volume</label>
+                                    <NumeroBRField
+                                      value={draft.unitsPerPackage}
+                                      decimals={0}
+                                      onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
+                                      placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
+                                      sugestao={unidadesPorVolumeSugeridas || ''}
+                                      className="field field-md text-right tnum"
+                                    />
+                                  </div>
+                                </>
+                              )}
+
+                              {temRevenda && opcoesExtrasCadastro.revenda && (
+                                <>
+                                  <div className="col-span-8">
+                                    <label className="t-caption justify-between gap-2">
+                                      <span>Preço de revenda</span>
+                                      <span className="t-nano">vírgula fixa</span>
+                                    </label>
+                                    <NumeroBRField
+                                      value={draft.price}
+                                      decimals={2}
+                                      fixedDecimals={true}
+                                      moneyMode={true}
+                                      onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
+                                      placeholder="0,00"
+                                      className="field field-md text-right tnum"
+                                    />
+                                  </div>
+                                  <div className="col-span-4">
+                                    <label className="t-caption">Vende por</label>
+                                    <select
+                                      value={draft.priceUnit}
+                                      onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
+                                      className="field field-md field-select"
+                                    >
+                                      <option value="un">un</option>
+                                      <option value="kg">kg</option>
+                                      <option value="g">g</option>
+                                    </select>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            {custoUnitarioResumoEntrada > 0 && (
+                              <div className="cadastro-preco-calculado">
+                                <span>Preço calculado desta compra</span>
+                                <b>{formatCurrencyBR(custoUnitarioResumoEntrada)}/{unidadeResumoEntrada}</b>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </section>
+                    </div>
+
                     {temInsumo && opcoesExtrasCadastro.equivalencia && (
-                      <div className="mt-3 rounded-2xl bg-black/[0.035] p-3 sm:p-4">
+                      <div className="cadastro-equivalencia">
                         <div className="t-overline-sm mb-2">Equivalência do item</div>
                         <div className="flex flex-wrap items-center gap-2">
                           {draft.unit === 'un' ? (
@@ -12608,207 +12970,49 @@
                       </div>
                     )}
 
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
-                      <div className="col-span-12 sm:col-span-6 lg:col-span-3">
-                        <label className="t-caption block mb-1">Fornecedor</label>
-                        {modoProducao ? (
-                          <input value="" disabled placeholder="Não se aplica" className="field field-md disabled:opacity-50" />
-                        ) : (
-                          <PickerField
-                            value={draft.supplier}
-                            options={[
-                              ...(compraExistente?.supplier
-                                ? [{
-                                    value: compraExistente.supplier,
-                                    label: compraExistente.supplier,
-                                    hint: 'Última compra'
-                                  }]
-                                : []),
-                              ...fornecedores
-                                .filter((f) => String(f || '').trim().toLocaleLowerCase('pt-BR') !== String(compraExistente?.supplier || '').trim().toLocaleLowerCase('pt-BR'))
-                                .map((f) => ({ value: f, label: f }))
-                            ]}
-                            onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
-                            onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
-                            placeholder={compraExistente?.supplier || 'Fornecedor'}
-                            emptyLabel="Fornecedor novo"
-                            className="field field-md"
-                          />
-                        )}
+                    <div className="cadastro-rodape">
+                      <div className="cadastro-contexto t-micro">
+                        {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
+                          ? (() => {
+                              const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
+                              const volumes = Number(draft.qty) || 0;
+                              const porVolume = Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0;
+                              const total = volumes * porVolume;
+                              const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                              const calculo = total > 0
+                                ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                : '';
+                              return `${rotulo} · uso interno, comprado em volume: informe quantos volumes e quantas unidades vêm em cada um${calculo}.`;
+                            })()
+                          : tipoCadastroAtual === 'embalagem'
+                          ? 'Embalagem · uso interno. Não precisa escolher Insumo/Revenda.'
+                          : tipoCadastroAtual === 'limpeza'
+                            ? 'Material de limpeza · uso interno. Não precisa escolher Insumo/Revenda.'
+                            : modoProducao
+                              ? 'Produção: o custo vem da ficha técnica; aqui você define validade e preço de venda.'
+                              : temRevenda && temInsumo
+                                ? 'Insumo + revenda: a mesma compra alimenta o custo do insumo e o CMV da revenda.'
+                                : temRevenda
+                                  ? (compraPorVolume
+                                    ? (() => {
+                                        const volumes = Number(draft.qty) || 0;
+                                        const porVolume = Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0;
+                                        const total = volumes * porVolume;
+                                        const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                                        const calculo = total > 0
+                                          ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                          : '';
+                                        return `Revenda por unidade: informe os volumes comprados e quantas unidades vêm em cada embalagem${calculo}.`;
+                                      })()
+                                    : 'Revenda: a compra alimenta diretamente custo e CMV.')
+                                  : 'Insumo: a compra alimenta o custo usado nas fichas técnicas.'}
                       </div>
-
-                      <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Data</label>
-                        <input
-                          type="date"
-                          value={modoProducao ? '' : (draft.purchaseDate || dataSugerida)}
-                          disabled={modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, purchaseDate: e.target.value }))}
-                          title="Começa na última data lançada — troque se esta nota for de outro dia"
-                          className="field field-md disabled:opacity-50"
-                        />
-                        {!modoProducao && (draft.purchaseDate || dataSugerida) !== getTodayDateString() && (
-                          <div className="t-nano mt-0.5">última lançada · não é hoje</div>
-                        )}
-                      </div>
-
-                      <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">{compraPorVolume ? 'Qtd. volumes' : `Qtd. comprada${temInsumo && !temRevenda ? ` (${draft.unit})` : ''}`}</label>
-                        <NumeroBRField
-                          value={modoProducao ? '' : draft.qty}
-                          disabled={modoProducao}
-                          decimals={3}
-                          onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}
-                          placeholder={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
-                            ? numeroCurtoBR((Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades))
-                            : (compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0')}
-                          sugestao={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
-                            ? (Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades)
-                            : (compraExistente?.qty || '')}
-                          className="field field-md text-right tnum disabled:opacity-50"
-                        />
-                      </div>
-
-                      <div className="col-span-4 sm:col-span-3 lg:col-span-1">
-                        <label className="t-caption block mb-1">Un. compra</label>
-                        <select
-                          value={compraPorVolume ? 'un' : (temInsumo && !temRevenda ? draft.unit : draft.purchaseUnit)}
-                          disabled={modoProducao || compraPorVolume || (temInsumo && !temRevenda)}
-                          onChange={(e) => setDraft((d) => ({ ...d, purchaseUnit: e.target.value }))}
-                          className="field field-md field-select disabled:opacity-50"
-                        >
-                          {['un', 'kg', 'g', 'L', 'ml'].map((u) => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-
-                      {compraPorVolume && (
-                        <>
-                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                            <label className="t-caption block mb-1">Embalagem</label>
-                            <select
-                              value={draft.packageType}
-                              onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
-                              className="field field-md field-select"
-                            >
-                              {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                            </select>
-                          </div>
-
-                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                            <label className="t-caption block mb-1">Un./volume</label>
-                            <NumeroBRField
-                              value={draft.unitsPerPackage}
-                              decimals={0}
-                              onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
-                              placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
-                              sugestao={unidadesPorVolumeSugeridas || ''}
-                              className="field field-md text-right tnum"
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      <div className="col-span-8 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Valor pago</label>
-                        <NumeroBRField
-                          value={modoProducao ? '' : draft.cost}
-                          disabled={modoProducao}
-                          decimals={2}
-                          fixedDecimals={true}
-                          onValueChange={(cost) => setDraft((d) => ({ ...d, cost }))}
-                          placeholder={valorPagoSugerido ? Number(valorPagoSugerido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
-                          sugestao={valorPagoSugerido}
-                          className="field field-md text-right tnum disabled:opacity-50"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3">
-                      <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Validade (dias)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={modoProducao ? draft.shelfLifeDays : ''}
-                          disabled={!modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
-                          placeholder="—"
-                          className="field field-md text-center tnum disabled:opacity-50"
-                        />
-                      </div>
-                      {(modoProducao || (temRevenda && opcoesExtrasCadastro.revenda)) && (
-                        <>
-                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                            <label className="t-caption block mb-1">{modoProducao ? 'Preço de venda' : 'Preço de revenda'}</label>
-                            <NumeroBRField
-                              value={draft.price}
-                              decimals={2}
-                              fixedDecimals={true}
-                              onValueChange={(price) => setDraft((d) => ({ ...d, price }))}
-                              placeholder="0,00"
-                              className="field field-md text-right tnum"
-                            />
-                          </div>
-                          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                            <label className="t-caption block mb-1">Vende por</label>
-                            <select
-                              value={draft.priceUnit}
-                              onChange={(e) => setDraft((d) => ({ ...d, priceUnit: e.target.value }))}
-                              className="field field-md field-select"
-                            >
-                              <option value="un">un</option>
-                              <option value="kg">kg</option>
-                              {!modoProducao && <option value="g">g</option>}
-                            </select>
-                          </div>
-                        </>
-                      )}
-                      <div className="col-span-12 sm:col-span-6 lg:col-span-5">
-                        <div className="rounded-xl bg-black/[0.035] px-3 py-2 t-micro min-h-11 flex items-center">
-                          {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
-                            ? (() => {
-                                const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
-                                const volumes = Number(draft.qty) || 0;
-                                const porVolume = Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0;
-                                const total = volumes * porVolume;
-                                const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
-                                const calculo = total > 0
-                                  ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
-                                  : '';
-                                return `${rotulo} · uso interno, comprado em volume: informe quantos volumes e quantas unidades vêm em cada um${calculo}.`;
-                              })()
-                            : tipoCadastroAtual === 'embalagem'
-                            ? 'Embalagem · uso interno. Não precisa escolher Insumo/Revenda.'
-                            : tipoCadastroAtual === 'limpeza'
-                              ? 'Material de limpeza · uso interno. Não precisa escolher Insumo/Revenda.'
-                              : modoProducao
-                                ? 'Produção: fornecedor, quantidade e valor pago não se aplicam; o custo vem da ficha técnica.'
-                                : temRevenda && temInsumo
-                                  ? 'Insumo + revenda: a mesma compra alimenta o custo do insumo e o CMV da revenda.'
-                                  : temRevenda
-                                    ? (compraPorVolume
-                                      ? (() => {
-                                          const volumes = Number(draft.qty) || 0;
-                                          const porVolume = Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0;
-                                          const total = volumes * porVolume;
-                                          const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
-                                          const calculo = total > 0
-                                            ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
-                                            : '';
-                                          return `Revenda por unidade: informe os volumes comprados e quantas unidades vêm em cada embalagem${calculo}.`;
-                                        })()
-                                      : 'Revenda: a compra alimenta diretamente custo e CMV.')
-                                    : 'Insumo: a compra alimenta o custo usado nas fichas técnicas.'}
-                        </div>
-                      </div>
-                      <div className="col-span-12 sm:col-span-12 lg:col-span-3">
-                        <button type="submit" className="btn btn-primary btn-md w-full">
-                          <Icons.Plus className="w-4 h-4" />
-                          {modoProducao
-                            ? (produtoExistente ? 'Salvar produto' : 'Cadastrar produto')
-                            : (cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra')}
-                        </button>
-                      </div>
+                      <button type="submit" className="btn btn-primary btn-md w-full">
+                        <Icons.Plus className="w-4 h-4" />
+                        {modoProducao
+                          ? (produtoExistente ? 'Salvar produto' : 'Cadastrar produto')
+                          : (cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra')}
+                      </button>
                     </div>
                   </form>
 
