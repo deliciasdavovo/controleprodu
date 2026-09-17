@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="app-version" content="2026-09-16-favicon-padaria-1" />
+    <meta name="app-version" content="2026-09-17-formulario-fluido-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -532,6 +532,97 @@
         font-weight: 500;
         color: var(--ink-1);
         background: var(--bg-surface);
+      }
+
+      /* Cadastro + compra: a informação digitada ganha uma voz diferente da
+         interface. Labels e botões continuam em Manrope; valores ficam em
+         serifada, como uma ficha preenchida à mão, sem perder legibilidade. */
+      .cadastro-form .field {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 15px;
+        letter-spacing: 0;
+        transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+      }
+      .cadastro-form .field::placeholder {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-style: italic;
+        font-size: 13px;
+      }
+      .cadastro-form .field:hover:not(:disabled) {
+        border-color: rgba(14, 9, 55, 0.32);
+      }
+      .cadastro-form .field:focus {
+        background: #fffefb;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(14, 9, 55, 0.12), 0 8px 22px rgba(14, 9, 55, 0.06);
+      }
+      .cadastro-step-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 16px 0 8px;
+        color: var(--ink-2);
+        font-size: 12px;
+        font-weight: 750;
+        letter-spacing: .01em;
+      }
+      .cadastro-step-title:first-child { margin-top: 0; }
+      .cadastro-step-number {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        background: var(--accent);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+      .cadastro-grid {
+        padding: 12px;
+        border: 1px solid rgba(60, 60, 67, 0.10);
+        border-radius: 15px;
+        background: rgba(248, 248, 250, 0.52);
+        transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+      }
+      .cadastro-grid:focus-within {
+        background: rgba(255, 255, 255, 0.96);
+        border-color: rgba(14, 9, 55, 0.22);
+        box-shadow: 0 10px 28px rgba(14, 9, 55, 0.055);
+      }
+      .cadastro-grid > div:focus-within > label {
+        color: var(--accent);
+        font-weight: 750;
+      }
+      .cadastro-shortcuts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 9px;
+      }
+      .cadastro-shortcut {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.045);
+        color: var(--ink-3);
+        font-size: 10.5px;
+        font-weight: 650;
+      }
+      .cadastro-shortcut kbd {
+        font-family: Manrope, sans-serif;
+        font-size: 9.5px;
+        font-weight: 800;
+        color: var(--ink-1);
+      }
+      @media (max-width: 639px) {
+        .cadastro-grid { padding: 10px; }
+        .cadastro-form .field { font-size: 16px; }
       }
 
       /* ==========================================
@@ -2218,6 +2309,74 @@
         maximumFractionDigits: 3
       });
 
+      // O texto copiado de um DANFE costuma vir fora de ordem, mas a descrição
+      // do produto quase sempre fica imediatamente antes do NCM. Usamos esse
+      // marco para separar os itens e deixamos quantidade/valor editáveis para
+      // a conferência final — o OCR ajuda, mas nunca grava sozinho.
+      const extrairItensNotaColada = (texto) => {
+        const linhas = String(texto || '')
+          .split(/\r?\n/)
+          .map((l) => l.replace(/\s+/g, ' ').trim())
+          .filter(Boolean);
+        const ncmRe = /\b\d{3,4}[.\s]?\d{2}[.\s]?\d{2}\b/;
+        const ignorar = /^(DADOS|VALOR|BASE|TRANSPORT|DESTINAT|REMETENTE|RAZ[ÃA]O|ENDERE|MUNIC[IÍ]PIO|INSCRI|CHAVE|CONSULTA|QUANTIDADE|ESP[EÉ]CIE|MARCA|PESO|C[ÓO]DIGO|NOTA FISCAL|FONE|BAIRRO|SA[IÍ]DA|ENTRADA|S[ÉE]RIE|AL[IÍ]Q)/i;
+        const candidatos = [];
+
+        linhas.forEach((linha, i) => {
+          let descricao = linha;
+          const ncmNaLinha = linha.search(ncmRe);
+          const temNcmLogoDepois = linhas.slice(i + 1, i + 3).some((x) => ncmRe.test(x));
+          if (ncmNaLinha >= 0) descricao = linha.slice(0, ncmNaLinha).trim();
+          else if (!temNcmLogoDepois) return;
+
+          descricao = descricao
+            .replace(/^\d{6,}\s+/, '')
+            .replace(/[;,]+$/, '')
+            .trim();
+          if (descricao.length < 5 || !/[A-Za-zÀ-ÿ]/.test(descricao) || ignorar.test(descricao)) return;
+          candidatos.push({ indice: i, descricao });
+        });
+
+        const unicos = new Set();
+        const itens = candidatos.map((c, idx) => {
+          const fim = candidatos[idx + 1]?.indice ?? linhas.length;
+          const bloco = linhas.slice(c.indice, fim).join(' ');
+          const valores = (bloco.match(/\d{1,6}[,.]\d{2}/g) || [])
+            .map((v) => Number(v.replace(/\./g, '').replace(',', '.')))
+            .filter((v) => Number.isFinite(v) && v > 0);
+          const valorTotal = valores.length ? Math.max(...valores) : 0;
+
+          const cx = c.descricao.match(/(?:CX\s*C\/?|C\/)\s*0*(\d{1,3})\b/i);
+          const barra = c.descricao.match(/\b0*(\d{1,3})\s*\/\s*0*(\d{1,3})\s*$/);
+          const unidadesPorVolume = Number(cx?.[1] || barra?.[1]) || 0;
+          const volumes = Number(barra?.[2]) || 1;
+          const chave = normalizeName(c.descricao);
+          if (!chave || unicos.has(chave)) return null;
+          unicos.add(chave);
+
+          return {
+            id: `nota-${Date.now()}-${idx}`,
+            selected: true,
+            name: c.descricao,
+            catalogValue: '',
+            purchaseKind: 'revenda',
+            unit: 'un',
+            packageType: 'caixa',
+            volumes: String(volumes),
+            unitsPerPackage: unidadesPorVolume ? String(unidadesPorVolume) : '',
+            cost: valorTotal ? String(valorTotal) : ''
+          };
+        }).filter(Boolean);
+
+        const datas = String(texto || '').match(/\b\d{2}\/\d{2}\/\d{4}\b/g) || [];
+        const data = datas.map((d) => {
+          const [dia, mes, ano] = d.split('/');
+          return `${ano}-${mes}-${dia}`;
+        }).find((d) => !Number.isNaN(new Date(`${d}T12:00:00`).getTime())) || getTodayDateString();
+
+        return { itens, data };
+      };
+
       // ==========================================
       // EXPORTAR PARA PLANILHA
       //
@@ -2858,6 +3017,7 @@
         supplier: row.supplier || '',
         purchaseDate: row.purchase_date || '',
         qty: Number(row.qty) || 0,
+        purchaseUnit: row.purchase_unit || '',
         cost: Number(row.cost) || 0,
         criadoEm: row.created_at
       });
@@ -3152,6 +3312,23 @@
         );
       };
 
+      // Contas rápidas nos campos numéricos. Aceita, por exemplo,
+      // =12*6, =100/4 e =(18,50+7,90)*2. Só números e operadores entram na
+      // expressão; qualquer outro caractere é recusado antes do cálculo.
+      const avaliarFormulaNumerica = (texto) => {
+        const original = String(texto || '').trim();
+        if (!original.startsWith('=')) return null;
+        let expressao = original.slice(1).replace(/\s/g, '').replace(/×/g, '*').replace(/÷/g, '/');
+        if (expressao.includes(',')) expressao = expressao.replace(/\./g, '').replace(/,/g, '.');
+        if (!expressao || !/^[0-9+\-*/().]+$/.test(expressao)) return NaN;
+        try {
+          const resultado = Function(`"use strict"; return (${expressao});`)();
+          return Number.isFinite(resultado) ? resultado : NaN;
+        } catch (_) {
+          return NaN;
+        }
+      };
+
       // Campo numérico com leitura brasileira, mas valor interno normalizado.
       // Ex.: 1200 -> 1.200; 24,975 -> 24,975; dinheiro 1 -> 1,00 ao sair.
       const NumeroBRField = ({
@@ -3188,7 +3365,14 @@
         }, [value, decimals, fixedDecimals]);
 
         const handleChange = (e) => {
-          const raw = String(e.target.value || '')
+          const digitado = String(e.target.value || '');
+          if (digitado.trim().startsWith('=')) {
+            const formula = digitado.replace(/[^=\d.,+\-*/()×÷\s]/g, '');
+            setText(formula);
+            return;
+          }
+
+          const raw = digitado
             .replace(/\s/g, '')
             .replace(/[^\d,]/g, '');
           const hasComma = raw.includes(',');
@@ -3210,12 +3394,37 @@
         };
 
         const handleBlur = (e) => {
+          if (String(text || '').trim().startsWith('=')) {
+            const resultado = avaliarFormulaNumerica(text);
+            if (!Number.isFinite(resultado)) {
+              window.alert('Conta inválida. Use somente números e +, −, ×, ÷ ou parênteses.');
+              setText(formatValue(value));
+              if (onBlur) onBlur(e);
+              return;
+            }
+            onValueChange(String(resultado));
+            setText(formatValue(resultado));
+            if (onBlur) onBlur(e);
+            return;
+          }
           setText(formatValue(value));
           if (onBlur) onBlur(e);
         };
 
         const handleKeyDown = (e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (String(text || '').trim().startsWith('=')) {
+              const resultado = avaliarFormulaNumerica(text);
+              e.preventDefault();
+              e.stopPropagation();
+              if (!Number.isFinite(resultado)) {
+                window.alert('Conta inválida. Use somente números e +, −, ×, ÷ ou parênteses.');
+                return;
+              }
+              setText(formatValue(resultado));
+              onValueChange(String(resultado));
+              return;
+            }
             const n = Number(sugestao);
             const vazio = String(text || '').trim() === '';
             if (vazio && sugestao !== '' && sugestao !== null && Number.isFinite(n) && n > 0) {
@@ -3236,12 +3445,18 @@
           <input
             ref={ref}
             type="text"
-            inputMode="decimal"
+            inputMode="text"
             value={text}
             onChange={handleChange}
             onBlur={handleBlur}
-            onFocus={onFocus}
+            onFocus={(e) => {
+              // Comportamento de planilha: ao entrar no número, a próxima
+              // digitação substitui o valor inteiro sem precisar apagar.
+              e.currentTarget.select();
+              if (onFocus) onFocus(e);
+            }}
             onKeyDown={handleKeyDown}
+            title={props.title || 'Digite um número ou comece com = para fazer uma conta'}
             {...props}
           />
         );
@@ -11079,12 +11294,10 @@
                   </div>
                   <div className={unidadesCompra ? 'col-span-3 sm:col-span-2' : 'col-span-6 sm:col-span-2'}>
                     <label className="t-caption block mb-1">{compraPorVolume ? 'Qtd. volumes' : 'Qtd'}</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
+                    <NumeroBRField
                       value={draft.qty}
-                      onChange={(e) => setField('qty', e.target.value)}
+                      decimals={3}
+                      onValueChange={(qty) => setField('qty', qty)}
                       placeholder={compraPorVolume ? 'ex: 2' : (unidadeBase === 'un' ? 'ex: 12' : 'ex: 5000')}
                       title={compraPorVolume ? 'Quantidade de caixas, pacotes, fardos ou outros volumes comprados' : `Quantidade comprada, em ${unidadeBase}`}
                       className="field field-sm text-right tnum no-spin"
@@ -11104,12 +11317,10 @@
                       </div>
                       <div className="col-span-3 sm:col-span-2">
                         <label className="t-caption block mb-1">Un./volume</label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
+                        <NumeroBRField
                           value={draft.unitsPerPackage}
-                          onChange={(e) => setField('unitsPerPackage', e.target.value)}
+                          decimals={0}
+                          onValueChange={(unitsPerPackage) => setField('unitsPerPackage', unitsPerPackage)}
                           placeholder={pacoteAnterior?.unidades ? String(pacoteAnterior.unidades) : 'ex: 12'}
                           className="field field-sm text-right tnum no-spin"
                         />
@@ -11129,12 +11340,11 @@
                   )}
                   <div className="col-span-6 sm:col-span-2">
                     <label className="t-caption block mb-1">Valor pago</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                    <NumeroBRField
                       value={draft.cost}
-                      onChange={(e) => setField('cost', e.target.value)}
+                      decimals={2}
+                      fixedDecimals
+                      onValueChange={(cost) => setField('cost', cost)}
                       placeholder="ex: 18,43"
                       className="field field-sm text-right tnum no-spin"
                     />
@@ -11188,24 +11398,21 @@
                         </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.001"
+                            <NumeroBRField
                               value={c.qty || ''}
-                              onChange={(e) => onUpdate({ ...c, qty: Number(e.target.value) || 0 })}
+                              decimals={3}
+                              onValueChange={(qty) => onUpdate({ ...c, qty: Number(qty) || 0 })}
                               className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
                             />
                             <span className="t-micro max-w-44 text-right">{resumoCompraVolume(c) || unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
                           </div>
                         </td>
                         <td className="py-2 px-3">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <NumeroBRField
                             value={c.cost || ''}
-                            onChange={(e) => onUpdate({ ...c, cost: Number(e.target.value) || 0 })}
+                            decimals={2}
+                            fixedDecimals
+                            onValueChange={(cost) => onUpdate({ ...c, cost: Number(cost) || 0 })}
                             className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
                           />
                         </td>
@@ -11233,6 +11440,199 @@
               <p className="t-micro pt-3">
                 O custo do item é sempre o da compra mais recente — é o que você vai pagar para repor.
               </p>
+            </div>
+          </div>
+        );
+      };
+
+      // Cola o texto lido de uma nota e transforma os itens em uma pequena
+      // conferência. Nada é salvo na leitura: a pessoa corrige descrição,
+      // tipo, volume, quantidade e valor antes de confirmar.
+      const PasteInvoiceModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose }) => {
+        const [texto, setTexto] = useState('');
+        const [itens, setItens] = useState([]);
+        const [fornecedor, setFornecedor] = useState('');
+        const [data, setData] = useState(dataSugerida || getTodayDateString());
+        const [salvando, setSalvando] = useState(false);
+
+        const alterar = (id, campos) => setItens((atuais) =>
+          atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
+        );
+
+        const melhorOpcao = (nome) => {
+          const palavras = normalizeName(nome).split(' ').filter((p) => p.length > 2);
+          if (!palavras.length) return null;
+          let melhor = null;
+          catalogOptions.forEach((opt) => {
+            const alvo = normalizeName(opt.label);
+            const acertos = palavras.filter((p) => alvo.includes(p)).length;
+            const nota = acertos / palavras.length;
+            if (!melhor || nota > melhor.nota) melhor = { opt, nota };
+          });
+          return melhor && melhor.nota >= 0.6 ? melhor.opt : null;
+        };
+
+        const ler = () => {
+          const resultado = extrairItensNotaColada(texto);
+          if (!resultado.itens.length) {
+            window.alert('Não consegui separar os produtos. Confira se o trecho colado contém a descrição e o NCM dos itens.');
+            return;
+          }
+          setData(resultado.data || dataSugerida || getTodayDateString());
+          setItens(resultado.itens.map((item) => {
+            const opcao = melhorOpcao(item.name);
+            if (!opcao) return item;
+            return {
+              ...item,
+              name: opcao.label,
+              catalogValue: opcao.value,
+              purchaseKind: String(opcao.value).startsWith('insumo:') ? 'insumo' : 'revenda'
+            };
+          }));
+        };
+
+        const selecionados = itens.filter((item) => item.selected);
+        const confirmar = async () => {
+          if (!selecionados.length || salvando) return;
+          const incompleto = selecionados.find((item) =>
+            !String(item.name || '').trim()
+            || !(Number(item.volumes) > 0)
+            || !(Number(item.cost) > 0)
+            || (Number(item.unitsPerPackage) < 0)
+          );
+          if (incompleto) {
+            window.alert('Confira nome, quantidade de volumes e valor pago de todos os itens marcados.');
+            return;
+          }
+          setSalvando(true);
+          try {
+            await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data });
+            onClose();
+          } finally {
+            setSalvando(false);
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5">
+            <button type="button" className="absolute inset-0" aria-label="Fechar leitura da nota" onClick={() => !salvando && onClose()} />
+            <div className="relative bg-white rounded-[22px] w-full max-w-6xl max-h-[94vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col">
+              <div className="px-5 py-4 border-b hairline flex items-start justify-between gap-3">
+                <div>
+                  <div className="t-overline flex items-center gap-1.5 mb-1"><Icons.ClipboardList className="w-3.5 h-3.5" /> Cadastro por copiar e colar</div>
+                  <h3 className="t-title">Ler produtos da nota fiscal</h3>
+                  <p className="t-caption mt-1">Cole o texto, confira o que foi separado e só então salve.</p>
+                </div>
+                <button type="button" disabled={salvando} onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto">
+                {itens.length === 0 ? (
+                  <div className="space-y-4">
+                    <textarea
+                      value={texto}
+                      onChange={(e) => setTexto(e.target.value)}
+                      placeholder="Cole aqui todo o texto copiado da nota fiscal…"
+                      className="field w-full min-h-[330px] p-4 font-mono text-[12px] leading-relaxed resize-y"
+                      autoFocus
+                    />
+                    <div className="flex justify-end">
+                      <button type="button" onClick={ler} disabled={!texto.trim()} className="btn btn-primary btn-md disabled:opacity-40">
+                        <Icons.Search className="w-4 h-4" /> Ler e separar produtos
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="t-caption block mb-1">Fornecedor</label>
+                        <PickerField
+                          value={fornecedor}
+                          options={fornecedores.map((f) => ({ value: f, label: f }))}
+                          onType={setFornecedor}
+                          onPick={(opt) => setFornecedor(opt.value)}
+                          placeholder="Digite ou escolha"
+                          emptyLabel="Fornecedor novo"
+                          className="field field-md"
+                        />
+                      </div>
+                      <div>
+                        <label className="t-caption block mb-1">Data da compra</label>
+                        <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="field field-md" />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border hairline overflow-hidden">
+                      <div className="rola-x">
+                        <table className="w-full text-left min-w-[980px]">
+                          <thead>
+                            <tr className="t-overline-sm border-b hairline bg-black/[0.025]">
+                              <th className="py-2.5 px-3 w-10"></th>
+                              <th className="py-2.5 pr-3 font-bold">Produto</th>
+                              <th className="py-2.5 px-3 font-bold">Tipo</th>
+                              <th className="py-2.5 px-3 font-bold">Un. base</th>
+                              <th className="py-2.5 px-3 font-bold">Embalagem</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Volumes</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Un./volume</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Total un.</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Valor pago</th>
+                              <th className="py-2.5 pl-3"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {itens.map((item) => {
+                              const total = (Number(item.volumes) || 0) * (Number(item.unitsPerPackage) || 1);
+                              return (
+                                <tr key={item.id} className={`border-t hairline ${item.selected ? '' : 'opacity-45'}`}>
+                                  <td className="py-2 px-3"><input type="checkbox" checked={item.selected} onChange={(e) => alterar(item.id, { selected: e.target.checked })} className="w-4 h-4" /></td>
+                                  <td className="py-2 pr-3 min-w-[250px]">
+                                    <PickerField
+                                      value={item.name}
+                                      options={catalogOptions}
+                                      onType={(name) => alterar(item.id, { name, catalogValue: '' })}
+                                      onPick={(opt) => alterar(item.id, {
+                                        name: opt.label,
+                                        catalogValue: opt.value,
+                                        purchaseKind: String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'
+                                      })}
+                                      placeholder="Produto"
+                                      emptyLabel="Produto novo"
+                                      className="field h-9 px-2.5 text-[12px] font-semibold"
+                                      panelMinWidth={320}
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <select value={item.purchaseKind} onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })} className="field field-select h-9 text-[12px] w-36">
+                                      <option value="revenda">Revenda</option><option value="insumo">Insumo</option><option value="insumo_revenda">Insumo + revenda</option><option value="embalagem">Embalagem</option><option value="limpeza">Limpeza</option>
+                                    </select>
+                                  </td>
+                                  <td className="py-2 px-3"><select value={item.unit} onChange={(e) => alterar(item.id, { unit: e.target.value })} className="field field-select h-9 text-[12px] w-20"><option value="un">un</option><option value="g">g</option><option value="ml">ml</option></select></td>
+                                  <td className="py-2 px-3"><select value={item.packageType} onChange={(e) => alterar(item.id, { packageType: e.target.value })} className="field field-select h-9 text-[12px] w-28">{TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select></td>
+                                  <td className="py-2 px-3"><NumeroBRField value={item.volumes} decimals={3} onValueChange={(volumes) => alterar(item.id, { volumes })} className="field h-9 text-[12px] text-right w-20 ml-auto" /></td>
+                                  <td className="py-2 px-3"><NumeroBRField value={item.unitsPerPackage} decimals={0} onValueChange={(unitsPerPackage) => alterar(item.id, { unitsPerPackage })} placeholder="1" className="field h-9 text-[12px] text-right w-20 ml-auto" /></td>
+                                  <td className="py-2 px-3 text-right t-callout tnum font-semibold">{numeroCurtoBR(total)}</td>
+                                  <td className="py-2 px-3"><NumeroBRField value={item.cost} decimals={2} fixedDecimals onValueChange={(cost) => alterar(item.id, { cost })} className="field h-9 text-[12px] text-right font-bold w-24 ml-auto" /></td>
+                                  <td className="py-2 pl-3"><button type="button" onClick={() => setItens((atuais) => atuais.filter((x) => x.id !== item.id))} className="w-8 h-8 rounded-full icon-danger flex items-center justify-center"><Icons.Trash2 className="w-4 h-4" /></button></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <p className="t-micro">A leitura é uma ajuda: confirme principalmente o valor pago, a quantidade de volumes e quantas unidades vêm em cada caixa.</p>
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <button type="button" disabled={salvando} onClick={() => setItens([])} className="btn btn-secondary btn-md">Voltar ao texto</button>
+                      <button type="button" disabled={!selecionados.length || salvando} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
+                        {salvando ? 'Salvando…' : `Salvar ${selecionados.length} ${selecionados.length === 1 ? 'item' : 'itens'}`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -11291,6 +11691,7 @@
         const [classeFiltro, setClasseFiltro] = useState('todos');
         // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
         const [historico, setHistorico] = useState(null);
+        const [notaColadaAberta, setNotaColadaAberta] = useState(false);
         // Produto cuja ficha está aberta
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
         // Copiar uma ficha pronta para outro produto sem remontar insumo por insumo
@@ -11701,6 +12102,14 @@
           const unidadeCompraSalva = compraPorVolume
             ? criarUnidadeCompraVolume(tipoVolume, unidadesPorVolume)
             : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un');
+          const equivalenciaDigitada = String(draft.variationUnit || '').trim();
+          const fatorEquivalenciaDigitado = Number(draft.variationFactor) || 0;
+          const volumeEnsinaEquivalencia = volumeDeClasseInterna && unidadesPorVolume > 0;
+          if (temInsumo && !volumeEnsinaEquivalencia
+            && (!!equivalenciaDigitada !== (fatorEquivalenciaDigitado > 0))) {
+            window.alert('Complete a equivalência: informe a unidade e o valor correspondente.');
+            return;
+          }
           if ((qtdInformada > 0 || cost > 0) && !(qtdInformada > 0 && cost > 0)) {
             window.alert('Para registrar a compra, preencha quantidade e valor pago.');
             return;
@@ -11740,7 +12149,7 @@
                 : (Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null);
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)) {
-                onUpdateSupply({ ...insumo, variationUnit, variationFactor });
+                await onUpdateSupply({ ...insumo, variationUnit, variationFactor }, true);
                 insumo = { ...insumo, variationUnit, variationFactor };
               }
             }
@@ -11753,6 +12162,7 @@
                 supplier: String(draft.supplier || '').trim(),
                 purchaseDate: draft.purchaseDate || dataSugerida,
                 qty: qtdBase,
+                purchaseUnit: unidadeCompraSalva,
                 cost
               });
             }
@@ -11773,7 +12183,7 @@
             if (!revenda) {
               revenda = await onAddSeparatedProduct(dadosRevenda);
             } else {
-              onUpdateSeparatedProduct({ ...revenda, ...dadosRevenda });
+              await onUpdateSeparatedProduct({ ...revenda, ...dadosRevenda }, true);
             }
 
             if (revenda?.id && qty > 0 && cost > 0) {
@@ -11806,6 +12216,85 @@
             purchaseDate: ''
           }));
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
+        };
+
+        const salvarItensNotaColada = async ({ itens, fornecedor, data }) => {
+          for (const item of itens) {
+            const nome = String(item.name || '').trim();
+            const tipo = item.purchaseKind || 'revenda';
+            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza'].includes(tipo);
+            const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
+            const volumes = Number(item.volumes) || 0;
+            const unidadesPorVolume = Number(item.unitsPerPackage) || 0;
+            const qty = volumes * (unidadesPorVolume > 0 ? unidadesPorVolume : 1);
+            const unidadeCompra = unidadesPorVolume > 0
+              ? criarUnidadeCompraVolume(item.packageType || 'caixa', unidadesPorVolume)
+              : (item.unit || 'un');
+            const cost = Number(item.cost) || 0;
+
+            let insumo = String(item.catalogValue || '').startsWith('insumo:')
+              ? supplies.find((s) => String(s.id) === String(item.catalogValue).slice(7))
+              : supplies.find((s) => normalizeName(s.name) === normalizeName(nome));
+
+            if (temFaceInsumo) {
+              const classe = tipo === 'embalagem' || tipo === 'limpeza' ? tipo : 'insumo';
+              if (!insumo) {
+                insumo = await onAddSupply({
+                  name: nome,
+                  unit: item.unit || 'un',
+                  supplyClass: classe,
+                  variationUnit: unidadesPorVolume > 0 && (item.unit || 'un') === 'un' ? (item.packageType || 'caixa') : null,
+                  variationFactor: unidadesPorVolume > 0 && (item.unit || 'un') === 'un' ? unidadesPorVolume : null
+                });
+              } else if (unidadesPorVolume > 0 && (insumo.unit || item.unit || 'un') === 'un'
+                && (!insumo.variationUnit || !(Number(insumo.variationFactor) > 0))) {
+                const atualizado = {
+                  ...insumo,
+                  variationUnit: item.packageType || 'caixa',
+                  variationFactor: unidadesPorVolume
+                };
+                await onUpdateSupply(atualizado, true);
+                insumo = atualizado;
+              }
+
+              if (insumo?.id) {
+                await onAddSupplyPurchase(insumo.id, {
+                  supplier: fornecedor,
+                  purchaseDate: data || dataSugerida,
+                  qty,
+                  purchaseUnit: unidadeCompra,
+                  cost
+                });
+              }
+            }
+
+            let revenda = String(item.catalogValue || '').startsWith('revenda:')
+              ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
+              : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
+
+            if (temFaceRevenda) {
+              if (!revenda) {
+                revenda = await onAddSeparatedProduct({
+                  productName: nome,
+                  category: 'revenda',
+                  currentQty: 0,
+                  unitOfMeasure: 'un',
+                  minQty: 0,
+                  price: 0,
+                  priceUnit: 'un'
+                });
+              }
+              if (revenda?.id) {
+                await onAddResalePurchase(revenda.id, {
+                  supplier: fornecedor,
+                  purchaseDate: data || dataSugerida,
+                  qty,
+                  purchaseUnit: unidadeCompra,
+                  cost
+                });
+              }
+            }
+          }
         };
 
         // Produtos de fabricação, com a ficha e o custo já resolvidos
@@ -11991,19 +12480,33 @@
             {painel === 'entradas' && (
               <div className="space-y-5">
                 <div className="card p-6 sm:p-7">
-                  <div>
-                    <div className="t-overline flex items-center gap-1.5 mb-2">
-                      <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                      Entrada principal
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div>
+                      <div className="t-overline flex items-center gap-1.5 mb-2">
+                        <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                        Entrada principal
+                      </div>
+                      <h3 className="t-title">Cadastro + compra</h3>
+                      <p className="t-body mt-1.5">
+                        Um formulário só para tudo. Volume, preço de revenda e equivalência ficam fechados e você abre apenas quando precisar.
+                      </p>
+                      <div className="cadastro-shortcuts">
+                        <span className="cadastro-shortcut"><kbd>Enter</kbd> avança para o próximo campo</span>
+                        <span className="cadastro-shortcut"><kbd>=</kbd> faz contas nos valores</span>
+                      </div>
                     </div>
-                    <h3 className="t-title">Cadastro + compra</h3>
-                    <p className="t-body mt-1.5">
-                      Um formulário só para tudo. Volume, preço de revenda e equivalência ficam fechados e você abre apenas quando precisar.
-                    </p>
+                    <button type="button" onClick={() => setNotaColadaAberta(true)} className="btn btn-secondary btn-md shrink-0">
+                      <Icons.ClipboardList className="w-4 h-4" />
+                      Colar nota fiscal
+                    </button>
                   </div>
 
-                  <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="mt-5 pt-5 border-t hairline">
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                  <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form mt-5 pt-5 border-t hairline">
+                    <div className="cadastro-step-title">
+                      <span className="cadastro-step-number">1</span>
+                      <span>Identifique o item</span>
+                    </div>
+                    <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
                       <div className="col-span-6 sm:col-span-4 lg:col-span-2">
                         <label className="t-caption block mb-1">Tipo</label>
                         <select
@@ -12076,7 +12579,8 @@
                     </div>
 
                     {!modoProducao && (
-                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t hairline">
+                      <div className="flex flex-wrap items-center gap-2 mt-4">
+                        <span className="t-caption mr-1">Informações opcionais</span>
                         {compraPorVolumeDisponivel && (
                           <button
                             type="button"
@@ -12163,7 +12667,12 @@
                       </div>
                     )}
 
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3 pt-3 border-t hairline">
+                    {!modoProducao && (<>
+                      <div className="cadastro-step-title">
+                        <span className="cadastro-step-number">2</span>
+                        <span>Registre a compra</span>
+                      </div>
+                      <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
                       <div className="col-span-12 sm:col-span-6 lg:col-span-3">
                         <label className="t-caption block mb-1">Fornecedor</label>
                         {modoProducao ? (
@@ -12276,21 +12785,27 @@
                           className="field field-md text-right tnum disabled:opacity-50"
                         />
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end mt-3">
-                      <div className="col-span-6 sm:col-span-3 lg:col-span-2">
-                        <label className="t-caption block mb-1">Validade (dias)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={modoProducao ? draft.shelfLifeDays : ''}
-                          disabled={!modoProducao}
-                          onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
-                          placeholder="—"
-                          className="field field-md text-center tnum disabled:opacity-50"
-                        />
                       </div>
+                    </>)}
+
+                    <div className="cadastro-step-title">
+                      <span className="cadastro-step-number">{modoProducao ? '2' : '3'}</span>
+                      <span>{modoProducao ? 'Preço, validade e confirmação' : 'Confira e salve'}</span>
+                    </div>
+                    <div className="cadastro-grid grid grid-cols-12 gap-2 sm:gap-3 items-end">
+                      {modoProducao && (
+                        <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+                          <label className="t-caption block mb-1">Validade (dias)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={draft.shelfLifeDays}
+                            onChange={(e) => setDraft((d) => ({ ...d, shelfLifeDays: e.target.value }))}
+                            placeholder="—"
+                            className="field field-md text-center tnum"
+                          />
+                        </div>
+                      )}
                       {(modoProducao || (temRevenda && opcoesExtrasCadastro.revenda)) && (
                         <>
                           <div className="col-span-6 sm:col-span-3 lg:col-span-2">
@@ -12913,6 +13428,16 @@
               />
             )}
 
+            {notaColadaAberta && (
+              <PasteInvoiceModal
+                catalogOptions={opcoesCompra}
+                fornecedores={fornecedores}
+                dataSugerida={dataSugerida}
+                onConfirm={salvarItensNotaColada}
+                onClose={() => setNotaColadaAberta(false)}
+              />
+            )}
+
             {/* Histórico de compras, o mesmo para insumo e revenda */}
             {historico && historico.tipo === 'insumo' && (() => {
               const s = supplies.find((x) => x.id === historico.id);
@@ -12923,6 +13448,7 @@
                   subtitulo={`Compras em ${s.unit}${rotuloVariacao(s) ? ` · ${rotuloVariacao(s)}` : ''}`}
                   compras={comprasDoInsumo(s.id)}
                   unidadeBase={s.unit}
+                  compraPorVolume={s.unit === 'un' && (s.supplyClass === 'embalagem' || s.supplyClass === 'limpeza')}
                   fornecedores={fornecedores}
                   dataSugerida={dataSugerida}
                   onAdd={(c) => onAddSupplyPurchase(s.id, c)}
@@ -13368,6 +13894,7 @@
       }) => {
         const [painel, setPainel] = useState('producao');
         const [ordem, setOrdem] = useState('cmv');
+        const [busca, setBusca] = useState('');
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
 
         // Cada produto de fabricação com custo, CMV e margem já resolvidos.
@@ -13630,8 +14157,10 @@
           return b.cmv - a.cmv;
         });
 
-        const producaoOrdenada = ordenar(linhasProducao, (l) => l.produto.name);
-        const revendaOrdenada = ordenar(linhasRevenda, (l) => l.item.productName);
+        const producaoOrdenada = ordenar(linhasProducao, (l) => l.produto.name)
+          .filter((l) => casaComBusca(l.produto.name, busca));
+        const revendaOrdenada = ordenar(linhasRevenda, (l) => l.item.productName)
+          .filter((l) => casaComBusca(l.item.productName, busca));
 
         const corDaMedia = placar.media === 0 ? '' :
           placar.media < CMV_METAS.fabricacao.bom ? 'ink-fresh' :
@@ -13735,6 +14264,16 @@
                   Revenda ({linhasRevenda.length})
                 </button>
               </div>
+              <div className="relative flex-1 sm:max-w-xs">
+                <Icons.Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ink-quiet pointer-events-none" />
+                <input
+                  type="search"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Pesquisar produto no CMV"
+                  className="field field-sm pl-9 w-full"
+                />
+              </div>
               <select
                 value={ordem}
                 onChange={(e) => setOrdem(e.target.value)}
@@ -13772,7 +14311,7 @@
                     </thead>
                     <tbody>
                       {producaoOrdenada.length === 0 ? (
-                        <tr><td colSpan={11} className="text-center py-10"><p className="t-body ink-quiet">Nenhum produto cadastrado</p></td></tr>
+                        <tr><td colSpan={11} className="text-center py-10"><p className="t-body ink-quiet">{busca ? 'Nenhum produto encontrado' : 'Nenhum produto cadastrado'}</p></td></tr>
                       ) : producaoOrdenada.map(({ produto, ficha, custoUn, preco, calculavel, cmv, lucro, margem }) => (
                         <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                           <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
@@ -13789,12 +14328,11 @@
                             <CmvCell cmv={cmv} calculavel={calculavel} natureza="fabricacao" />
                           </td>
                           <td className="py-2.5 px-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <NumeroBRField
                               value={produto.price || ''}
-                              onChange={(e) => onUpdateProduct({ ...produto, price: Number(e.target.value) || 0 })}
+                              decimals={2}
+                              fixedDecimals
+                              onValueChange={(price) => onUpdateProduct({ ...produto, price: Number(price) || 0 })}
                               placeholder="0,00"
                               title="Preço de venda"
                               className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
@@ -13823,12 +14361,11 @@
                             {custoUn > 0 ? (
                               <span className="t-body tnum">{formatCurrencyBR(custoUn)}/{produto.priceUnit || 'un'}</span>
                             ) : (
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
+                              <NumeroBRField
                                 value={produto.manualCost || ''}
-                                onChange={(e) => onUpdateProduct({ ...produto, manualCost: Number(e.target.value) || 0 })}
+                                decimals={2}
+                                fixedDecimals
+                                onValueChange={(manualCost) => onUpdateProduct({ ...produto, manualCost: Number(manualCost) || 0 })}
                                 placeholder="digitar"
                                 title="Custo digitado à mão, enquanto não há ficha técnica"
                                 className="field h-8 px-2 text-[12px] text-right tnum no-spin w-24 ml-auto block"
@@ -13910,7 +14447,7 @@
                     </thead>
                     <tbody>
                       {revendaOrdenada.length === 0 ? (
-                        <tr><td colSpan={8} className="text-center py-10"><p className="t-body ink-quiet">Nenhum item de revenda nesta unidade</p></td></tr>
+                        <tr><td colSpan={8} className="text-center py-10"><p className="t-body ink-quiet">{busca ? 'Nenhum produto encontrado' : 'Nenhum item de revenda nesta unidade'}</p></td></tr>
                       ) : revendaOrdenada.map(({ item, custo, preco, calculavel, cmv, lucro, margem }) => (
                         <tr key={item.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                           <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
@@ -13923,12 +14460,11 @@
                             <CmvCell cmv={cmv} calculavel={calculavel} natureza="revenda" />
                           </td>
                           <td className="py-2.5 px-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <NumeroBRField
                               value={item.price || ''}
-                              onChange={(e) => onUpdateSeparatedProduct({ ...item, price: Number(e.target.value) || 0 })}
+                              decimals={2}
+                              fixedDecimals
+                              onValueChange={(price) => onUpdateSeparatedProduct({ ...item, price: Number(price) || 0 })}
                               placeholder="0,00"
                               className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block"
                             />
@@ -14003,6 +14539,12 @@
 
         supplies.forEach((s) => {
           supplyPurchases.filter((c) => c.supplyId === s.id).forEach((c) => {
+            const volumeCompra = lerUnidadeCompraVolume(c.purchaseUnit);
+            const volumeDoCadastro = (
+              s.unit === 'un'
+              && ['caixa', 'pacote', 'fardo', 'display', 'bandeja'].includes(String(s.variationUnit || '').toLowerCase())
+              && Number(s.variationFactor) > 0
+            );
             compras.push({
               id: c.id,
               itemId: `s${s.id}`,
@@ -14014,12 +14556,10 @@
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
               cost: Number(c.cost) || 0,
-              volumeTipo: (
-                s.unit === 'un'
-                && ['caixa', 'pacote', 'fardo', 'display', 'bandeja'].includes(String(s.variationUnit || '').toLowerCase())
-                && Number(s.variationFactor) > 0
-              ) ? String(s.variationUnit).toLowerCase() : '',
-              unidadesPorVolume: s.unit === 'un' ? (Number(s.variationFactor) || 0) : 0
+              // Compras novas guardam o volume daquela nota. Nas antigas,
+              // ainda usamos a equivalência atual como compatibilidade.
+              volumeTipo: volumeCompra?.tipo || (volumeDoCadastro ? String(s.variationUnit).toLowerCase() : ''),
+              unidadesPorVolume: Number(volumeCompra?.unidades) || (volumeDoCadastro ? Number(s.variationFactor) : 0)
             });
           });
         });
@@ -17337,6 +17877,7 @@ const porItem = useMemo(() => {
         const [loadState, setLoadState] = useState('loading'); // loading | ready | error
         const [errorMsg, setErrorMsg] = useState('');
         const [pendingWrites, setPendingWrites] = useState(0);
+        const [scheduledWrites, setScheduledWrites] = useState(0);
         const [lastSync, setLastSync] = useState(null);
 
         // Gravações em andamento e digitação pendente seguram o auto-refresh,
@@ -17445,12 +17986,6 @@ const porItem = useMemo(() => {
           return () => clearTimeout(id);
         }, [undoBaixa]);
 
-        // Descarta as gravações agendadas ao sair da página
-        useEffect(() => () => {
-          Object.values(timersRef.current).forEach(clearTimeout);
-          timersRef.current = {};
-        }, []);
-
         // Executa a gravação; se o banco recusar, mostra o motivo e recarrega
         // para a tela nunca ficar mostrando algo que não foi salvo
         const write = async (label, fn) => {
@@ -17474,13 +18009,61 @@ const porItem = useMemo(() => {
 
         // Campos digitados (datas, quantidades, responsável) gravam depois da
         // última tecla, em vez de uma chamada por caractere
-        const writeSoon = (key, label, fn) => {
-          if (timersRef.current[key]) clearTimeout(timersRef.current[key]);
-          timersRef.current[key] = setTimeout(() => {
-            delete timersRef.current[key];
-            write(label, fn);
-          }, 600);
+        const runScheduledWrite = (key) => {
+          const pending = timersRef.current[key];
+          if (!pending) return null;
+          clearTimeout(pending.timer);
+          delete timersRef.current[key];
+          setScheduledWrites((n) => Math.max(0, n - 1));
+          return write(pending.label, pending.fn);
         };
+
+        const cancelScheduledWrite = (key) => {
+          const pending = timersRef.current[key];
+          if (!pending) return;
+          clearTimeout(pending.timer);
+          delete timersRef.current[key];
+          setScheduledWrites((n) => Math.max(0, n - 1));
+        };
+
+        const flushScheduledWrites = () => Promise.allSettled(
+          Object.keys(timersRef.current)
+            .map(runScheduledWrite)
+            .filter(Boolean)
+        );
+
+        const writeSoon = (key, label, fn) => {
+          const anterior = timersRef.current[key];
+          if (anterior) clearTimeout(anterior.timer);
+          else setScheduledWrites((n) => n + 1);
+
+          const pending = { label, fn, timer: null };
+          pending.timer = setTimeout(() => runScheduledWrite(key), 600);
+          timersRef.current[key] = pending;
+        };
+
+        // Ao sair de um campo, trocar de aplicativo ou fechar a página, começa
+        // imediatamente tudo o que ainda estava esperando os 600 ms. Assim o
+        // rodapé não diz "salvo" enquanto ainda existe alteração só na tela.
+        useEffect(() => {
+          const onFocusOut = () => {
+            if (Object.keys(timersRef.current).length) flushScheduledWrites();
+          };
+          const onVisibility = () => {
+            if (document.visibilityState === 'hidden') flushScheduledWrites();
+          };
+          const onPageHide = () => { flushScheduledWrites(); };
+
+          document.addEventListener('focusout', onFocusOut, true);
+          document.addEventListener('visibilitychange', onVisibility);
+          window.addEventListener('pagehide', onPageHide);
+          return () => {
+            document.removeEventListener('focusout', onFocusOut, true);
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.removeEventListener('pagehide', onPageHide);
+            flushScheduledWrites();
+          };
+        }, []);
 
         // Guarda o que foi colocado na vitrine. A tabela é nova: se o banco
         // ainda não a tem, a alocação continua valendo e a tela do histórico
@@ -18446,22 +19029,35 @@ const porItem = useMemo(() => {
           });
         };
 
-        const handleUpdateSupply = (updated) => {
+        const handleUpdateSupply = (updated, immediate = false) => {
           setSupplies((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+
+          // Equivalência só existe quando unidade e fator formam um par. A
+          // tabela pode manter a digitação parcial na tela, mas não substitui
+          // no banco uma equivalência válida por metade de uma informação.
+          const temVariationUnit = !!String(updated.variationUnit || '').trim();
+          const temVariationFactor = Number(updated.variationFactor) > 0;
 
           const campos = {
             unit: updated.unit,
-            variation_unit: updated.variationUnit || null,
-            variation_factor: updated.variationFactor || null,
             supply_class: updated.supplyClass
           };
+          if (temVariationUnit === temVariationFactor) {
+            campos.variation_unit = temVariationUnit ? String(updated.variationUnit).trim() : null;
+            campos.variation_factor = temVariationFactor ? Number(updated.variationFactor) : null;
+          }
           // Nome vazio é passagem da digitação: não vai para o banco
           const nome = (updated.name || '').trim();
           if (nome) campos.name = nome;
 
-          writeSoon(`insumo:${updated.id}`, 'Atualizar insumo', () =>
-            run('supplies', sb.from('supplies').update(campos).eq('id', updated.id))
-          );
+          const key = `insumo:${updated.id}`;
+          const salvar = () => run('supplies', sb.from('supplies').update(campos).eq('id', updated.id));
+          if (immediate) {
+            cancelScheduledWrite(key);
+            return write('Atualizar insumo', salvar);
+          }
+          writeSoon(key, 'Atualizar insumo', salvar);
+          return Promise.resolve(null);
         };
 
         // O insumo sai da lista, mas o que já foi comprado dele continua
@@ -18496,12 +19092,13 @@ const porItem = useMemo(() => {
         };
 
         const handleAddSupplyPurchase = (supplyId, compra) => {
-          write('Registrar compra de insumo', async () => {
+          return write('Registrar compra de insumo', async () => {
             const linhas = await run('supply_purchases', sb.from('supply_purchases').insert({
               supply_id: supplyId,
               supplier: compra.supplier || '',
               purchase_date: compra.purchaseDate || null,
               qty: compra.qty || 0,
+              purchase_unit: compra.purchaseUnit || '',
               cost: compra.cost || 0
             }).select());
             setSupplyPurchases((prev) => [...prev, fromSupplyPurchase(linhas[0])]);
@@ -18515,6 +19112,7 @@ const porItem = useMemo(() => {
               supplier: updated.supplier || '',
               purchase_date: updated.purchaseDate || null,
               qty: updated.qty || 0,
+              purchase_unit: updated.purchaseUnit || '',
               cost: updated.cost || 0
             }).eq('id', updated.id))
           );
@@ -18762,18 +19360,23 @@ const porItem = useMemo(() => {
         // Preço, unidade de venda e custo dos itens de fora da vitrine — o que
         // a tela do CMV precisa mexer neles. A quantidade em estoque continua
         // sendo assunto do handleUpdateSeparatedQty.
-        const handleUpdateSeparatedProduct = (updated) => {
+        const handleUpdateSeparatedProduct = (updated, immediate = false) => {
           setSeparatedProducts((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-          writeSoon(`sep-cmv:${updated.id}`, 'Atualizar item de revenda', () =>
-            run('separated_products', sb.from('separated_products').update({
+          const key = `sep-cmv:${updated.id}`;
+          const salvar = () => run('separated_products', sb.from('separated_products').update({
               name: String(updated.productName || '').trim() || undefined,
               category: updated.category || 'revenda',
               unit_of_measure: updated.unitOfMeasure || updated.priceUnit || 'un',
               price: Number(updated.price) || 0,
               price_unit: updated.priceUnit || 'un',
               cost: Number(updated.cost) || 0
-            }).eq('id', updated.id))
-          );
+            }).eq('id', updated.id));
+          if (immediate) {
+            cancelScheduledWrite(key);
+            return write('Atualizar item de revenda', salvar);
+          }
+          writeSoon(key, 'Atualizar item de revenda', salvar);
+          return Promise.resolve(null);
         };
 
         const handleDeleteSeparatedProduct = (id) => {
@@ -18790,7 +19393,7 @@ const porItem = useMemo(() => {
         };
 
         const handleAddResalePurchase = (separatedProductId, compra) => {
-          write('Registrar compra de revenda', async () => {
+          return write('Registrar compra de revenda', async () => {
             const linhas = await run('resale_purchases', sb.from('resale_purchases').insert({
               separated_product_id: separatedProductId,
               supplier: compra.supplier || '',
@@ -19161,7 +19764,7 @@ const porItem = useMemo(() => {
                 supplier: c.supplier || '',
                 purchase_date: c.purchaseDate || null,
                 qty: Number(c.qty) || 0,
-                purchase_unit: unidade || 'un',
+                purchase_unit: c.purchaseUnit || unidade || 'un',
                 cost: Number(c.cost) || 0
               }))).select();
               if (error) throw error;
@@ -19184,6 +19787,7 @@ const porItem = useMemo(() => {
                 supplier: c.supplier || '',
                 purchase_date: c.purchaseDate || null,
                 qty: qtdConvertida(c),
+                purchase_unit: c.purchaseUnit || unidadeBase || '',
                 cost: Number(c.cost) || 0
               }))).select();
               if (error) throw error;
@@ -19619,9 +20223,9 @@ const porItem = useMemo(() => {
                 activeTab === 'vitrine' ? 'pb-24 lg:pb-4' : ''
               }`}>
                 <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites > 0 ? 'dot-last' : 'dot-fresh'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${pendingWrites + scheduledWrites > 0 ? 'dot-last' : 'dot-fresh'}`} />
                   <span className="t-caption">
-                    {pendingWrites > 0
+                    {pendingWrites + scheduledWrites > 0
                       ? 'Salvando no Supabase…'
                       : lastSync
                         ? `Salvo no Supabase · ${lastSync.toLocaleTimeString('pt-BR')}`
