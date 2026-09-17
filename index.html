@@ -3270,13 +3270,6 @@
           else setSearch(texto);
         };
 
-        const handleFocus = (e) => {
-          // Em dinheiro, selecionar tudo ao entrar no campo deixa a troca do
-          // valor muito mais rápida; basta digitar o novo número.
-          if (moneyMode) requestAnimationFrame(() => e.target.select());
-          if (onFocus) onFocus(e);
-        };
-
         const handleKeyDown = (e) => {
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
@@ -3492,6 +3485,13 @@
           }
           setText(formatValue(value));
           if (onBlur) onBlur(e);
+        };
+
+        const handleFocus = (e) => {
+          // Em dinheiro, selecionar tudo ao entrar no campo deixa a troca do
+          // valor muito mais rápida; basta digitar o novo número.
+          if (moneyMode) requestAnimationFrame(() => e.target.select());
+          if (onFocus) onFocus(e);
         };
 
         const handleKeyDown = (e) => {
