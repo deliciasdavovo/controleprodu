@@ -15189,6 +15189,7 @@
       const htmlRelatorioCompletoFornecedores = ({
         unidadeNome,
         filtros,
+        visao,
         compras,
         itens,
         fornecedores,
@@ -15316,6 +15317,57 @@
           <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
         </tr>`).join('');
 
+        // O relatório completo acompanha a MESMA visualização escolhida na
+        // página. Busca, categoria, período e demais filtros já chegam em
+        // `compras`; aqui só muda a forma de apresentar os mesmos dados.
+        const blocosFornecedores = fornecedores.map((f) => {
+          const comprasDoFornecedor = [...f.lista].sort((a, b) => {
+            const d = (b.data || '').localeCompare(a.data || '');
+            return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+          });
+          const linhas = comprasDoFornecedor.map((c) => `<tr>
+            <td>${c.data ? formatDateBR(c.data) : '—'}</td>
+            <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
+            <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+            <td class="num forte">${formatCurrencyBR(c.cost)}</td>
+            <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+          </tr>`).join('');
+          return `<div class="grupo-fornecedor">
+            <div class="grupo-fornecedor-cabecalho">
+              <div class="grupo-fornecedor-nome">
+                <b>${f.nome === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(f.nome)}</b>
+                <small>${f.lista.length} ${f.lista.length === 1 ? 'compra' : 'compras'} · ${f.itens} ${f.itens === 1 ? 'item' : 'itens'}</small>
+              </div>
+              <div><span>Total filtrado</span><b>${formatCurrencyBR(f.total)}</b></div>
+              <div><span>Última compra</span><b>${f.recente ? formatDateBR(f.recente) : '—'}</b></div>
+            </div>
+            <table class="t-fornecedor-compras">
+              <thead><tr><th>Data</th><th>Item</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
+              <tbody>${linhas || '<tr><td colspan="5" class="quieto">Nenhuma compra neste grupo.</td></tr>'}</tbody>
+            </table>
+          </div>`;
+        }).join('');
+
+        const secaoVisualizacao = visao === 'fornecedor'
+          ? `<section>
+              <h2>Por fornecedor (${fornecedores.length})</h2>
+              <p class="nota">Os fornecedores estão na mesma ordem escolhida na página e cada grupo mostra somente as compras que passaram pelos filtros atuais.</p>
+              ${blocosFornecedores || '<p class="quieto">Nenhum fornecedor nos filtros atuais.</p>'}
+            </section>`
+          : visao === 'compra'
+            ? `<section>
+                <h2>Por compra (${extrato.length}${extrato.length < totalComprasFiltradas ? ' de ' + totalComprasFiltradas : ''})</h2>
+                <p class="nota">Mesma ordenação e mesma opção de quantidade de compras selecionadas na página.</p>
+                <table class="t-compras"><thead><tr><th>Data</th><th>Item</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
+                <tbody>${linhasCompras || '<tr><td colspan="6" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody></table>
+              </section>`
+            : `<section>
+                <h2>Por item (${itens.length})</h2>
+                <p class="nota">Mesma ordenação da página. As três compras mais recentes, a variação e a comparação de fornecedores respeitam os filtros atuais.</p>
+                ${tabelasItensPorCategoria || '<p class="quieto">Nenhum item nos filtros atuais.</p>'}
+              </section>`;
+
+
         const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
         return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
@@ -15374,6 +15426,16 @@
             .t-compras th:nth-child(1) { width: 11%; } .t-compras th:nth-child(2) { width: 23%; }
             .t-compras th:nth-child(3) { width: 21%; } .t-compras th:nth-child(4) { width: 13%; }
             .t-compras th:nth-child(5), .t-compras th:nth-child(6) { width: 16%; }
+            .grupo-fornecedor { margin: 10px 0 16px; }
+            .grupo-fornecedor-cabecalho { display: grid; grid-template-columns: minmax(0, 1fr) 150px 120px; gap: 8px; align-items: center; padding: 8px 9px; background: #ececea; border: 1px solid #cfcfcb; border-bottom: 0; break-after: avoid; page-break-after: avoid; }
+            .grupo-fornecedor-cabecalho > div:not(.grupo-fornecedor-nome) { text-align: right; }
+            .grupo-fornecedor-cabecalho span, .grupo-fornecedor-cabecalho small { display: block; color: #666; font-size: 7.5pt; }
+            .grupo-fornecedor-cabecalho b { display: block; font-size: 10pt; }
+            .grupo-fornecedor-nome b { font-size: 11pt; }
+            .t-fornecedor-compras th:nth-child(1) { width: 12%; }
+            .t-fornecedor-compras th:nth-child(2) { width: 38%; }
+            .t-fornecedor-compras th:nth-child(3) { width: 14%; }
+            .t-fornecedor-compras th:nth-child(4), .t-fornecedor-compras th:nth-child(5) { width: 18%; }
             footer { margin-top: 16px; padding-top: 7px; border-top: 1px solid #bbb; color: #666; font-size: 8pt; }
             @media screen and (max-width: 700px) { .duas { grid-template-columns: 1fr; } .placar { grid-template-columns: 1fr 1fr; } }
           </style></head><body>
@@ -15396,6 +15458,8 @@
             <span><b>${comEscolha}</b> itens têm mais de um fornecedor</span>
           </div>
 
+          ${secaoVisualizacao}
+
           <div class="duas">
             <section>
               <h2>Resumo por categoria</h2>
@@ -15408,25 +15472,6 @@
               <tbody>${linhasMes || '<tr><td colspan="5" class="quieto">Sem compras com data.</td></tr>'}</tbody></table>
             </section>
           </div>
-
-          <section>
-            <h2>Análise por item (${itens.length})</h2>
-            <p class="nota">Os produtos estão separados por categoria. As linhas verticais ajudam a acompanhar as três compras sem misturar as colunas.</p>
-            ${tabelasItensPorCategoria || '<p class="quieto">Nenhum item nos filtros atuais.</p>'}
-          </section>
-
-          <section>
-            <h2>Resumo por fornecedor (${fornecedores.length})</h2>
-            <table><thead><tr><th>Fornecedor</th><th class="num">Compras</th><th class="num">Itens</th><th class="num">Última compra</th><th class="num">Total</th></tr></thead>
-            <tbody>${linhasFornecedores || '<tr><td colspan="5" class="quieto">Nenhum fornecedor nos filtros atuais.</td></tr>'}</tbody></table>
-          </section>
-
-          <section>
-            <h2>Compras detalhadas (${extrato.length}${extrato.length < totalComprasFiltradas ? ` de ${totalComprasFiltradas}` : ''})</h2>
-            <p class="nota">A quantidade desta lista respeita a opção “Últimas 10/25/50/Todas” quando ela estiver selecionada na página.</p>
-            <table class="t-compras"><thead><tr><th>Data</th><th>Item</th><th>Fornecedor</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
-            <tbody>${linhasCompras || '<tr><td colspan="6" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody></table>
-          </section>
 
           <footer>
             Este relatório usa os filtros que estavam aplicados na aba Fornecedores no momento da geração.
@@ -16102,6 +16147,7 @@ const porItem = useMemo(() => {
           janela.document.write(htmlRelatorioCompletoFornecedores({
             unidadeNome: unitName,
             filtros,
+            visao,
             compras,
             itens: itensOrdenados,
             fornecedores: porFornecedor,
