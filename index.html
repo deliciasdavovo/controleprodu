@@ -631,14 +631,24 @@
         border-bottom: 1px solid var(--hairline);
       }
       .cadastro-preco-calculado span {
+        display: block;
         color: var(--ink-4);
         font-size: 11px;
         font-weight: 600;
       }
+      .cadastro-preco-detalhe {
+        display: block;
+        margin-top: 2px;
+        color: var(--ink-4);
+        font-size: 10px;
+        font-weight: 500;
+      }
       .cadastro-preco-calculado b {
+        flex-shrink: 0;
         font-size: 15px;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
       .cadastro-equivalencia {
         margin-top: 18px;
@@ -12537,21 +12547,43 @@
           { id: 'fichas', label: 'Fichas técnicas' }
         ];
 
-        // Leitura imediata do lançamento: enquanto quantidade e valor são
-        // preenchidos, mostramos quanto aquela compra está custando por unidade.
+        // Leitura imediata do lançamento na unidade que faz sentido para
+        // comprar. A base técnica pode ser g ou un, mas a tela fala a língua
+        // da nota: g vira kg e compras em caixa/pacote/fardo mostram o preço
+        // do volume, não o centavo por unidade que existe por baixo.
         const qtdDigitadaResumo = Number(draft.qty) || 0;
         const unidadesPorVolumeResumo = Number(draft.unitsPerPackage) || Number(unidadesPorVolumeSugeridas) || 0;
-        const qtdBaseResumo = compraPorVolume
-          ? qtdDigitadaResumo * unidadesPorVolumeResumo
-          : qtdDigitadaResumo;
-        const custoUnitarioResumoEntrada = !modoProducao && qtdBaseResumo > 0 && Number(draft.cost) > 0
-          ? Number(draft.cost) / qtdBaseResumo
-          : 0;
-        const unidadeResumoEntrada = compraPorVolume
-          ? 'un'
-          : (temInsumo && !temRevenda
+        const precoResumoEntrada = (() => {
+          const valorPago = Number(draft.cost) || 0;
+          if (modoProducao || !(qtdDigitadaResumo > 0 && valorPago > 0)) return null;
+
+          if (compraPorVolume) {
+            const tipo = String(draft.packageType || volumeAnterior?.tipo || 'caixa').toLowerCase();
+            const rotuloVolume = tipo === 'outro' ? 'volume' : tipo;
+            return {
+              valor: valorPago / qtdDigitadaResumo,
+              unidade: rotuloVolume,
+              detalhe: unidadesPorVolumeResumo > 0
+                ? `1 ${rotuloVolume} = ${numeroCurtoBR(unidadesPorVolumeResumo)} un`
+                : ''
+            };
+          }
+
+          const unidadeBase = temInsumo && !temRevenda
             ? (draft.unit || 'un')
-            : (draft.purchaseUnit || draft.unit || 'un'));
+            : (draft.purchaseUnit || draft.unit || 'un');
+          const custoNaBase = valorPago / qtdDigitadaResumo;
+          const grande = precoNaUnidadeGrande(custoNaBase, unidadeBase);
+          return {
+            valor: grande.valor,
+            unidade: grande.label,
+            detalhe: unidadeBase === 'g'
+              ? 'mostrado por kg'
+              : unidadeBase === 'ml'
+                ? 'mostrado por L'
+                : ''
+          };
+        })();
 
         return (
           <div className="space-y-5">
@@ -12903,10 +12935,15 @@
                               )}
                             </div>
 
-                            {custoUnitarioResumoEntrada > 0 && (
+                            {precoResumoEntrada && (
                               <div className="cadastro-preco-calculado">
-                                <span>Preço calculado desta compra</span>
-                                <b>{formatCurrencyBR(custoUnitarioResumoEntrada)}/{unidadeResumoEntrada}</b>
+                                <div>
+                                  <span>Preço calculado desta compra</span>
+                                  {precoResumoEntrada.detalhe && (
+                                    <small className="cadastro-preco-detalhe">{precoResumoEntrada.detalhe}</small>
+                                  )}
+                                </div>
+                                <b>{formatCurrencyBR(precoResumoEntrada.valor)}/{precoResumoEntrada.unidade}</b>
                               </div>
                             )}
                           </>
