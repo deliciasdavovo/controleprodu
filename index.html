@@ -10248,7 +10248,7 @@
         const BLANK = {
           name: '', responsible: '', productCategory: 'salgado', showcaseEnabled: true,
           shelfLifeDays: 2, price: '', priceUnit: 'un',
-          supplyUnit: 'g', supplyClass: 'insumo', resaleCategory: 'revenda'
+          supplyUnit: 'kg', supplyClass: 'insumo', resaleCategory: 'revenda'
         };
         const [draft, setDraft] = useState(BLANK);
 
@@ -10299,7 +10299,8 @@
             } else if (tipo === 'insumo') {
               await onAddSupply({
                 name,
-                unit: draft.supplyUnit || 'g',
+                unit: unidadeTecnicaDaCompra(draft.supplyUnit || 'kg'),
+                purchaseUnit: draft.supplyUnit || 'kg',
                 supplyClass: draft.supplyClass || 'insumo'
               });
             } else {
@@ -10400,8 +10401,8 @@
                 {tipo === 'insumo' && (
                   <>
                     <div className="col-span-6 md:col-span-2">
-                      <label className="t-caption block mb-1">Unidade base</label>
-                      <PickerField value={draft.supplyUnit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => setField('supplyUnit', opt.value)} className="field field-md" />
+                      <label className="t-caption block mb-1">Unidade de compra</label>
+                      <PickerField value={draft.supplyUnit} options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => setField('supplyUnit', opt.value)} className="field field-md" />
                     </div>
                     <div className="col-span-6 md:col-span-3">
                       <label className="t-caption block mb-1">Classe</label>
