@@ -3064,7 +3064,9 @@
         minQty: row.min_qty,
         price: Number(row.price) || 0,
         priceUnit: row.price_unit || 'un',
-        cost: Number(row.cost) || 0
+        cost: Number(row.cost) || 0,
+        packageType: row.package_type || '',
+        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
       });
 
       const fromSupply = (row) => ({
@@ -3073,7 +3075,9 @@
         unit: row.unit || 'g',
         variationUnit: row.variation_unit || '',
         variationFactor: row.variation_factor === null ? null : Number(row.variation_factor),
-        supplyClass: row.supply_class || 'insumo'
+        supplyClass: row.supply_class || 'insumo',
+        packageType: row.package_type || '',
+        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
       });
 
       const fromSupplyPurchase = (row) => ({
@@ -11864,16 +11868,15 @@
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
-        // Embalagem e limpeza chegam em volume igual à revenda: ninguém compra
-        // "500 marmitex", compra duas caixas de 250. O cadastro já guarda essa
-        // conta em variationUnit/variationFactor ("1 caixa = 250 un"), então é
-        // de lá que sai a sugestão de quantas unidades vêm no volume.
-        //
-        // Só vale para o que se conta por unidade: detergente comprado em ml
-        // continua sendo ml, e caixa de ml não quer dizer nada.
+        // Volume é uma característica fixa do cadastro do produto, separada da
+        // equivalência. Ex.: "1 pacote = 1.000 un". Depois de configurado uma
+        // vez, toda compra seguinte já nasce em volumes automaticamente.
         const volumeDeClasseInterna = classeInterna && !temRevenda && (draft.unit || 'g') === 'un';
         const compraPorVolumeDisponivel = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
-        const compraPorVolume = compraPorVolumeDisponivel && opcoesExtrasCadastro.volume;
+        const temVolumeConfigurado = compraPorVolumeDisponivel
+          && Number(draft.unitsPerPackage) > 0
+          && !!String(draft.packageType || '').trim();
+        const compraPorVolume = compraPorVolumeDisponivel && temVolumeConfigurado;
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -11907,17 +11910,32 @@
           : null;
         const volumeAnterior = lerUnidadeCompraVolume(compraRevendaExistente?.purchaseUnit);
 
-
-        // Quantas unidades vêm no volume, sugeridas. Na revenda saem da última
-        // compra, que guarda o formato no purchaseUnit ("pack:caixa:50"). A
-        // compra de insumo não guarda formato nenhum — só a quantidade em
-        // unidade base — então para embalagem e limpeza a sugestão vem do
-        // cadastro, que é onde a casa escreveu "1 caixa = 250 un".
-        const unidadesPorVolumeSugeridas = volumeDeClasseInterna
-          ? (Number(draft.variationFactor) > 0
-            ? Number(draft.variationFactor)
-            : (Number(supplyExistente?.variationFactor) > 0 ? Number(supplyExistente.variationFactor) : 0))
-          : (Number(volumeAnterior?.unidades) || 0);
+        // Compatibilidade com cadastros anteriores: revenda podia lembrar o
+        // pacote apenas pela última compra; embalagem/limpeza usava a antiga
+        // equivalência para representar caixa/pacote. Ao salvar novamente,
+        // esses dados migram para packageType/packageUnits.
+        const TIPOS_VOLUME_FIXO = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'];
+        const volumeLegadoInsumo = supplyExistente
+          && supplyExistente.unit === 'un'
+          && TIPOS_VOLUME_FIXO.includes(String(supplyExistente.variationUnit || '').toLowerCase())
+          && Number(supplyExistente.variationFactor) > 0
+          ? {
+              tipo: String(supplyExistente.variationUnit).toLowerCase(),
+              unidades: Number(supplyExistente.variationFactor)
+            }
+          : null;
+        const tipoVolumeFixo = draft.packageType
+          || supplyExistente?.packageType
+          || revendaExistente?.packageType
+          || volumeLegadoInsumo?.tipo
+          || volumeAnterior?.tipo
+          || 'caixa';
+        const unidadesPorVolumeSugeridas = Number(draft.unitsPerPackage)
+          || Number(supplyExistente?.packageUnits)
+          || Number(revendaExistente?.packageUnits)
+          || Number(volumeLegadoInsumo?.unidades)
+          || Number(volumeAnterior?.unidades)
+          || 0;
 
 
         const unidadeBaseDaRevenda = (unidade) => {
@@ -12104,6 +12122,11 @@
             const compraRev = rev ? ultimaCompra(comprasDaRevenda(rev.id)) : null;
             const volumeRev = lerUnidadeCompraVolume(compraRev?.purchaseUnit);
             const usoInterno = x.supplyClass === 'embalagem' || x.supplyClass === 'limpeza';
+            const volumeLegado = x.unit === 'un'
+              && ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(String(x.variationUnit || '').toLowerCase())
+              && Number(x.variationFactor) > 0
+              ? { tipo: String(x.variationUnit).toLowerCase(), unidades: Number(x.variationFactor) }
+              : null;
             setDraft((d) => ({
               ...d,
               type: 'insumo',
@@ -12111,14 +12134,14 @@
               name: x.name,
               unit: x.unit || 'g',
               supplyClass: x.supplyClass || 'insumo',
-              variationUnit: x.variationUnit || '',
-              variationFactor: x.variationFactor || '',
+              variationUnit: volumeLegado ? '' : (x.variationUnit || ''),
+              variationFactor: volumeLegado ? '' : (x.variationFactor || ''),
               resaleAlso: usoInterno ? false : !!rev,
               price: rev?.price || '',
               priceUnit: rev?.priceUnit || d.priceUnit || 'un',
-              purchaseUnit: volumeRev ? 'un' : (rev?.priceUnit || d.purchaseUnit || x.unit || 'un'),
-              packageType: volumeRev?.tipo || d.packageType || 'caixa',
-              unitsPerPackage: volumeRev?.unidades ? String(volumeRev.unidades) : d.unitsPerPackage,
+              purchaseUnit: (x.packageUnits || rev?.packageUnits || volumeLegado || volumeRev) ? 'un' : (rev?.priceUnit || d.purchaseUnit || x.unit || 'un'),
+              packageType: x.packageType || rev?.packageType || volumeLegado?.tipo || volumeRev?.tipo || 'caixa',
+              unitsPerPackage: String(x.packageUnits || rev?.packageUnits || volumeLegado?.unidades || volumeRev?.unidades || ''),
               resaleCategory: rev?.category || d.resaleCategory || 'revenda'
             }));
             return;
@@ -12142,9 +12165,9 @@
               resaleAlso: true,
               price: x.price || '',
               priceUnit: x.priceUnit || 'un',
-              purchaseUnit: volumeRev ? 'un' : (x.priceUnit || 'un'),
-              packageType: volumeRev?.tipo || d.packageType || 'caixa',
-              unitsPerPackage: volumeRev?.unidades ? String(volumeRev.unidades) : d.unitsPerPackage,
+              purchaseUnit: (x.packageUnits || volumeRev) ? 'un' : (x.priceUnit || 'un'),
+              packageType: x.packageType || volumeRev?.tipo || 'caixa',
+              unitsPerPackage: String(x.packageUnits || volumeRev?.unidades || ''),
               resaleCategory: x.category || 'revenda'
             }));
           }
@@ -12185,15 +12208,14 @@
           const unidadesPorVolume = compraPorVolume
             ? (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
             : 0;
-          const tipoVolume = draft.packageType || volumeAnterior?.tipo || 'caixa';
+          const tipoVolume = draft.packageType || tipoVolumeFixo || 'caixa';
           const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
           const unidadeCompraSalva = compraPorVolume
             ? criarUnidadeCompraVolume(tipoVolume, unidadesPorVolume)
             : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un');
           const equivalenciaDigitada = String(draft.variationUnit || '').trim();
           const fatorEquivalenciaDigitado = Number(draft.variationFactor) || 0;
-          const volumeEnsinaEquivalencia = volumeDeClasseInterna && unidadesPorVolume > 0;
-          if (temInsumo && !volumeEnsinaEquivalencia
+          if (temInsumo
             && (!!equivalenciaDigitada !== (fatorEquivalenciaDigitado > 0))) {
             window.alert('Complete a equivalência: informe a unidade e o valor correspondente.');
             return;
@@ -12218,27 +12240,23 @@
                 unit: draft.unit || 'g',
                 supplyClass: draft.supplyClass || 'insumo',
                 variationUnit: String(draft.variationUnit || '').trim() || null,
-                variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null
+                variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null,
+                packageType: temVolumeConfigurado ? tipoVolume : null,
+                packageUnits: temVolumeConfigurado ? unidadesPorVolume : null
               });
             }
 
             if (insumo) {
-              // A compra de insumo guarda só a quantidade em unidade base — o
-              // formato do volume se perde. Quem lembra dele é o cadastro, em
-              // variationUnit/variationFactor. Então uma compra em volume de
-              // embalagem ou limpeza ensina o cadastro: "1 caixa = 250 un", e
-              // a próxima compra já nasce com a sugestão.
-              const aprendeuVolume = volumeDeClasseInterna && unidadesPorVolume > 0;
-              const variationUnit = aprendeuVolume
-                ? tipoVolume
-                : (String(draft.variationUnit || '').trim() || null);
-              const variationFactor = aprendeuVolume
-                ? unidadesPorVolume
-                : (Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null);
+              const variationUnit = String(draft.variationUnit || '').trim() || null;
+              const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
+              const packageType = temVolumeConfigurado ? tipoVolume : null;
+              const packageUnits = temVolumeConfigurado ? unidadesPorVolume : null;
               if (variationUnit !== (insumo.variationUnit || null)
-                || variationFactor !== (Number(insumo.variationFactor) || null)) {
-                await onUpdateSupply({ ...insumo, variationUnit, variationFactor }, true);
-                insumo = { ...insumo, variationUnit, variationFactor };
+                || variationFactor !== (Number(insumo.variationFactor) || null)
+                || packageType !== (insumo.packageType || null)
+                || packageUnits !== (Number(insumo.packageUnits) || null)) {
+                await onUpdateSupply({ ...insumo, variationUnit, variationFactor, packageType, packageUnits }, true);
+                insumo = { ...insumo, variationUnit, variationFactor, packageType, packageUnits };
               }
             }
 
@@ -12265,7 +12283,9 @@
               unitOfMeasure: draft.priceUnit || 'un',
               minQty: revenda?.minQty || 0,
               price: Math.max(0, Number(draft.price) || 0),
-              priceUnit: draft.priceUnit || 'un'
+              priceUnit: draft.priceUnit || 'un',
+              packageType: temVolumeConfigurado ? tipoVolume : null,
+              packageUnits: temVolumeConfigurado ? unidadesPorVolume : null
             };
 
             if (!revenda) {
@@ -12558,7 +12578,7 @@
           if (modoProducao || !(qtdDigitadaResumo > 0 && valorPago > 0)) return null;
 
           if (compraPorVolume) {
-            const tipo = String(draft.packageType || volumeAnterior?.tipo || 'caixa').toLowerCase();
+            const tipo = String(draft.packageType || tipoVolumeFixo || 'caixa').toLowerCase();
             const rotuloVolume = tipo === 'outro' ? 'volume' : tipo;
             return {
               valor: valorPago / qtdDigitadaResumo,
@@ -12625,39 +12645,6 @@
                   </div>
 
                   <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form mt-5 pt-5 border-t hairline">
-                    {!modoProducao && (
-                      <div className="cadastro-opcoes">
-                        <span className="cadastro-opcoes-titulo">Opções</span>
-                        {compraPorVolumeDisponivel && (
-                          <button
-                            type="button"
-                            onClick={() => alternarOpcaoExtraCadastro('volume')}
-                            className={`btn btn-sm ${opcoesExtrasCadastro.volume ? 'btn-primary' : 'btn-secondary'}`}
-                          >
-                            {opcoesExtrasCadastro.volume ? 'Volume ativo' : 'Volume/embalagem'}
-                          </button>
-                        )}
-                        {temRevenda && (
-                          <button
-                            type="button"
-                            onClick={() => alternarOpcaoExtraCadastro('revenda')}
-                            className={`btn btn-sm ${opcoesExtrasCadastro.revenda ? 'btn-primary' : 'btn-secondary'}`}
-                          >
-                            {opcoesExtrasCadastro.revenda ? 'Preço de revenda ativo' : 'Preço de revenda'}
-                          </button>
-                        )}
-                        {temInsumo && (
-                          <button
-                            type="button"
-                            onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
-                            className={`btn btn-sm ${opcoesExtrasCadastro.equivalencia ? 'btn-primary' : 'btn-secondary'}`}
-                          >
-                            {opcoesExtrasCadastro.equivalencia ? 'Equivalência ativa' : 'Equivalência'}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
                     <div className="cadastro-duas-colunas">
                       {/* ESQUERDA: identificação — o que é e de quem vem */}
                       <section className="cadastro-bloco cadastro-bloco-identificacao">
@@ -12691,6 +12678,120 @@
                               className="field field-md font-semibold"
                             />
                           </div>
+
+                          {!modoProducao && (compraPorVolumeDisponivel || temInsumo) && (
+                            <div className="col-span-12 -mt-1">
+                              <div className="flex flex-wrap gap-2">
+                                {compraPorVolumeDisponivel && (
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarOpcaoExtraCadastro('volume')}
+                                    className={`btn btn-sm ${opcoesExtrasCadastro.volume ? 'btn-primary' : 'btn-secondary'}`}
+                                  >
+                                    {temVolumeConfigurado
+                                      ? `Volume · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
+                                      : 'Definir volume'}
+                                  </button>
+                                )}
+                                {temInsumo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
+                                    className={`btn btn-sm ${opcoesExtrasCadastro.equivalencia ? 'btn-primary' : 'btn-secondary'}`}
+                                  >
+                                    {draft.variationUnit && Number(draft.variationFactor) > 0
+                                      ? `Equivalência · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
+                                      : 'Definir equivalência'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {!modoProducao && compraPorVolumeDisponivel && opcoesExtrasCadastro.volume && (
+                            <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
+                              <div className="t-overline-sm mb-2">Volume padrão do produto</div>
+                              <div className="grid grid-cols-12 gap-2 items-end">
+                                <div className="col-span-5">
+                                  <label className="t-caption">Tipo</label>
+                                  <select
+                                    value={draft.packageType || tipoVolumeFixo || 'caixa'}
+                                    onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
+                                    className="field field-md field-select"
+                                  >
+                                    {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                  </select>
+                                </div>
+                                <div className="col-span-7">
+                                  <label className="t-caption">Unidades por volume</label>
+                                  <NumeroBRField
+                                    value={draft.unitsPerPackage}
+                                    decimals={0}
+                                    onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
+                                    placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 1000'}
+                                    sugestao={unidadesPorVolumeSugeridas || ''}
+                                    className="field field-md text-right tnum"
+                                  />
+                                </div>
+                              </div>
+                              <p className="t-micro mt-2">Fica salvo no produto. Nas próximas compras o sistema já usa esse volume automaticamente.</p>
+                            </div>
+                          )}
+
+                          {temInsumo && opcoesExtrasCadastro.equivalencia && (
+                            <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
+                              <div className="t-overline-sm mb-2">Equivalência do produto</div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {draft.unit === 'un' ? (
+                                  <>
+                                    <span className="t-body font-semibold whitespace-nowrap">1 un =</span>
+                                    <NumeroBRField
+                                      value={draft.variationFactor}
+                                      decimals={3}
+                                      onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
+                                      placeholder="ex: 30"
+                                      className="field field-md text-right tnum w-24"
+                                    />
+                                    <div className="w-28 sm:w-36">
+                                      <PickerField
+                                        value={draft.variationUnit}
+                                        options={UNIDADES_EQUIVALENCIA}
+                                        onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                                        onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                                        placeholder="g"
+                                        emptyLabel="Unidade nova"
+                                        className="field field-md"
+                                      />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="t-body font-semibold">1</span>
+                                    <div className="w-28 sm:w-36">
+                                      <PickerField
+                                        value={draft.variationUnit}
+                                        options={UNIDADES_EQUIVALENCIA}
+                                        onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
+                                        onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
+                                        placeholder="fatia"
+                                        emptyLabel="Unidade nova"
+                                        className="field field-md"
+                                      />
+                                    </div>
+                                    <span className="t-body font-semibold">=</span>
+                                    <NumeroBRField
+                                      value={draft.variationFactor}
+                                      decimals={3}
+                                      onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
+                                      placeholder="ex: 30"
+                                      className="field field-md text-right tnum w-24"
+                                    />
+                                    <span className="t-body font-semibold">{draft.unit}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
 
                           {!modoProducao && (
                             <div className="col-span-12">
@@ -12864,6 +12965,18 @@
                                 />
                               </div>
 
+                              {temRevenda && (
+                                <div className="col-span-8 -mt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarOpcaoExtraCadastro('revenda')}
+                                    className={`btn btn-sm ${opcoesExtrasCadastro.revenda ? 'btn-primary' : 'btn-secondary'}`}
+                                  >
+                                    {opcoesExtrasCadastro.revenda ? 'Preço de revenda aberto' : 'Definir preço de revenda'}
+                                  </button>
+                                </div>
+                              )}
+
                               <div className="col-span-4">
                                 <label className="t-caption">Un. compra</label>
                                 <select
@@ -12875,32 +12988,6 @@
                                   {['un', 'kg', 'g', 'L', 'ml'].map((u) => <option key={u} value={u}>{u}</option>)}
                                 </select>
                               </div>
-
-                              {compraPorVolume && (
-                                <>
-                                  <div className="col-span-6">
-                                    <label className="t-caption">Embalagem</label>
-                                    <select
-                                      value={draft.packageType}
-                                      onChange={(e) => setDraft((d) => ({ ...d, packageType: e.target.value }))}
-                                      className="field field-md field-select"
-                                    >
-                                      {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                                    </select>
-                                  </div>
-                                  <div className="col-span-6">
-                                    <label className="t-caption">Un./volume</label>
-                                    <NumeroBRField
-                                      value={draft.unitsPerPackage}
-                                      decimals={0}
-                                      onValueChange={(unitsPerPackage) => setDraft((d) => ({ ...d, unitsPerPackage }))}
-                                      placeholder={unidadesPorVolumeSugeridas ? numeroCurtoBR(unidadesPorVolumeSugeridas) : 'ex: 12'}
-                                      sugestao={unidadesPorVolumeSugeridas || ''}
-                                      className="field field-md text-right tnum"
-                                    />
-                                  </div>
-                                </>
-                              )}
 
                               {temRevenda && opcoesExtrasCadastro.revenda && (
                                 <>
@@ -12950,62 +13037,6 @@
                         )}
                       </section>
                     </div>
-
-                    {temInsumo && opcoesExtrasCadastro.equivalencia && (
-                      <div className="cadastro-equivalencia">
-                        <div className="t-overline-sm mb-2">Equivalência do item</div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {draft.unit === 'un' ? (
-                            <>
-                              <span className="t-body font-semibold whitespace-nowrap">1 un =</span>
-                              <NumeroBRField
-                                value={draft.variationFactor}
-                                decimals={3}
-                                onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
-                                placeholder="ex: 30"
-                                className="field field-md text-right tnum w-24"
-                              />
-                              <div className="w-28 sm:w-36">
-                                <PickerField
-                                  value={draft.variationUnit}
-                                  options={UNIDADES_EQUIVALENCIA}
-                                  onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
-                                  onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
-                                  placeholder="g"
-                                  emptyLabel="Unidade nova"
-                                  className="field field-md"
-                                />
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <span className="t-body font-semibold">1</span>
-                              <div className="w-28 sm:w-36">
-                                <PickerField
-                                  value={draft.variationUnit}
-                                  options={UNIDADES_EQUIVALENCIA}
-                                  onType={(variationUnit) => setDraft((d) => ({ ...d, variationUnit }))}
-                                  onPick={(opt) => setDraft((d) => ({ ...d, variationUnit: opt.value }))}
-                                  placeholder="fatia"
-                                  emptyLabel="Unidade nova"
-                                  className="field field-md"
-                                />
-                              </div>
-                              <span className="t-body font-semibold">=</span>
-                              <NumeroBRField
-                                value={draft.variationFactor}
-                                decimals={3}
-                                onValueChange={(variationFactor) => setDraft((d) => ({ ...d, variationFactor }))}
-                                placeholder="ex: 30"
-                                className="field field-md text-right tnum w-24"
-                              />
-                              <span className="t-body font-semibold">{draft.unit}</span>
-                            </>
-                          )}
-                        </div>
-                        <p className="t-micro mt-2">Exemplo: 1 un = 30 g. Essa informação também continua aparecendo na coluna Equiv. da tabela.</p>
-                      </div>
-                    )}
 
                     <div className="cadastro-rodape">
                       <div className="cadastro-contexto t-micro">
@@ -19280,7 +19311,9 @@ const porItem = useMemo(() => {
               unit_of_measure: prod.unitOfMeasure || 'un',
               min_qty: prod.minQty || 0,
               price: prod.price,
-              price_unit: prod.priceUnit || 'un'
+              price_unit: prod.priceUnit || 'un',
+              package_type: prod.packageType || null,
+              package_units: Number(prod.packageUnits) > 0 ? Number(prod.packageUnits) : null
             }).select());
             const novo = fromSeparated(linhas[0]);
             setSeparatedProducts((prev) => [...prev, novo]);
@@ -19329,7 +19362,9 @@ const porItem = useMemo(() => {
               unit: supply.unit || 'g',
               variation_unit: supply.variationUnit || null,
               variation_factor: supply.variationFactor || null,
-              supply_class: supply.supplyClass || 'insumo'
+              supply_class: supply.supplyClass || 'insumo',
+              package_type: supply.packageType || null,
+              package_units: Number(supply.packageUnits) > 0 ? Number(supply.packageUnits) : null
             }).select());
             const novo = fromSupply(linhas[0]);
             setSupplies((prev) => [...prev, novo].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
@@ -19348,7 +19383,9 @@ const porItem = useMemo(() => {
 
           const campos = {
             unit: updated.unit,
-            supply_class: updated.supplyClass
+            supply_class: updated.supplyClass,
+            package_type: updated.packageType || null,
+            package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
           };
           if (temVariationUnit === temVariationFactor) {
             campos.variation_unit = temVariationUnit ? String(updated.variationUnit).trim() : null;
@@ -19677,7 +19714,9 @@ const porItem = useMemo(() => {
               unit_of_measure: updated.unitOfMeasure || updated.priceUnit || 'un',
               price: Number(updated.price) || 0,
               price_unit: updated.priceUnit || 'un',
-              cost: Number(updated.cost) || 0
+              cost: Number(updated.cost) || 0,
+              package_type: updated.packageType || null,
+              package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
             }).eq('id', updated.id));
           if (immediate) {
             cancelScheduledWrite(key);

@@ -643,6 +643,30 @@ alter table public.separated_products
 alter table public.separated_products
   add column if not exists cost numeric(10,2) not null default 0;
 
+-- O volume padrão pertence ao cadastro, não à compra individual.
+-- Ex.: 1 pacote = 1.000 un. A compra continua registrando o formato usado
+-- naquela nota, mas o próximo lançamento já conhece o padrão do produto.
+alter table public.supplies
+  add column if not exists package_type text;
+alter table public.supplies
+  add column if not exists package_units numeric(12,3);
+alter table public.supplies drop constraint if exists supplies_package_units_check;
+alter table public.supplies
+  add constraint supplies_package_units_check check (package_units is null or package_units > 0);
+
+alter table public.separated_products
+  add column if not exists package_type text;
+alter table public.separated_products
+  add column if not exists package_units numeric(12,3);
+alter table public.separated_products drop constraint if exists separated_products_package_units_check;
+alter table public.separated_products
+  add constraint separated_products_package_units_check check (package_units is null or package_units > 0);
+
+comment on column public.supplies.package_type is 'Tipo do volume padrão de compra: caixa, pacote, fardo etc.';
+comment on column public.supplies.package_units is 'Quantidade de unidades base dentro de um volume padrão.';
+comment on column public.separated_products.package_type is 'Tipo do volume padrão de compra da revenda.';
+comment on column public.separated_products.package_units is 'Quantidade de unidades dentro de um volume padrão da revenda.';
+
 alter table public.separated_products drop constraint if exists separated_products_price_unit_check;
 alter table public.separated_products
   add constraint separated_products_price_unit_check check (price_unit in ('un', 'kg', 'g'));
