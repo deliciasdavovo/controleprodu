@@ -2132,6 +2132,22 @@
       ];
 
       const SUPPLY_UNITS = ['g', 'ml', 'un'];
+      const PURCHASE_UNITS = ['kg', 'g', 'L', 'ml', 'un'];
+
+      // A unidade que a pessoa escolhe é a da nota/compra. O CMV continua
+      // trabalhando internamente em g, ml ou un, sem expor essa conversão.
+      const unidadeTecnicaDaCompra = (unidadeCompra) => {
+        const u = String(unidadeCompra || 'un');
+        if (u === 'kg' || u === 'g') return 'g';
+        if (u === 'L' || u === 'ml') return 'ml';
+        return 'un';
+      };
+
+      const unidadeCompraPadraoDaBase = (unidadeBase) => {
+        if (unidadeBase === 'g') return 'kg';
+        if (unidadeBase === 'ml') return 'L';
+        return 'un';
+      };
 
       // Unidades em que a loja compra ou usa o insumo, além da unidade base
       const VARIATION_UNITS = ['fatia', 'lata', 'pote', 'caixa', 'colher', 'pacote', 'un', 'g', 'ml'];
@@ -3065,6 +3081,7 @@
         price: Number(row.price) || 0,
         priceUnit: row.price_unit || 'un',
         cost: Number(row.cost) || 0,
+        purchaseUnit: row.purchase_unit || 'un',
         packageType: row.package_type || '',
         packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
       });
@@ -3076,6 +3093,7 @@
         variationUnit: row.variation_unit || '',
         variationFactor: row.variation_factor === null ? null : Number(row.variation_factor),
         supplyClass: row.supply_class || 'insumo',
+        purchaseUnit: row.purchase_unit || unidadeCompraPadraoDaBase(row.unit || 'g'),
         packageType: row.package_type || '',
         packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
       });
@@ -11827,7 +11845,7 @@
           purchaseDate: '',
           qty: '',
           cost: '',
-          purchaseUnit: 'un',
+          purchaseUnit: 'kg',
           packageType: 'caixa',
           unitsPerPackage: '',
           responsible: '',
@@ -11938,12 +11956,7 @@
           || 0;
 
 
-        const unidadeBaseDaRevenda = (unidade) => {
-          const u = String(unidade || 'un');
-          if (u === 'kg' || u === 'g') return 'g';
-          if (u === 'L' || u === 'ml') return 'ml';
-          return 'un';
-        };
+        const unidadeBaseDaRevenda = (unidade) => unidadeTecnicaDaCompra(unidade);
 
         const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) => {
           const q = Number(qtd) || 0;
@@ -11981,29 +11994,31 @@
           const custoAnterior = Number(anterior?.cost) || 0;
           if (!(qtdAnterior > 0 && custoAnterior > 0)) return '';
 
-          const unidadeAnterior = unidadeCompraEfetiva(anterior.purchaseUnit || draft.unit || 'un');
-          const unidadeAgora = compraPorVolume
-            ? 'un'
-            : unidadeCompraEfetiva(temInsumo && !temRevenda
-              ? (draft.unit || 'un')
-              : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un'));
-
           const qtdDigitada = Number(draft.qty) || 0;
           if (!(qtdDigitada > 0)) return custoAnterior;
 
-          const qtdAgora = compraPorVolume
-            ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
-            : qtdCompraNaBase(qtdDigitada, unidadeAgora, unidadeAnterior);
-          if (!(qtdAgora > 0)) return custoAnterior;
+          let qtdAnteriorComparavel = qtdAnterior;
+          let qtdAgoraComparavel = 0;
 
-          // g↔kg e ml↔L a função converte; qualquer outro par ela devolve sem
-          // mexer, e aí a conta sairia errada em mil vezes. Melhor não fazer.
-          const compativel = unidadeAnterior === unidadeAgora
-            || (unidadeAnterior === 'kg' && unidadeAgora === 'g') || (unidadeAnterior === 'g' && unidadeAgora === 'kg')
-            || (unidadeAnterior === 'L' && unidadeAgora === 'ml') || (unidadeAnterior === 'ml' && unidadeAgora === 'L');
-          if (!compativel) return custoAnterior;
+          if (anterior.supplyId) {
+            const unidadeBase = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(draft.purchaseUnit);
+            qtdAgoraComparavel = compraPorVolume
+              ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
+              : qtdCompraNaBase(qtdDigitada, draft.purchaseUnit, unidadeBase);
+          } else {
+            const unidadeAnterior = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
+            const unidadeAgora = compraPorVolume ? 'un' : unidadeCompraEfetiva(draft.purchaseUnit || 'un');
+            qtdAgoraComparavel = compraPorVolume
+              ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
+              : qtdCompraNaBase(qtdDigitada, unidadeAgora, unidadeAnterior);
+            const compativel = unidadeAnterior === unidadeAgora
+              || (unidadeAnterior === 'kg' && unidadeAgora === 'g') || (unidadeAnterior === 'g' && unidadeAgora === 'kg')
+              || (unidadeAnterior === 'L' && unidadeAgora === 'ml') || (unidadeAnterior === 'ml' && unidadeAgora === 'L');
+            if (!compativel) return custoAnterior;
+          }
 
-          const valor = (custoAnterior / qtdAnterior) * qtdAgora;
+          if (!(qtdAgoraComparavel > 0)) return custoAnterior;
+          const valor = (custoAnterior / qtdAnteriorComparavel) * qtdAgoraComparavel;
           return valor > 0 ? Math.round(valor * 100) / 100 : custoAnterior;
         }, [compraExistente, draft.qty, draft.unit, draft.purchaseUnit, draft.priceUnit,
             draft.unitsPerPackage, compraPorVolume, temInsumo, temRevenda, unidadesPorVolumeSugeridas]);
@@ -12017,7 +12032,9 @@
             mapa.set(normalizeName(x.name), {
               value: `insumo:${x.id}`,
               label: x.name,
-              hint: rev ? `Insumo · ${x.unit} · revenda também` : `Insumo · ${x.unit}`
+              hint: rev
+                ? `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))} · revenda também`
+                : `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))}`
             });
           });
           revendaDaUnidade.forEach((x) => {
@@ -12062,15 +12079,20 @@
                 type: 'insumo',
                 purchaseKind: 'insumo',
                 resaleAlso: false,
-                supplyClass: tipo
+                supplyClass: tipo,
+                purchaseUnit: 'un',
+                unit: 'un'
               };
             }
+            const purchaseUnit = tipo === 'revenda' ? 'un' : (d.purchaseUnit || 'kg');
             return {
               ...d,
               type: 'insumo',
               purchaseKind: tipo,
               resaleAlso: tipo === 'insumo_revenda',
-              supplyClass: 'insumo'
+              supplyClass: 'insumo',
+              purchaseUnit,
+              unit: unidadeTecnicaDaCompra(purchaseUnit)
             };
           });
         };
@@ -12132,14 +12154,14 @@
               type: 'insumo',
               purchaseKind: usoInterno ? 'insumo' : (rev ? 'insumo_revenda' : 'insumo'),
               name: x.name,
-              unit: x.unit || 'g',
+              unit: x.unit || unidadeTecnicaDaCompra(x.purchaseUnit),
               supplyClass: x.supplyClass || 'insumo',
               variationUnit: volumeLegado ? '' : (x.variationUnit || ''),
               variationFactor: volumeLegado ? '' : (x.variationFactor || ''),
               resaleAlso: usoInterno ? false : !!rev,
               price: rev?.price || '',
               priceUnit: rev?.priceUnit || d.priceUnit || 'un',
-              purchaseUnit: (x.packageUnits || rev?.packageUnits || volumeLegado || volumeRev) ? 'un' : (rev?.priceUnit || d.purchaseUnit || x.unit || 'un'),
+              purchaseUnit: x.purchaseUnit || rev?.purchaseUnit || unidadeCompraPadraoDaBase(x.unit || 'g'),
               packageType: x.packageType || rev?.packageType || volumeLegado?.tipo || volumeRev?.tipo || 'caixa',
               unitsPerPackage: String(x.packageUnits || rev?.packageUnits || volumeLegado?.unidades || volumeRev?.unidades || ''),
               resaleCategory: rev?.category || d.resaleCategory || 'revenda'
@@ -12158,14 +12180,14 @@
               type: 'insumo',
               purchaseKind: ins ? 'insumo_revenda' : 'revenda',
               name: x.productName,
-              unit: ins?.unit || unidadeBaseDaRevenda(x.priceUnit || x.unitOfMeasure),
+              unit: ins?.unit || unidadeTecnicaDaCompra(x.purchaseUnit || x.priceUnit || x.unitOfMeasure),
               supplyClass: ins?.supplyClass || 'insumo',
               variationUnit: ins?.variationUnit || '',
               variationFactor: ins?.variationFactor || '',
               resaleAlso: true,
               price: x.price || '',
               priceUnit: x.priceUnit || 'un',
-              purchaseUnit: (x.packageUnits || volumeRev) ? 'un' : (x.priceUnit || 'un'),
+              purchaseUnit: x.purchaseUnit || (ins?.purchaseUnit || x.priceUnit || 'un'),
               packageType: x.packageType || volumeRev?.tipo || 'caixa',
               unitsPerPackage: String(x.packageUnits || volumeRev?.unidades || ''),
               resaleCategory: x.category || 'revenda'
@@ -12237,7 +12259,8 @@
             if (!insumo) {
               insumo = await onAddSupply({
                 name: nome,
-                unit: draft.unit || 'g',
+                unit: unidadeTecnicaDaCompra(draft.purchaseUnit),
+                purchaseUnit: draft.purchaseUnit || 'un',
                 supplyClass: draft.supplyClass || 'insumo',
                 variationUnit: String(draft.variationUnit || '').trim() || null,
                 variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null,
@@ -12251,19 +12274,24 @@
               const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
               const packageType = temVolumeConfigurado ? tipoVolume : null;
               const packageUnits = temVolumeConfigurado ? unidadesPorVolume : null;
+              const purchaseUnit = draft.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit);
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
                 || packageType !== (insumo.packageType || null)
-                || packageUnits !== (Number(insumo.packageUnits) || null)) {
-                await onUpdateSupply({ ...insumo, variationUnit, variationFactor, packageType, packageUnits }, true);
-                insumo = { ...insumo, variationUnit, variationFactor, packageType, packageUnits };
+                || packageUnits !== (Number(insumo.packageUnits) || null)
+                || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
+                const unit = unidadeTecnicaDaCompra(purchaseUnit);
+                await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits }, true);
+                insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits };
               }
             }
 
             if (insumo?.id && qty > 0 && cost > 0) {
-              const qtdBase = temRevenda
-                ? qtdCompraNaBase(qty, unidadeCompraEfetiva(unidadeCompraSalva), insumo.unit || draft.unit)
-                : qty;
+              const qtdBase = qtdCompraNaBase(
+                qty,
+                unidadeCompraEfetiva(unidadeCompraSalva),
+                insumo.unit || unidadeTecnicaDaCompra(draft.purchaseUnit)
+              );
               await onAddSupplyPurchase(insumo.id, {
                 supplier: String(draft.supplier || '').trim(),
                 purchaseDate: draft.purchaseDate || dataSugerida,
@@ -12284,6 +12312,7 @@
               minQty: revenda?.minQty || 0,
               price: Math.max(0, Number(draft.price) || 0),
               priceUnit: draft.priceUnit || 'un',
+              purchaseUnit: draft.purchaseUnit || 'un',
               packageType: temVolumeConfigurado ? tipoVolume : null,
               packageUnits: temVolumeConfigurado ? unidadesPorVolume : null
             };
@@ -12314,7 +12343,7 @@
             type: 'insumo',
             purchaseKind: (d.supplyClass === 'embalagem' || d.supplyClass === 'limpeza') ? 'insumo' : (d.purchaseKind || 'insumo'),
             resaleAlso: (d.supplyClass === 'embalagem' || d.supplyClass === 'limpeza') ? false : (d.purchaseKind || 'insumo') === 'insumo_revenda',
-            unit: d.unit,
+            unit: unidadeTecnicaDaCompra(d.purchaseUnit),
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
             purchaseUnit: d.purchaseUnit,
@@ -12589,9 +12618,7 @@
             };
           }
 
-          const unidadeBase = temInsumo && !temRevenda
-            ? (draft.unit || 'un')
-            : (draft.purchaseUnit || draft.unit || 'un');
+          const unidadeBase = draft.purchaseUnit || unidadeCompraPadraoDaBase(draft.unit || 'un');
           const custoNaBase = valorPago / qtdDigitadaResumo;
           const grande = precoNaUnidadeGrande(custoNaBase, unidadeBase);
           return {
@@ -12819,22 +12846,34 @@
                             </div>
                           )}
 
-                          {temInsumo && (
+                          {!modoProducao && (
                             <div className="col-span-6">
-                              <label className="t-caption">Unidade base</label>
-                              <select
-                                value={draft.unit}
-                                disabled={!!supplyExistente}
-                                onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value, purchaseUnit: e.target.value }))}
-                                className="field field-md field-select"
-                              >
-                                {SUPPLY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                              </select>
+                              <label className="t-caption">Unidade de compra</label>
+                              {temVolumeConfigurado ? (
+                                <div className="field field-md flex items-center font-semibold capitalize">
+                                  {draft.packageType || tipoVolumeFixo || 'volume'}
+                                </div>
+                              ) : (
+                                <select
+                                  value={draft.purchaseUnit || 'un'}
+                                  onChange={(e) => {
+                                    const purchaseUnit = e.target.value;
+                                    setDraft((d) => ({
+                                      ...d,
+                                      purchaseUnit,
+                                      unit: unidadeTecnicaDaCompra(purchaseUnit)
+                                    }));
+                                  }}
+                                  className="field field-md field-select"
+                                >
+                                  {PURCHASE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                              )}
                             </div>
                           )}
 
                           {(modoProducao || temRevenda) && (
-                            <div className={modoProducao ? 'col-span-6' : (temInsumo ? 'col-span-6' : 'col-span-12')}>
+                            <div className={modoProducao ? 'col-span-6' : 'col-span-6'}>
                               <label className="t-caption">Categoria</label>
                               <select
                                 value={modoProducao ? draft.productCategory : draft.resaleCategory}
@@ -12933,7 +12972,9 @@
                               </div>
 
                               <div className="col-span-7">
-                                <label className="t-caption">{compraPorVolume ? 'Qtd. volumes' : `Qtd. comprada${temInsumo && !temRevenda ? ` (${draft.unit})` : ''}`}</label>
+                                <label className="t-caption">{compraPorVolume
+                                  ? `Qtd. ${pluralVolumeRevenda(draft.packageType || tipoVolumeFixo || 'volume', 2)}`
+                                  : `Qtd. comprada (${draft.purchaseUnit || 'un'})`}</label>
                                 <NumeroBRField
                                   value={draft.qty}
                                   decimals={3}
@@ -12948,7 +12989,7 @@
                                 />
                               </div>
 
-                              <div className="col-span-8">
+                              <div className="col-span-12">
                                 <label className="t-caption justify-between gap-2">
                                   <span>Valor pago</span>
                                   <span className="t-nano">vírgula fixa</span>
@@ -12976,18 +13017,6 @@
                                   </button>
                                 </div>
                               )}
-
-                              <div className="col-span-4">
-                                <label className="t-caption">Un. compra</label>
-                                <select
-                                  value={compraPorVolume ? 'un' : (temInsumo && !temRevenda ? draft.unit : draft.purchaseUnit)}
-                                  disabled={compraPorVolume || (temInsumo && !temRevenda)}
-                                  onChange={(e) => setDraft((d) => ({ ...d, purchaseUnit: e.target.value }))}
-                                  className="field field-md field-select"
-                                >
-                                  {['un', 'kg', 'g', 'L', 'ml'].map((u) => <option key={u} value={u}>{u}</option>)}
-                                </select>
-                              </div>
 
                               {temRevenda && opcoesExtrasCadastro.revenda && (
                                 <>
@@ -19312,6 +19341,7 @@ const porItem = useMemo(() => {
               min_qty: prod.minQty || 0,
               price: prod.price,
               price_unit: prod.priceUnit || 'un',
+              purchase_unit: prod.purchaseUnit || 'un',
               package_type: prod.packageType || null,
               package_units: Number(prod.packageUnits) > 0 ? Number(prod.packageUnits) : null
             }).select());
@@ -19359,7 +19389,8 @@ const porItem = useMemo(() => {
           return write('Cadastrar insumo', async () => {
             const linhas = await run('supplies', sb.from('supplies').insert({
               name: supply.name,
-              unit: supply.unit || 'g',
+              unit: supply.unit || unidadeTecnicaDaCompra(supply.purchaseUnit),
+              purchase_unit: supply.purchaseUnit || unidadeCompraPadraoDaBase(supply.unit),
               variation_unit: supply.variationUnit || null,
               variation_factor: supply.variationFactor || null,
               supply_class: supply.supplyClass || 'insumo',
@@ -19382,7 +19413,8 @@ const porItem = useMemo(() => {
           const temVariationFactor = Number(updated.variationFactor) > 0;
 
           const campos = {
-            unit: updated.unit,
+            unit: updated.unit || unidadeTecnicaDaCompra(updated.purchaseUnit),
+            purchase_unit: updated.purchaseUnit || unidadeCompraPadraoDaBase(updated.unit),
             supply_class: updated.supplyClass,
             package_type: updated.packageType || null,
             package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
@@ -19714,6 +19746,7 @@ const porItem = useMemo(() => {
               unit_of_measure: updated.unitOfMeasure || updated.priceUnit || 'un',
               price: Number(updated.price) || 0,
               price_unit: updated.priceUnit || 'un',
+              purchase_unit: updated.purchaseUnit || 'un',
               cost: Number(updated.cost) || 0,
               package_type: updated.packageType || null,
               package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null

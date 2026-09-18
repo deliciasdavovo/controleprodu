@@ -647,6 +647,21 @@ alter table public.separated_products
 -- Ex.: 1 pacote = 1.000 un. A compra continua registrando o formato usado
 -- naquela nota, mas o próximo lançamento já conhece o padrão do produto.
 alter table public.supplies
+  add column if not exists purchase_unit text not null default 'un';
+alter table public.supplies drop constraint if exists supplies_purchase_unit_check;
+alter table public.supplies
+  add constraint supplies_purchase_unit_check check (purchase_unit in ('kg','g','L','ml','un'));
+
+alter table public.separated_products
+  add column if not exists purchase_unit text not null default 'un';
+alter table public.separated_products drop constraint if exists separated_products_purchase_unit_check;
+alter table public.separated_products
+  add constraint separated_products_purchase_unit_check check (purchase_unit in ('kg','g','L','ml','un'));
+
+comment on column public.supplies.purchase_unit is 'Unidade comercial em que o produto é comprado. A base técnica g/ml/un fica interna ao CMV.';
+comment on column public.separated_products.purchase_unit is 'Unidade comercial em que a revenda é comprada.';
+
+alter table public.supplies
   add column if not exists package_type text;
 alter table public.supplies
   add column if not exists package_units numeric(12,3);
