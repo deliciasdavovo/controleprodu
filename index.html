@@ -2149,6 +2149,18 @@
         return 'un';
       };
 
+      const converterQuantidadeUnidade = (qtd, origem, destino) => {
+        const q = Number(qtd) || 0;
+        const de = String(origem || destino || 'un');
+        const para = String(destino || de);
+        if (!q || de === para) return q;
+        if (de === 'kg' && para === 'g') return q * 1000;
+        if (de === 'g' && para === 'kg') return q / 1000;
+        if (de === 'L' && para === 'ml') return q * 1000;
+        if (de === 'ml' && para === 'L') return q / 1000;
+        return q;
+      };
+
       // Unidades em que a loja compra ou usa o insumo, além da unidade base
       const VARIATION_UNITS = ['fatia', 'lata', 'pote', 'caixa', 'colher', 'pacote', 'un', 'g', 'ml'];
 
@@ -11955,20 +11967,38 @@
           || Number(volumeAnterior?.unidades)
           || 0;
 
+        // A compra de insumo é armazenada internamente na unidade técnica,
+        // mas a sugestão do formulário volta para a unidade em que a nota foi
+        // lançada. Ex.: 5.000 g no banco volta como 5 kg na tela.
+        const quantidadeCompraSugerida = (() => {
+          const anterior = compraExistente;
+          if (!anterior) return '';
+          const qtdAnterior = Number(anterior.qty) || 0;
+          if (!(qtdAnterior > 0)) return '';
+
+          const pacoteAnterior = lerUnidadeCompraVolume(anterior.purchaseUnit);
+          if (compraPorVolume) {
+            const unidades = Number(draft.unitsPerPackage)
+              || unidadesPorVolumeSugeridas
+              || Number(pacoteAnterior?.unidades)
+              || 0;
+            return unidades > 0 ? qtdAnterior / unidades : '';
+          }
+
+          if (anterior.supplyId) {
+            const base = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(draft.purchaseUnit);
+            return converterQuantidadeUnidade(qtdAnterior, base, draft.purchaseUnit || unidadeCompraPadraoDaBase(base));
+          }
+
+          const origem = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
+          return converterQuantidadeUnidade(qtdAnterior, origem, draft.purchaseUnit || origem);
+        })();
+
 
         const unidadeBaseDaRevenda = (unidade) => unidadeTecnicaDaCompra(unidade);
 
-        const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) => {
-          const q = Number(qtd) || 0;
-          const de = String(unidadeCompra || unidadeBase || 'un');
-          const para = String(unidadeBase || 'un');
-          if (!q || de === para) return q;
-          if (de === 'kg' && para === 'g') return q * 1000;
-          if (de === 'g' && para === 'kg') return q / 1000;
-          if (de === 'L' && para === 'ml') return q * 1000;
-          if (de === 'ml' && para === 'L') return q / 1000;
-          return q;
-        };
+        const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) =>
+          converterQuantidadeUnidade(qtd, unidadeCompra, unidadeBase);
 
         // ------------------------------------------
         // A SUGESTÃO DO VALOR PAGO
@@ -12979,12 +13009,10 @@
                                   value={draft.qty}
                                   decimals={3}
                                   onValueChange={(qty) => setDraft((d) => ({ ...d, qty }))}
-                                  placeholder={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
-                                    ? numeroCurtoBR((Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades))
-                                    : (compraExistente?.qty ? Number(compraExistente.qty).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '0')}
-                                  sugestao={compraPorVolume && volumeAnterior?.unidades && compraRevendaExistente?.qty
-                                    ? (Number(compraRevendaExistente.qty) || 0) / Number(volumeAnterior.unidades)
-                                    : (compraExistente?.qty || '')}
+                                  placeholder={quantidadeCompraSugerida !== ''
+                                    ? numeroCurtoBR(quantidadeCompraSugerida)
+                                    : '0'}
+                                  sugestao={quantidadeCompraSugerida}
                                   className="field field-md text-right tnum"
                                 />
                               </div>
@@ -14776,16 +14804,25 @@
               && ['caixa', 'pacote', 'fardo', 'display', 'bandeja'].includes(String(s.variationUnit || '').toLowerCase())
               && Number(s.variationFactor) > 0
             );
+            const unidadeCompra = volumeCompra?.tipo
+              || c.purchaseUnit
+              || s.purchaseUnit
+              || unidadeCompraPadraoDaBase(s.unit);
+            const qtyCompra = volumeCompra?.unidades
+              ? (Number(c.qty) || 0) / Number(volumeCompra.unidades)
+              : converterQuantidadeUnidade(Number(c.qty) || 0, s.unit, unidadeCompra);
             compras.push({
               id: c.id,
               itemId: `s${s.id}`,
               item: s.name,
               tipo: CATEGORIA_DA_COMPRA[s.supplyClass] || 'Ingrediente',
               unidade: s.unit,
+              unidadeCompra,
               fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
               data: c.purchaseDate || '',
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
+              qtyCompra,
               cost: Number(c.cost) || 0,
               // Compras novas guardam o volume daquela nota. Nas antigas,
               // ainda usamos a equivalência atual como compatibilidade.
@@ -14822,16 +14859,26 @@
             });
             if (espelhoDoInsumo) return;
 
+            const unidadeCompra = volumeCompra?.tipo
+              || c.purchaseUnit
+              || p.purchaseUnit
+              || p.priceUnit
+              || 'un';
+            const qtyCompra = volumeCompra?.unidades
+              ? (Number(c.qty) || 0) / Number(volumeCompra.unidades)
+              : Number(c.qty) || 0;
             compras.push({
               id: c.id,
               itemId: `r${p.id}`,
               item: p.productName,
               tipo: 'Revenda',
-              unidade: unidadeCompraEfetiva(c.purchaseUnit || p.priceUnit || 'un'),
+              unidade: unidadeCompraEfetiva(c.purchaseUnit || p.purchaseUnit || p.priceUnit || 'un'),
+              unidadeCompra,
               fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
               data: c.purchaseDate || '',
               criadoEm: c.criadoEm,
               qty: Number(c.qty) || 0,
+              qtyCompra,
               cost: Number(c.cost) || 0,
               volumeTipo: volumeCompra?.tipo || '',
               unidadesPorVolume: Number(volumeCompra?.unidades) || 0
@@ -14864,6 +14911,9 @@
 
         return compras;
       };
+
+      const formatQuantidadeCompra = (compra) =>
+        `${numeroCurtoBR(compra?.qtyCompra ?? compra?.qty ?? 0)} ${compra?.unidadeCompra || compra?.unidade || 'un'}`;
 
       // A seta da variação: vermelha subindo, verde caindo. O valor aparece na
       // unidade grande (kg, L), que é como se fala de preço de insumo.
@@ -15339,7 +15389,7 @@
             <td>${escaparHtml(c.tipo)}</td>
             <td>${c.data ? formatDateBR(c.data) : '<strong>Não informada</strong>'}</td>
             <td>${c.fornecedor === 'Sem fornecedor' ? '<strong>Não informado</strong>' : escaparHtml(c.fornecedor)}</td>
-            <td class="num">${c.qty > 0 ? `${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}` : '—'}</td>
+            <td class="num">${c.qty > 0 ? escaparHtml(formatQuantidadeCompra(c)) : '—'}</td>
             <td class="num">${c.cost > 0 ? formatCurrencyBR(c.cost) : '—'}</td>
             <td><strong>${escaparHtml(faltas)} pendente${faltas.includes(' e ') ? 's' : ''}</strong></td>
           </tr>`;
@@ -15366,7 +15416,7 @@
                         <td class="data">${c.data ? formatDateBR(c.data) : 'Não informada'}</td>
                         <td class="forn">${c.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Não informado</span>' : escaparHtml(c.fornecedor)}</td>
                         <td class="c-tipo"><span class="tipo">${escaparHtml(c.tipo)}</span></td>
-                        <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+                        <td class="num">${escaparHtml(formatQuantidadeCompra(c))}</td>
                         <td class="num forte">${formatCurrencyBR(c.cost)}</td>
                         <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
                       </tr>`).join('')}</tbody>
@@ -16087,7 +16137,7 @@
               <b>${escaparHtml(c.item)}</b>
               <small>${escaparHtml(c.tipo)}</small>
             </div>
-            <span class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</span>
+            <span class="num">${escaparHtml(formatQuantidadeCompra(c))}</span>
             <span class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</span>
             <span class="num forte">${formatCurrencyBR(c.cost)}</span>
           </div>`).join('');
@@ -16157,7 +16207,7 @@
           const linhas = comprasDoFornecedor.map((c) => `<tr>
             <td>${c.data ? formatDateBR(c.data) : '—'}</td>
             <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
-            <td class="num">${numeroCurtoBR(c.qty)} ${escaparHtml(c.unidade)}</td>
+            <td class="num">${escaparHtml(formatQuantidadeCompra(c))}</td>
             <td class="num forte">${formatCurrencyBR(c.cost)}</td>
             <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
           </tr>`).join('');
@@ -17457,7 +17507,7 @@ const porItem = useMemo(() => {
                               <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
                               <td className="py-3 px-3 t-callout font-semibold">{c.item}</td>
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
-                              <td className="py-3 px-3 text-right t-callout tnum">{c.qty || 0} {c.unidade}</td>
+                              <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
                               <td className="py-3 pl-3 text-right t-callout tnum">{c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
                             </tr>
@@ -17539,7 +17589,7 @@ const porItem = useMemo(() => {
                               <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
                               <td className="py-3 px-3 t-callout font-semibold">{c.fornecedor}</td>
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
-                              <td className="py-3 px-3 text-right t-callout tnum">{c.qty || 0} {c.unidade}</td>
+                              <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
                               <td className="py-3 pl-3 text-right t-callout tnum">{c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
                             </tr>
@@ -18000,7 +18050,7 @@ const porItem = useMemo(() => {
                                 <tr key={c.id} className="border-t hairline">
                                   <td className="py-2 pr-3 t-body">{c.item}</td>
                                   <td className="py-2 px-3 t-body tnum">{formatDateBR(c.data) || '—'}</td>
-                                  <td className="py-2 px-3 text-right t-body tnum">{c.qty} {c.unidade}</td>
+                                  <td className="py-2 px-3 text-right t-body tnum">{formatQuantidadeCompra(c)}</td>
                                   <td className="py-2 px-3 text-right t-body tnum">{formatCurrencyBR(c.cost)}</td>
                                   <td className="py-2 pl-3 text-right t-body tnum">{formatPrecoInsumo(c.custoUnit, c.unidade)}</td>
                                 </tr>
@@ -18048,7 +18098,7 @@ const porItem = useMemo(() => {
                                       <span className="t-nano ink-quiet block">{c.tipo}</span>
                                     </div>
                                     <div className="text-right t-callout tnum whitespace-nowrap">
-                                      {numeroCurtoBR(c.qty)} {c.unidade}
+                                      {formatQuantidadeCompra(c)}
                                     </div>
                                     <div className="text-right">
                                       <span className="t-callout tnum block">{formatPrecoInsumo(c.custoUnit, c.unidade)}</span>
