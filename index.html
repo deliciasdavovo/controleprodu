@@ -11899,15 +11899,17 @@
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
-        // Volume é uma característica fixa do cadastro do produto, separada da
-        // equivalência. Ex.: "1 pacote = 1.000 un". Depois de configurado uma
-        // vez, toda compra seguinte já nasce em volumes automaticamente.
+        // Volume e equivalência são opcionais. O cadastro pode lembrar
+        // "1 pacote = 1.000 un", mas uma compra só usa esse volume quando a
+        // pessoa ativa o botão Volume naquela hora.
         const volumeDeClasseInterna = classeInterna && !temRevenda && (draft.unit || 'g') === 'un';
         const compraPorVolumeDisponivel = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
         const temVolumeConfigurado = compraPorVolumeDisponivel
           && Number(draft.unitsPerPackage) > 0
           && !!String(draft.packageType || '').trim();
-        const compraPorVolume = compraPorVolumeDisponivel && temVolumeConfigurado;
+        const compraPorVolume = compraPorVolumeDisponivel
+          && opcoesExtrasCadastro.volume
+          && temVolumeConfigurado;
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -12268,9 +12270,14 @@
             : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un');
           const equivalenciaDigitada = String(draft.variationUnit || '').trim();
           const fatorEquivalenciaDigitado = Number(draft.variationFactor) || 0;
-          if (temInsumo
-            && (!!equivalenciaDigitada !== (fatorEquivalenciaDigitado > 0))) {
-            window.alert('Complete a equivalência: informe a unidade e o valor correspondente.');
+          if (temInsumo && opcoesExtrasCadastro.equivalencia
+            && (!equivalenciaDigitada || !(fatorEquivalenciaDigitado > 0))) {
+            window.alert('Você ativou Equivalência. Informe a unidade e o valor correspondente, ou feche Equivalência para salvar sem ela.');
+            return;
+          }
+          if (compraPorVolumeDisponivel && opcoesExtrasCadastro.volume
+            && (!String(draft.packageType || '').trim() || !(Number(draft.unitsPerPackage) > 0))) {
+            window.alert('Você ativou Volume. Informe o tipo do volume e quantas unidades vêm nele, ou feche Volume para salvar sem ele.');
             return;
           }
           if ((qtdInformada > 0 || cost > 0) && !(qtdInformada > 0 && cost > 0)) {
@@ -12293,18 +12300,26 @@
                 unit: unidadeTecnicaDaCompra(draft.purchaseUnit),
                 purchaseUnit: draft.purchaseUnit || 'un',
                 supplyClass: draft.supplyClass || 'insumo',
-                variationUnit: String(draft.variationUnit || '').trim() || null,
-                variationFactor: Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null,
-                packageType: temVolumeConfigurado ? tipoVolume : null,
-                packageUnits: temVolumeConfigurado ? unidadesPorVolume : null
+                variationUnit: opcoesExtrasCadastro.equivalencia ? (equivalenciaDigitada || null) : null,
+                variationFactor: opcoesExtrasCadastro.equivalencia ? (fatorEquivalenciaDigitado || null) : null,
+                packageType: opcoesExtrasCadastro.volume && temVolumeConfigurado ? tipoVolume : null,
+                packageUnits: opcoesExtrasCadastro.volume && temVolumeConfigurado ? unidadesPorVolume : null
               });
             }
 
             if (insumo) {
-              const variationUnit = String(draft.variationUnit || '').trim() || null;
-              const variationFactor = Number(draft.variationFactor) > 0 ? Number(draft.variationFactor) : null;
-              const packageType = temVolumeConfigurado ? tipoVolume : null;
-              const packageUnits = temVolumeConfigurado ? unidadesPorVolume : null;
+              const variationUnit = opcoesExtrasCadastro.equivalencia
+                ? (equivalenciaDigitada || null)
+                : (insumo.variationUnit || null);
+              const variationFactor = opcoesExtrasCadastro.equivalencia
+                ? (fatorEquivalenciaDigitado || null)
+                : (Number(insumo.variationFactor) || null);
+              const packageType = opcoesExtrasCadastro.volume
+                ? (temVolumeConfigurado ? tipoVolume : null)
+                : (insumo.packageType || null);
+              const packageUnits = opcoesExtrasCadastro.volume
+                ? (temVolumeConfigurado ? unidadesPorVolume : null)
+                : (Number(insumo.packageUnits) || null);
               const purchaseUnit = draft.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit);
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
@@ -12344,8 +12359,12 @@
               price: Math.max(0, Number(draft.price) || 0),
               priceUnit: draft.priceUnit || 'un',
               purchaseUnit: draft.purchaseUnit || 'un',
-              packageType: temVolumeConfigurado ? tipoVolume : null,
-              packageUnits: temVolumeConfigurado ? unidadesPorVolume : null
+              packageType: opcoesExtrasCadastro.volume
+                ? (temVolumeConfigurado ? tipoVolume : null)
+                : (revenda?.packageType || null),
+              packageUnits: opcoesExtrasCadastro.volume
+                ? (temVolumeConfigurado ? unidadesPorVolume : null)
+                : (Number(revenda?.packageUnits) || null)
             };
 
             if (!revenda) {
@@ -12746,9 +12765,13 @@
                                     onClick={() => alternarOpcaoExtraCadastro('volume')}
                                     className={`btn btn-sm ${opcoesExtrasCadastro.volume ? 'btn-primary' : 'btn-secondary'}`}
                                   >
-                                    {temVolumeConfigurado
-                                      ? `Volume · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
-                                      : 'Definir volume'}
+                                    {opcoesExtrasCadastro.volume
+                                      ? (temVolumeConfigurado
+                                          ? `Volume ativo · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
+                                          : 'Volume ativo · preencher')
+                                      : (temVolumeConfigurado
+                                          ? `Usar volume · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
+                                          : 'Ativar volume')}
                                   </button>
                                 )}
                                 {temInsumo && (
@@ -12757,9 +12780,13 @@
                                     onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
                                     className={`btn btn-sm ${opcoesExtrasCadastro.equivalencia ? 'btn-primary' : 'btn-secondary'}`}
                                   >
-                                    {draft.variationUnit && Number(draft.variationFactor) > 0
-                                      ? `Equivalência · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
-                                      : 'Definir equivalência'}
+                                    {opcoesExtrasCadastro.equivalencia
+                                      ? (draft.variationUnit && Number(draft.variationFactor) > 0
+                                          ? `Equivalência ativa · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
+                                          : 'Equivalência ativa · preencher')
+                                      : (draft.variationUnit && Number(draft.variationFactor) > 0
+                                          ? `Editar equivalência · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
+                                          : 'Ativar equivalência')}
                                   </button>
                                 )}
                               </div>
@@ -12792,7 +12819,7 @@
                                   />
                                 </div>
                               </div>
-                              <p className="t-micro mt-2">Fica salvo no produto. Nas próximas compras o sistema já usa esse volume automaticamente.</p>
+                              <p className="t-micro mt-2">Fica salvo no produto, mas só é usado na compra quando você ativar Volume.</p>
                             </div>
                           )}
 
@@ -12880,7 +12907,7 @@
                           {!modoProducao && (
                             <div className="col-span-6">
                               <label className="t-caption">Unidade de compra</label>
-                              {temVolumeConfigurado ? (
+                              {compraPorVolume ? (
                                 <div className="field field-md flex items-center font-semibold capitalize">
                                   {draft.packageType || tipoVolumeFixo || 'volume'}
                                 </div>
