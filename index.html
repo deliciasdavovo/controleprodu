@@ -12647,9 +12647,10 @@
           const usaRevenda = linha.tipo === 'revenda'
             || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda');
           if (usaRevenda) {
+            const revenda = linha.resaleSource || linha.source;
             atualizarCompraLinha(linha, {
               qty: qtd,
-              purchaseUnit: linha.source.purchaseUnit || linha.resaleSource?.purchaseUnit || linha.unidadeCompra || 'un'
+              purchaseUnit: revenda.purchaseUnit || linha.unidadeCompra || 'un'
             });
             return;
           }
@@ -16251,7 +16252,7 @@
         const celulaCompraRecente = (compra) => {
           if (!compra) return '<td class="num quieto">—</td>';
           return `<td class="num compra-recente">
-            <b class="preco-unitario">${formatPrecoInsumo(compra.custoUnit, compra.unidade)}</b>
+            <b class="preco-unitario">${formatPrecoCompraComercial(compra)}</b>
             <small>${compra.data ? formatDateBR(compra.data) : 'sem data'}</small>
             <small>${escaparHtml(compra.fornecedor)}</small>
           </td>`;
@@ -18016,7 +18017,7 @@ const porItem = useMemo(() => {
                                   {compra ? (
                                     <div className="leading-tight">
                                       <span className="t-callout tnum font-semibold block">
-                                        {formatPrecoInsumo(compra.custoUnit, compra.unidade)}
+                                        {formatPrecoCompraComercial(compra)}
                                       </span>
                                       <span className="t-nano ink-quiet tnum block mt-1">
                                         {formatCurrencyBR(compra.cost)} · valor da compra
@@ -18025,7 +18026,7 @@ const porItem = useMemo(() => {
                                         {compra.data ? formatDateBR(compra.data) : 'sem data'} · {compra.fornecedor}
                                       </span>
                                       <span className="t-nano ink-quiet tnum block mt-0.5">
-                                        {numeroCurtoBR(compra.qty || 0)} {compra.unidade}
+                                        {formatQuantidadeCompra(compra)}
                                       </span>
                                     </div>
                                   ) : <span className="t-body ink-quiet">—</span>}
