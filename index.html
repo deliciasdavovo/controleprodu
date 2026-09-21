@@ -2539,6 +2539,13 @@
 
       const nomeComData = (base) => `${base}-${getTodayDateString()}.csv`;
 
+      const volumeFixoDoCadastro = (item) => {
+        const tipo = String(item?.packageType || '').toLowerCase();
+        const unidades = Number(item?.packageUnits) || 0;
+        const valido = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipo);
+        return valido && unidades > 0 ? { tipo, unidades } : null;
+      };
+
       const resumoCompraVolume = (compra) => {
         const pacote = lerUnidadeCompraVolume(compra?.purchaseUnit);
         if (!pacote) return '';
@@ -11323,6 +11330,7 @@
         unidadeBase,
         unidadesCompra = null,
         compraPorVolume = false,
+        volumePadrao = null,
         fornecedores = [],
         dataSugerida = '',
         onAdd,
@@ -11330,7 +11338,7 @@
         onDelete,
         onClose
       }) => {
-        const pacoteAnterior = lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit);
+        const pacoteAnterior = lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit) || volumePadrao;
         const BLANK = {
           supplier: '',
           purchaseDate: dataSugerida || getTodayDateString(),
@@ -12096,7 +12104,11 @@
         // Um formulário só para qualquer entrada. O tipo muda a classificação
         // do cadastro, mas não troca a tela nem desmonta os campos digitados.
         const aplicarTipoEntrada = (tipo) => {
-          fecharOpcoesExtrasCadastro();
+          setOpcoesExtrasCadastro({
+            volume: tipo === 'embalagem',
+            revenda: false,
+            equivalencia: false
+          });
           setDraft((d) => {
             if (tipo === 'producao') {
               return {
@@ -12152,10 +12164,10 @@
         };
 
         const selecionarCadastro = (opt) => {
-          fecharOpcoesExtrasCadastro();
           const [tipo, id] = String(opt?.value || '').split(':');
 
           if (tipo === 'producao') {
+            setOpcoesExtrasCadastro({ volume: false, revenda: false, equivalencia: false });
             const x = products.find((i) => String(i.id) === id);
             if (x) setDraft((d) => ({
               ...d,
@@ -12173,6 +12185,11 @@
           if (tipo === 'insumo') {
             const x = supplies.find((i) => String(i.id) === id);
             if (!x) return;
+            setOpcoesExtrasCadastro({
+              volume: x.supplyClass === 'embalagem',
+              revenda: false,
+              equivalencia: false
+            });
             const rev = revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name));
             const compraRev = rev ? ultimaCompra(comprasDaRevenda(rev.id)) : null;
             const volumeRev = lerUnidadeCompraVolume(compraRev?.purchaseUnit);
@@ -12205,6 +12222,7 @@
           if (tipo === 'revenda') {
             const x = revendaDaUnidade.find((i) => String(i.id) === id);
             if (!x) return;
+            setOpcoesExtrasCadastro({ volume: false, revenda: false, equivalencia: false });
             const ins = supplies.find((i) => normalizeName(i.name) === normalizeName(x.productName));
             const compraRev = ultimaCompra(comprasDaRevenda(x.id));
             const volumeRev = lerUnidadeCompraVolume(compraRev?.purchaseUnit);
@@ -12397,11 +12415,18 @@
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
             purchaseUnit: d.purchaseUnit,
-            packageType: d.packageType || 'caixa',
-            unitsPerPackage: d.unitsPerPackage,
+            packageType: 'caixa',
+            unitsPerPackage: '',
+            variationUnit: '',
+            variationFactor: '',
             resaleCategory: d.resaleCategory,
             purchaseDate: ''
           }));
+          setOpcoesExtrasCadastro({
+            volume: draft.supplyClass === 'embalagem',
+            revenda: false,
+            equivalencia: false
+          });
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
 
@@ -12429,16 +12454,17 @@
                 insumo = await onAddSupply({
                   name: nome,
                   unit: item.unit || 'un',
+                  purchaseUnit: item.unit || 'un',
                   supplyClass: classe,
-                  variationUnit: unidadesPorVolume > 0 && (item.unit || 'un') === 'un' ? (item.packageType || 'caixa') : null,
-                  variationFactor: unidadesPorVolume > 0 && (item.unit || 'un') === 'un' ? unidadesPorVolume : null
+                  packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
+                  packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
-              } else if (unidadesPorVolume > 0 && (insumo.unit || item.unit || 'un') === 'un'
-                && (!insumo.variationUnit || !(Number(insumo.variationFactor) > 0))) {
+              } else if (unidadesPorVolume > 0
+                && (!insumo.packageType || !(Number(insumo.packageUnits) > 0))) {
                 const atualizado = {
                   ...insumo,
-                  variationUnit: item.packageType || 'caixa',
-                  variationFactor: unidadesPorVolume
+                  packageType: item.packageType || 'caixa',
+                  packageUnits: unidadesPorVolume
                 };
                 await onUpdateSupply(atualizado, true);
                 insumo = atualizado;
@@ -12513,10 +12539,27 @@
               : null;
             const compraInsumo = ultimaCompra(comprasDoInsumo(x.id));
             if (!rev) {
+              const pacoteDaCompra = lerUnidadeCompraVolume(compraInsumo?.purchaseUnit);
+              const pacoteDoCadastro = tipoBase === 'embalagem' ? volumeFixoDoCadastro(x) : null;
+              const pacote = pacoteDaCompra || pacoteDoCadastro;
+              const unidadeCompra = pacote?.tipo || x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit);
+              const qtdCompra = compraInsumo
+                ? (pacote?.unidades
+                  ? (Number(compraInsumo.qty) || 0) / Number(pacote.unidades)
+                  : converterQuantidadeUnidade(Number(compraInsumo.qty) || 0, x.unit, unidadeCompra))
+                : 0;
+              const custoCompra = compraInsumo && qtdCompra > 0
+                ? (Number(compraInsumo.cost) || 0) / qtdCompra
+                : 0;
               return {
                 key: `${tipoBase}:${x.id}`,
                 tipo: tipoBase, id: x.id, name: x.name, source: x,
-                unidade: x.unit || 'g', compra: compraInsumo, compraOrigem: 'insumo',
+                unidade: x.unit || 'g',
+                unidadeCompra,
+                pacoteCompra: pacote,
+                qtdCompra,
+                custoCompra,
+                compra: compraInsumo, compraOrigem: 'insumo',
                 custo: custoUnitarioInsumo(x.id, supplyPurchases)
               };
             }
@@ -12524,13 +12567,29 @@
             const compraRevenda = ultimaCompra(comprasDaRevenda(rev.id));
             const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases);
             const custoDaRevenda = custoRevendaComHistoricoCompartilhado(rev, resalePurchases, supplies, supplyPurchases);
+            const compraLinha = compraInsumo || compraRevenda;
+            const origemInsumo = !!compraInsumo;
+            const pacote = lerUnidadeCompraVolume(compraLinha?.purchaseUnit);
+            const unidadeCompra = pacote?.tipo
+              || (origemInsumo ? (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)) : (rev.purchaseUnit || rev.priceUnit || 'un'));
+            const qtdCompra = compraLinha
+              ? (pacote?.unidades
+                ? (Number(compraLinha.qty) || 0) / Number(pacote.unidades)
+                : (origemInsumo
+                  ? converterQuantidadeUnidade(Number(compraLinha.qty) || 0, x.unit, unidadeCompra)
+                  : (Number(compraLinha.qty) || 0)))
+              : 0;
             return {
               key: `insumo_revenda:${x.id}:${rev.id}`,
               tipo: 'insumo_revenda', id: x.id, resaleId: rev.id,
               name: x.name, source: x, resaleSource: rev,
               unidade: custoInsumo > 0 ? (x.unit || 'g') : (rev.priceUnit || 'un'),
-              compra: compraInsumo || compraRevenda,
-              compraOrigem: compraInsumo ? 'insumo' : 'revenda',
+              unidadeCompra,
+              pacoteCompra: pacote,
+              qtdCompra,
+              custoCompra: compraLinha && qtdCompra > 0 ? (Number(compraLinha.cost) || 0) / qtdCompra : 0,
+              compra: compraLinha,
+              compraOrigem: origemInsumo ? 'insumo' : 'revenda',
               custo: custoInsumo > 0 ? custoInsumo : custoDaRevenda
             };
           });
@@ -12539,12 +12598,28 @@
           // As híbridas já foram incorporadas acima e não entram de novo.
           const revendas = revendaDaUnidade
             .filter((x) => !supplies.some((s) => s.supplyClass === 'insumo' && normalizeName(s.name) === normalizeName(x.productName)))
-            .map((x) => ({
-              key: `revenda:${x.id}`,
-              tipo: 'revenda', id: x.id, name: x.productName, source: x,
-              unidade: x.priceUnit || 'un', compra: ultimaCompra(comprasDaRevenda(x.id)),
-              compraOrigem: 'revenda', custo: custoRevendaComHistoricoCompartilhado(x, resalePurchases, supplies, supplyPurchases)
-            }));
+            .map((x) => {
+              const compra = ultimaCompra(comprasDaRevenda(x.id));
+              const pacote = lerUnidadeCompraVolume(compra?.purchaseUnit);
+              const unidadeCompra = pacote?.tipo || x.purchaseUnit || x.priceUnit || 'un';
+              const qtdCompra = compra
+                ? (pacote?.unidades
+                  ? (Number(compra.qty) || 0) / Number(pacote.unidades)
+                  : (Number(compra.qty) || 0))
+                : 0;
+              return {
+                key: `revenda:${x.id}`,
+                tipo: 'revenda', id: x.id, name: x.productName, source: x,
+                unidade: x.priceUnit || 'un',
+                unidadeCompra,
+                pacoteCompra: pacote,
+                qtdCompra,
+                custoCompra: compra && qtdCompra > 0 ? (Number(compra.cost) || 0) / qtdCompra : 0,
+                compra,
+                compraOrigem: 'revenda',
+                custo: custoRevendaComHistoricoCompartilhado(x, resalePurchases, supplies, supplyPurchases)
+              };
+            });
 
           return [...insumos, ...revendas, ...producao].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
@@ -12565,6 +12640,25 @@
           } else {
             onSetUltimaCompraInsumo(linha.source.id, campos);
           }
+        };
+
+        const atualizarQuantidadeCompraLinha = (linha, qtdDigitada) => {
+          const qtd = Number(qtdDigitada) || 0;
+          const usaRevenda = linha.tipo === 'revenda'
+            || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda');
+          if (usaRevenda) {
+            atualizarCompraLinha(linha, {
+              qty: qtd,
+              purchaseUnit: linha.source.purchaseUnit || linha.resaleSource?.purchaseUnit || linha.unidadeCompra || 'un'
+            });
+            return;
+          }
+          const base = linha.source.unit || 'un';
+          const unidadeCompra = linha.source.purchaseUnit || linha.unidadeCompra || unidadeCompraPadraoDaBase(base);
+          atualizarCompraLinha(linha, {
+            qty: converterQuantidadeUnidade(qtd, unidadeCompra, base),
+            purchaseUnit: unidadeCompra
+          });
         };
 
         const alterarTipoDaTabela = async (linha, novoTipo) => {
@@ -12907,7 +13001,7 @@
                           {!modoProducao && (
                             <div className="col-span-6">
                               <label className="t-caption">Unidade de compra</label>
-                              {compraPorVolume ? (
+                              {compraPorVolumeDisponivel && opcoesExtrasCadastro.volume ? (
                                 <div className="field field-md flex items-center font-semibold capitalize">
                                   {draft.packageType || tipoVolumeFixo || 'volume'}
                                 </div>
@@ -13209,7 +13303,7 @@
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
                           <th className="py-3 px-3 font-bold">Tipo</th>
-                          <th className="py-3 px-3 font-bold">Un.</th>
+                          <th className="py-3 px-3 font-bold">Un. compra</th>
                           <th className="py-3 px-3 font-bold">Equiv.</th>
                           <th className="py-3 px-3 font-bold">Fornecedor</th>
                           <th className="py-3 px-3 font-bold">Data</th>
@@ -13277,34 +13371,44 @@
                               <td className="py-2.5 px-3">
                                 <div className="w-16">
                                   {ehSupply ? (
-                                    <PickerField value={x.unit} options={SUPPLY_UNITS.map((u) => ({value:u,label:u}))} onPick={(opt) => onUpdateSupply({...x,unit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
+                                    linha.pacoteCompra || (linha.tipo === 'embalagem' && volumeFixoDoCadastro(x)) ? (
+                                      <span className="t-callout font-semibold capitalize">
+                                        {linha.unidadeCompra === 'outro' ? 'volume' : linha.unidadeCompra}
+                                      </span>
+                                    ) : (
+                                      <PickerField
+                                        value={x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)}
+                                        options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
+                                        onPick={(opt) => onUpdateSupply({
+                                          ...x,
+                                          purchaseUnit: opt.value,
+                                          unit: unidadeTecnicaDaCompra(opt.value)
+                                        })}
+                                        className="field h-8 pl-2.5 text-[12px]"
+                                      />
+                                    )
                                   ) : linha.tipo === 'revenda' ? (
-                                    <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => onUpdateSeparatedProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
+                                    linha.pacoteCompra ? (
+                                      <span className="t-callout font-semibold capitalize">
+                                        {linha.unidadeCompra === 'outro' ? 'volume' : linha.unidadeCompra}
+                                      </span>
+                                    ) : (
+                                      <PickerField
+                                        value={x.purchaseUnit || 'un'}
+                                        options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
+                                        onPick={(opt) => onUpdateSeparatedProduct({...x,purchaseUnit:opt.value})}
+                                        className="field h-8 pl-2.5 text-[12px]"
+                                      />
+                                    )
                                   ) : (
                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'}]} onPick={(opt) => onUpdateProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
                                   )}
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
-                                {ehSupply ? (
-                                  <div className="flex items-center gap-1 min-w-[210px]">
-                                    {x.unit === 'un' ? (
-                                      <>
-                                        <span className="t-micro whitespace-nowrap">1 un =</span>
-                                        <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
-                                        <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="unid." emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="t-micro">1</span>
-                                        <div className="w-24"><PickerField value={x.variationUnit || ''} options={UNIDADES_EQUIVALENCIA} onType={(v) => onUpdateSupply({...x,variationUnit:v})} onPick={(opt) => onUpdateSupply({...x,variationUnit:opt.value})} placeholder="fatia" emptyLabel="Unidade nova" className="field h-8 pl-2 text-[11px]" /></div>
-                                        <span className="t-micro">=</span>
-                                        <input type="number" min="0" step="0.001" value={x.variationFactor ?? ''} onChange={(e) => onUpdateSupply({...x, variationFactor: Number(e.target.value) > 0 ? Number(e.target.value) : null})} placeholder="0" className="field h-8 px-2 text-[12px] text-right tnum no-spin w-16" />
-                                        <span className="t-micro whitespace-nowrap">{x.unit}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : <span className="t-empty">—</span>}
+                                {ehSupply && x.variationUnit && Number(x.variationFactor) > 0
+                                  ? <span className="t-callout font-semibold whitespace-nowrap">{rotuloVariacao(x)}</span>
+                                  : <span className="t-empty">—</span>}
                               </td>
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : (
@@ -13317,18 +13421,24 @@
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : (
                                   <div className="flex items-center justify-end gap-1">
-                                    {volumeCompraLinha ? (
-                                      <div className="min-w-[170px] text-right">
-                                        <div className="t-micro font-semibold whitespace-nowrap">{resumoCompraVolume(c)}</div>
-                                        <div className="t-nano">total comprado</div>
+                                    {linha.pacoteCompra || (linha.tipo === 'embalagem' && volumeFixoDoCadastro(x)) ? (
+                                      <div className="min-w-[150px] text-right">
+                                        <div className="t-callout font-semibold whitespace-nowrap">
+                                          {numeroCurtoBR(linha.qtdCompra || 0)} {pluralVolumeRevenda(linha.unidadeCompra === 'outro' ? 'outro' : linha.unidadeCompra, linha.qtdCompra || 0)}
+                                        </div>
+                                        <div className="t-nano">
+                                          {numeroCurtoBR(c?.qty || 0)} un no total
+                                        </div>
                                       </div>
                                     ) : (
-                                      <>
-                                        <input type="number" min="0" step="0.001" value={c?.qty || ''} onChange={(e) => atualizarCompraLinha(linha,{qty:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20" />
-                                        {linha.tipo === 'revenda' || (linha.tipo === 'insumo_revenda' && linha.compraOrigem === 'revenda') ? (
-                                          <div className="w-14"><PickerField value={unidadeCompraEfetiva(c?.purchaseUnit || (linha.resaleSource || x).priceUnit || 'un')} options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]} onPick={(opt) => atualizarCompraLinha(linha,{purchaseUnit:opt.value})} className="field h-8 pl-2 text-[11px]" /></div>
-                                        ) : <span className="t-micro">{x.unit}</span>}
-                                      </>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        value={linha.qtdCompra || ''}
+                                        onChange={(e) => atualizarQuantidadeCompraLinha(linha, e.target.value)}
+                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin w-24"
+                                      />
                                     )}
                                   </div>
                                 )}
@@ -13337,7 +13447,9 @@
                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : <input type="number" min="0" step="0.01" value={c?.cost || ''} onChange={(e) => atualizarCompraLinha(linha,{cost:Number(e.target.value)||0})} className="field h-8 px-2 text-[12px] text-right font-bold tnum no-spin w-24 ml-auto block" />}
                               </td>
                               <td className="py-2.5 px-3 text-right t-callout tnum font-semibold">
-                                {linha.custo > 0 ? `${formatCurrencyBR(linha.custo)}/${linha.unidade}` : '—'}
+                                {linha.tipo === 'producao'
+                                  ? (linha.custo > 0 ? `${formatCurrencyBR(linha.custo)}/${linha.unidade}` : '—')
+                                  : (linha.custoCompra > 0 ? `${formatCurrencyBR(linha.custoCompra)}/${linha.unidadeCompra === 'outro' ? 'volume' : linha.unidadeCompra}` : '—')}
                               </td>
                               <td className="py-2.5 px-3">
                                 {venda ? (
@@ -13732,10 +13844,14 @@
               return (
                 <PurchaseHistoryModal
                   titulo={s.name}
-                  subtitulo={`Compras em ${s.unit}${rotuloVariacao(s) ? ` · ${rotuloVariacao(s)}` : ''}`}
+                  subtitulo={s.supplyClass === 'embalagem' && volumeFixoDoCadastro(s)
+                    ? `Compras em ${volumeFixoDoCadastro(s).tipo} · 1 ${volumeFixoDoCadastro(s).tipo} = ${numeroCurtoBR(volumeFixoDoCadastro(s).unidades)} un`
+                    : `Compras em ${s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)}${rotuloVariacao(s) ? ` · ${rotuloVariacao(s)}` : ''}`}
                   compras={comprasDoInsumo(s.id)}
                   unidadeBase={s.unit}
-                  compraPorVolume={s.unit === 'un' && (s.supplyClass === 'embalagem' || s.supplyClass === 'limpeza')}
+                  unidadesCompra={s.supplyClass === 'embalagem' ? null : [s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)]}
+                  compraPorVolume={s.supplyClass === 'embalagem'}
+                  volumePadrao={s.supplyClass === 'embalagem' ? volumeFixoDoCadastro(s) : null}
                   fornecedores={fornecedores}
                   dataSugerida={dataSugerida}
                   onAdd={(c) => onAddSupplyPurchase(s.id, c)}
@@ -13755,8 +13871,9 @@
                   subtitulo={`Vendido por ${item.priceUnit || 'un'}`}
                   compras={comprasDaRevenda(item.id)}
                   unidadeBase={item.priceUnit || 'un'}
-                  unidadesCompra={['un', 'kg', 'g']}
-                  compraPorVolume={(item.priceUnit || 'un') === 'un'}
+                  unidadesCompra={volumeFixoDoCadastro(item) ? null : [item.purchaseUnit || 'un', 'kg', 'g'].filter((v, i, a) => a.indexOf(v) === i)}
+                  compraPorVolume={!!volumeFixoDoCadastro(item)}
+                  volumePadrao={volumeFixoDoCadastro(item)}
                   fornecedores={fornecedores}
                   dataSugerida={dataSugerida}
                   onAdd={(c) => onAddResalePurchase(item.id, c)}
@@ -14827,17 +14944,27 @@
         supplies.forEach((s) => {
           supplyPurchases.filter((c) => c.supplyId === s.id).forEach((c) => {
             const volumeCompra = lerUnidadeCompraVolume(c.purchaseUnit);
-            const volumeDoCadastro = (
-              s.unit === 'un'
+            const volumeLegado = (
+              s.supplyClass === 'embalagem'
+              && s.unit === 'un'
               && ['caixa', 'pacote', 'fardo', 'display', 'bandeja'].includes(String(s.variationUnit || '').toLowerCase())
               && Number(s.variationFactor) > 0
-            );
-            const unidadeCompra = volumeCompra?.tipo
+            )
+              ? { tipo: String(s.variationUnit).toLowerCase(), unidades: Number(s.variationFactor) }
+              : null;
+            // Embalagem sempre é lida pelo volume comercial. Para os demais
+            // tipos, um volume só vale se aquela compra foi realmente lançada
+            // em volume (pack:...), respeitando o botão opcional do cadastro.
+            const volumeDoCadastro = s.supplyClass === 'embalagem'
+              ? (volumeFixoDoCadastro(s) || volumeLegado)
+              : null;
+            const volumeEfetivo = volumeCompra || volumeDoCadastro;
+            const unidadeCompra = volumeEfetivo?.tipo
               || c.purchaseUnit
               || s.purchaseUnit
               || unidadeCompraPadraoDaBase(s.unit);
-            const qtyCompra = volumeCompra?.unidades
-              ? (Number(c.qty) || 0) / Number(volumeCompra.unidades)
+            const qtyCompra = volumeEfetivo?.unidades
+              ? (Number(c.qty) || 0) / Number(volumeEfetivo.unidades)
               : converterQuantidadeUnidade(Number(c.qty) || 0, s.unit, unidadeCompra);
             compras.push({
               id: c.id,
@@ -14852,10 +14979,8 @@
               qty: Number(c.qty) || 0,
               qtyCompra,
               cost: Number(c.cost) || 0,
-              // Compras novas guardam o volume daquela nota. Nas antigas,
-              // ainda usamos a equivalência atual como compatibilidade.
-              volumeTipo: volumeCompra?.tipo || (volumeDoCadastro ? String(s.variationUnit).toLowerCase() : ''),
-              unidadesPorVolume: Number(volumeCompra?.unidades) || (volumeDoCadastro ? Number(s.variationFactor) : 0)
+              volumeTipo: volumeEfetivo?.tipo || '',
+              unidadesPorVolume: Number(volumeEfetivo?.unidades) || 0
             });
           });
         });
@@ -14942,6 +15067,17 @@
 
       const formatQuantidadeCompra = (compra) =>
         `${numeroCurtoBR(compra?.qtyCompra ?? compra?.qty ?? 0)} ${compra?.unidadeCompra || compra?.unidade || 'un'}`;
+
+      const formatPrecoCompraComercial = (compra) => {
+        const qtdCompra = Number(compra?.qtyCompra) || 0;
+        const unidadeCompra = compra?.unidadeCompra || '';
+        if (Number(compra?.unidadesPorVolume) > 0 && qtdCompra > 0 && Number(compra?.cost) > 0) {
+          return `${formatCurrencyBR(Number(compra.cost) / qtdCompra)}/${unidadeCompra === 'outro' ? 'volume' : unidadeCompra}`;
+        }
+        return compra?.custoUnit > 0
+          ? formatPrecoInsumo(compra.custoUnit, compra.unidade)
+          : '—';
+      };
 
       // A seta da variação: vermelha subindo, verde caindo. O valor aparece na
       // unidade grande (kg, L), que é como se fala de preço de insumo.
@@ -15446,7 +15582,7 @@
                         <td class="c-tipo"><span class="tipo">${escaparHtml(c.tipo)}</span></td>
                         <td class="num">${escaparHtml(formatQuantidadeCompra(c))}</td>
                         <td class="num forte">${formatCurrencyBR(c.cost)}</td>
-                        <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+                        <td class="num">${formatPrecoCompraComercial(c)}</td>
                       </tr>`).join('')}</tbody>
                     </table>
                     ${restam > 0 ? `<p class="mais">e mais ${restam} ${restam === 1 ? 'compra anterior' : 'compras anteriores'} no sistema.</p>` : ''}
@@ -16166,7 +16302,7 @@
               <small>${escaparHtml(c.tipo)}</small>
             </div>
             <span class="num">${escaparHtml(formatQuantidadeCompra(c))}</span>
-            <span class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</span>
+            <span class="num">${formatPrecoCompraComercial(c)}</span>
             <span class="num forte">${formatCurrencyBR(c.cost)}</span>
           </div>`).join('');
           return `<tr>
@@ -16237,7 +16373,7 @@
             <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
             <td class="num">${escaparHtml(formatQuantidadeCompra(c))}</td>
             <td class="num forte">${formatCurrencyBR(c.cost)}</td>
-            <td class="num">${c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+            <td class="num">${formatPrecoCompraComercial(c)}</td>
           </tr>`).join('');
           return `<div class="grupo-fornecedor">
             <div class="grupo-fornecedor-cabecalho">
@@ -17537,7 +17673,7 @@ const porItem = useMemo(() => {
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
                               <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
-                              <td className="py-3 pl-3 text-right t-callout tnum">{c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+                              <td className="py-3 pl-3 text-right t-callout tnum">{formatPrecoCompraComercial(c)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -17619,7 +17755,7 @@ const porItem = useMemo(() => {
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
                               <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
-                              <td className="py-3 pl-3 text-right t-callout tnum">{c.custoUnit > 0 ? formatPrecoInsumo(c.custoUnit, c.unidade) : '—'}</td>
+                              <td className="py-3 pl-3 text-right t-callout tnum">{formatPrecoCompraComercial(c)}</td>
                             </tr>
                           ))}
                         </tbody>
