@@ -2675,6 +2675,21 @@
         return '';
       };
 
+      // Nas embalagens, o preço do fardo/caixa sozinho não permite comparar.
+      // Mostra explicitamente quantas unidades vêm em cada volume e o custo
+      // por unidade, para uma caixa de 500 não parecer igual a uma de 1.000.
+      const rotuloConteudoVolume = (compra) => {
+        const fator = Number(compra?.unidadesPorVolume) || 0;
+        const tipo = String(compra?.volumeTipo || '').toLowerCase();
+        const volumeComercial = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipo);
+        if (!volumeComercial || !(fator > 0)) return '';
+        const nome = tipo === 'outro' ? 'volume' : tipo;
+        const custoUn = compra?.custoUnit > 0
+          ? ` · ${formatPrecoInsumo(compra.custoUnit, compra.unidade)}`
+          : '';
+        return `1 ${nome} = ${numeroCurtoBR(fator)} un${custoUn}`;
+      };
+
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
       const rotuloVariacao = (supply) => {
         if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
@@ -16251,8 +16266,10 @@
 
         const celulaCompraRecente = (compra) => {
           if (!compra) return '<td class="num quieto">—</td>';
+          const conteudoVolume = rotuloConteudoVolume(compra);
           return `<td class="num compra-recente">
             <b class="preco-unitario">${formatPrecoCompraComercial(compra)}</b>
+            ${conteudoVolume ? `<small><b>${escaparHtml(conteudoVolume)}</b></small>` : ''}
             <small>${compra.data ? formatDateBR(compra.data) : 'sem data'}</small>
             <small>${escaparHtml(compra.fornecedor)}</small>
           </td>`;
@@ -16302,7 +16319,7 @@
               <b>${escaparHtml(c.item)}</b>
               <small>${escaparHtml(c.tipo)}</small>
             </div>
-            <span class="num">${escaparHtml(formatQuantidadeCompra(c))}</span>
+            <span class="num">${escaparHtml(formatQuantidadeCompra(c))}${rotuloConteudoVolume(c) ? `<small>${escaparHtml(rotuloConteudoVolume(c))}</small>` : ''}</span>
             <span class="num">${formatPrecoCompraComercial(c)}</span>
             <span class="num forte">${formatCurrencyBR(c.cost)}</span>
           </div>`).join('');
@@ -17751,7 +17768,10 @@ const porItem = useMemo(() => {
                               <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
                               <td className="py-3 px-3 t-callout font-semibold">{c.item}</td>
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
-                              <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
+                              <td className="py-3 px-3 text-right t-callout tnum">
+                                {formatQuantidadeCompra(c)}
+                                {rotuloConteudoVolume(c) && <span className="t-nano font-semibold block mt-1">{rotuloConteudoVolume(c)}</span>}
+                              </td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
                               <td className="py-3 pl-3 text-right t-callout tnum">{formatPrecoCompraComercial(c)}</td>
                             </tr>
@@ -17833,7 +17853,10 @@ const porItem = useMemo(() => {
                               <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
                               <td className="py-3 px-3 t-callout font-semibold">{c.fornecedor}</td>
                               <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
-                              <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(c)}</td>
+                              <td className="py-3 px-3 text-right t-callout tnum">
+                                {formatQuantidadeCompra(c)}
+                                {rotuloConteudoVolume(c) && <span className="t-nano font-semibold block mt-1">{rotuloConteudoVolume(c)}</span>}
+                              </td>
                               <td className="py-3 px-3 text-right t-callout tnum font-semibold">{formatCurrencyBR(c.cost)}</td>
                               <td className="py-3 pl-3 text-right t-callout tnum">{formatPrecoCompraComercial(c)}</td>
                             </tr>
@@ -18206,6 +18229,11 @@ const porItem = useMemo(() => {
                                       <span className="t-nano ink-quiet tnum block mt-0.5">
                                         {formatQuantidadeCompra(compra)}
                                       </span>
+                                      {rotuloConteudoVolume(compra) && (
+                                        <span className="t-nano tnum font-semibold block mt-0.5">
+                                          {rotuloConteudoVolume(compra)}
+                                        </span>
+                                      )}
                                     </div>
                                   ) : <span className="t-body ink-quiet">—</span>}
                                 </td>
@@ -18393,7 +18421,10 @@ const porItem = useMemo(() => {
                                 <tr key={c.id} className="border-t hairline">
                                   <td className="py-2 pr-3 t-body">{c.item}</td>
                                   <td className="py-2 px-3 t-body tnum">{formatDateBR(c.data) || '—'}</td>
-                                  <td className="py-2 px-3 text-right t-body tnum">{formatQuantidadeCompra(c)}</td>
+                                  <td className="py-2 px-3 text-right t-body tnum">
+                                    {formatQuantidadeCompra(c)}
+                                    {rotuloConteudoVolume(c) && <span className="t-nano font-semibold block mt-1">{rotuloConteudoVolume(c)}</span>}
+                                  </td>
                                   <td className="py-2 px-3 text-right t-body tnum">{formatCurrencyBR(c.cost)}</td>
                                   <td className="py-2 pl-3 text-right t-body tnum">{formatPrecoInsumo(c.custoUnit, c.unidade)}</td>
                                 </tr>
@@ -18440,8 +18471,13 @@ const porItem = useMemo(() => {
                                       <span className="t-callout font-semibold block truncate" title={c.item}>{c.item}</span>
                                       <span className="t-nano ink-quiet block">{c.tipo}</span>
                                     </div>
-                                    <div className="text-right t-callout tnum whitespace-nowrap">
-                                      {formatQuantidadeCompra(c)}
+                                    <div className="text-right t-callout tnum">
+                                      <span className="whitespace-nowrap">{formatQuantidadeCompra(c)}</span>
+                                      {rotuloConteudoVolume(c) && (
+                                        <span className="t-nano font-semibold block mt-1 whitespace-normal">
+                                          {rotuloConteudoVolume(c)}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-right">
                                       <span className="t-callout tnum block">{formatPrecoInsumo(c.custoUnit, c.unidade)}</span>
