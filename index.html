@@ -11364,7 +11364,37 @@
           cost: ''
         };
         const [draft, setDraft] = useState(BLANK);
+        const [edicaoVolume, setEdicaoVolume] = useState(null);
         const setField = (campo, valor) => setDraft((d) => ({ ...d, [campo]: valor }));
+
+        const abrirEdicaoVolume = (compra) => {
+          const gravado = lerUnidadeCompraVolume(compra?.purchaseUnit);
+          const pacote = gravado || volumePadrao || pacoteAnterior || { tipo: 'caixa', unidades: 0 };
+          setEdicaoVolume({
+            id: compra.id,
+            volumes: gravado && gravado.unidades > 0
+              ? String((Number(compra.qty) || 0) / gravado.unidades)
+              : '',
+            packageType: pacote?.tipo || 'caixa',
+            unitsPerPackage: pacote?.unidades ? String(pacote.unidades) : ''
+          });
+        };
+
+        const salvarEdicaoVolume = (compra) => {
+          if (!edicaoVolume || edicaoVolume.id !== compra.id) return;
+          const volumes = Number(edicaoVolume.volumes) || 0;
+          const unidades = Number(edicaoVolume.unitsPerPackage) || 0;
+          if (!(volumes > 0) || !(unidades > 0)) {
+            window.alert('Informe a quantidade de volumes e quantas unidades vêm em cada volume.');
+            return;
+          }
+          onUpdate({
+            ...compra,
+            qty: volumes * unidades,
+            purchaseUnit: criarUnidadeCompraVolume(edicaoVolume.packageType || 'caixa', unidades)
+          });
+          setEdicaoVolume(null);
+        };
 
         const ordenadas = comprasOrdenadas(compras);
         const fornecedorOptions = fornecedores.map((f) => ({ value: f, label: f }));
@@ -11510,7 +11540,7 @@
                     <tr className="t-overline-sm border-b hairline">
                       <th className="py-2.5 pr-3 font-bold">Fornecedor</th>
                       <th className="py-2.5 px-3 font-bold">Data</th>
-                      <th className="py-2.5 px-3 text-right font-bold">Qtd</th>
+                      <th className="py-2.5 px-3 text-right font-bold">{compraPorVolume ? 'Volume da compra' : 'Qtd'}</th>
                       <th className="py-2.5 px-3 text-right font-bold">Valor pago</th>
                       <th className="py-2.5 px-3 text-right font-bold">Custo</th>
                       <th className="py-2.5 pl-3 text-right font-bold">Ação</th>
@@ -11543,15 +11573,89 @@
                           />
                         </td>
                         <td className="py-2 px-3">
-                          <div className="flex items-center justify-end gap-1">
-                            <NumeroBRField
-                              value={c.qty || ''}
-                              decimals={3}
-                              onValueChange={(qty) => onUpdate({ ...c, qty: Number(qty) || 0 })}
-                              className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
-                            />
-                            <span className="t-micro max-w-44 text-right">{resumoCompraVolume(c) || unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
-                          </div>
+                          {compraPorVolume ? (() => {
+                            const pacoteGravado = lerUnidadeCompraVolume(c.purchaseUnit);
+                            const editando = edicaoVolume?.id === c.id;
+                            if (editando) {
+                              return (
+                                <div className="min-w-[330px]">
+                                  <div className="grid grid-cols-[78px_110px_92px] gap-1.5 items-end justify-end">
+                                    <div>
+                                      <label className="t-nano block mb-1">Qtd. volumes</label>
+                                      <NumeroBRField
+                                        value={edicaoVolume.volumes}
+                                        decimals={3}
+                                        onValueChange={(volumes) => setEdicaoVolume((d) => ({ ...d, volumes }))}
+                                        placeholder="ex: 1"
+                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="t-nano block mb-1">Tipo</label>
+                                      <select
+                                        value={edicaoVolume.packageType}
+                                        onChange={(e) => setEdicaoVolume((d) => ({ ...d, packageType: e.target.value }))}
+                                        className="field h-8 px-2 text-[12px] field-select"
+                                      >
+                                        {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="t-nano block mb-1">Un./volume</label>
+                                      <NumeroBRField
+                                        value={edicaoVolume.unitsPerPackage}
+                                        decimals={0}
+                                        onValueChange={(unitsPerPackage) => setEdicaoVolume((d) => ({ ...d, unitsPerPackage }))}
+                                        placeholder="1000"
+                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end gap-1.5 mt-1.5">
+                                    <button type="button" onClick={() => setEdicaoVolume(null)} className="btn btn-secondary btn-sm">Cancelar</button>
+                                    <button type="button" onClick={() => salvarEdicaoVolume(c)} className="btn btn-primary btn-sm">Salvar volume</button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            if (pacoteGravado?.unidades > 0) {
+                              const volumes = (Number(c.qty) || 0) / pacoteGravado.unidades;
+                              return (
+                                <div className="text-right min-w-[190px]">
+                                  <span className="t-callout tnum font-semibold block">
+                                    {numeroCurtoBR(volumes)} {pluralVolumeRevenda(pacoteGravado.tipo, volumes)}
+                                  </span>
+                                  <span className="t-nano ink-quiet block">
+                                    1 {pacoteGravado.tipo === 'outro' ? 'volume' : pacoteGravado.tipo} = {numeroCurtoBR(pacoteGravado.unidades)} un
+                                  </span>
+                                  <button type="button" onClick={() => abrirEdicaoVolume(c)} className="t-nano underline underline-offset-2 mt-1">
+                                    Editar volume
+                                  </button>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="text-right min-w-[190px]">
+                                <span className="t-callout tnum block">{numeroCurtoBR(c.qty)} un</span>
+                                <span className="t-nano ink-quiet block">registro antigo sem volume definido</span>
+                                <button type="button" onClick={() => abrirEdicaoVolume(c)} className="btn btn-secondary btn-sm mt-1.5 ml-auto">
+                                  Definir volume
+                                </button>
+                              </div>
+                            );
+                          })() : (
+                            <div className="flex items-center justify-end gap-1">
+                              <NumeroBRField
+                                value={c.qty || ''}
+                                decimals={3}
+                                onValueChange={(qty) => onUpdate({ ...c, qty: Number(qty) || 0 })}
+                                className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                              />
+                              <span className="t-micro max-w-44 text-right">{unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           <NumeroBRField
@@ -11564,7 +11668,7 @@
                         </td>
                         <td className="py-2 px-3 text-right">
                           <span className="t-body tnum">
-                            {formatPrecoInsumo(custoUnitDe(c), unidadeCompraEfetiva(c.purchaseUnit || unidadeBase))}
+                            {formatPrecoInsumo(custoUnitDe(c), compraPorVolume ? unidadeBase : unidadeCompraEfetiva(c.purchaseUnit || unidadeBase))}
                           </span>
                           {idx === 0 && <div className="t-nano ink-quiet">é este que vale</div>}
                         </td>
@@ -12877,11 +12981,11 @@
                                   >
                                     {opcoesExtrasCadastro.volume
                                       ? (temVolumeConfigurado
-                                          ? `Volume ativo · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
-                                          : 'Volume ativo · preencher')
+                                          ? `Volume de compra · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
+                                          : 'Volume de compra · preencher')
                                       : (temVolumeConfigurado
-                                          ? `Usar volume · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
-                                          : 'Ativar volume')}
+                                          ? `Editar volume de compra · 1 ${draft.packageType || tipoVolumeFixo} = ${numeroCurtoBR(Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas)} un`
+                                          : 'Definir volume de compra')}
                                   </button>
                                 )}
                                 {temInsumo && (
@@ -12892,20 +12996,25 @@
                                   >
                                     {opcoesExtrasCadastro.equivalencia
                                       ? (draft.variationUnit && Number(draft.variationFactor) > 0
-                                          ? `Equivalência ativa · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
-                                          : 'Equivalência ativa · preencher')
+                                          ? `Equivalência técnica · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
+                                          : 'Equivalência técnica · preencher')
                                       : (draft.variationUnit && Number(draft.variationFactor) > 0
-                                          ? `Editar equivalência · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
-                                          : 'Ativar equivalência')}
+                                          ? `Editar equivalência técnica · ${rotuloVariacao({ unit: draft.unit, variationUnit: draft.variationUnit, variationFactor: draft.variationFactor })}`
+                                          : 'Adicionar equivalência técnica')}
                                   </button>
                                 )}
                               </div>
+                              <p className="t-nano ink-quiet mt-2">
+                                <strong>Volume de compra</strong> = como o fornecedor vende (caixa, pacote, fardo).
+                                {' '}<strong>Equivalência técnica</strong> = conversão usada em ficha/CMV (ex.: 1 fatia = 30 g).
+                              </p>
                             </div>
                           )}
 
                           {!modoProducao && compraPorVolumeDisponivel && opcoesExtrasCadastro.volume && (
                             <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
-                              <div className="t-overline-sm mb-2">Volume padrão do produto</div>
+                              <div className="t-overline-sm mb-1">Volume de compra</div>
+                              <p className="t-nano ink-quiet mb-2">Como este item chega do fornecedor. Ex.: 1 pacote = 1.000 un.</p>
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-5">
                                   <label className="t-caption">Tipo</label>
@@ -12929,13 +13038,14 @@
                                   />
                                 </div>
                               </div>
-                              <p className="t-micro mt-2">Fica salvo no produto, mas só é usado na compra quando você ativar Volume.</p>
+                              <p className="t-micro mt-2">Fica salvo no cadastro e é usado para lançar e comparar compras por caixa, pacote ou fardo.</p>
                             </div>
                           )}
 
                           {temInsumo && opcoesExtrasCadastro.equivalencia && (
                             <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
-                              <div className="t-overline-sm mb-2">Equivalência do produto</div>
+                              <div className="t-overline-sm mb-1">Equivalência técnica</div>
+                              <p className="t-nano ink-quiet mb-2">Use somente quando a ficha/CMV precisar converter a unidade do item. Não é o tamanho da caixa ou do fardo.</p>
                               <div className="flex flex-wrap items-center gap-2">
                                 {draft.unit === 'un' ? (
                                   <>
