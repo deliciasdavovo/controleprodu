@@ -11353,7 +11353,7 @@
         onDelete,
         onClose
       }) => {
-        const pacoteAnterior = lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit) || volumePadrao;
+        const pacoteAnterior = volumePadrao || lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit);
         const BLANK = {
           supplier: '',
           purchaseDate: dataSugerida || getTodayDateString(),
@@ -11369,7 +11369,7 @@
 
         const abrirEdicaoVolume = (compra) => {
           const gravado = lerUnidadeCompraVolume(compra?.purchaseUnit);
-          const pacote = gravado || volumePadrao || pacoteAnterior || { tipo: 'caixa', unidades: 0 };
+          const pacote = volumePadrao || gravado || pacoteAnterior || { tipo: 'caixa', unidades: 0 };
           setEdicaoVolume({
             id: compra.id,
             volumes: gravado && gravado.unidades > 0
@@ -11383,15 +11383,17 @@
         const salvarEdicaoVolume = (compra) => {
           if (!edicaoVolume || edicaoVolume.id !== compra.id) return;
           const volumes = Number(edicaoVolume.volumes) || 0;
-          const unidades = Number(edicaoVolume.unitsPerPackage) || 0;
+          const pacote = volumePadrao || pacoteAnterior;
+          const unidades = Number(pacote?.unidades) || 0;
+          const tipo = pacote?.tipo || 'caixa';
           if (!(volumes > 0) || !(unidades > 0)) {
-            window.alert('Informe a quantidade de volumes e quantas unidades vêm em cada volume.');
+            window.alert('Defina primeiro o volume no cadastro do produto.');
             return;
           }
           onUpdate({
             ...compra,
             qty: volumes * unidades,
-            purchaseUnit: criarUnidadeCompraVolume(edicaoVolume.packageType || 'caixa', unidades)
+            purchaseUnit: criarUnidadeCompraVolume(tipo, unidades)
           });
           setEdicaoVolume(null);
         };
@@ -11407,7 +11409,8 @@
         const salvar = (e) => {
           e.preventDefault();
           const qtdInformada = Number(draft.qty) || 0;
-          const unidadesPorVolume = compraPorVolume ? (Number(draft.unitsPerPackage) || 0) : 0;
+          const pacoteFixo = volumePadrao || pacoteAnterior;
+          const unidadesPorVolume = compraPorVolume ? (Number(pacoteFixo?.unidades) || 0) : 0;
           const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
           const cost = Number(draft.cost) || 0;
           if (qtdInformada <= 0 || cost <= 0) return;
@@ -11420,7 +11423,7 @@
             purchaseDate: draft.purchaseDate || null,
             qty,
             purchaseUnit: compraPorVolume
-              ? criarUnidadeCompraVolume(draft.packageType, unidadesPorVolume)
+              ? criarUnidadeCompraVolume((volumePadrao || pacoteAnterior)?.tipo || 'caixa', unidadesPorVolume)
               : (draft.purchaseUnit || undefined),
             cost
           });
@@ -11480,28 +11483,21 @@
                     />
                   </div>
                   {compraPorVolume ? (
-                    <>
-                      <div className="col-span-3 sm:col-span-2">
-                        <label className="t-caption block mb-1">Embalagem</label>
-                        <select
-                          value={draft.packageType}
-                          onChange={(e) => setField('packageType', e.target.value)}
-                          className="field field-sm field-select"
-                        >
-                          {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-3 sm:col-span-2">
-                        <label className="t-caption block mb-1">Un./volume</label>
-                        <NumeroBRField
-                          value={draft.unitsPerPackage}
-                          decimals={0}
-                          onValueChange={(unitsPerPackage) => setField('unitsPerPackage', unitsPerPackage)}
-                          placeholder={pacoteAnterior?.unidades ? String(pacoteAnterior.unidades) : 'ex: 12'}
-                          className="field field-sm text-right tnum no-spin"
-                        />
-                      </div>
-                    </>
+                    <div className="col-span-6 sm:col-span-4">
+                      <label className="t-caption block mb-1">Volume do produto</label>
+                      {(volumePadrao || pacoteAnterior)?.unidades ? (
+                        <div className="field field-sm flex items-center justify-between gap-3 bg-black/[0.025] cursor-default">
+                          <span className="font-semibold capitalize">
+                            {(volumePadrao || pacoteAnterior).tipo === 'outro' ? 'Volume' : (volumePadrao || pacoteAnterior).tipo}
+                          </span>
+                          <span className="tnum">{numeroCurtoBR((volumePadrao || pacoteAnterior).unidades)} un</span>
+                        </div>
+                      ) : (
+                        <div className="field field-sm flex items-center text-[#9a6700] bg-[#fff8e6] cursor-default">
+                          Defina o volume no cadastro do produto
+                        </div>
+                      )}
+                    </div>
                   ) : unidadesCompra && (
                     <div className="col-span-3 sm:col-span-2">
                       <label className="t-caption block mb-1">Unid.</label>
@@ -11579,7 +11575,7 @@
                             if (editando) {
                               return (
                                 <div className="min-w-[330px]">
-                                  <div className="grid grid-cols-[78px_110px_92px] gap-1.5 items-end justify-end">
+                                  <div className="grid grid-cols-[90px_minmax(145px,1fr)] gap-1.5 items-end justify-end">
                                     <div>
                                       <label className="t-nano block mb-1">Qtd. volumes</label>
                                       <NumeroBRField
@@ -11591,24 +11587,11 @@
                                       />
                                     </div>
                                     <div>
-                                      <label className="t-nano block mb-1">Tipo</label>
-                                      <select
-                                        value={edicaoVolume.packageType}
-                                        onChange={(e) => setEdicaoVolume((d) => ({ ...d, packageType: e.target.value }))}
-                                        className="field h-8 px-2 text-[12px] field-select"
-                                      >
-                                        {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="t-nano block mb-1">Un./volume</label>
-                                      <NumeroBRField
-                                        value={edicaoVolume.unitsPerPackage}
-                                        decimals={0}
-                                        onValueChange={(unitsPerPackage) => setEdicaoVolume((d) => ({ ...d, unitsPerPackage }))}
-                                        placeholder="1000"
-                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin"
-                                      />
+                                      <label className="t-nano block mb-1">Volume fixo do produto</label>
+                                      <div className="field h-8 px-2 text-[12px] flex items-center justify-between gap-2 bg-black/[0.025] cursor-default">
+                                        <span className="capitalize">{(volumePadrao || pacoteAnterior)?.tipo || '—'}</span>
+                                        <span className="tnum">{numeroCurtoBR((volumePadrao || pacoteAnterior)?.unidades || 0)} un</span>
+                                      </div>
                                     </div>
                                   </div>
                                   <div className="flex justify-end gap-1.5 mt-1.5">
@@ -11619,7 +11602,8 @@
                               );
                             }
 
-                            if (pacoteGravado?.unidades > 0) {
+                            const pacoteExibicao = volumePadrao || pacoteGravado;
+                            if (pacoteExibicao?.unidades > 0 && pacoteGravado?.unidades > 0) {
                               const volumes = (Number(c.qty) || 0) / pacoteGravado.unidades;
                               return (
                                 <div className="text-right min-w-[190px]">
@@ -11627,7 +11611,7 @@
                                     {numeroCurtoBR(volumes)} {pluralVolumeRevenda(pacoteGravado.tipo, volumes)}
                                   </span>
                                   <span className="t-nano ink-quiet block">
-                                    1 {pacoteGravado.tipo === 'outro' ? 'volume' : pacoteGravado.tipo} = {numeroCurtoBR(pacoteGravado.unidades)} un
+                                    1 {pacoteExibicao.tipo === 'outro' ? 'volume' : pacoteExibicao.tipo} = {numeroCurtoBR(pacoteExibicao.unidades)} un
                                   </span>
                                   <button type="button" onClick={() => abrirEdicaoVolume(c)} className="t-nano underline underline-offset-2 mt-1">
                                     Editar volume
@@ -13430,7 +13414,8 @@
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
                           <th className="py-3 px-3 font-bold">Tipo</th>
                           <th className="py-3 px-3 font-bold">Un. compra</th>
-                          <th className="py-3 px-3 font-bold">Equiv.</th>
+                          <th className="py-3 px-3 font-bold">Volume</th>
+                          <th className="py-3 px-3 font-bold">Equiv. técnica</th>
                           <th className="py-3 px-3 font-bold">Fornecedor</th>
                           <th className="py-3 px-3 font-bold">Data</th>
                           <th className="py-3 px-3 text-right font-bold">Qtd comprada</th>
@@ -13443,7 +13428,7 @@
                       </thead>
                       <tbody>
                         {cadastrosFiltrados.length === 0 ? (
-                          <tr><td colSpan={12} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
+                          <tr><td colSpan={13} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
                         ) : cadastrosFiltrados.map((linha) => {
                           const x = linha.source;
                           const c = linha.compra;
@@ -13532,6 +13517,47 @@
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
+                                {linha.tipo === 'embalagem' ? (
+                                  <div className="flex items-center gap-1.5 min-w-[220px]">
+                                    <select
+                                      value={x.packageType || 'caixa'}
+                                      onChange={(e) => onUpdateSupply({ ...x, packageType: e.target.value })}
+                                      className="field h-8 px-2 text-[12px] field-select w-28"
+                                    >
+                                      {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                    <span className="t-micro">×</span>
+                                    <NumeroBRField
+                                      value={x.packageUnits || ''}
+                                      decimals={0}
+                                      onValueChange={(packageUnits) => onUpdateSupply({ ...x, packageUnits: Number(packageUnits) || null })}
+                                      placeholder="un."
+                                      className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                    />
+                                    <span className="t-micro">un</span>
+                                  </div>
+                                ) : linha.tipo === 'revenda' && (x.priceUnit || 'un') === 'un' ? (
+                                  <div className="flex items-center gap-1.5 min-w-[220px]">
+                                    <select
+                                      value={x.packageType || 'caixa'}
+                                      onChange={(e) => onUpdateSeparatedProduct({ ...x, packageType: e.target.value })}
+                                      className="field h-8 px-2 text-[12px] field-select w-28"
+                                    >
+                                      {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                    </select>
+                                    <span className="t-micro">×</span>
+                                    <NumeroBRField
+                                      value={x.packageUnits || ''}
+                                      decimals={0}
+                                      onValueChange={(packageUnits) => onUpdateSeparatedProduct({ ...x, packageUnits: Number(packageUnits) || null })}
+                                      placeholder="un."
+                                      className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                    />
+                                    <span className="t-micro">un</span>
+                                  </div>
+                                ) : <span className="t-empty">—</span>}
+                              </td>
+                              <td className="py-2.5 px-3">
                                 {ehSupply && x.variationUnit && Number(x.variationFactor) > 0
                                   ? <span className="t-callout font-semibold whitespace-nowrap">{rotuloVariacao(x)}</span>
                                   : <span className="t-empty">—</span>}
@@ -13547,14 +13573,35 @@
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty block text-right">—</span> : (
                                   <div className="flex items-center justify-end gap-1">
-                                    {linha.pacoteCompra || (linha.tipo === 'embalagem' && volumeFixoDoCadastro(x)) ? (
+                                    {linha.tipo === 'embalagem' && volumeFixoDoCadastro(x) ? (
+                                      <div className="min-w-[165px] text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <NumeroBRField
+                                            value={linha.qtdCompra || ''}
+                                            decimals={3}
+                                            onValueChange={(qtdVolumes) => {
+                                              const pacote = volumeFixoDoCadastro(x);
+                                              const volumes = Number(qtdVolumes) || 0;
+                                              if (!pacote?.unidades) return;
+                                              atualizarCompraLinha(linha, {
+                                                qty: volumes * pacote.unidades,
+                                                purchaseUnit: criarUnidadeCompraVolume(pacote.tipo, pacote.unidades)
+                                              });
+                                            }}
+                                            className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                          />
+                                          <span className="t-micro capitalize">{pluralVolumeRevenda(volumeFixoDoCadastro(x).tipo, linha.qtdCompra || 0)}</span>
+                                        </div>
+                                        <div className="t-nano mt-0.5">
+                                          {numeroCurtoBR(c?.qty || 0)} un no total
+                                        </div>
+                                      </div>
+                                    ) : linha.pacoteCompra ? (
                                       <div className="min-w-[150px] text-right">
                                         <div className="t-callout font-semibold whitespace-nowrap">
                                           {numeroCurtoBR(linha.qtdCompra || 0)} {pluralVolumeRevenda(linha.unidadeCompra === 'outro' ? 'outro' : linha.unidadeCompra, linha.qtdCompra || 0)}
                                         </div>
-                                        <div className="t-nano">
-                                          {numeroCurtoBR(c?.qty || 0)} un no total
-                                        </div>
+                                        <div className="t-nano">{numeroCurtoBR(c?.qty || 0)} un no total</div>
                                       </div>
                                     ) : (
                                       <input
@@ -13667,7 +13714,7 @@
                       </tbody>
                     </table>
                   </div>
-                  <p className="t-micro pt-3">Esta é a tabela mestre: tipo, unidade, equivalência, compras, custo, preço, dados do produto e remover ficam na mesma linha. Embalagem e Limpeza aparecem como uso interno.</p>
+                  <p className="t-micro pt-3">Esta é a tabela mestre: o volume pertence ao cadastro do produto; quantidade, fornecedor, data e valor pertencem à compra. A equivalência técnica continua separada para ficha/CMV.</p>
                 </div>
               </div>
             )}
