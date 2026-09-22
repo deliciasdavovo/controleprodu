@@ -15243,6 +15243,13 @@
       const formatQuantidadeCompra = (compra) =>
         `${numeroCurtoBR(compra?.qtyCompra ?? compra?.qty ?? 0)} ${compra?.unidadeCompra || compra?.unidade || 'un'}`;
 
+      const formatQuantidadeAcumulada = (quantidade, unidade) => {
+        const q = Number(quantidade) || 0;
+        if (unidade === 'g') return `${numeroCurtoBR(q / 1000)} kg`;
+        if (unidade === 'ml') return `${numeroCurtoBR(q / 1000)} L`;
+        return `${numeroCurtoBR(q)} ${unidade || 'un'}`;
+      };
+
       const formatPrecoCompraComercial = (compra) => {
         const qtdCompra = Number(compra?.qtyCompra) || 0;
         const unidadeCompra = compra?.unidadeCompra || '';
@@ -17389,13 +17396,6 @@ const porItem = useMemo(() => {
             participacao: totalGeral > 0 ? (i.valor / totalGeral) * 100 : 0
           }));
         }, [compras]);
-
-        const formatQuantidadeAcumulada = (quantidade, unidade) => {
-          const q = Number(quantidade) || 0;
-          if (unidade === 'g') return `${numeroCurtoBR(q / 1000)} kg`;
-          if (unidade === 'ml') return `${numeroCurtoBR(q / 1000)} L`;
-          return `${numeroCurtoBR(q)} ${unidade || 'un'}`;
-        };
 
         // O relatório de apoio à compra. Sai numa janela própria: dali a
         // pessoa imprime, salva em PDF ou manda no WhatsApp.
