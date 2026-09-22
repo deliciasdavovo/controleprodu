@@ -17163,7 +17163,78 @@ const porItem = useMemo(() => {
           }
         }), [porItem, ordem]);
 
+        // Comparação de marcas/produtos equivalentes. A busca funciona como o
+        // "produto-base": escrever "muçarela" reúne Muçarela Imperador, Litoral,
+        // Lacmon etc.; "ervilha" reúne as diferentes marcas cadastradas.
+        // Não altera ficha técnica nem cadastro: só lê o histórico já existente.
+        const comparativoMarcas = useMemo(() => {
+          if (!termo) return [];
+
+          const grupos = {};
+          porPeriodo
+            .filter((c) => casaComBusca(c.item, termo))
+            .forEach((c) => {
+              const chave = c.itemId || c.item;
+              const atual = grupos[chave] || {
+                itemId: chave,
+                item: c.item,
+                tipo: c.tipo,
+                lista: []
+              };
+              atual.lista.push(c);
+              grupos[chave] = atual;
+            });
+
+          const linhas = Object.values(grupos).map((g) => {
+            const ordenadas = [...g.lista].sort((a, b) => {
+              const d = (b.data || '').localeCompare(a.data || '');
+              return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+            });
+            const ultimas = ordenadas.slice(0, 3);
+            const atuais = ultimas.filter((x) => x.custoUnit > 0);
+            const mediaBase = atuais.length
+              ? atuais.reduce((s, x) => s + x.custoUnit, 0) / atuais.length
+              : 0;
+            const atual = ultimas[0] || null;
+            const anterior = ultimas[1] || null;
+            const variacaoPct = atual && anterior && anterior.custoUnit > 0
+              ? ((atual.custoUnit - anterior.custoUnit) / anterior.custoUnit) * 100
+              : null;
+            const fornecedores = [...new Set(
+              ultimas.map((x) => x.fornecedor).filter((x) => x && x !== 'Sem fornecedor')
+            )];
+
+            return {
+              ...g,
+              ultimas,
+              mediaBase,
+              atual,
+              variacaoPct,
+              fornecedores,
+              compras: ordenadas.length
+            };
+          });
+
+          return linhas.sort((a, b) => {
+            const pa = a.atual?.custoUnit || 0;
+            const pb = b.atual?.custoUnit || 0;
+            switch (ordem) {
+              case 'preco_desc': return pb - pa;
+              case 'media_asc': return a.mediaBase - b.mediaBase;
+              case 'recente':
+                return (b.atual?.data || '').localeCompare(a.atual?.data || '');
+              case 'compras_desc': return b.compras - a.compras;
+              case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
+              default: return pa - pb;
+            }
+          });
+        }, [porPeriodo, termo, ordem]);
+
         const imprimirRelatorioCompleto = () => {
+          if (visao === 'marca') {
+            window.alert('O comparativo de marcas é uma visão na tela. Para o PDF completo, escolha Por item, Por fornecedor ou Por compra.');
+            return;
+          }
           if (!compras.length) {
             window.alert('Nenhuma compra corresponde aos filtros atuais. Ajuste os filtros e tente de novo.');
             return;
@@ -17437,6 +17508,14 @@ const porItem = useMemo(() => {
             { v: 'antiga', t: 'Mais antigas' },
             { v: 'valor_desc', t: 'Maior valor pago' },
             { v: 'valor_asc', t: 'Menor valor pago' }
+          ],
+          marca: [
+            { v: 'preco_asc', t: 'Menor preço atual' },
+            { v: 'preco_desc', t: 'Maior preço atual' },
+            { v: 'media_asc', t: 'Menor média das 3' },
+            { v: 'recente', t: 'Compra mais recente' },
+            { v: 'compras_desc', t: 'Mais compras' },
+            { v: 'nome_asc', t: 'Nome (A–Z)' }
           ]
         };
 
@@ -17821,8 +17900,8 @@ const porItem = useMemo(() => {
                     <button
                       type="button"
                       onClick={imprimirRelatorioCompleto}
-                      disabled={compras.length === 0}
-                      title="Totais, categorias, fornecedores e compras que correspondem aos filtros da página"
+                      disabled={compras.length === 0 || visao === 'marca'}
+                      title={visao === 'marca' ? 'Escolha outra visualização para gerar o PDF completo' : 'Totais, categorias, fornecedores e compras que correspondem aos filtros da página'}
                       className="min-h-[116px] rounded-2xl border hairline bg-white p-3.5 text-left flex items-start gap-3 hover:bg-black/[0.025] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <span className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
@@ -17896,6 +17975,7 @@ const porItem = useMemo(() => {
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
               <div className="segmented flex-1 lg:flex-none lg:inline-flex">
                 <button onClick={() => trocarVisao('item')} data-active={visao === 'item'} className="flex-1 lg:flex-none h-9 px-4">Por item</button>
+                <button onClick={() => trocarVisao('marca')} data-active={visao === 'marca'} className="flex-1 lg:flex-none h-9 px-4">Comparar marcas</button>
                 <button onClick={() => trocarVisao('fornecedor')} data-active={visao === 'fornecedor'} className="flex-1 lg:flex-none h-9 px-4">Por fornecedor</button>
                 <button onClick={() => trocarVisao('compra')} data-active={visao === 'compra'} className="flex-1 lg:flex-none h-9 px-4">Por compra</button>
               </div>
@@ -17903,7 +17983,7 @@ const porItem = useMemo(() => {
                 <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
                 <input
                   type="text"
-                  placeholder="Buscar fornecedor ou item…"
+                  placeholder={visao === 'marca' ? 'Digite o produto: muçarela, ervilha…' : 'Buscar fornecedor ou item…'}
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
                   className="field field-sm field-search"
@@ -17972,6 +18052,104 @@ const porItem = useMemo(() => {
               <div className="card p-6"><p className="t-body ink-quiet">Nenhum resultado com os filtros atuais.</p></div>
             ) : (
               <div className="card p-5 sm:p-6">
+                {/* ---------------- COMPARAR MARCAS ---------------- */}
+                {visao === 'marca' && (
+                  <div>
+                    {!termo ? (
+                      <div className="py-8 px-3 text-center">
+                        <div className="mx-auto w-11 h-11 rounded-2xl bg-black/[0.05] flex items-center justify-center mb-3">
+                          <Icons.Search className="w-5 h-5" />
+                        </div>
+                        <h3 className="t-title">Qual produto você quer comparar?</h3>
+                        <p className="t-body ink-quiet mt-1">
+                          Digite acima, por exemplo, <strong>muçarela</strong> ou <strong>ervilha</strong>.
+                          As marcas cadastradas aparecem lado a lado com as três últimas compras.
+                        </p>
+                      </div>
+                    ) : comparativoMarcas.length === 0 ? (
+                      <div className="py-8 px-3 text-center">
+                        <h3 className="t-title">Nenhuma marca encontrada</h3>
+                        <p className="t-body ink-quiet mt-1">Não há itens com “{busca.trim()}” nos filtros atuais.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 pb-4">
+                          <div>
+                            <h3 className="t-title">Comparativo: {busca.trim()}</h3>
+                            <p className="t-micro mt-1">
+                              {comparativoMarcas.length} {comparativoMarcas.length === 1 ? 'opção encontrada' : 'opções encontradas'} · preço normalizado por kg, L ou unidade.
+                            </p>
+                          </div>
+                          <span className="pill tone-fresh">últimas 3 compras</span>
+                        </div>
+                        <div className="rola-x">
+                          <table className="w-full text-left tabela-larga">
+                            <thead>
+                              <tr className="t-overline-sm border-b hairline">
+                                <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[220px]">Marca / cadastro</th>
+                                <th className="py-3 px-3 text-right font-bold min-w-[170px]">Última compra</th>
+                                <th className="py-3 px-3 text-right font-bold min-w-[170px]">2ª última</th>
+                                <th className="py-3 px-3 text-right font-bold min-w-[170px]">3ª última</th>
+                                <th className="py-3 px-3 text-right font-bold min-w-[145px]">Média das 3</th>
+                                <th className="py-3 px-3 text-right font-bold min-w-[115px]">Variação</th>
+                                <th className="py-3 pl-3 font-bold min-w-[190px]">Fornecedor</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {comparativoMarcas.map((i) => (
+                                <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors align-top">
+                                  <td className="py-3 pr-3 sticky left-0 bg-white z-10">
+                                    <span className="t-callout font-semibold block" title={i.item}>{i.item}</span>
+                                    <span className="t-nano ink-quiet block mt-1">
+                                      {i.compras} {i.compras === 1 ? 'compra registrada' : 'compras registradas'}
+                                    </span>
+                                  </td>
+                                  {[0, 1, 2].map((posicao) => {
+                                    const compra = i.ultimas[posicao];
+                                    return (
+                                      <td key={posicao} className="py-3 px-3 text-right">
+                                        {compra ? (
+                                          <div className="leading-tight">
+                                            <span className="t-callout tnum font-bold block">{formatPrecoInsumo(compra.custoUnit, compra.unidade)}</span>
+                                            <span className="t-nano ink-quiet block mt-1">{formatDateBR(compra.data) || 'sem data'}</span>
+                                            <span className="t-nano ink-quiet block mt-0.5 truncate" title={compra.fornecedor}>{compra.fornecedor}</span>
+                                          </div>
+                                        ) : <span className="t-body ink-quiet">—</span>}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-3 px-3 text-right">
+                                    {i.atual && i.mediaBase > 0
+                                      ? <span className="t-callout tnum font-bold">{formatPrecoInsumo(i.mediaBase, i.atual.unidade)}</span>
+                                      : <span className="t-body ink-quiet">—</span>}
+                                  </td>
+                                  <td className="py-3 px-3 text-right">
+                                    {i.variacaoPct === null ? (
+                                      <span className="t-body ink-quiet">—</span>
+                                    ) : (
+                                      <span className={`pill ${i.variacaoPct > 0.5 ? 'tone-expired' : i.variacaoPct < -0.5 ? 'tone-fresh' : 'tone-last'} tnum`}>
+                                        {i.variacaoPct > 0 ? '+' : ''}{i.variacaoPct.toFixed(1).replace('.', ',')}%
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 pl-3">
+                                    <span className="t-callout font-semibold block">{i.atual?.fornecedor || 'Sem fornecedor'}</span>
+                                    {i.fornecedores.length > 1 && (
+                                      <span className="t-nano ink-quiet block mt-1">
+                                        últimos: {i.fornecedores.join(' · ')}
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* ---------------- POR ITEM ---------------- */}
                 {visao === 'item' && (
                   <div className="rola-x">
