@@ -11604,11 +11604,11 @@
 
                             const pacoteExibicao = volumePadrao || pacoteGravado;
                             if (pacoteExibicao?.unidades > 0 && pacoteGravado?.unidades > 0) {
-                              const volumes = (Number(c.qty) || 0) / pacoteGravado.unidades;
+                              const volumes = (Number(c.qty) || 0) / pacoteExibicao.unidades;
                               return (
                                 <div className="text-right min-w-[190px]">
                                   <span className="t-callout tnum font-semibold block">
-                                    {numeroCurtoBR(volumes)} {pluralVolumeRevenda(pacoteGravado.tipo, volumes)}
+                                    {numeroCurtoBR(volumes)} {pluralVolumeRevenda(pacoteExibicao.tipo, volumes)}
                                   </span>
                                   <span className="t-nano ink-quiet block">
                                     1 {pacoteExibicao.tipo === 'outro' ? 'volume' : pacoteExibicao.tipo} = {numeroCurtoBR(pacoteExibicao.unidades)} un
@@ -12644,7 +12644,7 @@
             if (!rev) {
               const pacoteDaCompra = lerUnidadeCompraVolume(compraInsumo?.purchaseUnit);
               const pacoteDoCadastro = tipoBase === 'embalagem' ? volumeFixoDoCadastro(x) : null;
-              const pacote = pacoteDaCompra || pacoteDoCadastro;
+              const pacote = pacoteDoCadastro || pacoteDaCompra;
               const unidadeCompra = pacote?.tipo || x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit);
               const qtdCompra = compraInsumo
                 ? (pacote?.unidades
@@ -15131,7 +15131,9 @@
             const volumeDoCadastro = s.supplyClass === 'embalagem'
               ? (volumeFixoDoCadastro(s) || volumeLegado)
               : null;
-            const volumeEfetivo = volumeCompra || volumeDoCadastro;
+            const volumeEfetivo = s.supplyClass === 'embalagem'
+              ? (volumeDoCadastro || volumeCompra)
+              : (volumeCompra || volumeDoCadastro);
             const unidadeCompra = volumeEfetivo?.tipo
               || c.purchaseUnit
               || s.purchaseUnit
