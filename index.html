@@ -16466,6 +16466,7 @@
         compras,
         itens,
         valores,
+        modoValor,
         fornecedores,
         extrato,
         totalComprasFiltradas,
@@ -16692,15 +16693,41 @@
           <td class="num">${i.participacao.toFixed(1).replace('.', ',')}%</td>
         </tr>`).join('');
 
+        const totalValorIndividual = compras.reduce((s, compra) => s + (Number(compra.cost) || 0), 0);
+        const comprasValorIndividual = [...compras].sort((a, b) => {
+          if (filtros?.itens?.some((f) => f.rotulo === 'Ordenação' && f.valor === 'Menor valor comprado')) {
+            return (Number(a.cost) || 0) - (Number(b.cost) || 0);
+          }
+          return (Number(b.cost) || 0) - (Number(a.cost) || 0);
+        });
+        const linhasValorIndividual = comprasValorIndividual.map((compra) => `<tr>
+          <td>${compra.data ? formatDateBR(compra.data) : '—'}</td>
+          <td><b>${escaparHtml(compra.item)}</b><small>${escaparHtml(compra.tipo)}</small></td>
+          <td>${compra.fornecedor === 'Sem fornecedor' ? '<span class="quieto">Sem fornecedor</span>' : escaparHtml(compra.fornecedor)}</td>
+          <td class="num">${escaparHtml(formatQuantidadeCompra(compra))}</td>
+          <td class="num">${formatPrecoCompraComercial(compra)}</td>
+          <td class="num forte">${formatCurrencyBR(compra.cost)}</td>
+          <td class="num">${totalValorIndividual > 0 ? (((Number(compra.cost) || 0) / totalValorIndividual) * 100).toFixed(1).replace('.', ',') : '0,0'}%</td>
+        </tr>`).join('');
+
                 const secaoVisualizacao = visao === 'valor'
-          ? `<section>
-              <h2>Por valor comprado (${(valores || []).length})</h2>
-              <p class="nota">Preço médio ponderado × quantidade total comprada. O valor comprado é a soma dos valores efetivamente pagos nas compras do período.</p>
-              <table class="t-valores">
-                <thead><tr><th>Item</th><th class="num">Quantidade</th><th class="num">Preço médio</th><th class="num">Compras</th><th class="num">Valor comprado</th><th class="num">% do total</th></tr></thead>
-                <tbody>${linhasValorComprado || '<tr><td colspan="6" class="quieto">Nenhum item nos filtros atuais.</td></tr>'}</tbody>
-              </table>
-            </section>`
+          ? (modoValor === 'individual'
+            ? `<section>
+                <h2>Por valor comprado — compra individual (${compras.length})</h2>
+                <p class="nota">Cada linha é um lançamento de compra. Quantidade × preço daquela compra = valor daquela compra, sem somar com outras compras do mesmo item.</p>
+                <table class="t-valores-individual">
+                  <thead><tr><th>Data</th><th>Item</th><th>Fornecedor</th><th class="num">Quantidade</th><th class="num">Preço</th><th class="num">Valor da compra</th><th class="num">% do total</th></tr></thead>
+                  <tbody>${linhasValorIndividual || '<tr><td colspan="7" class="quieto">Nenhuma compra nos filtros atuais.</td></tr>'}</tbody>
+                </table>
+              </section>`
+            : `<section>
+                <h2>Por valor comprado — agrupado por produto (${(valores || []).length})</h2>
+                <p class="nota">Preço médio ponderado × quantidade total comprada. O valor comprado é a soma das compras do mesmo produto no período.</p>
+                <table class="t-valores">
+                  <thead><tr><th>Item</th><th class="num">Quantidade</th><th class="num">Preço médio</th><th class="num">Compras</th><th class="num">Valor comprado</th><th class="num">% do total</th></tr></thead>
+                  <tbody>${linhasValorComprado || '<tr><td colspan="6" class="quieto">Nenhum item nos filtros atuais.</td></tr>'}</tbody>
+                </table>
+              </section>`)
           : visao === 'fornecedor'
           ? `<section>
               <h2>Por fornecedor (${fornecedores.length})</h2>
@@ -16784,6 +16811,13 @@
             .t-valores th:nth-child(4) { width: 10%; }
             .t-valores th:nth-child(5) { width: 19%; }
             .t-valores th:nth-child(6) { width: 11%; }
+            .t-valores-individual th:nth-child(1) { width: 10%; }
+            .t-valores-individual th:nth-child(2) { width: 21%; }
+            .t-valores-individual th:nth-child(3) { width: 16%; }
+            .t-valores-individual th:nth-child(4) { width: 13%; }
+            .t-valores-individual th:nth-child(5) { width: 13%; }
+            .t-valores-individual th:nth-child(6) { width: 17%; }
+            .t-valores-individual th:nth-child(7) { width: 10%; }
             .t-compras th:nth-child(1) { width: 12%; }
             .t-compras th:nth-child(2) { width: 22%; }
             .t-compras th:nth-child(3) { width: 50%; }
@@ -17041,6 +17075,7 @@
         unitName
       }) => {
         const [visao, setVisao] = useState('item');
+        const [modoValorComprado, setModoValorComprado] = useState('agrupado');
         const [busca, setBusca] = useState('');
         const [tipoFiltro, setTipoFiltro] = useState('todos');
         const [ordem, setOrdem] = useState('variacao_desc');
@@ -17518,11 +17553,39 @@ const porItem = useMemo(() => {
           switch (ordem) {
             case 'total_asc': return a.valor - b.valor;
             case 'qtd_desc': return b.quantidade - a.quantidade;
-            case 'compras_desc': return b.compras - a.compras;
+            case 'recente': return (b.ultimaData || '').localeCompare(a.ultimaData || '');
+            case 'antiga': return (a.ultimaData || '').localeCompare(b.ultimaData || '');
             case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
             default: return b.valor - a.valor;
           }
         }), [valorCompradoPorItem, ordem]);
+
+        const valorCompradoIndividual = useMemo(() => {
+          const totalGeral = compras.reduce((s, compra) => s + (Number(compra.cost) || 0), 0);
+          return [...compras]
+            .map((compra) => ({
+              ...compra,
+              valor: Number(compra.cost) || 0,
+              quantidade: Number(compra.qty) || 0,
+              participacao: totalGeral > 0 ? ((Number(compra.cost) || 0) / totalGeral) * 100 : 0
+            }))
+            .sort((a, b) => {
+              switch (ordem) {
+                case 'total_asc': return a.valor - b.valor;
+                case 'qtd_desc': return b.quantidade - a.quantidade;
+                case 'recente': {
+                  const d = (b.data || '').localeCompare(a.data || '');
+                  return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+                }
+                case 'antiga': {
+                  const d = (a.data || '').localeCompare(b.data || '');
+                  return d !== 0 ? d : (a.criadoEm || '').localeCompare(b.criadoEm || '');
+                }
+                case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
+                default: return b.valor - a.valor;
+              }
+            });
+        }, [compras, ordem]);
 
         // Sugere automaticamente grupos que parecem ser o mesmo produto com
         // marcas/variações diferentes. Parte dos nomes realmente comprados e
@@ -17851,6 +17914,10 @@ ${BARRA_ACOES_HTML}
               { rotulo: 'Variação', valor: periodoRelatorioPrecos === '12' ? 'Último 1 ano' : `Últimos ${periodoRelatorioPrecos} meses` },
               { rotulo: 'Busca', valor: busca.trim() || 'Sem busca' },
               { rotulo: 'Ordenação', valor: rotuloOrdem },
+              ...(visao === 'valor' ? [{
+                rotulo: 'Agrupamento',
+                valor: modoValorComprado === 'individual' ? 'Compra individual' : 'Agrupado por produto'
+              }] : []),
               ...(visao === 'compra' ? [{
                 rotulo: 'Compras exibidas',
                 valor: limite === 'all' ? 'Todas' : `Últimas ${limite}`
@@ -17871,6 +17938,7 @@ ${BARRA_ACOES_HTML}
             compras,
             itens: itensOrdenados,
             valores: valorCompradoOrdenado,
+            modoValor: modoValorComprado,
             fornecedores: porFornecedor,
             extrato: comprasDetalhadas,
             totalComprasFiltradas: comprasAgrupadas.length,
@@ -18072,7 +18140,8 @@ ${BARRA_ACOES_HTML}
             { v: 'total_desc', t: 'Maior valor comprado' },
             { v: 'total_asc', t: 'Menor valor comprado' },
             { v: 'qtd_desc', t: 'Maior quantidade' },
-            { v: 'compras_desc', t: 'Mais compras' },
+            { v: 'recente', t: 'Mais recentes' },
+            { v: 'antiga', t: 'Mais antigas' },
             { v: 'nome_asc', t: 'Nome (A–Z)' }
           ],
           fornecedor: [
@@ -18889,11 +18958,15 @@ ${BARRA_ACOES_HTML}
                 {/* ---------------- POR VALOR COMPRADO ---------------- */}
                 {visao === 'valor' && (
                   <div>
-                    <div className="flex flex-wrap items-end justify-between gap-3 pb-4">
+                    <div className="flex flex-wrap items-end justify-between gap-3 pb-3">
                       <div>
-                        <h3 className="t-title">Valor comprado por item</h3>
+                        <h3 className="t-title">
+                          {modoValorComprado === 'individual' ? 'Valor de cada compra' : 'Valor comprado por produto'}
+                        </h3>
                         <p className="t-micro mt-1">
-                          Soma do que foi efetivamente pago em cada produto nos filtros atuais.
+                          {modoValorComprado === 'individual'
+                            ? 'Cada linha é uma compra específica: quantidade × preço = valor daquela compra.'
+                            : 'Agrupa todas as compras do mesmo produto e soma o valor do período.'}
                         </p>
                       </div>
                       <div className="text-right">
@@ -18901,45 +18974,105 @@ ${BARRA_ACOES_HTML}
                         <strong className="t-metric-xs tnum">{formatCurrencyBR(compras.reduce((s, x) => s + x.cost, 0))}</strong>
                       </div>
                     </div>
-                    <div className="rola-x">
-                      <table className="w-full text-left tabela-larga">
-                        <thead>
-                          <tr className="t-overline-sm border-b hairline">
-                            <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
-                            <th className="py-3 px-3 text-right font-bold">Quantidade comprada</th>
-                            <th className="py-3 px-3 text-right font-bold">Preço médio</th>
-                            <th className="py-3 px-3 text-right font-bold">Compras</th>
-                            <th className="py-3 px-3 text-right font-bold">Valor comprado</th>
-                            <th className="py-3 pl-3 text-right font-bold">% do total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {valorCompradoOrdenado.map((i) => (
-                            <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors">
-                              <td className="py-3 pr-3 sticky left-0 bg-white z-10">
-                                <span className="t-callout font-semibold block">{i.item}</span>
-                                <span className="t-nano ink-quiet block mt-0.5">
-                                  {i.tipo}{i.fornecedores.length ? ` · ${i.fornecedores.join(' · ')}` : ''}
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-right t-callout tnum">
-                                {formatQuantidadeAcumulada(i.quantidade, i.unidade)}
-                              </td>
-                              <td className="py-3 px-3 text-right t-callout tnum">
-                                {i.precoMedio > 0 ? formatPrecoInsumo(i.precoMedio, i.unidade) : '—'}
-                              </td>
-                              <td className="py-3 px-3 text-right t-callout tnum">{i.compras}</td>
-                              <td className="py-3 px-3 text-right">
-                                <strong className="t-body tnum">{formatCurrencyBR(i.valor)}</strong>
-                              </td>
-                              <td className="py-3 pl-3 text-right">
-                                <span className="pill tone-quiet tnum">{i.participacao.toFixed(1).replace('.', ',')}%</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                    <div className="segmented inline-flex mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setModoValorComprado('agrupado')}
+                        data-active={modoValorComprado === 'agrupado'}
+                        className="h-8 px-4"
+                      >
+                        Agrupar por produto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoValorComprado('individual')}
+                        data-active={modoValorComprado === 'individual'}
+                        className="h-8 px-4"
+                      >
+                        Compra individual
+                      </button>
                     </div>
+
+                    {modoValorComprado === 'individual' ? (
+                      <div className="rola-x">
+                        <table className="w-full text-left tabela-larga">
+                          <thead>
+                            <tr className="t-overline-sm border-b hairline">
+                              <th className="py-3 pr-3 font-bold">Data</th>
+                              <th className="py-3 px-3 font-bold sticky left-0 bg-white z-10">Item</th>
+                              <th className="py-3 px-3 font-bold">Fornecedor</th>
+                              <th className="py-3 px-3 text-right font-bold">Quantidade</th>
+                              <th className="py-3 px-3 text-right font-bold">Preço</th>
+                              <th className="py-3 px-3 text-right font-bold">Valor da compra</th>
+                              <th className="py-3 pl-3 text-right font-bold">% do total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {valorCompradoIndividual.map((compra) => (
+                              <tr key={`${compra.id}-${compra.itemId}`} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                                <td className="py-3 pr-3 t-callout whitespace-nowrap">
+                                  {compra.data ? formatDateBR(compra.data) : '—'}
+                                </td>
+                                <td className="py-3 px-3 sticky left-0 bg-white z-10">
+                                  <span className="t-callout font-semibold block">{compra.item}</span>
+                                  <span className="t-nano ink-quiet block mt-0.5">{compra.tipo}</span>
+                                </td>
+                                <td className="py-3 px-3 t-callout">{compra.fornecedor}</td>
+                                <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(compra)}</td>
+                                <td className="py-3 px-3 text-right t-callout tnum">{formatPrecoCompraComercial(compra)}</td>
+                                <td className="py-3 px-3 text-right">
+                                  <strong className="t-body tnum">{formatCurrencyBR(compra.cost)}</strong>
+                                </td>
+                                <td className="py-3 pl-3 text-right">
+                                  <span className="pill tone-quiet tnum">{compra.participacao.toFixed(1).replace('.', ',')}%</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="rola-x">
+                        <table className="w-full text-left tabela-larga">
+                          <thead>
+                            <tr className="t-overline-sm border-b hairline">
+                              <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
+                              <th className="py-3 px-3 text-right font-bold">Quantidade comprada</th>
+                              <th className="py-3 px-3 text-right font-bold">Preço médio</th>
+                              <th className="py-3 px-3 text-right font-bold">Compras</th>
+                              <th className="py-3 px-3 text-right font-bold">Valor comprado</th>
+                              <th className="py-3 pl-3 text-right font-bold">% do total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {valorCompradoOrdenado.map((i) => (
+                              <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                                <td className="py-3 pr-3 sticky left-0 bg-white z-10">
+                                  <span className="t-callout font-semibold block">{i.item}</span>
+                                  <span className="t-nano ink-quiet block mt-0.5">
+                                    {i.tipo}{i.fornecedores.length ? ` · ${i.fornecedores.join(' · ')}` : ''}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right t-callout tnum">
+                                  {formatQuantidadeAcumulada(i.quantidade, i.unidade)}
+                                </td>
+                                <td className="py-3 px-3 text-right t-callout tnum">
+                                  {i.precoMedio > 0 ? formatPrecoInsumo(i.precoMedio, i.unidade) : '—'}
+                                </td>
+                                <td className="py-3 px-3 text-right t-callout tnum">{i.compras}</td>
+                                <td className="py-3 px-3 text-right">
+                                  <strong className="t-body tnum">{formatCurrencyBR(i.valor)}</strong>
+                                </td>
+                                <td className="py-3 pl-3 text-right">
+                                  <span className="pill tone-quiet tnum">{i.participacao.toFixed(1).replace('.', ',')}%</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
