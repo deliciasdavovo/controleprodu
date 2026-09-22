@@ -17339,6 +17339,99 @@ const porItem = useMemo(() => {
           }
         }), [porItem, ordem]);
 
+        // Sugere automaticamente grupos que parecem ser o mesmo produto com
+        // marcas/variações diferentes. Parte dos nomes realmente comprados e
+        // respeita categoria + período; não exige um cadastro separado de marca.
+        const sugestoesComparacao = useMemo(() => {
+          const porItemUnico = new Map();
+          porPeriodo.forEach((c) => {
+            const chave = c.itemId || normalizeName(c.item);
+            if (!porItemUnico.has(chave)) porItemUnico.set(chave, c.item);
+          });
+
+          const stop = new Set([
+            'de','da','do','das','dos','em','com','sem','para','por','tipo',
+            'pct','pcte','lt','lata','kg','kilo','quilo','grama','gramas',
+            'ml','litro','litros','un','unidade','unidades','tradicional'
+          ]);
+          const prefixosGenericos = new Set([
+            'queijo','pao','leite','molho','farinha','creme','chocolate',
+            'acucar','manteiga','margarina','presunto','apresuntado'
+          ]);
+          const canon = (nome) => normalizeName(nome)
+            .replace(/\bmussarela\b/g, 'mucarela')
+            .replace(/\bmuçarela\b/g, 'mucarela')
+            .replace(/\bcatchup\b/g, 'ketchup');
+
+          const grupos = {};
+          porItemUnico.forEach((nome, id) => {
+            const tokens = canon(nome)
+              .split(/[^a-z0-9]+/i)
+              .filter(Boolean)
+              .filter((t) => !stop.has(t) && !/^\d/.test(t) && t.length >= 3);
+            if (!tokens.length) return;
+
+            const candidatos = new Set([tokens[0]]);
+            if (tokens.length >= 2) candidatos.add(`${tokens[0]} ${tokens[1]}`);
+            if (prefixosGenericos.has(tokens[0]) && tokens[1]) candidatos.add(tokens[1]);
+
+            candidatos.forEach((termoGrupo) => {
+              if (termoGrupo.length < 4) return;
+              const g = grupos[termoGrupo] || { termo: termoGrupo, ids: new Set(), itens: [] };
+              if (!g.ids.has(id)) {
+                g.ids.add(id);
+                g.itens.push(nome);
+              }
+              grupos[termoGrupo] = g;
+            });
+          });
+
+          const candidatos = Object.values(grupos)
+            .filter((g) => g.ids.size >= 2)
+            .map((g) => ({ termo: g.termo, quantidade: g.ids.size, itens: g.itens }));
+
+          // Se "presunto" e "presunto magro" apontam para exatamente os mesmos
+          // itens, fica só o termo mais específico.
+          const assinatura = (g) => [...g.ids].sort().join('|');
+          const melhorPorConjunto = new Map();
+          Object.values(grupos).filter((g) => g.ids.size >= 2).forEach((g) => {
+            const sig = assinatura(g);
+            const atual = melhorPorConjunto.get(sig);
+            const palavras = g.termo.split(' ').length;
+            const palavrasAtual = atual ? atual.termo.split(' ').length : 0;
+            if (!atual || palavras > palavrasAtual || (palavras === palavrasAtual && g.termo.length > atual.termo.length)) {
+              melhorPorConjunto.set(sig, g);
+            }
+          });
+
+          const rotulos = {
+            mucarela: 'Muçarela',
+            acucar: 'Açúcar',
+            pao: 'Pão',
+            cafe: 'Café',
+            brocolis: 'Brócolis',
+            macarao: 'Macarrão',
+            requeijao: 'Requeijão'
+          };
+          const rotuloTermo = (termoGrupo) => termoGrupo
+            .split(' ')
+            .map((p) => rotulos[p] || (p.charAt(0).toUpperCase() + p.slice(1)))
+            .join(' ');
+
+          return [...melhorPorConjunto.values()]
+            .map((g) => ({
+              termo: g.termo === 'mucarela' ? 'muçarela' : g.termo,
+              label: rotuloTermo(g.termo),
+              quantidade: g.ids.size,
+              itens: g.itens
+            }))
+            .filter((g) => !(g.termo === 'queijo' && g.quantidade > 6))
+            .sort((a, b) => b.quantidade - a.quantidade
+              || b.termo.split(' ').length - a.termo.split(' ').length
+              || a.label.localeCompare(b.label, 'pt-BR'))
+            .slice(0, 12);
+        }, [porPeriodo]);
+
         // Comparação de marcas/produtos equivalentes. A busca funciona como o
         // "produto-base": escrever "muçarela" reúne Muçarela Imperador, Litoral,
         // Lacmon etc.; "ervilha" reúne as diferentes marcas cadastradas.
@@ -17408,7 +17501,125 @@ const porItem = useMemo(() => {
 
         const imprimirRelatorioCompleto = () => {
           if (visao === 'marca') {
-            window.alert('O comparativo de marcas é uma visão na tela. Para o PDF completo, escolha Por item, Por fornecedor ou Por compra.');
+            if (!termo || comparativoMarcas.length === 0) {
+              window.alert('Escolha um produto para comparar antes de gerar o relatório.');
+              return;
+            }
+
+            const rotuloPeriodo = mesFiltro
+              ? (mesesDisponiveis.find((m) => m.value === mesFiltro)?.label || mesFiltro)
+              : (dataInicio || dataFim)
+                ? `${dataInicio ? formatDateBR(dataInicio) : 'início'} até ${dataFim ? formatDateBR(dataFim) : 'hoje'}`
+                : 'Todo o histórico';
+            const titulo = `Comparativo de compras — ${busca.trim()}`;
+            const linhas = comparativoMarcas.map((i) => {
+              const celulasCompras = [0, 1, 2].map((posicao) => {
+                const compra = i.ultimas[posicao];
+                if (!compra) return '<td class="vazio">—</td>';
+                return `<td class="num">
+                  <strong>${escaparHtml(formatPrecoInsumo(compra.custoUnit, compra.unidade))}</strong>
+                  <small>${escaparHtml(formatDateBR(compra.data) || 'sem data')}</small>
+                  <small>${escaparHtml(compra.fornecedor || 'Sem fornecedor')}</small>
+                </td>`;
+              }).join('');
+
+              const variacao = i.variacaoPct === null
+                ? '—'
+                : `${i.variacaoPct > 0 ? '+' : ''}${i.variacaoPct.toFixed(1).replace('.', ',')}%`;
+              const media = i.atual && i.mediaBase > 0
+                ? formatPrecoInsumo(i.mediaBase, i.atual.unidade)
+                : '—';
+
+              return `<tr>
+                <td class="produto">
+                  <strong>${escaparHtml(i.item)}</strong>
+                  <small>${i.compras} ${i.compras === 1 ? 'compra registrada' : 'compras registradas'}</small>
+                </td>
+                ${celulasCompras}
+                <td class="num forte">${escaparHtml(media)}</td>
+                <td class="num">${escaparHtml(variacao)}</td>
+                <td>${escaparHtml(i.atual?.fornecedor || 'Sem fornecedor')}</td>
+              </tr>`;
+            }).join('');
+
+            const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>${escaparHtml(titulo)}</title>
+<style>
+  @page { size: A4 landscape; margin: 11mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #1d1d1f; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 10px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; border-bottom: 1px solid #d8d8dc; padding-bottom: 10px; margin-bottom: 12px; }
+  h1 { font-size: 20px; line-height: 1.1; margin: 0 0 5px; }
+  .sub { color: #6e6e73; font-size: 9px; }
+  .meta { text-align: right; color: #6e6e73; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { text-align: left; font-size: 8px; text-transform: uppercase; letter-spacing: .04em; color: #6e6e73; padding: 7px 6px; border-bottom: 1px solid #aeb0b4; }
+  td { padding: 8px 6px; border-bottom: 1px solid #e6e6e8; vertical-align: top; }
+  th:nth-child(1), td:nth-child(1) { width: 19%; }
+  th:nth-child(2), td:nth-child(2),
+  th:nth-child(3), td:nth-child(3),
+  th:nth-child(4), td:nth-child(4) { width: 14%; }
+  th:nth-child(5), td:nth-child(5) { width: 12%; }
+  th:nth-child(6), td:nth-child(6) { width: 8%; }
+  th:nth-child(7), td:nth-child(7) { width: 13%; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .forte { font-weight: 700; }
+  .produto strong, td strong { display: block; font-size: 10px; }
+  small { display: block; color: #6e6e73; font-size: 8px; margin-top: 2px; line-height: 1.3; }
+  .vazio { text-align: center; color: #9b9ba0; }
+  .acoes { margin-top: 12px; color: #6e6e73; font-size: 8px; }
+  .print { position: fixed; right: 14px; bottom: 14px; border: 0; border-radius: 8px; padding: 9px 13px; background: #0e0937; color: white; font-weight: 700; cursor: pointer; }
+  @media print { .print { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>${escaparHtml(titulo)}</h1>
+    <div class="sub">Últimas 3 compras por marca/variação, com preço normalizado e média.</div>
+  </div>
+  <div class="meta">
+    <div><strong>${escaparHtml(unitName)}</strong></div>
+    <div>Categoria: ${escaparHtml(tipoFiltro === 'todos' ? 'Todas' : tipoFiltro)}</div>
+    <div>Período: ${escaparHtml(rotuloPeriodo)}</div>
+  </div>
+</header>
+<table>
+  <thead>
+    <tr>
+      <th>Marca / cadastro</th>
+      <th class="num">Última compra</th>
+      <th class="num">2ª última</th>
+      <th class="num">3ª última</th>
+      <th class="num">Média das 3</th>
+      <th class="num">Variação</th>
+      <th>Fornecedor atual</th>
+    </tr>
+  </thead>
+  <tbody>${linhas}</tbody>
+</table>
+<div class="acoes">Comparação gerada a partir do histórico de compras registrado no sistema.</div>
+<button class="print" onclick="window.print()">Imprimir / salvar PDF</button>
+</body>
+</html>`;
+
+            const janela = window.open('', '_blank');
+            if (!janela) {
+              window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
+              return;
+            }
+            janela.document.write(html);
+            janela.document.close();
+            if (window.matchMedia('(min-width: 900px)').matches) {
+              const abrirImpressao = () => {
+                try { janela.focus(); janela.print(); } catch (e) { /* botão do relatório continua disponível */ }
+              };
+              if (janela.document.readyState === 'complete') setTimeout(abrirImpressao, 250);
+              else janela.onload = () => setTimeout(abrirImpressao, 250);
+            }
             return;
           }
           if (!compras.length) {
@@ -18082,19 +18293,25 @@ const porItem = useMemo(() => {
                     <button
                       type="button"
                       onClick={imprimirRelatorioCompleto}
-                      disabled={compras.length === 0 || visao === 'marca'}
-                      title={visao === 'marca' ? 'Escolha outra visualização para gerar o PDF completo' : 'Totais, categorias, fornecedores e compras que correspondem aos filtros da página'}
+                      disabled={visao === 'marca' ? (!termo || comparativoMarcas.length === 0) : compras.length === 0}
+                      title={visao === 'marca' ? 'Exportar o comparativo atual em PDF A4' : 'Totais, categorias, fornecedores e compras que correspondem aos filtros da página'}
                       className="min-h-[116px] rounded-2xl border hairline bg-white p-3.5 text-left flex items-start gap-3 hover:bg-black/[0.025] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <span className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
                         <Icons.ClipboardList className="w-4 h-4" />
                       </span>
                       <span className="min-w-0">
-                        <strong className="t-callout font-semibold block">Relatório completo</strong>
+                        <strong className="t-callout font-semibold block">
+                          {visao === 'marca' ? 'Exportar comparativo' : 'Relatório completo'}
+                        </strong>
                         <span className="t-nano ink-quiet block mt-1 leading-relaxed">
-                          Totais, categorias, fornecedores e compras conforme os filtros da página.
+                          {visao === 'marca'
+                            ? 'Marcas/variações, últimas 3 compras, média, variação e fornecedor.'
+                            : 'Totais, categorias, fornecedores e compras conforme os filtros da página.'}
                         </span>
-                        <span className="t-overline-sm block mt-2">PDF A4 · visão gerencial</span>
+                        <span className="t-overline-sm block mt-2">
+                          {visao === 'marca' ? 'PDF A4 · comparativo' : 'PDF A4 · visão gerencial'}
+                        </span>
                       </span>
                     </button>
                   </div>
@@ -18244,9 +18461,27 @@ const porItem = useMemo(() => {
                         </div>
                         <h3 className="t-title">Qual produto você quer comparar?</h3>
                         <p className="t-body ink-quiet mt-1">
-                          Digite acima, por exemplo, <strong>muçarela</strong> ou <strong>ervilha</strong>.
-                          As marcas cadastradas aparecem lado a lado com as três últimas compras.
+                          Digite acima ou escolha uma sugestão. As marcas e variações cadastradas aparecem lado a lado com as três últimas compras.
                         </p>
+                        {sugestoesComparacao.length > 0 && (
+                          <div className="mt-5 max-w-3xl mx-auto">
+                            <div className="t-overline-sm ink-quiet mb-2">Produtos com mais de uma marca / variação</div>
+                            <div className="flex flex-wrap justify-center gap-2">
+                              {sugestoesComparacao.map((s) => (
+                                <button
+                                  key={s.termo}
+                                  type="button"
+                                  onClick={() => setBusca(s.termo)}
+                                  title={s.itens.join(' · ')}
+                                  className="btn btn-secondary btn-sm"
+                                >
+                                  {s.label}
+                                  <span className="pill tone-quiet ml-1">{s.quantidade}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : comparativoMarcas.length === 0 ? (
                       <div className="py-8 px-3 text-center">
@@ -18255,7 +18490,7 @@ const porItem = useMemo(() => {
                       </div>
                     ) : (
                       <>
-                        <div className="flex flex-wrap items-baseline justify-between gap-2 pb-4">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
                           <div>
                             <h3 className="t-title">Comparativo: {busca.trim()}</h3>
                             <p className="t-micro mt-1">
@@ -18264,6 +18499,25 @@ const porItem = useMemo(() => {
                           </div>
                           <span className="pill tone-fresh">últimas 3 compras</span>
                         </div>
+                        {sugestoesComparacao.length > 1 && (
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-4">
+                            <span className="t-nano ink-quiet whitespace-nowrap mr-1">Outros:</span>
+                            {sugestoesComparacao
+                              .filter((s) => normalizeName(s.termo) !== normalizeName(busca.trim()))
+                              .slice(0, 8)
+                              .map((s) => (
+                                <button
+                                  key={s.termo}
+                                  type="button"
+                                  onClick={() => setBusca(s.termo)}
+                                  className="pill tone-quiet whitespace-nowrap hover:opacity-70"
+                                  title={s.itens.join(' · ')}
+                                >
+                                  {s.label} · {s.quantidade}
+                                </button>
+                              ))}
+                          </div>
+                        )}
                         <div className="rola-x">
                           <table className="w-full text-left tabela-larga">
                             <thead>
