@@ -17358,9 +17358,9 @@ const porItem = useMemo(() => {
             'queijo','pao','leite','molho','farinha','creme','chocolate',
             'acucar','manteiga','margarina','presunto','apresuntado'
           ]);
-          const canon = (nome) => normalizeName(nome)
+          const canon = (nome) => chaveDeBusca(nome)
             .replace(/\bmussarela\b/g, 'mucarela')
-            .replace(/\bmuçarela\b/g, 'mucarela')
+            .replace(/\bmucarela\b/g, 'mucarela')
             .replace(/\bcatchup\b/g, 'ketchup');
 
           const grupos = {};
