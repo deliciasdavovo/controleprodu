@@ -16466,6 +16466,7 @@
         compras,
         itens,
         valores,
+        valoresIndividuais,
         modoValor,
         fornecedores,
         extrato,
@@ -16694,12 +16695,7 @@
         </tr>`).join('');
 
         const totalValorIndividual = compras.reduce((s, compra) => s + (Number(compra.cost) || 0), 0);
-        const comprasValorIndividual = [...compras].sort((a, b) => {
-          if (filtros?.itens?.some((f) => f.rotulo === 'Ordenação' && f.valor === 'Menor valor comprado')) {
-            return (Number(a.cost) || 0) - (Number(b.cost) || 0);
-          }
-          return (Number(b.cost) || 0) - (Number(a.cost) || 0);
-        });
+        const comprasValorIndividual = valoresIndividuais || compras;
         const linhasValorIndividual = comprasValorIndividual.map((compra) => `<tr>
           <td>${compra.data ? formatDateBR(compra.data) : '—'}</td>
           <td><b>${escaparHtml(compra.item)}</b><small>${escaparHtml(compra.tipo)}</small></td>
@@ -17938,6 +17934,7 @@ ${BARRA_ACOES_HTML}
             compras,
             itens: itensOrdenados,
             valores: valorCompradoOrdenado,
+            valoresIndividuais: valorCompradoIndividual,
             modoValor: modoValorComprado,
             fornecedores: porFornecedor,
             extrato: comprasDetalhadas,
