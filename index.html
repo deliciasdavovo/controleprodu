@@ -12010,17 +12010,11 @@
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
-        // Volume e equivalência são opcionais. O cadastro pode lembrar
-        // "1 pacote = 1.000 un", mas uma compra só usa esse volume quando a
-        // pessoa ativa o botão Volume naquela hora.
+        // Volume e equivalência são opcionais. Para item novo, o volume ainda
+        // pode ser ativado durante o primeiro cadastro. Depois de configurado,
+        // porém, ele passa a ser fixo e usado automaticamente nas compras.
         const volumeDeClasseInterna = classeInterna && !temRevenda && (draft.unit || 'g') === 'un';
         const compraPorVolumeDisponivel = (temRevenda && (draft.priceUnit || 'un') === 'un') || volumeDeClasseInterna;
-        const temVolumeConfigurado = compraPorVolumeDisponivel
-          && Number(draft.unitsPerPackage) > 0
-          && !!String(draft.packageType || '').trim();
-        const compraPorVolume = compraPorVolumeDisponivel
-          && opcoesExtrasCadastro.volume
-          && temVolumeConfigurado;
         const tipoCadastroAtual = modoProducao
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
@@ -12087,18 +12081,34 @@
               unidades: Number(supplyExistente.variationFactor)
             }
           : null;
-        const tipoVolumeFixo = draft.packageType
-          || supplyExistente?.packageType
+        const tipoVolumeFixo = supplyExistente?.packageType
           || revendaExistente?.packageType
           || volumeLegadoInsumo?.tipo
           || volumeAnterior?.tipo
+          || draft.packageType
           || 'caixa';
-        const unidadesPorVolumeSugeridas = Number(draft.unitsPerPackage)
-          || Number(supplyExistente?.packageUnits)
+        const unidadesPorVolumeSugeridas = Number(supplyExistente?.packageUnits)
           || Number(revendaExistente?.packageUnits)
           || Number(volumeLegadoInsumo?.unidades)
           || Number(volumeAnterior?.unidades)
+          || Number(draft.unitsPerPackage)
           || 0;
+        // Só é automático quando o volume já existia no cadastro/histórico.
+        // Não ativamos volume sozinhos para itens que nunca o utilizaram.
+        const volumeFixoCadastroExistente = !!cadastroExistente
+          && unidadesPorVolumeSugeridas > 0
+          && !!String(tipoVolumeFixo || '').trim();
+        const temVolumeConfigurado = (compraPorVolumeDisponivel || volumeFixoCadastroExistente)
+          && unidadesPorVolumeSugeridas > 0
+          && !!String(tipoVolumeFixo || '').trim();
+        const compraPorVolume = temVolumeConfigurado
+          && (volumeFixoCadastroExistente || (compraPorVolumeDisponivel && opcoesExtrasCadastro.volume));
+        const tipoVolumeCompra = volumeFixoCadastroExistente
+          ? tipoVolumeFixo
+          : (draft.packageType || tipoVolumeFixo || 'caixa');
+        const unidadesPorVolumeCompra = volumeFixoCadastroExistente
+          ? unidadesPorVolumeSugeridas
+          : (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0);
 
         // A compra de insumo é armazenada internamente na unidade técnica,
         // mas a sugestão do formulário volta para a unidade em que a nota foi
@@ -12111,10 +12121,7 @@
 
           const pacoteAnterior = lerUnidadeCompraVolume(anterior.purchaseUnit);
           if (compraPorVolume) {
-            const unidades = Number(draft.unitsPerPackage)
-              || unidadesPorVolumeSugeridas
-              || Number(pacoteAnterior?.unidades)
-              || 0;
+            const unidades = unidadesPorVolumeCompra || Number(pacoteAnterior?.unidades) || 0;
             return unidades > 0 ? qtdAnterior / unidades : '';
           }
 
@@ -12166,13 +12173,13 @@
           if (anterior.supplyId) {
             const unidadeBase = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro);
             qtdAgoraComparavel = compraPorVolume
-              ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
+              ? qtdDigitada * unidadesPorVolumeCompra
               : qtdCompraNaBase(qtdDigitada, unidadeCompraCadastro, unidadeBase);
           } else {
             const unidadeAnterior = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
             const unidadeAgora = compraPorVolume ? 'un' : unidadeCompraEfetiva(unidadeCompraCadastro || 'un');
             qtdAgoraComparavel = compraPorVolume
-              ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
+              ? qtdDigitada * unidadesPorVolumeCompra
               : qtdCompraNaBase(qtdDigitada, unidadeAgora, unidadeAnterior);
             const compativel = unidadeAnterior === unidadeAgora
               || (unidadeAnterior === 'kg' && unidadeAgora === 'g') || (unidadeAnterior === 'g' && unidadeAgora === 'kg')
@@ -12184,7 +12191,7 @@
           const valor = (custoAnterior / qtdAnteriorComparavel) * qtdAgoraComparavel;
           return valor > 0 ? Math.round(valor * 100) / 100 : custoAnterior;
         }, [compraExistente, draft.qty, draft.unit, draft.priceUnit, unidadeCompraCadastro,
-            draft.unitsPerPackage, compraPorVolume, temInsumo, temRevenda, unidadesPorVolumeSugeridas]);
+            compraPorVolume, temInsumo, temRevenda, unidadesPorVolumeCompra]);
 
         // Um nome só no autocomplete. Se o item já é insumo + revenda, ele
         // aparece uma vez e o hint deixa isso claro.
@@ -12400,10 +12407,8 @@
 
           const qtdInformada = Number(draft.qty) || 0;
           const cost = Number(draft.cost) || 0;
-          const unidadesPorVolume = compraPorVolume
-            ? (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
-            : 0;
-          const tipoVolume = draft.packageType || tipoVolumeFixo || 'caixa';
+          const unidadesPorVolume = compraPorVolume ? unidadesPorVolumeCompra : 0;
+          const tipoVolume = tipoVolumeCompra;
           const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
           const unidadeCompraSalva = compraPorVolume
             ? criarUnidadeCompraVolume(tipoVolume, unidadesPorVolume)
@@ -12454,12 +12459,16 @@
               const variationFactor = opcoesExtrasCadastro.equivalencia
                 ? (fatorEquivalenciaDigitado || null)
                 : (Number(insumo.variationFactor) || null);
-              const packageType = opcoesExtrasCadastro.volume
-                ? (temVolumeConfigurado ? tipoVolume : null)
-                : (insumo.packageType || null);
-              const packageUnits = opcoesExtrasCadastro.volume
-                ? (temVolumeConfigurado ? unidadesPorVolume : null)
-                : (Number(insumo.packageUnits) || null);
+              const packageType = volumeFixoCadastroExistente
+                ? (insumo.packageType || tipoVolume)
+                : (opcoesExtrasCadastro.volume
+                    ? (temVolumeConfigurado ? tipoVolume : null)
+                    : (insumo.packageType || null));
+              const packageUnits = volumeFixoCadastroExistente
+                ? (Number(insumo.packageUnits) || unidadesPorVolume)
+                : (opcoesExtrasCadastro.volume
+                    ? (temVolumeConfigurado ? unidadesPorVolume : null)
+                    : (Number(insumo.packageUnits) || null));
               const purchaseUnit = supplyExistente
                 ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
                 : unidadeCompraCadastro;
@@ -12503,12 +12512,16 @@
               purchaseUnit: revendaExistente
                 ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
                 : unidadeCompraCadastro,
-              packageType: opcoesExtrasCadastro.volume
-                ? (temVolumeConfigurado ? tipoVolume : null)
-                : (revenda?.packageType || null),
-              packageUnits: opcoesExtrasCadastro.volume
-                ? (temVolumeConfigurado ? unidadesPorVolume : null)
-                : (Number(revenda?.packageUnits) || null)
+              packageType: volumeFixoCadastroExistente
+                ? (revenda?.packageType || tipoVolume)
+                : (opcoesExtrasCadastro.volume
+                    ? (temVolumeConfigurado ? tipoVolume : null)
+                    : (revenda?.packageType || null)),
+              packageUnits: volumeFixoCadastroExistente
+                ? (Number(revenda?.packageUnits) || unidadesPorVolume)
+                : (opcoesExtrasCadastro.volume
+                    ? (temVolumeConfigurado ? unidadesPorVolume : null)
+                    : (Number(revenda?.packageUnits) || null))
             };
 
             if (!revenda) {
@@ -12872,13 +12885,13 @@
         // da nota: g vira kg e compras em caixa/pacote/fardo mostram o preço
         // do volume, não o centavo por unidade que existe por baixo.
         const qtdDigitadaResumo = Number(draft.qty) || 0;
-        const unidadesPorVolumeResumo = Number(draft.unitsPerPackage) || Number(unidadesPorVolumeSugeridas) || 0;
+        const unidadesPorVolumeResumo = unidadesPorVolumeCompra;
         const precoResumoEntrada = (() => {
           const valorPago = Number(draft.cost) || 0;
           if (modoProducao || !(qtdDigitadaResumo > 0 && valorPago > 0)) return null;
 
           if (compraPorVolume) {
-            const tipo = String(draft.packageType || tipoVolumeFixo || 'caixa').toLowerCase();
+            const tipo = String(tipoVolumeCompra || 'caixa').toLowerCase();
             const rotuloVolume = tipo === 'outro' ? 'volume' : tipo;
             return {
               valor: valorPago / qtdDigitadaResumo,
@@ -12977,10 +12990,15 @@
                             />
                           </div>
 
-                          {!modoProducao && (compraPorVolumeDisponivel || temInsumo) && (
+                          {!modoProducao && (compraPorVolumeDisponivel || volumeFixoCadastroExistente || temInsumo) && (
                             <div className="col-span-12 -mt-1">
                               <div className="flex flex-wrap gap-2">
-                                {compraPorVolumeDisponivel && (
+                                {volumeFixoCadastroExistente ? (
+                                  <div className="btn btn-sm btn-secondary cursor-default">
+                                    Volume fixo · 1 {tipoVolumeFixo} = {numeroCurtoBR(unidadesPorVolumeSugeridas)} un
+                                    <span className="t-nano ml-1">· altere na tabela</span>
+                                  </div>
+                                ) : compraPorVolumeDisponivel && (
                                   <button
                                     type="button"
                                     onClick={() => alternarOpcaoExtraCadastro('volume')}
@@ -13018,7 +13036,7 @@
                             </div>
                           )}
 
-                          {!modoProducao && compraPorVolumeDisponivel && opcoesExtrasCadastro.volume && (
+                          {!modoProducao && compraPorVolumeDisponivel && !volumeFixoCadastroExistente && opcoesExtrasCadastro.volume && (
                             <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
                               <div className="t-overline-sm mb-1">Volume de compra</div>
                               <p className="t-nano ink-quiet mb-2">Como este item chega do fornecedor. Ex.: 1 pacote = 1.000 un.</p>
@@ -13134,9 +13152,14 @@
                           {!modoProducao && (
                             <div className="col-span-6">
                               <label className="t-caption">Unidade de compra</label>
-                              {compraPorVolumeDisponivel && opcoesExtrasCadastro.volume ? (
-                                <div className="field field-md flex items-center font-semibold capitalize">
-                                  {draft.packageType || tipoVolumeFixo || 'volume'}
+                              {compraPorVolume ? (
+                                <div>
+                                  <div className="field field-md flex items-center font-semibold capitalize bg-black/[0.025] text-[#6e6e73]">
+                                    {tipoVolumeCompra || 'volume'}
+                                  </div>
+                                  {volumeFixoCadastroExistente && (
+                                    <p className="t-nano ink-quiet mt-1">Volume aplicado automaticamente. Altere na tabela abaixo.</p>
+                                  )}
                                 </div>
                               ) : unidadeCompraBloqueadaNoCadastro ? (
                                 <div>
@@ -13265,7 +13288,7 @@
 
                               <div className="col-span-7">
                                 <label className="t-caption">{compraPorVolume
-                                  ? `Qtd. ${pluralVolumeRevenda(draft.packageType || tipoVolumeFixo || 'volume', 2)}`
+                                  ? `Qtd. ${pluralVolumeRevenda(tipoVolumeCompra || 'volume', 2)}`
                                   : `Qtd. comprada (${unidadeCompraCadastro})`}</label>
                                 <NumeroBRField
                                   value={draft.qty}
@@ -13363,11 +13386,11 @@
                           ? (() => {
                               const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
                               const volumes = Number(draft.qty) || 0;
-                              const porVolume = Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0;
+                              const porVolume = unidadesPorVolumeCompra;
                               const total = volumes * porVolume;
                               const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
                               const calculo = total > 0
-                                ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
                                 : '';
                               return `${rotulo} · uso interno, comprado em volume: informe quantos volumes e quantas unidades vêm em cada um${calculo}.`;
                             })()
@@ -13383,11 +13406,11 @@
                                   ? (compraPorVolume
                                     ? (() => {
                                         const volumes = Number(draft.qty) || 0;
-                                        const porVolume = Number(draft.unitsPerPackage) || Number(volumeAnterior?.unidades) || 0;
+                                        const porVolume = unidadesPorVolumeCompra || Number(volumeAnterior?.unidades) || 0;
                                         const total = volumes * porVolume;
                                         const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
                                         const calculo = total > 0
-                                          ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(draft.packageType || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                          ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
                                           : '';
                                         return `Revenda por unidade: informe os volumes comprados e quantas unidades vêm em cada embalagem${calculo}.`;
                                       })()
@@ -13470,6 +13493,26 @@
                           const comprasLinha = linha.tipo === 'revenda'
                             ? comprasDaRevenda(x.id)
                             : linha.tipo === 'producao' ? [] : comprasDoInsumo(x.id);
+                          const volumeEditavelNaTabela = linha.tipo === 'embalagem'
+                            || linha.tipo === 'limpeza'
+                            || (linha.tipo === 'insumo_revenda' && (linha.resaleSource?.priceUnit || 'un') === 'un')
+                            || (linha.tipo === 'revenda' && (x.priceUnit || 'un') === 'un');
+                          const cadastroVolumeLinha = linha.tipo === 'insumo_revenda'
+                            ? {
+                                packageType: x.packageType || linha.resaleSource?.packageType || 'caixa',
+                                packageUnits: x.packageUnits || linha.resaleSource?.packageUnits || null
+                              }
+                            : x;
+                          const atualizarVolumeCadastroLinha = (campos) => {
+                            if (ehSupply) {
+                              onUpdateSupply({ ...x, ...campos });
+                              if (linha.tipo === 'insumo_revenda' && linha.resaleSource) {
+                                onUpdateSeparatedProduct({ ...linha.resaleSource, ...campos });
+                              }
+                            } else if (linha.tipo === 'revenda') {
+                              onUpdateSeparatedProduct({ ...x, ...campos });
+                            }
+                          };
                           return (
                             <tr key={linha.key} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                               <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
@@ -13547,39 +13590,20 @@
                                 </div>
                               </td>
                               <td className="py-2.5 px-3">
-                                {linha.tipo === 'embalagem' ? (
+                                {volumeEditavelNaTabela ? (
                                   <div className="flex items-center gap-1.5 min-w-[220px]">
                                     <select
-                                      value={x.packageType || 'caixa'}
-                                      onChange={(e) => onUpdateSupply({ ...x, packageType: e.target.value })}
+                                      value={cadastroVolumeLinha.packageType || 'caixa'}
+                                      onChange={(e) => atualizarVolumeCadastroLinha({ packageType: e.target.value })}
                                       className="field h-8 px-2 text-[12px] field-select w-28"
                                     >
                                       {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                     </select>
                                     <span className="t-micro">×</span>
                                     <NumeroBRField
-                                      value={x.packageUnits || ''}
+                                      value={cadastroVolumeLinha.packageUnits || ''}
                                       decimals={0}
-                                      onValueChange={(packageUnits) => onUpdateSupply({ ...x, packageUnits: Number(packageUnits) || null })}
-                                      placeholder="un."
-                                      className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
-                                    />
-                                    <span className="t-micro">un</span>
-                                  </div>
-                                ) : linha.tipo === 'revenda' && (x.priceUnit || 'un') === 'un' ? (
-                                  <div className="flex items-center gap-1.5 min-w-[220px]">
-                                    <select
-                                      value={x.packageType || 'caixa'}
-                                      onChange={(e) => onUpdateSeparatedProduct({ ...x, packageType: e.target.value })}
-                                      className="field h-8 px-2 text-[12px] field-select w-28"
-                                    >
-                                      {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                    </select>
-                                    <span className="t-micro">×</span>
-                                    <NumeroBRField
-                                      value={x.packageUnits || ''}
-                                      decimals={0}
-                                      onValueChange={(packageUnits) => onUpdateSeparatedProduct({ ...x, packageUnits: Number(packageUnits) || null })}
+                                      onValueChange={(packageUnits) => atualizarVolumeCadastroLinha({ packageUnits: Number(packageUnits) || null })}
                                       placeholder="un."
                                       className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
                                     />
