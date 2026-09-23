@@ -12040,6 +12040,25 @@
           ? produtoExistente
           : (supplyExistente || revendaExistente);
 
+        // A unidade de um cadastro existente não deve ser redefinida ao
+        // lançar uma nova compra. Ela é uma configuração estrutural do item
+        // e continua editável somente na tabela mestre abaixo.
+        const unidadeCompraInsumoExistente = supplyExistente
+          ? (supplyExistente.purchaseUnit || unidadeCompraPadraoDaBase(supplyExistente.unit || 'g'))
+          : '';
+        const unidadeCompraRevendaExistente = revendaExistente
+          ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
+          : '';
+        const unidadeCompraCadastroExistente = tipoCompra === 'revenda'
+          ? (unidadeCompraRevendaExistente || unidadeCompraInsumoExistente)
+          : (unidadeCompraInsumoExistente || unidadeCompraRevendaExistente);
+        const unidadeCompraCadastro = unidadeCompraCadastroExistente
+          || draft.purchaseUnit
+          || draft.priceUnit
+          || draft.unit
+          || 'un';
+        const unidadeCompraBloqueadaNoCadastro = !!unidadeCompraCadastroExistente;
+
         // Na entrada única, a última compra pode estar no histórico de insumo
         // ou no histórico de revenda (dados antigos). Usamos a mais recente só
         // para sugerir fornecedor/quantidade/valor no formulário.
@@ -12100,12 +12119,12 @@
           }
 
           if (anterior.supplyId) {
-            const base = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(draft.purchaseUnit);
-            return converterQuantidadeUnidade(qtdAnterior, base, draft.purchaseUnit || unidadeCompraPadraoDaBase(base));
+            const base = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro);
+            return converterQuantidadeUnidade(qtdAnterior, base, unidadeCompraCadastro || unidadeCompraPadraoDaBase(base));
           }
 
           const origem = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
-          return converterQuantidadeUnidade(qtdAnterior, origem, draft.purchaseUnit || origem);
+          return converterQuantidadeUnidade(qtdAnterior, origem, unidadeCompraCadastro || origem);
         })();
 
 
@@ -12145,13 +12164,13 @@
           let qtdAgoraComparavel = 0;
 
           if (anterior.supplyId) {
-            const unidadeBase = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(draft.purchaseUnit);
+            const unidadeBase = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro);
             qtdAgoraComparavel = compraPorVolume
               ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
-              : qtdCompraNaBase(qtdDigitada, draft.purchaseUnit, unidadeBase);
+              : qtdCompraNaBase(qtdDigitada, unidadeCompraCadastro, unidadeBase);
           } else {
             const unidadeAnterior = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
-            const unidadeAgora = compraPorVolume ? 'un' : unidadeCompraEfetiva(draft.purchaseUnit || 'un');
+            const unidadeAgora = compraPorVolume ? 'un' : unidadeCompraEfetiva(unidadeCompraCadastro || 'un');
             qtdAgoraComparavel = compraPorVolume
               ? qtdDigitada * (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0)
               : qtdCompraNaBase(qtdDigitada, unidadeAgora, unidadeAnterior);
@@ -12164,7 +12183,7 @@
           if (!(qtdAgoraComparavel > 0)) return custoAnterior;
           const valor = (custoAnterior / qtdAnteriorComparavel) * qtdAgoraComparavel;
           return valor > 0 ? Math.round(valor * 100) / 100 : custoAnterior;
-        }, [compraExistente, draft.qty, draft.unit, draft.purchaseUnit, draft.priceUnit,
+        }, [compraExistente, draft.qty, draft.unit, draft.priceUnit, unidadeCompraCadastro,
             draft.unitsPerPackage, compraPorVolume, temInsumo, temRevenda, unidadesPorVolumeSugeridas]);
 
         // Um nome só no autocomplete. Se o item já é insumo + revenda, ele
@@ -12388,7 +12407,7 @@
           const qty = compraPorVolume ? qtdInformada * unidadesPorVolume : qtdInformada;
           const unidadeCompraSalva = compraPorVolume
             ? criarUnidadeCompraVolume(tipoVolume, unidadesPorVolume)
-            : (draft.purchaseUnit || draft.priceUnit || draft.unit || 'un');
+            : unidadeCompraCadastro;
           const equivalenciaDigitada = String(draft.variationUnit || '').trim();
           const fatorEquivalenciaDigitado = Number(draft.variationFactor) || 0;
           if (temInsumo && opcoesExtrasCadastro.equivalencia
@@ -12418,8 +12437,8 @@
             if (!insumo) {
               insumo = await onAddSupply({
                 name: nome,
-                unit: unidadeTecnicaDaCompra(draft.purchaseUnit),
-                purchaseUnit: draft.purchaseUnit || 'un',
+                unit: unidadeTecnicaDaCompra(unidadeCompraCadastro),
+                purchaseUnit: unidadeCompraCadastro,
                 supplyClass: draft.supplyClass || 'insumo',
                 variationUnit: opcoesExtrasCadastro.equivalencia ? (equivalenciaDigitada || null) : null,
                 variationFactor: opcoesExtrasCadastro.equivalencia ? (fatorEquivalenciaDigitado || null) : null,
@@ -12441,13 +12460,15 @@
               const packageUnits = opcoesExtrasCadastro.volume
                 ? (temVolumeConfigurado ? unidadesPorVolume : null)
                 : (Number(insumo.packageUnits) || null);
-              const purchaseUnit = draft.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit);
+              const purchaseUnit = supplyExistente
+                ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
+                : unidadeCompraCadastro;
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
                 || packageType !== (insumo.packageType || null)
                 || packageUnits !== (Number(insumo.packageUnits) || null)
                 || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
-                const unit = unidadeTecnicaDaCompra(purchaseUnit);
+                const unit = supplyExistente ? insumo.unit : unidadeTecnicaDaCompra(purchaseUnit);
                 await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits }, true);
                 insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits };
               }
@@ -12457,7 +12478,7 @@
               const qtdBase = qtdCompraNaBase(
                 qty,
                 unidadeCompraEfetiva(unidadeCompraSalva),
-                insumo.unit || unidadeTecnicaDaCompra(draft.purchaseUnit)
+                insumo.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro)
               );
               await onAddSupplyPurchase(insumo.id, {
                 supplier: String(draft.supplier || '').trim(),
@@ -12479,7 +12500,9 @@
               minQty: revenda?.minQty || 0,
               price: Math.max(0, Number(draft.price) || 0),
               priceUnit: draft.priceUnit || 'un',
-              purchaseUnit: draft.purchaseUnit || 'un',
+              purchaseUnit: revendaExistente
+                ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
+                : unidadeCompraCadastro,
               packageType: opcoesExtrasCadastro.volume
                 ? (temVolumeConfigurado ? tipoVolume : null)
                 : (revenda?.packageType || null),
@@ -12866,7 +12889,7 @@
             };
           }
 
-          const unidadeBase = draft.purchaseUnit || unidadeCompraPadraoDaBase(draft.unit || 'un');
+          const unidadeBase = unidadeCompraCadastro || unidadeCompraPadraoDaBase(draft.unit || 'un');
           const custoNaBase = valorPago / qtdDigitadaResumo;
           const grande = precoNaUnidadeGrande(custoNaBase, unidadeBase);
           return {
@@ -13115,9 +13138,16 @@
                                 <div className="field field-md flex items-center font-semibold capitalize">
                                   {draft.packageType || tipoVolumeFixo || 'volume'}
                                 </div>
+                              ) : unidadeCompraBloqueadaNoCadastro ? (
+                                <div>
+                                  <div className="field field-md flex items-center font-semibold bg-black/[0.025] text-[#6e6e73]">
+                                    {unidadeCompraCadastro}
+                                  </div>
+                                  <p className="t-nano ink-quiet mt-1">Para alterar, use “Un. compra” na tabela abaixo.</p>
+                                </div>
                               ) : (
                                 <select
-                                  value={draft.purchaseUnit || 'un'}
+                                  value={unidadeCompraCadastro}
                                   onChange={(e) => {
                                     const purchaseUnit = e.target.value;
                                     setDraft((d) => ({
@@ -13236,7 +13266,7 @@
                               <div className="col-span-7">
                                 <label className="t-caption">{compraPorVolume
                                   ? `Qtd. ${pluralVolumeRevenda(draft.packageType || tipoVolumeFixo || 'volume', 2)}`
-                                  : `Qtd. comprada (${draft.purchaseUnit || 'un'})`}</label>
+                                  : `Qtd. comprada (${unidadeCompraCadastro})`}</label>
                                 <NumeroBRField
                                   value={draft.qty}
                                   decimals={3}
