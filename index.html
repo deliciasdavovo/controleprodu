@@ -691,6 +691,65 @@
         margin-bottom: 6px;
       }
       .cadastro-form .field-md { height: 46px; }
+      .cadastro-campo-config,
+      .cadastro-campo-data,
+      .cadastro-campo-numero,
+      .cadastro-campo-valor,
+      .cadastro-campo-unidade {
+        width: 100%;
+        justify-self: start;
+      }
+      .cadastro-campo-config { max-width: 210px; }
+      .cadastro-campo-data { max-width: 180px; }
+      .cadastro-campo-numero { max-width: 170px; }
+      .cadastro-campo-valor { max-width: 190px; }
+      .cadastro-campo-unidade { max-width: 110px; }
+      .cadastro-config-botao,
+      .cadastro-config-valor {
+        width: 100%;
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 12px;
+        border: 1px solid rgba(60, 60, 67, 0.1);
+        border-radius: 12px;
+        background: rgba(118, 118, 128, 0.07);
+        color: var(--ink-1);
+        text-align: left;
+      }
+      .cadastro-config-botao {
+        cursor: pointer;
+        transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .cadastro-config-botao:hover {
+        border-color: rgba(0, 113, 227, 0.28);
+        background: rgba(0, 113, 227, 0.065);
+      }
+      .cadastro-config-botao:focus-visible {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.12);
+      }
+      .cadastro-config-botao:active { transform: scale(.985); }
+      .cadastro-config-botao span,
+      .cadastro-config-valor span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .cadastro-config-botao small,
+      .cadastro-config-valor small {
+        flex: 0 0 auto;
+        color: var(--accent);
+        font-size: 9.5px;
+        font-weight: 750;
+      }
+      .cadastro-config-valor small { color: var(--ink-4); }
       .cadastro-opcoes {
         display: flex;
         flex-wrap: wrap;
@@ -867,6 +926,10 @@
         .cadastro-grid { row-gap: 14px; }
         .cadastro-form .field { font-size: 16px; }
         .cadastro-form .field-md { height: 46px; }
+        .cadastro-campo-config { max-width: 190px; }
+        .cadastro-campo-data { max-width: 170px; }
+        .cadastro-campo-numero { max-width: 155px; }
+        .cadastro-campo-valor { max-width: 180px; }
         .cadastro-opcoes { margin-bottom: 15px; }
         .cadastro-rodape { bottom: 6px; border-radius: 16px; }
       }
@@ -12202,6 +12265,12 @@
           revenda: false,
           equivalencia: false
         });
+        // Tipo e unidade padrão aparecem como valores compactos. Eles só
+        // viram controles editáveis depois de um clique explícito e ficam
+        // fora do avanço rápido por Enter.
+        const [editarTipoCadastro, setEditarTipoCadastro] = useState(false);
+        const [editarUnidadePadrao, setEditarUnidadePadrao] = useState(false);
+        const [unidadeCompraFoiEditada, setUnidadeCompraFoiEditada] = useState(false);
         // O volume continua pertencendo ao cadastro, mas cada compra pode
         // excepcionalmente ser lançada por unidade sem apagar essa configuração.
         const [usarVolumeNestaCompra, setUsarVolumeNestaCompra] = useState(true);
@@ -12262,11 +12331,12 @@
           // Ao trocar de produto (ou terminar um lançamento), o padrão volta
           // a ser o volume salvo no cadastro.
           setUsarVolumeNestaCompra(true);
+          setEditarUnidadePadrao(false);
+          setUnidadeCompraFoiEditada(false);
         }, [chaveCadastroSelecionado]);
 
-        // A unidade de um cadastro existente não deve ser redefinida ao
-        // lançar uma nova compra. Ela é uma configuração estrutural do item
-        // e continua editável somente na tabela mestre abaixo.
+        // A unidade salva tem prioridade até a pessoa abrir explicitamente
+        // o editor compacto. Assim um Enter rápido nunca muda essa estrutura.
         const unidadeCompraInsumoExistente = supplyExistente
           ? (supplyExistente.purchaseUnit || unidadeCompraPadraoDaBase(supplyExistente.unit || 'g'))
           : '';
@@ -12276,12 +12346,12 @@
         const unidadeCompraCadastroExistente = tipoCompra === 'revenda'
           ? (unidadeCompraRevendaExistente || unidadeCompraInsumoExistente)
           : (unidadeCompraInsumoExistente || unidadeCompraRevendaExistente);
-        const unidadeCompraCadastro = unidadeCompraCadastroExistente
-          || draft.purchaseUnit
+        const unidadeCompraCadastro = (unidadeCompraFoiEditada
+          ? (draft.purchaseUnit || unidadeCompraCadastroExistente)
+          : (unidadeCompraCadastroExistente || draft.purchaseUnit))
           || draft.priceUnit
           || draft.unit
           || 'un';
-        const unidadeCompraBloqueadaNoCadastro = !!unidadeCompraCadastroExistente;
 
         // Na entrada única, a última compra pode estar no histórico de insumo
         // ou no histórico de revenda (dados antigos). Usamos a mais recente só
@@ -12468,6 +12538,9 @@
         // do cadastro, mas não troca a tela nem desmonta os campos digitados.
         const aplicarTipoEntrada = (tipo) => {
           setUsarVolumeNestaCompra(true);
+          setEditarTipoCadastro(false);
+          setEditarUnidadePadrao(false);
+          setUnidadeCompraFoiEditada(false);
           setOpcoesExtrasCadastro({
             volume: tipo === 'embalagem',
             revenda: false,
@@ -12512,11 +12585,11 @@
         const avancarEntradaRapida = (e) => {
           if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
           const alvo = e.target;
-          if (!alvo || alvo.tagName === 'BUTTON' || alvo.tagName === 'TEXTAREA') return;
+          if (!alvo || alvo.tagName === 'BUTTON' || alvo.tagName === 'TEXTAREA' || alvo.dataset.skipEnter === 'true') return;
           const form = e.currentTarget;
           const campos = Array.from(form.querySelectorAll(
             'input:not([type="hidden"]):not([disabled]), select:not([disabled]), button[type="submit"]:not([disabled])'
-          )).filter((el) => el.offsetParent !== null);
+          )).filter((el) => el.offsetParent !== null && el.dataset.skipEnter !== 'true');
           const idx = campos.indexOf(alvo);
           if (idx < 0 || idx >= campos.length - 1) return;
           e.preventDefault();
@@ -12529,6 +12602,9 @@
 
         const selecionarCadastro = (opt) => {
           setUsarVolumeNestaCompra(true);
+          setEditarTipoCadastro(false);
+          setEditarUnidadePadrao(false);
+          setUnidadeCompraFoiEditada(false);
           const [tipo, id] = String(opt?.value || '').split(':');
 
           if (tipo === 'producao') {
@@ -12637,6 +12713,9 @@
               priceUnit: d.priceUnit,
               purchaseDate: ''
             }));
+            setEditarTipoCadastro(false);
+            setEditarUnidadePadrao(false);
+            setUnidadeCompraFoiEditada(false);
             setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
             return;
           }
@@ -12705,15 +12784,19 @@
                 : (opcoesExtrasCadastro.volume
                     ? (temVolumeConfigurado ? unidadesPorVolume : null)
                     : (Number(insumo.packageUnits) || null));
-              const purchaseUnit = supplyExistente
-                ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
-                : unidadeCompraCadastro;
+              const purchaseUnit = unidadeCompraFoiEditada
+                ? unidadeCompraCadastro
+                : (supplyExistente
+                    ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
+                    : unidadeCompraCadastro);
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
                 || packageType !== (insumo.packageType || null)
                 || packageUnits !== (Number(insumo.packageUnits) || null)
                 || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
-                const unit = supplyExistente ? insumo.unit : unidadeTecnicaDaCompra(purchaseUnit);
+                const unit = unidadeCompraFoiEditada
+                  ? unidadeTecnicaDaCompra(purchaseUnit)
+                  : (supplyExistente ? insumo.unit : unidadeTecnicaDaCompra(purchaseUnit));
                 await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits }, true);
                 insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits };
               }
@@ -12745,9 +12828,11 @@
               minQty: revenda?.minQty || 0,
               price: Math.max(0, Number(draft.price) || 0),
               priceUnit: draft.priceUnit || 'un',
-              purchaseUnit: revendaExistente
-                ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
-                : unidadeCompraCadastro,
+              purchaseUnit: unidadeCompraFoiEditada
+                ? unidadeCompraCadastro
+                : (revendaExistente
+                    ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
+                    : unidadeCompraCadastro),
               packageType: volumeFixoCadastroExistente
                 ? (revenda?.packageType || tipoVolume)
                 : (opcoesExtrasCadastro.volume
@@ -12803,6 +12888,9 @@
             equivalencia: false
           });
           setUsarVolumeNestaCompra(true);
+          setEditarTipoCadastro(false);
+          setEditarUnidadePadrao(false);
+          setUnidadeCompraFoiEditada(false);
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
 
@@ -13269,15 +13357,30 @@
                         </div>
 
                         <div className="cadastro-grid">
-                          <div className="col-span-7 sm:col-span-5">
+                          <div className="col-span-7 sm:col-span-5 cadastro-campo-config">
                             <label className="t-caption">Tipo</label>
-                            <select
-                              value={tipoCadastroAtual}
-                              onChange={(e) => aplicarTipoEntrada(e.target.value)}
-                              className="field field-md field-select font-semibold"
-                            >
-                              {TIPOS_ENTRADA.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
-                            </select>
+                            {editarTipoCadastro ? (
+                              <select
+                                autoFocus
+                                data-skip-enter="true"
+                                value={tipoCadastroAtual}
+                                onChange={(e) => aplicarTipoEntrada(e.target.value)}
+                                onBlur={() => setEditarTipoCadastro(false)}
+                                className="field field-md field-select font-semibold"
+                              >
+                                {TIPOS_ENTRADA.map((tipo) => <option key={tipo.value} value={tipo.value}>{tipo.label}</option>)}
+                              </select>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditarTipoCadastro(true)}
+                                className="cadastro-config-botao"
+                                aria-label="Alterar tipo do item"
+                              >
+                                <span>{TIPOS_ENTRADA.find((tipo) => tipo.value === tipoCadastroAtual)?.label || tipoCadastroAtual}</span>
+                                <small>Alterar</small>
+                              </button>
+                            )}
                           </div>
 
                           <div className="col-span-12">
@@ -13466,43 +13569,48 @@
                           )}
 
                           {!modoProducao && (
-                            <div className="col-span-6">
-                              <label className="t-caption">Unidade de compra</label>
+                            <div className="col-span-6 cadastro-campo-config">
+                              <label className="t-caption">Unidade padrão</label>
                               {compraPorVolume ? (
-                                <div>
-                                  <div className="field field-md flex items-center font-semibold capitalize bg-black/[0.025] text-[#6e6e73]">
-                                    {tipoVolumeCompra || 'volume'}
-                                  </div>
-                                  {volumeFixoCadastroExistente && (
-                                    <p className="t-nano ink-quiet mt-1">Volume aplicado automaticamente. Altere na tabela abaixo.</p>
-                                  )}
+                                <div className="cadastro-config-valor capitalize">
+                                  <span>{tipoVolumeCompra || 'volume'}</span>
+                                  <small>Automático</small>
                                 </div>
-                              ) : unidadeCompraBloqueadaNoCadastro ? (
-                                <div>
-                                  <div className="field field-md flex items-center font-semibold bg-black/[0.025] text-[#6e6e73]">
-                                    {unidadeCompraNestaCompra}
-                                  </div>
-                                  <p className="t-nano ink-quiet mt-1">
-                                    {volumeFixoCadastroExistente && !usarVolumeNestaCompra
-                                      ? 'Somente esta compra será registrada por unidade.'
-                                      : 'Para alterar o cadastro, use “Un. compra” na tabela abaixo.'}
-                                  </p>
+                              ) : volumeFixoCadastroExistente && !usarVolumeNestaCompra ? (
+                                <div className="cadastro-config-valor">
+                                  <span>un</span>
+                                  <small>Só esta compra</small>
                                 </div>
-                              ) : (
+                              ) : editarUnidadePadrao ? (
                                 <select
+                                  autoFocus
+                                  data-skip-enter="true"
                                   value={unidadeCompraCadastro}
                                   onChange={(e) => {
                                     const purchaseUnit = e.target.value;
+                                    setUnidadeCompraFoiEditada(true);
                                     setDraft((d) => ({
                                       ...d,
                                       purchaseUnit,
                                       unit: unidadeTecnicaDaCompra(purchaseUnit)
                                     }));
+                                    setEditarUnidadePadrao(false);
                                   }}
+                                  onBlur={() => setEditarUnidadePadrao(false)}
                                   className="field field-md field-select"
                                 >
                                   {PURCHASE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                                 </select>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditarUnidadePadrao(true)}
+                                  className="cadastro-config-botao"
+                                  aria-label="Alterar unidade padrão de compra"
+                                >
+                                  <span>{unidadeCompraCadastro}</span>
+                                  <small>Alterar</small>
+                                </button>
                               )}
                             </div>
                           )}
@@ -13554,7 +13662,7 @@
 
                         {modoProducao ? (
                           <div className="cadastro-grid">
-                            <div className="col-span-6">
+                            <div className="col-span-6 cadastro-campo-numero">
                               <label className="t-caption">Validade (dias)</label>
                               <input
                                 type="number"
@@ -13565,7 +13673,7 @@
                                 className="field field-md text-center tnum"
                               />
                             </div>
-                            <div className="col-span-8">
+                            <div className="col-span-8 cadastro-campo-valor">
                               <label className="t-caption justify-between gap-2">
                                 <span>Preço de venda</span>
                                 <span className="t-nano">vírgula fixa</span>
@@ -13580,7 +13688,7 @@
                                 className="field field-md text-right tnum"
                               />
                             </div>
-                            <div className="col-span-4">
+                            <div className="col-span-4 cadastro-campo-unidade">
                               <label className="t-caption">Vende por</label>
                               <select
                                 value={draft.priceUnit}
@@ -13595,7 +13703,7 @@
                         ) : (
                           <>
                             <div className="cadastro-grid">
-                              <div className="col-span-5">
+                              <div className="col-span-5 cadastro-campo-data">
                                 <label className="t-caption">Data</label>
                                 <input
                                   type="date"
@@ -13609,7 +13717,7 @@
                                 )}
                               </div>
 
-                              <div className="col-span-7">
+                              <div className="col-span-7 cadastro-campo-numero">
                                 <label className="t-caption">{compraPorVolume
                                   ? `Qtd. ${pluralVolumeRevenda(tipoVolumeCompra || 'volume', 2)}`
                                   : `Qtd. comprada (${unidadeCompraNestaCompra})`}</label>
@@ -13625,7 +13733,7 @@
                                 />
                               </div>
 
-                              <div className="col-span-12">
+                              <div className="col-span-7 cadastro-campo-valor">
                                 <label className="t-caption justify-between gap-2">
                                   <span>Valor pago</span>
                                   <span className="t-nano">vírgula fixa</span>
@@ -13656,7 +13764,7 @@
 
                               {temRevenda && opcoesExtrasCadastro.revenda && (
                                 <>
-                                  <div className="col-span-8">
+                                  <div className="col-span-8 cadastro-campo-valor">
                                     <label className="t-caption justify-between gap-2">
                                       <span>Preço de revenda</span>
                                       <span className="t-nano">vírgula fixa</span>
@@ -13671,7 +13779,7 @@
                                       className="field field-md text-right tnum"
                                     />
                                   </div>
-                                  <div className="col-span-4">
+                                  <div className="col-span-4 cadastro-campo-unidade">
                                     <label className="t-caption">Vende por</label>
                                     <select
                                       value={draft.priceUnit}
