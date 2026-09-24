@@ -12214,6 +12214,7 @@
         const [painel, setPainel] = useState('entradas');
         const [busca, setBusca] = useState('');
         const [classeFiltro, setClasseFiltro] = useState('todos');
+        const [paginaCadastros, setPaginaCadastros] = useState(1);
         // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
         const [historico, setHistorico] = useState(null);
         const [notaColadaAberta, setNotaColadaAberta] = useState(false);
@@ -13146,6 +13147,22 @@
           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
           return bateTexto && bateTipo;
         }), [cadastrosUnificados, busca, classeFiltro]);
+        // A tabela mestre tem centenas de linhas e vários controles em cada
+        // uma. Renderizar tudo junto fazia uma tecla no formulário reconciliar
+        // milhares de inputs. A busca continua olhando todos os cadastros, mas
+        // o DOM recebe somente uma página pequena por vez.
+        const CADASTROS_POR_PAGINA = 30;
+        const totalPaginasCadastros = Math.max(1, Math.ceil(cadastrosFiltrados.length / CADASTROS_POR_PAGINA));
+        const paginaCadastrosAtual = Math.min(paginaCadastros, totalPaginasCadastros);
+        const inicioPaginaCadastros = (paginaCadastrosAtual - 1) * CADASTROS_POR_PAGINA;
+        const cadastrosVisiveis = useMemo(
+          () => cadastrosFiltrados.slice(inicioPaginaCadastros, inicioPaginaCadastros + CADASTROS_POR_PAGINA),
+          [cadastrosFiltrados, inicioPaginaCadastros]
+        );
+        const fimPaginaCadastros = Math.min(
+          inicioPaginaCadastros + cadastrosVisiveis.length,
+          cadastrosFiltrados.length
+        );
 
         const atualizarCompraLinha = (linha, campos) => {
           if (linha.tipo === 'producao') return;
@@ -13952,11 +13969,61 @@
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
                     <div className="relative flex-1 max-w-sm">
                       <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
-                      <input type="text" placeholder="Pesquisar cadastro…" value={busca} onChange={(e) => setBusca(e.target.value)} className="field field-sm field-search" />
+                      <input
+                        type="text"
+                        placeholder="Pesquisar cadastro…"
+                        value={busca}
+                        onChange={(e) => {
+                          setBusca(e.target.value);
+                          setPaginaCadastros(1);
+                        }}
+                        className="field field-sm field-search"
+                      />
                     </div>
                     <div className="w-44">
-                      <PickerField value={classeFiltro} options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_TABELA]} onPick={(opt) => setClasseFiltro(opt.value)} className="field field-sm" />
+                      <PickerField
+                        value={classeFiltro}
+                        options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_TABELA]}
+                        onPick={(opt) => {
+                          setClasseFiltro(opt.value);
+                          setPaginaCadastros(1);
+                        }}
+                        className="field field-sm"
+                      />
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
+                    <span className="t-micro">
+                      {cadastrosFiltrados.length > 0
+                        ? `${inicioPaginaCadastros + 1}–${fimPaginaCadastros} de ${cadastrosFiltrados.length} cadastros`
+                        : 'Nenhum cadastro'}
+                    </span>
+                    {totalPaginasCadastros > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPaginaCadastros(Math.max(1, paginaCadastrosAtual - 1))}
+                          disabled={paginaCadastrosAtual === 1}
+                          className="btn btn-secondary btn-sm disabled:opacity-40"
+                          aria-label="Página anterior dos cadastros"
+                        >
+                          Anterior
+                        </button>
+                        <span className="t-micro tnum whitespace-nowrap">
+                          Página {paginaCadastrosAtual} de {totalPaginasCadastros}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPaginaCadastros(Math.min(totalPaginasCadastros, paginaCadastrosAtual + 1))}
+                          disabled={paginaCadastrosAtual === totalPaginasCadastros}
+                          className="btn btn-secondary btn-sm disabled:opacity-40"
+                          aria-label="Próxima página dos cadastros"
+                        >
+                          Próxima
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rola-x">
@@ -13981,7 +14048,7 @@
                       <tbody>
                         {cadastrosFiltrados.length === 0 ? (
                           <tr><td colSpan={13} className="text-center py-10"><p className="t-body ink-quiet">Nenhum cadastro encontrado</p></td></tr>
-                        ) : cadastrosFiltrados.map((linha) => {
+                        ) : cadastrosVisiveis.map((linha) => {
                           const x = linha.source;
                           const c = linha.compra;
                           const volumeCompraLinha = c ? lerUnidadeCompraVolume(c.purchaseUnit) : null;
