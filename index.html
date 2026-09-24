@@ -15868,6 +15868,12 @@
           : '—';
       };
 
+      const formatVariacaoCompraCompacta = (compra) => {
+        const pct = Number(compra?.variacaoPct);
+        if (!Number.isFinite(pct) || Math.abs(pct) < 0.05) return '';
+        return `${pct > 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}%`;
+      };
+
       // A seta da variação: vermelha subindo, verde caindo. O valor aparece na
       // unidade grande (kg, L), que é como se fala de preço de insumo.
       const VariacaoBadge = ({ variacaoUnit, variacaoPct, unidade }) => {
@@ -17292,14 +17298,25 @@
           </div>`;
         }).join('');
 
-        const linhasValorComprado = (valores || []).map((i) => `<tr>
-          <td><b>${escaparHtml(i.item)}</b><small>${escaparHtml(i.tipo)}</small></td>
-          <td class="num">${escaparHtml(formatQuantidadeAcumulada(i.quantidade, i.unidade))}</td>
-          <td class="num">${i.precoMedio > 0 ? formatPrecoInsumo(i.precoMedio, i.unidade) : '—'}</td>
-          <td class="num">${i.compras}</td>
-          <td class="num forte">${formatCurrencyBR(i.valor)}</td>
-          <td class="num">${i.participacao.toFixed(1).replace('.', ',')}%</td>
-        </tr>`).join('');
+        const linhasValorComprado = (valores || []).map((i) => {
+          const variacao = formatVariacaoCompraCompacta(i.ultimaCompra);
+          const classeVariacao = Number(i.ultimaCompra?.variacaoPct) > 0
+            ? 'sobe'
+            : Number(i.ultimaCompra?.variacaoPct) < 0
+              ? 'desce'
+              : '';
+          return `<tr>
+            <td><b>${escaparHtml(i.item)}</b><small>${escaparHtml(i.tipo)}</small></td>
+            <td class="num">${escaparHtml(formatQuantidadeAcumulada(i.quantidade, i.unidade))}</td>
+            <td class="num preco-ultima">
+              <b>${i.ultimaCompra ? formatPrecoCompraComercial(i.ultimaCompra) : '—'}</b>
+              ${variacao ? `<small class="variacao-secundaria ${classeVariacao}">(${variacao})</small>` : ''}
+            </td>
+            <td class="num">${i.compras}</td>
+            <td class="num forte">${formatCurrencyBR(i.valor)}</td>
+            <td class="num">${i.participacao.toFixed(1).replace('.', ',')}%</td>
+          </tr>`;
+        }).join('');
 
         const totalValorIndividual = compras.reduce((s, compra) => s + (Number(compra.cost) || 0), 0);
         const comprasValorIndividual = valoresIndividuais || compras;
@@ -17325,9 +17342,9 @@
               </section>`
             : `<section>
                 <h2>Por valor comprado — agrupado por produto (${(valores || []).length})</h2>
-                <p class="nota">Preço médio ponderado × quantidade total comprada. O valor comprado é a soma das compras do mesmo produto no período.</p>
+                <p class="nota">O preço exibido é o da última compra de cada produto. Quando houver comparação com a compra anterior, a variação aparece abaixo entre parênteses. O valor comprado é a soma das compras do mesmo produto no período.</p>
                 <table class="t-valores">
-                  <thead><tr><th>Item</th><th class="num">Quantidade</th><th class="num">Preço médio</th><th class="num">Compras</th><th class="num">Valor comprado</th><th class="num">% do total</th></tr></thead>
+                  <thead><tr><th>Item</th><th class="num">Quantidade</th><th class="num">Última compra</th><th class="num">Compras</th><th class="num">Valor comprado</th><th class="num">% do total</th></tr></thead>
                   <tbody>${linhasValorComprado || '<tr><td colspan="6" class="quieto">Nenhum item nos filtros atuais.</td></tr>'}</tbody>
                 </table>
               </section>`)
@@ -17387,6 +17404,8 @@
             th, td { padding: 5px 5px; border-bottom: 1px solid #d7d7d7; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
             th { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .035em; border-bottom: 1.5px solid #111; }
             td small { display: block; color: #666; font-size: 7.5pt; margin-top: 1px; }
+            .preco-ultima > b { display: block; }
+            .variacao-secundaria { font-size: 6.9pt !important; font-weight: 500 !important; opacity: .82; margin-top: 1px; }
             .num { text-align: right; font-variant-numeric: tabular-nums; }
             .forte { font-weight: 700; }
             .quieto { color: #777; }
@@ -18021,13 +18040,26 @@ const porItem = useMemo(() => {
               valor: 0,
               compras: 0,
               fornecedores: new Set(),
-              ultimaData: ''
+              ultimaData: '',
+              ultimaCompra: null
             };
             atual.quantidade += Number(compra.qty) || 0;
             atual.valor += Number(compra.cost) || 0;
             atual.compras += 1;
             if (compra.fornecedor && compra.fornecedor !== 'Sem fornecedor') atual.fornecedores.add(compra.fornecedor);
-            if ((compra.data || '') > atual.ultimaData) atual.ultimaData = compra.data || '';
+
+            const dataCompra = compra.data || '';
+            const dataUltima = atual.ultimaCompra?.data || '';
+            const criadaCompra = compra.criadoEm || '';
+            const criadaUltima = atual.ultimaCompra?.criadoEm || '';
+            if (
+              !atual.ultimaCompra ||
+              dataCompra > dataUltima ||
+              (dataCompra === dataUltima && criadaCompra > criadaUltima)
+            ) {
+              atual.ultimaData = dataCompra;
+              atual.ultimaCompra = compra;
+            }
             grupos[chave] = atual;
           });
 
@@ -18035,7 +18067,6 @@ const porItem = useMemo(() => {
           return Object.values(grupos).map((i) => ({
             ...i,
             fornecedores: [...i.fornecedores],
-            precoMedio: i.quantidade > 0 ? i.valor / i.quantidade : 0,
             participacao: totalGeral > 0 ? (i.valor / totalGeral) * 100 : 0
           }));
         }, [compras]);
@@ -19680,7 +19711,7 @@ ${BARRA_ACOES_HTML}
                             <tr className="t-overline-sm border-b hairline">
                               <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
                               <th className="py-3 px-3 text-right font-bold">Quantidade comprada</th>
-                              <th className="py-3 px-3 text-right font-bold">Preço médio</th>
+                              <th className="py-3 px-3 text-right font-bold">Última compra</th>
                               <th className="py-3 px-3 text-right font-bold">Compras</th>
                               <th className="py-3 px-3 text-right font-bold">Valor comprado</th>
                               <th className="py-3 pl-3 text-right font-bold">% do total</th>
@@ -19699,7 +19730,22 @@ ${BARRA_ACOES_HTML}
                                   {formatQuantidadeAcumulada(i.quantidade, i.unidade)}
                                 </td>
                                 <td className="py-3 px-3 text-right t-callout tnum">
-                                  {i.precoMedio > 0 ? formatPrecoInsumo(i.precoMedio, i.unidade) : '—'}
+                                  {i.ultimaCompra ? (
+                                    <>
+                                      <span className="block">{formatPrecoCompraComercial(i.ultimaCompra)}</span>
+                                      {formatVariacaoCompraCompacta(i.ultimaCompra) && (
+                                        <span className={`t-nano block mt-0.5 font-medium ${
+                                          Number(i.ultimaCompra.variacaoPct) > 0
+                                            ? 'ink-expired'
+                                            : Number(i.ultimaCompra.variacaoPct) < 0
+                                              ? 'ink-fresh'
+                                              : 'ink-quiet'
+                                        }`}>
+                                          ({formatVariacaoCompraCompacta(i.ultimaCompra)})
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : '—'}
                                 </td>
                                 <td className="py-3 px-3 text-right t-callout tnum">{i.compras}</td>
                                 <td className="py-3 px-3 text-right">
