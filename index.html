@@ -750,6 +750,12 @@
         font-weight: 750;
       }
       .cadastro-config-valor small { color: var(--ink-4); }
+      .cadastro-lista-cadastros {
+        /* A tabela é grande e fica abaixo do formulário. O navegador pode
+           adiar layout e pintura enquanto ela estiver fora da tela. */
+        content-visibility: auto;
+        contain-intrinsic-size: auto 760px;
+      }
       .cadastro-opcoes {
         display: flex;
         flex-wrap: wrap;
@@ -2296,6 +2302,11 @@
         { value: 'bomboniere', label: 'Bomboniere' },
         { value: 'bebida_revenda', label: 'Bebidas Revenda' },
         { value: 'outro', label: 'Outros' }
+      ];
+      const RESALE_CATEGORIES = [
+        { value: 'revenda', label: 'Revenda' },
+        { value: 'cafeteria', label: 'Cafeteria' },
+        { value: 'encomenda', label: 'Encomenda' }
       ];
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
@@ -12270,6 +12281,7 @@
         // fora do avanço rápido por Enter.
         const [editarTipoCadastro, setEditarTipoCadastro] = useState(false);
         const [editarUnidadePadrao, setEditarUnidadePadrao] = useState(false);
+        const [editarCategoriaCadastro, setEditarCategoriaCadastro] = useState(false);
         const [unidadeCompraFoiEditada, setUnidadeCompraFoiEditada] = useState(false);
         // O volume continua pertencendo ao cadastro, mas cada compra pode
         // excepcionalmente ser lançada por unidade sem apagar essa configuração.
@@ -12296,7 +12308,13 @@
 
         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
-        const revendaDaUnidade = separatedProducts.filter((p) => p.unit === currentUnit);
+        // Mantém as listas de apoio estáveis enquanto a pessoa digita. Antes,
+        // este filter criava um array novo em toda tecla e fazia a tabela
+        // inteira (inclusive custos e fichas) ser recalculada sem necessidade.
+        const revendaDaUnidade = useMemo(
+          () => separatedProducts.filter((p) => p.unit === currentUnit),
+          [separatedProducts, currentUnit]
+        );
         const modoProducao = draft.type === 'producao';
         const tipoCompra = draft.purchaseKind || (draft.resaleAlso ? 'insumo_revenda' : 'insumo');
         const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
@@ -12311,16 +12329,28 @@
           ? 'producao'
           : (classeInterna && tipoCompra === 'insumo' ? draft.supplyClass : tipoCompra);
 
-        const nomeDraft = normalizeName(String(draft.name || '').trim());
-        const supplyExistente = nomeDraft
-          ? supplies.find((x) => normalizeName(x.name) === nomeDraft) || null
-          : null;
-        const revendaExistente = nomeDraft
-          ? revendaDaUnidade.find((x) => normalizeName(x.productName) === nomeDraft) || null
-          : null;
-        const produtoExistente = nomeDraft
-          ? products.find((x) => normalizeName(x.name) === nomeDraft) || null
-          : null;
+        const nomeDraft = useMemo(
+          () => normalizeName(String(draft.name || '').trim()),
+          [draft.name]
+        );
+        const supplyExistente = useMemo(
+          () => nomeDraft
+            ? supplies.find((x) => normalizeName(x.name) === nomeDraft) || null
+            : null,
+          [nomeDraft, supplies]
+        );
+        const revendaExistente = useMemo(
+          () => nomeDraft
+            ? revendaDaUnidade.find((x) => normalizeName(x.productName) === nomeDraft) || null
+            : null,
+          [nomeDraft, revendaDaUnidade]
+        );
+        const produtoExistente = useMemo(
+          () => nomeDraft
+            ? products.find((x) => normalizeName(x.name) === nomeDraft) || null
+            : null,
+          [nomeDraft, products]
+        );
 
         const cadastroExistente = modoProducao
           ? produtoExistente
@@ -12332,6 +12362,7 @@
           // a ser o volume salvo no cadastro.
           setUsarVolumeNestaCompra(true);
           setEditarUnidadePadrao(false);
+          setEditarCategoriaCadastro(false);
           setUnidadeCompraFoiEditada(false);
         }, [chaveCadastroSelecionado]);
 
@@ -12356,15 +12387,31 @@
         // Na entrada única, a última compra pode estar no histórico de insumo
         // ou no histórico de revenda (dados antigos). Usamos a mais recente só
         // para sugerir fornecedor/quantidade/valor no formulário.
-        const compraExistente = !modoProducao
+        const compraExistente = useMemo(() => !modoProducao
           ? ultimaCompra([
-              ...(supplyExistente ? comprasDoInsumo(supplyExistente.id) : []),
-              ...(revendaExistente ? comprasDaRevenda(revendaExistente.id) : [])
+              ...(supplyExistente ? supplyPurchases.filter((c) => c.supplyId === supplyExistente.id) : []),
+              ...(revendaExistente ? resalePurchases.filter((c) => c.separatedProductId === revendaExistente.id) : [])
             ])
-          : null;
-        const compraRevendaExistente = revendaExistente
-          ? ultimaCompra(comprasDaRevenda(revendaExistente.id))
-          : null;
+          : null,
+        [modoProducao, supplyExistente?.id, revendaExistente?.id, supplyPurchases, resalePurchases]);
+        const compraRevendaExistente = useMemo(
+          () => revendaExistente
+            ? ultimaCompra(resalePurchases.filter((c) => c.separatedProductId === revendaExistente.id))
+            : null,
+          [revendaExistente?.id, resalePurchases]
+        );
+        const opcoesFornecedoresCadastro = useMemo(() => [
+          ...(compraExistente?.supplier
+            ? [{
+                value: compraExistente.supplier,
+                label: compraExistente.supplier,
+                hint: 'Última compra'
+              }]
+            : []),
+          ...fornecedores
+            .filter((f) => String(f || '').trim().toLocaleLowerCase('pt-BR') !== String(compraExistente?.supplier || '').trim().toLocaleLowerCase('pt-BR'))
+            .map((f) => ({ value: f, label: f }))
+        ], [fornecedores, compraExistente?.supplier]);
         const volumeAnterior = lerUnidadeCompraVolume(compraRevendaExistente?.purchaseUnit);
 
         // Compatibilidade com cadastros anteriores: revenda podia lembrar o
@@ -12540,6 +12587,7 @@
           setUsarVolumeNestaCompra(true);
           setEditarTipoCadastro(false);
           setEditarUnidadePadrao(false);
+          setEditarCategoriaCadastro(false);
           setUnidadeCompraFoiEditada(false);
           setOpcoesExtrasCadastro({
             volume: tipo === 'embalagem',
@@ -12604,6 +12652,7 @@
           setUsarVolumeNestaCompra(true);
           setEditarTipoCadastro(false);
           setEditarUnidadePadrao(false);
+          setEditarCategoriaCadastro(false);
           setUnidadeCompraFoiEditada(false);
           const [tipo, id] = String(opt?.value || '').split(':');
 
@@ -12715,6 +12764,7 @@
             }));
             setEditarTipoCadastro(false);
             setEditarUnidadePadrao(false);
+            setEditarCategoriaCadastro(false);
             setUnidadeCompraFoiEditada(false);
             setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
             return;
@@ -12890,6 +12940,7 @@
           setUsarVolumeNestaCompra(true);
           setEditarTipoCadastro(false);
           setEditarUnidadePadrao(false);
+          setEditarCategoriaCadastro(false);
           setUnidadeCompraFoiEditada(false);
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
@@ -13090,11 +13141,11 @@
           return [...insumos, ...revendas, ...producao].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
 
-        const cadastrosFiltrados = cadastrosUnificados.filter((x) => {
+        const cadastrosFiltrados = useMemo(() => cadastrosUnificados.filter((x) => {
           const bateTexto = casaComBusca(x.name, busca);
           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
           return bateTexto && bateTipo;
-        });
+        }), [cadastrosUnificados, busca, classeFiltro]);
 
         const atualizarCompraLinha = (linha, campos) => {
           if (linha.tipo === 'producao') return;
@@ -13547,18 +13598,7 @@
                               <label className="t-caption">Fornecedor</label>
                               <PickerField
                                 value={draft.supplier}
-                                options={[
-                                  ...(compraExistente?.supplier
-                                    ? [{
-                                        value: compraExistente.supplier,
-                                        label: compraExistente.supplier,
-                                        hint: 'Última compra'
-                                      }]
-                                    : []),
-                                  ...fornecedores
-                                    .filter((f) => String(f || '').trim().toLocaleLowerCase('pt-BR') !== String(compraExistente?.supplier || '').trim().toLocaleLowerCase('pt-BR'))
-                                    .map((f) => ({ value: f, label: f }))
-                                ]}
+                                options={opcoesFornecedoresCadastro}
                                 onType={(supplier) => setDraft((d) => ({ ...d, supplier }))}
                                 onPick={(opt) => setDraft((d) => ({ ...d, supplier: opt.value }))}
                                 placeholder={compraExistente?.supplier || 'Digite ou escolha o fornecedor'}
@@ -13616,23 +13656,39 @@
                           )}
 
                           {(modoProducao || temRevenda) && (
-                            <div className={modoProducao ? 'col-span-6' : 'col-span-6'}>
+                            <div className="col-span-6 cadastro-campo-config">
                               <label className="t-caption">Categoria</label>
-                              <select
-                                value={modoProducao ? draft.productCategory : draft.resaleCategory}
-                                onChange={(e) => setDraft((d) => modoProducao
-                                  ? ({ ...d, productCategory: e.target.value })
-                                  : ({ ...d, resaleCategory: e.target.value }))}
-                                className="field field-md field-select"
-                              >
-                                {modoProducao
-                                  ? PRODUCT_CATEGORIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-                                  : [
-                                      { value: 'revenda', label: 'Revenda' },
-                                      { value: 'cafeteria', label: 'Cafeteria' },
-                                      { value: 'encomenda', label: 'Encomenda' }
-                                    ].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                              </select>
+                              {editarCategoriaCadastro ? (
+                                <select
+                                  autoFocus
+                                  data-skip-enter="true"
+                                  value={modoProducao ? draft.productCategory : draft.resaleCategory}
+                                  onChange={(e) => {
+                                    const category = e.target.value;
+                                    setDraft((d) => modoProducao
+                                      ? ({ ...d, productCategory: category })
+                                      : ({ ...d, resaleCategory: category }));
+                                    setEditarCategoriaCadastro(false);
+                                  }}
+                                  onBlur={() => setEditarCategoriaCadastro(false)}
+                                  className="field field-md field-select"
+                                >
+                                  {(modoProducao ? PRODUCT_CATEGORIES : RESALE_CATEGORIES)
+                                    .map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditarCategoriaCadastro(true)}
+                                  className="cadastro-config-botao"
+                                  aria-label="Alterar categoria do item"
+                                >
+                                  <span>{(modoProducao ? PRODUCT_CATEGORIES : RESALE_CATEGORIES)
+                                    .find((o) => o.value === (modoProducao ? draft.productCategory : draft.resaleCategory))?.label
+                                    || (modoProducao ? draft.productCategory : draft.resaleCategory)}</span>
+                                  <small>Alterar</small>
+                                </button>
+                              )}
                             </div>
                           )}
 
@@ -13892,7 +13948,7 @@
                   )}
                 </div>
 
-                <div className="card p-5 sm:p-6">
+                <div className="card p-5 sm:p-6 cadastro-lista-cadastros">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
                     <div className="relative flex-1 max-w-sm">
                       <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
