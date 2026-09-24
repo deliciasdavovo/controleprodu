@@ -534,14 +534,141 @@
         background: var(--bg-surface);
       }
 
-      /* Cadastro: leitura em dois eixos.
-         Esquerda = o que é / de quem vem. Direita = quando, quanto e por quanto.
-         No celular os dois eixos viram uma sequência única, sem caixas mortas. */
+      /* Cadastro/compra: fluxo guiado no estilo de uma folha do sistema.
+         A hierarquia vem de espaço, superfícies e estado — não de bordas
+         pesadas. As etapas também funcionam como navegação dentro do form. */
+      .cadastro-shell {
+        overflow: visible;
+        border-radius: 24px;
+        border: 1px solid rgba(60, 60, 67, 0.11);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.025), 0 14px 40px rgba(14, 9, 55, 0.055);
+      }
+      .cadastro-hero {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .cadastro-hero-principal {
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        min-width: 0;
+      }
+      .cadastro-hero-icone {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: linear-gradient(145deg, #26204f, #0e0937);
+        box-shadow: 0 7px 18px rgba(14, 9, 55, 0.19);
+      }
+      .cadastro-hero h3 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.2;
+        font-weight: 800;
+        letter-spacing: -0.028em;
+        color: var(--ink-1);
+      }
+      .cadastro-hero p {
+        max-width: 640px;
+        margin: 4px 0 0;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .cadastro-atalho-calculo {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        color: var(--ink-3);
+        background: rgba(118, 118, 128, 0.075);
+        font-size: 10px;
+        font-weight: 650;
+      }
+      .cadastro-navegacao {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin: 20px 0 14px;
+        padding: 5px;
+        border-radius: 16px;
+        background: rgba(118, 118, 128, 0.075);
+      }
+      .cadastro-etapa {
+        min-width: 0;
+        min-height: 44px;
+        padding: 6px 10px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        text-align: left;
+        color: var(--ink-3);
+        transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .cadastro-etapa:hover { color: var(--ink-1); background: rgba(255, 255, 255, 0.58); }
+      .cadastro-etapa:active { transform: scale(.985); }
+      .cadastro-etapa[data-state="current"] {
+        color: var(--ink-1);
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 14px rgba(14, 9, 55, .06);
+      }
+      .cadastro-etapa[data-state="complete"] { color: var(--accent); }
+      .cadastro-etapa-numero {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: var(--ink-3);
+        background: rgba(118, 118, 128, 0.12);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .cadastro-etapa[data-state="current"] .cadastro-etapa-numero {
+        color: #fff;
+        background: var(--accent);
+      }
+      .cadastro-etapa[data-state="complete"] .cadastro-etapa-numero {
+        color: #fff;
+        background: var(--fresh);
+      }
+      .cadastro-etapa-texto { min-width: 0; }
+      .cadastro-etapa-texto strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11.5px;
+        font-weight: 750;
+        line-height: 1.15;
+      }
+      .cadastro-etapa-texto small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: 2px;
+        color: var(--ink-4);
+        font-size: 9px;
+        font-weight: 550;
+      }
       .cadastro-form .field {
         font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         letter-spacing: -0.01em;
-        background-color: rgba(255, 255, 255, 0.98);
-        border-color: rgba(60, 60, 67, 0.13);
+        background-color: rgba(255, 255, 255, 0.94);
+        border-color: rgba(60, 60, 67, 0.12);
+        border-radius: 12px;
         transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
       }
       .cadastro-form .field::placeholder {
@@ -563,7 +690,7 @@
         line-height: 1.2;
         margin-bottom: 6px;
       }
-      .cadastro-form .field-md { height: 44px; }
+      .cadastro-form .field-md { height: 46px; }
       .cadastro-opcoes {
         display: flex;
         flex-wrap: wrap;
@@ -583,23 +710,40 @@
         display: grid;
         grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
         align-items: stretch;
+        gap: 12px;
       }
       .cadastro-bloco {
         min-width: 0;
-      }
-      .cadastro-bloco-identificacao {
-        padding-right: 26px;
-      }
-      .cadastro-bloco-compra {
-        padding-left: 26px;
-        border-left: 1px solid var(--hairline);
+        padding: 19px;
+        border: 1px solid rgba(60, 60, 67, 0.095);
+        border-radius: 19px;
+        background: rgba(247, 247, 249, 0.82);
+        scroll-margin-top: 88px;
       }
       .cadastro-bloco-cabecalho {
         display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 15px;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        margin-bottom: 17px;
+      }
+      .cadastro-bloco-passo {
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: var(--accent);
+        font-size: 11px;
+        font-weight: 800;
+        box-shadow: 0 4px 10px rgba(14, 9, 55, .14);
+      }
+      .cadastro-bloco-titulo { min-width: 0; }
+      .cadastro-bloco-titulo > span {
+        display: block;
+        margin-top: 1px;
       }
       .cadastro-bloco-cabecalho strong {
         font-size: 15px;
@@ -627,8 +771,9 @@
         min-height: 44px;
         margin-top: 14px;
         padding: 9px 11px;
-        border-top: 1px solid var(--hairline);
-        border-bottom: 1px solid var(--hairline);
+        border: 1px solid rgba(60, 60, 67, 0.09);
+        border-radius: 13px;
+        background: rgba(255, 255, 255, 0.72);
       }
       .cadastro-preco-calculado span {
         display: block;
@@ -660,34 +805,70 @@
         grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
         gap: 14px;
         align-items: stretch;
-        margin-top: 18px;
-        padding-top: 16px;
-        border-top: 1px solid var(--hairline);
+        position: sticky;
+        bottom: 10px;
+        z-index: 18;
+        margin-top: 14px;
+        padding: 10px;
+        border: 1px solid rgba(60, 60, 67, 0.12);
+        border-radius: 18px;
+        background: rgba(250, 250, 252, 0.9);
+        box-shadow: 0 10px 34px rgba(14, 9, 55, 0.12), 0 1px 2px rgba(0, 0, 0, .04);
+        backdrop-filter: saturate(180%) blur(18px);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
+        scroll-margin-top: 88px;
       }
       .cadastro-rodape .cadastro-contexto {
         min-height: 44px;
         display: flex;
         align-items: center;
-        padding: 9px 11px;
-        background: rgba(118, 118, 128, 0.055);
-        border-radius: 10px;
+        gap: 10px;
+        padding: 8px 10px;
+      }
+      .cadastro-status {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--last);
+        box-shadow: 0 0 0 4px rgba(181, 122, 0, .1);
+      }
+      .cadastro-status[data-ready="true"] {
+        background: var(--fresh);
+        box-shadow: 0 0 0 4px rgba(47, 93, 69, .1);
+      }
+      .cadastro-contexto-texto { min-width: 0; }
+      .cadastro-contexto-texto strong {
+        display: block;
+        margin-bottom: 1px;
+        color: var(--ink-1);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .cadastro-contexto-texto span {
+        display: block;
+        color: var(--ink-3);
+        line-height: 1.35;
       }
       @media (max-width: 899px) {
         .cadastro-duas-colunas { grid-template-columns: 1fr; }
-        .cadastro-bloco-identificacao { padding-right: 0; padding-bottom: 20px; }
-        .cadastro-bloco-compra {
-          padding-left: 0;
-          padding-top: 20px;
-          border-left: 0;
-          border-top: 1px solid var(--hairline);
-        }
         .cadastro-rodape { grid-template-columns: 1fr; }
       }
       @media (max-width: 639px) {
+        .cadastro-shell { border-radius: 20px; }
+        .cadastro-hero { align-items: stretch; }
+        .cadastro-hero-principal { gap: 10px; }
+        .cadastro-hero-icone { width: 38px; height: 38px; border-radius: 12px; }
+        .cadastro-hero-acao { width: 100%; }
+        .cadastro-navegacao { gap: 4px; margin-top: 16px; }
+        .cadastro-etapa { justify-content: center; padding: 6px; }
+        .cadastro-etapa-texto small { display: none; }
+        .cadastro-bloco { padding: 16px 14px; border-radius: 17px; }
         .cadastro-grid { row-gap: 14px; }
         .cadastro-form .field { font-size: 16px; }
         .cadastro-form .field-md { height: 46px; }
         .cadastro-opcoes { margin-bottom: 15px; }
+        .cadastro-rodape { bottom: 6px; border-radius: 16px; }
       }
 
       /* ==========================================
@@ -12025,6 +12206,9 @@
         // excepcionalmente ser lançada por unidade sem apagar essa configuração.
         const [usarVolumeNestaCompra, setUsarVolumeNestaCompra] = useState(true);
         const nomeRef = useRef(null);
+        const blocoCadastroRef = useRef(null);
+        const blocoCompraRef = useRef(null);
+        const blocoRevisaoRef = useRef(null);
 
         const alternarOpcaoExtraCadastro = (chave) => {
           setOpcoesExtrasCadastro((atuais) => ({ ...atuais, [chave]: !atuais[chave] }));
@@ -12971,6 +13155,26 @@
           };
         })();
 
+        const etapaCadastroCompleta = !!String(draft.name || '').trim();
+        const etapaCompraCompleta = modoProducao
+          ? Number(draft.shelfLifeDays) > 0 && String(draft.price ?? '').trim() !== ''
+          : Number(draft.qty) > 0 && Number(draft.cost) > 0;
+        const etapaAtualCadastro = !etapaCadastroCompleta
+          ? 'cadastro'
+          : !etapaCompraCompleta ? 'compra' : 'revisar';
+        const estadoEtapaCadastro = etapaAtualCadastro === 'cadastro'
+          ? 'current'
+          : etapaCadastroCompleta ? 'complete' : 'pending';
+        const estadoEtapaCompra = etapaAtualCadastro === 'compra'
+          ? 'current'
+          : etapaCompraCompleta ? 'complete' : 'pending';
+        const estadoEtapaRevisar = etapaAtualCadastro === 'revisar' ? 'current' : 'pending';
+
+        const navegarNoCadastro = (ref, focoNome = false) => {
+          ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (focoNome) setTimeout(() => nomeRef.current?.focus(), 350);
+        };
+
         return (
           <div className="space-y-5">
             <div>
@@ -12991,32 +13195,77 @@
             {/* ---------------- ENTRADAS / COMPRAS ---------------- */}
             {painel === 'entradas' && (
               <div className="space-y-5">
-                <div className="card p-6 sm:p-7">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                    <div>
-                      <div className="t-overline flex items-center gap-1.5 mb-2">
-                        <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                        Entrada principal
+                <div className="cadastro-shell p-5 sm:p-6">
+                  <div className="cadastro-hero flex-col sm:flex-row">
+                    <div className="cadastro-hero-principal">
+                      <span className="cadastro-hero-icone" aria-hidden="true">
+                        <Icons.ShoppingCart className="w-5 h-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <h3>{cadastroExistente ? 'Registrar nova compra' : 'Cadastro e compra'}</h3>
+                        <p>
+                          Escolha o item, informe a compra e confira o resumo. As configurações avançadas aparecem somente quando forem necessárias.
+                        </p>
+                        <span className="cadastro-atalho-calculo">
+                          Cálculo rápido: digite <strong>=12*6</strong> em quantidade ou valor
+                        </span>
                       </div>
-                      <h3 className="t-title">Cadastro + compra</h3>
-                      <p className="t-body mt-1.5">
-                        Identificação de um lado, compra do outro. O formulário mostra só o que se aplica ao tipo escolhido e mantém os extras fechados até você precisar.
-                      </p>
-                      <p className="t-micro mt-1">Dica: nos campos de número ou valor, comece com <strong>=</strong> para fazer uma conta. Ex.: <strong>=12*6</strong>.</p>
                     </div>
-                    <button type="button" onClick={() => setNotaColadaAberta(true)} className="btn btn-secondary btn-md shrink-0">
+                    <button type="button" onClick={() => setNotaColadaAberta(true)} className="cadastro-hero-acao btn btn-secondary btn-md shrink-0">
                       <Icons.ClipboardList className="w-4 h-4" />
                       Colar nota fiscal
                     </button>
                   </div>
 
-                  <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form mt-5 pt-5 border-t hairline">
+                  <nav className="cadastro-navegacao" aria-label="Etapas do cadastro e da compra">
+                    <button
+                      type="button"
+                      className="cadastro-etapa"
+                      data-state={estadoEtapaCadastro}
+                      onClick={() => navegarNoCadastro(blocoCadastroRef, true)}
+                    >
+                      <span className="cadastro-etapa-numero">{etapaCadastroCompleta ? '✓' : '1'}</span>
+                      <span className="cadastro-etapa-texto">
+                        <strong>Item</strong>
+                        <small>{etapaCadastroCompleta ? draft.name : 'Tipo e identificação'}</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="cadastro-etapa"
+                      data-state={estadoEtapaCompra}
+                      onClick={() => navegarNoCadastro(blocoCompraRef)}
+                    >
+                      <span className="cadastro-etapa-numero">{etapaCompraCompleta ? '✓' : '2'}</span>
+                      <span className="cadastro-etapa-texto">
+                        <strong>{modoProducao ? 'Venda' : 'Compra'}</strong>
+                        <small>{etapaCompraCompleta ? 'Valores preenchidos' : 'Data, quantidade e valor'}</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="cadastro-etapa"
+                      data-state={estadoEtapaRevisar}
+                      onClick={() => navegarNoCadastro(blocoRevisaoRef)}
+                    >
+                      <span className="cadastro-etapa-numero">3</span>
+                      <span className="cadastro-etapa-texto">
+                        <strong>Confirmar</strong>
+                        <small>{etapaAtualCadastro === 'revisar' ? 'Pronto para salvar' : 'Revise e salve'}</small>
+                      </span>
+                    </button>
+                  </nav>
+
+                  <form onSubmit={cadastrar} onKeyDown={avancarEntradaRapida} className="cadastro-form">
                     <div className="cadastro-duas-colunas">
                       {/* ESQUERDA: identificação — o que é e de quem vem */}
-                      <section className="cadastro-bloco cadastro-bloco-identificacao">
+                      <section ref={blocoCadastroRef} className="cadastro-bloco cadastro-bloco-identificacao">
                         <div className="cadastro-bloco-cabecalho">
-                          <strong>Cadastro</strong>
-                          <span>identificação do item</span>
+                          <span className="cadastro-bloco-passo">1</span>
+                          <span className="cadastro-bloco-titulo">
+                            <strong>Item e cadastro</strong>
+                            <span>O que é e como o sistema deve tratar</span>
+                          </span>
                         </div>
 
                         <div className="cadastro-grid">
@@ -13294,10 +13543,13 @@
                       </section>
 
                       {/* DIREITA: compra/valores — quando, quanto e por quanto */}
-                      <section className="cadastro-bloco cadastro-bloco-compra">
+                      <section ref={blocoCompraRef} className="cadastro-bloco cadastro-bloco-compra">
                         <div className="cadastro-bloco-cabecalho">
-                          <strong>{modoProducao ? 'Venda' : 'Compra'}</strong>
-                          <span>{modoProducao ? 'validade e preço' : 'data, quantidade e valor'}</span>
+                          <span className="cadastro-bloco-passo">2</span>
+                          <span className="cadastro-bloco-titulo">
+                            <strong>{modoProducao ? 'Venda' : 'Compra'}</strong>
+                            <span>{modoProducao ? 'Validade e preço' : 'Quando, quanto e por quanto'}</span>
+                          </span>
                         </div>
 
                         {modoProducao ? (
@@ -13451,48 +13703,60 @@
                       </section>
                     </div>
 
-                    <div className="cadastro-rodape">
+                    <div ref={blocoRevisaoRef} className="cadastro-rodape">
                       <div className="cadastro-contexto t-micro">
-                        {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
-                          ? (() => {
-                              const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
-                              const volumes = Number(draft.qty) || 0;
-                              const porVolume = unidadesPorVolumeCompra;
-                              const total = volumes * porVolume;
-                              const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
-                              const calculo = total > 0
-                                ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
-                                : '';
-                              return `${rotulo} · uso interno, comprado em volume: informe quantos volumes e quantas unidades vêm em cada um${calculo}.`;
-                            })()
-                          : tipoCadastroAtual === 'embalagem'
-                          ? 'Embalagem · uso interno. Não precisa escolher Insumo/Revenda.'
-                          : tipoCadastroAtual === 'limpeza'
-                            ? 'Material de limpeza · uso interno. Não precisa escolher Insumo/Revenda.'
-                            : modoProducao
-                              ? 'Produção: o custo vem da ficha técnica; aqui você define validade e preço de venda.'
-                              : temRevenda && temInsumo
-                                ? 'Insumo + revenda: a mesma compra alimenta o custo do insumo e o CMV da revenda.'
-                                : temRevenda
-                                  ? (compraPorVolume
-                                    ? (() => {
-                                        const volumes = Number(draft.qty) || 0;
-                                        const porVolume = unidadesPorVolumeCompra || Number(volumeAnterior?.unidades) || 0;
-                                        const total = volumes * porVolume;
-                                        const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
-                                        const calculo = total > 0
-                                          ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
-                                          : '';
-                                        return `Revenda por unidade: informe os volumes comprados e quantas unidades vêm em cada embalagem${calculo}.`;
-                                      })()
-                                    : 'Revenda: a compra alimenta diretamente custo e CMV.')
-                                  : 'Insumo: a compra alimenta o custo usado nas fichas técnicas.'}
+                        <span className="cadastro-status" data-ready={etapaCadastroCompleta && etapaCompraCompleta} aria-hidden="true" />
+                        <span className="cadastro-contexto-texto">
+                          <strong>
+                            {etapaCadastroCompleta && etapaCompraCompleta
+                              ? 'Tudo pronto para confirmar'
+                              : etapaCadastroCompleta ? 'Complete os valores da compra' : 'Comece escolhendo o item'}
+                          </strong>
+                          <span>
+                            {(tipoCadastroAtual === 'embalagem' || tipoCadastroAtual === 'limpeza') && compraPorVolume
+                              ? (() => {
+                                  const rotulo = tipoCadastroAtual === 'embalagem' ? 'Embalagem' : 'Material de limpeza';
+                                  const volumes = Number(draft.qty) || 0;
+                                  const porVolume = unidadesPorVolumeCompra;
+                                  const total = volumes * porVolume;
+                                  const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                                  const calculo = total > 0
+                                    ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                    : '';
+                                  return `${rotulo} · uso interno, comprado em volume${calculo}.`;
+                                })()
+                              : tipoCadastroAtual === 'embalagem'
+                              ? 'Embalagem de uso interno.'
+                              : tipoCadastroAtual === 'limpeza'
+                                ? 'Material de limpeza de uso interno.'
+                                : modoProducao
+                                  ? 'Produção: o custo vem da ficha técnica; aqui ficam validade e preço de venda.'
+                                  : temRevenda && temInsumo
+                                    ? 'A mesma compra alimenta o custo do insumo e o CMV da revenda.'
+                                    : temRevenda
+                                      ? (compraPorVolume
+                                        ? (() => {
+                                            const volumes = Number(draft.qty) || 0;
+                                            const porVolume = unidadesPorVolumeCompra || Number(volumeAnterior?.unidades) || 0;
+                                            const total = volumes * porVolume;
+                                            const custoUn = total > 0 ? (Number(draft.cost) || 0) / total : 0;
+                                            const calculo = total > 0
+                                              ? ` · ${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(tipoVolumeCompra || volumeAnterior?.tipo || 'caixa', volumes)} × ${numeroCurtoBR(porVolume)} = ${numeroCurtoBR(total)} un${custoUn > 0 ? ` · ${formatCurrencyBR(custoUn)}/un` : ''}`
+                                              : '';
+                                            return `Revenda comprada em volume${calculo}.`;
+                                          })()
+                                        : 'A compra alimenta diretamente o custo e o CMV da revenda.')
+                                      : 'A compra alimenta o custo usado nas fichas técnicas.'}
+                          </span>
+                        </span>
                       </div>
                       <button type="submit" className="btn btn-primary btn-md w-full">
-                        <Icons.Plus className="w-4 h-4" />
+                        <Icons.Check className="w-4 h-4" />
                         {modoProducao
                           ? (produtoExistente ? 'Salvar produto' : 'Cadastrar produto')
-                          : (cadastroExistente ? 'Registrar compra' : 'Cadastrar + compra')}
+                          : etapaCompraCompleta
+                            ? (cadastroExistente ? 'Confirmar compra' : 'Cadastrar e confirmar compra')
+                            : (cadastroExistente ? 'Salvar configurações' : 'Cadastrar item')}
                       </button>
                     </div>
                   </form>
