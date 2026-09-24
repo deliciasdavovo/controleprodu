@@ -17129,7 +17129,7 @@
         const [busca, setBusca] = useState('');
         const [tipoFiltro, setTipoFiltro] = useState('todos');
         const [ordem, setOrdem] = useState('variacao_desc');
-        const [limite, setLimite] = useState('25');
+        const [limite, setLimite] = useState('10');
         const [mesFiltro, setMesFiltro] = useState('');
         const [dataInicio, setDataInicio] = useState('');
         const [dataFim, setDataFim] = useState('');
@@ -17141,6 +17141,7 @@
         const [historicoItem, setHistoricoItem] = useState(null);
         const [graficoHistoricoAberto, setGraficoHistoricoAberto] = useState(false);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
+        const limiteAtual = Number(limite) || 10;
 
         const alterarPeriodoVariacao = (valor) => {
           setPeriodoRelatorioPrecos(valor);
@@ -17317,8 +17318,12 @@ const resumoFornecedoresPeriodo = useMemo(() => {
             b.percentual - a.percentual || b.diferenca - a.diferenca
           );
 
-          return { negociacoes, preferencias, comprasAnalisadas: validas.length };
-        }, [todas, tipoFiltro, termo, inicioPeriodoVariacao]);
+          return {
+            negociacoes: negociacoes.slice(0, limiteAtual),
+            preferencias: preferencias.slice(0, limiteAtual),
+            comprasAnalisadas: validas.length
+          };
+        }, [todas, tipoFiltro, termo, inicioPeriodoVariacao, limiteAtual]);
 
         const imprimirResumoFornecedores = () => {
                   const janela = window.open('', '_blank');
@@ -17540,7 +17545,17 @@ const porItem = useMemo(() => {
                   }));
         
                   const base = [...baseCompras, ...semCompra];
-                  const rel = montarRelatorioDeCompra(base, getTodayDateString(), periodoRelatorioPrecos);
+                  const relCompleto = montarRelatorioDeCompra(base, getTodayDateString(), periodoRelatorioPrecos);
+                  const itensLimitados = [...relCompleto.itens]
+                    .sort((a, b) => Math.abs(b.impacto) - Math.abs(a.impacto)
+                      || Math.abs(b.varPct || 0) - Math.abs(a.varPct || 0))
+                    .slice(0, limiteAtual);
+                  const vagasPendentes = Math.max(0, limiteAtual - itensLimitados.length);
+                  const rel = {
+                    ...relCompleto,
+                    itens: itensLimitados,
+                    incompletas: relCompleto.incompletas.slice(0, vagasPendentes)
+                  };
                   if (!rel.itens.length && !rel.incompletas.length) {
                     window.alert(tipoFiltro === 'todos'
                       ? "Nenhum produto encontrado para este relatório."
@@ -17597,7 +17612,7 @@ const porItem = useMemo(() => {
             case 'economia_desc': return b.economiaPct - a.economiaPct;
             default: return (vb === null ? -1e9 : vb) - (va === null ? -1e9 : va);
           }
-        }), [porItem, ordem]);
+        }).slice(0, limiteAtual), [porItem, ordem, limiteAtual]);
 
         const valorCompradoOrdenado = useMemo(() => [...valorCompradoPorItem].sort((a, b) => {
           switch (ordem) {
@@ -17608,7 +17623,7 @@ const porItem = useMemo(() => {
             case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
             default: return b.valor - a.valor;
           }
-        }), [valorCompradoPorItem, ordem]);
+        }).slice(0, limiteAtual), [valorCompradoPorItem, ordem, limiteAtual]);
 
         const valorCompradoIndividual = useMemo(() => {
           const totalGeral = compras.reduce((s, compra) => s + (Number(compra.cost) || 0), 0);
@@ -17634,8 +17649,9 @@ const porItem = useMemo(() => {
                 case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
                 default: return b.valor - a.valor;
               }
-            });
-        }, [compras, ordem]);
+            })
+            .slice(0, limiteAtual);
+        }, [compras, ordem, limiteAtual]);
 
         // Sugere automaticamente grupos que parecem ser o mesmo produto com
         // marcas/variações diferentes. Parte dos nomes realmente comprados e
@@ -17794,8 +17810,8 @@ const porItem = useMemo(() => {
               case 'nome_asc': return a.item.localeCompare(b.item, 'pt-BR');
               default: return pa - pb;
             }
-          });
-        }, [porPeriodo, termo, ordem]);
+          }).slice(0, limiteAtual);
+        }, [porPeriodo, termo, ordem, limiteAtual]);
 
         const imprimirRelatorioCompleto = () => {
           if (visao === 'marca') {
@@ -17950,10 +17966,8 @@ ${BARRA_ACOES_HTML}
           if (busca.trim()) partesTituloRelatorio.push(`Busca ${busca.trim()}`);
           const tituloRelatorio = partesTituloRelatorio.join(' — ');
 
-          // O limite de 10/25/50 só está aplicado quando a página está em
-          // "Por compra". Nas outras visões, o relatório completo leva todas
-          // as compras filtradas para não esconder dados por um seletor que a
-          // pessoa nem está vendo.
+          // O Top escolhido na página acompanha a visualização atual e também
+          // vale no relatório, evitando folhas enormes com todo o histórico.
           const comprasDetalhadas = extrato;
 
           const filtros = {
@@ -17964,13 +17978,14 @@ ${BARRA_ACOES_HTML}
               { rotulo: 'Variação', valor: periodoRelatorioPrecos === '12' ? 'Último 1 ano' : `Últimos ${periodoRelatorioPrecos} meses` },
               { rotulo: 'Busca', valor: busca.trim() || 'Sem busca' },
               { rotulo: 'Ordenação', valor: rotuloOrdem },
+              { rotulo: 'Limite', valor: `Top ${limiteAtual}` },
               ...(visao === 'valor' ? [{
                 rotulo: 'Agrupamento',
                 valor: modoValorComprado === 'individual' ? 'Compra individual' : 'Agrupado por produto'
               }] : []),
               ...(visao === 'compra' ? [{
                 rotulo: 'Compras exibidas',
-                valor: limite === 'all' ? 'Todas' : `Últimas ${limite}`
+                valor: `Primeiras ${limiteAtual}`
               }] : [])
             ]
           };
@@ -17993,7 +18008,7 @@ ${BARRA_ACOES_HTML}
             fornecedores: porFornecedor,
             extrato: comprasDetalhadas,
             totalComprasFiltradas: comprasAgrupadas.length,
-            cruzadaMensal
+            cruzadaMensal: cruzadaMensalLimitada
           }));
           janela.document.close();
 
@@ -18137,8 +18152,26 @@ ${BARRA_ACOES_HTML}
               case 'nome_asc': return a.nome.localeCompare(b.nome, 'pt-BR');
               default: return b.total - a.total;
             }
-          });
-        }, [compras, ordem, porTipo, termo, mesReferencia, diaDeCorte]);
+          }).slice(0, limiteAtual);
+        }, [compras, ordem, porTipo, termo, mesReferencia, diaDeCorte, limiteAtual]);
+
+        // A planilha mês a mês mostra exatamente os mesmos fornecedores que
+        // passaram pelo Top atual, na mesma ordem escolhida na página.
+        const cruzadaMensalLimitada = useMemo(() => {
+          if (!cruzadaMensal) return null;
+          const porNome = new Map(cruzadaMensal.linhas.map((linha) => [linha.nome, linha]));
+          const linhas = porFornecedor.map((fornecedor) => porNome.get(fornecedor.nome)).filter(Boolean);
+          const totaisPorMes = cruzadaMensal.colunas.map((_, indice) =>
+            linhas.reduce((soma, linha) => soma + linha.valores[indice], 0)
+          );
+          return {
+            ...cruzadaMensal,
+            linhas,
+            totaisPorMes,
+            total: totaisPorMes.reduce((soma, valor) => soma + valor, 0),
+            maiorCelula: Math.max(0, ...linhas.flatMap((linha) => linha.valores))
+          };
+        }, [cruzadaMensal, porFornecedor]);
 
         // POR COMPRA: uma compra é a combinação fornecedor + data.
         // Cada lançamento de item continua existindo dentro dela, mas não vira
@@ -18172,8 +18205,8 @@ ${BARRA_ACOES_HTML}
           if (ordem === 'antiga') lista.reverse();
           if (ordem === 'valor_desc') lista.sort((a, b) => b.total - a.total);
           if (ordem === 'valor_asc') lista.sort((a, b) => a.total - b.total);
-          return limite === 'all' ? lista : lista.slice(0, Number(limite));
-        }, [comprasAgrupadas, ordem, limite]);
+          return lista.slice(0, limiteAtual);
+        }, [comprasAgrupadas, ordem, limiteAtual]);
 
         // As opções de ordenação mudam com a visão: ordenar por "maior
         // aumento" não quer dizer nada numa lista de fornecedores
@@ -18742,14 +18775,18 @@ ${BARRA_ACOES_HTML}
               <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-sm field-select field-auto">
                 {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
               </select>
-              {visao === 'compra' && (
-                <select value={limite} onChange={(e) => setLimite(e.target.value)} className="field field-sm field-select field-auto">
-                  <option value="10">Últimas 10</option>
-                  <option value="25">Últimas 25</option>
-                  <option value="50">Últimas 50</option>
-                  <option value="all">Todas</option>
-                </select>
-              )}
+              <select
+                value={limite}
+                onChange={(e) => setLimite(e.target.value)}
+                className="field field-sm field-select field-auto"
+                title="Limitar a tela e os relatórios aos primeiros resultados da ordenação atual"
+                aria-label="Quantidade máxima de resultados"
+              >
+                <option value="10">Top 10</option>
+                <option value="30">Top 30</option>
+                <option value="50">Top 50</option>
+                <option value="100">Top 100</option>
+              </select>
             </div>
 
             <div className="segmented w-full sm:w-auto sm:inline-flex">
@@ -19133,13 +19170,13 @@ ${BARRA_ACOES_HTML}
                     {/* A planilha: mês na coluna, fornecedor na linha. Só com o
                         período inteiro à vista — filtrar um mês deixaria uma
                         coluna só, que é a lista logo abaixo. */}
-                    {!mesFiltro && !dataInicio && !dataFim && cruzadaMensal && cruzadaMensal.colunas.length > 1 && (
+                    {!mesFiltro && !dataInicio && !dataFim && cruzadaMensalLimitada && cruzadaMensalLimitada.colunas.length > 1 && (
                       <div className="pb-4">
                         <div className="flex flex-wrap items-baseline gap-x-3 pb-2">
                           <h3 className="t-title">Mês a mês</h3>
                           <span className="t-micro">
                             quanto foi para cada fornecedor em cada mês
-                            {cruzadaMensal.colunas.length === MESES_NA_CRUZADA && ` · últimos ${MESES_NA_CRUZADA} meses`}
+                            {cruzadaMensalLimitada.colunas.length === MESES_NA_CRUZADA && ` · últimos ${MESES_NA_CRUZADA} meses`}
                           </span>
                         </div>
                         <div className="rola-x">
@@ -19147,24 +19184,24 @@ ${BARRA_ACOES_HTML}
                             <thead>
                               <tr className="t-overline-sm border-b hairline">
                                 <th className="py-2 pr-3 font-bold sticky left-0 bg-white z-10">Fornecedor</th>
-                                {cruzadaMensal.rotulos.map((r) => (
+                                {cruzadaMensalLimitada.rotulos.map((r) => (
                                   <th key={r} className="py-2 px-3 text-right font-bold">{r}</th>
                                 ))}
                                 <th className="py-2 pl-3 text-right font-bold col-acao">Total</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {cruzadaMensal.linhas.map((l) => (
+                              {cruzadaMensalLimitada.linhas.map((l) => (
                                 <tr key={l.nome} className="border-t hairline">
                                   <td className="py-2 pr-3 t-body font-semibold sticky left-0 bg-white z-10 max-w-[190px] truncate" title={l.nome}>{l.nome}</td>
                                   {l.valores.map((v, i) => (
                                     <td
-                                      key={cruzadaMensal.colunas[i]}
+                                      key={cruzadaMensalLimitada.colunas[i]}
                                       className="py-2 px-3 text-right t-body tnum"
                                       /* O sombreado é só apoio para o olho achar
                                          o mês pesado; o número está escrito. */
-                                      style={v > 0 && cruzadaMensal.maiorCelula > 0
-                                        ? { background: `rgba(14, 9, 55, ${(0.05 + (v / cruzadaMensal.maiorCelula) * 0.16).toFixed(3)})` }
+                                      style={v > 0 && cruzadaMensalLimitada.maiorCelula > 0
+                                        ? { background: `rgba(14, 9, 55, ${(0.05 + (v / cruzadaMensalLimitada.maiorCelula) * 0.16).toFixed(3)})` }
                                         : undefined}
                                     >
                                       {v > 0 ? formatCurrencyBR(v) : <span className="ink-quiet">—</span>}
@@ -19175,12 +19212,12 @@ ${BARRA_ACOES_HTML}
                               ))}
                               <tr className="border-t hairline">
                                 <td className="py-2 pr-3 t-body font-bold sticky left-0 bg-white z-10">Total do mês</td>
-                                {cruzadaMensal.totaisPorMes.map((v, i) => (
-                                  <td key={cruzadaMensal.colunas[i]} className="py-2 px-3 text-right t-body tnum font-bold">
+                                {cruzadaMensalLimitada.totaisPorMes.map((v, i) => (
+                                  <td key={cruzadaMensalLimitada.colunas[i]} className="py-2 px-3 text-right t-body tnum font-bold">
                                     {v > 0 ? formatCurrencyBR(v) : <span className="ink-quiet">—</span>}
                                   </td>
                                 ))}
-                                <td className="py-2 pl-3 text-right t-body tnum font-bold col-acao">{formatCurrencyBR(cruzadaMensal.total)}</td>
+                                <td className="py-2 pl-3 text-right t-body tnum font-bold col-acao">{formatCurrencyBR(cruzadaMensalLimitada.total)}</td>
                               </tr>
                             </tbody>
                           </table>
