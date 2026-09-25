@@ -12609,6 +12609,15 @@
         const blocoCadastroRef = useRef(null);
         const blocoCompraRef = useRef(null);
         const blocoRevisaoRef = useRef(null);
+        const [alertaDuplicata, setAlertaDuplicata] = useState(null);
+        const resolverDuplicataRef = useRef(null);
+
+        const fecharAlertaDuplicata = (confirmado) => {
+          const resolver = resolverDuplicataRef.current;
+          resolverDuplicataRef.current = null;
+          setAlertaDuplicata(null);
+          if (resolver) resolver(!!confirmado);
+        };
 
         const alternarOpcaoExtraCadastro = (chave) => {
           setOpcoesExtrasCadastro((atuais) => ({ ...atuais, [chave]: !atuais[chave] }));
@@ -12639,7 +12648,8 @@
           resaleId = null,
           supplyQty = null,
           resaleQty = null,
-          displayQty = null
+          displayQty = null,
+          itemName = ''
         }) => {
           const data = String(purchaseDate || '').slice(0, 10);
           const fornecedorNormalizado = normalizeName(String(supplier || '').trim());
@@ -12658,26 +12668,24 @@
             ? comprasDaRevenda(resaleId).find((compra) => mesmaCompra(compra, resaleQty))
             : null;
 
-          if (!duplicataInsumo && !duplicataRevenda) return true;
+          if (!duplicataInsumo && !duplicataRevenda) return Promise.resolve(true);
 
           const qtdExibida = Number(displayQty);
           const quantidadeTexto = Number.isFinite(qtdExibida)
             ? numeroCurtoBR(qtdExibida)
             : numeroCurtoBR(Number(duplicataInsumo?.qty ?? duplicataRevenda?.qty) || 0);
-          const fornecedorTexto = String(supplier || '').trim() || 'Sem fornecedor';
-          const dataTexto = data ? formatDateBR(data) : 'Sem data';
 
-          return window.confirm(
-            '⚠️ POSSÍVEL COMPRA DUPLICADA\n\n'
-            + 'Já existe um lançamento deste item com os mesmos dados:\n'
-            + 'Data: ' + dataTexto + '\n'
-            + 'Fornecedor: ' + fornecedorTexto + '\n'
-            + 'Quantidade: ' + quantidadeTexto + '\n\n'
-            + 'Deseja lançar mesmo assim?\n\n'
-            + 'OK = lançar mesmo assim\n'
-            + 'Cancelar = não lançar'
-          );
+          return new Promise((resolve) => {
+            resolverDuplicataRef.current = resolve;
+            setAlertaDuplicata({
+              itemName: String(itemName || '').trim(),
+              data: data ? formatDateBR(data) : 'Sem data',
+              fornecedor: String(supplier || '').trim() || 'Sem fornecedor',
+              quantidade: quantidadeTexto
+            });
+          });
         };
+
         // Mantém as listas de apoio estáveis enquanto a pessoa digita. Antes,
         // este filter criava um array novo em toda tecla e fazia a tabela
         // inteira (inclusive custos e fichas) ser recalculada sem necessidade.
@@ -13189,14 +13197,15 @@
                   supplyExistente.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra)
                 )
               : qty;
-            const podeLancar = confirmarPossivelDuplicataCompra({
+            const podeLancar = await confirmarPossivelDuplicataCompra({
               supplier: fornecedorCompra,
               purchaseDate: dataCompra,
               supplyId: temInsumo ? supplyExistente?.id : null,
               resaleId: temRevenda ? revendaExistente?.id : null,
               supplyQty: qtyInsumoDuplicata,
               resaleQty: qty,
-              displayQty: qtdInformada
+              displayQty: qtdInformada,
+              itemName: nome
             });
             if (!podeLancar) return;
           }
@@ -13368,7 +13377,7 @@
               ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
-            const podeLancar = confirmarPossivelDuplicataCompra({
+            const podeLancar = await confirmarPossivelDuplicataCompra({
               supplier: fornecedor,
               purchaseDate: data || dataSugerida,
               supplyId: temFaceInsumo ? insumo?.id : null,
@@ -13378,7 +13387,8 @@
               // valor para detectar exatamente o que seria salvo de novo.
               supplyQty: qty,
               resaleQty: qty,
-              displayQty: volumes
+              displayQty: volumes,
+              itemName: nome
             });
             if (!podeLancar) continue;
 
@@ -15037,6 +15047,75 @@
                   if (linha) alterarTipoDaTabela(linha, novoTipo);
                 }}
               />
+            )}
+
+            {alertaDuplicata && (
+              <div className="fixed inset-0 z-[140] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4">
+                <button
+                  type="button"
+                  className="absolute inset-0"
+                  aria-label="Fechar alerta"
+                  onClick={() => fecharAlertaDuplicata(false)}
+                />
+                <div className="relative w-full max-w-[430px] rounded-[24px] bg-white border hairline shadow-[0_24px_70px_rgba(0,0,0,0.24)] overflow-hidden">
+                  <div className="p-5 sm:p-6">
+                    <div className="flex items-start gap-3">
+                      <span className="w-10 h-10 rounded-[13px] bg-[#fff4df] text-[#8a5a00] flex items-center justify-center shrink-0">
+                        <Icons.AlertTriangle className="w-5 h-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="t-overline mb-1">Atenção</p>
+                        <h3 className="t-title">Essa compra pode já ter sido lançada</h3>
+                        <p className="t-caption mt-1.5">
+                          Encontramos outro lançamento com a mesma data, fornecedor e quantidade.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 rounded-[16px] bg-black/[0.035] p-4 space-y-2.5">
+                      {alertaDuplicata.itemName && (
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="t-caption">Item</span>
+                          <strong className="t-callout text-right">{alertaDuplicata.itemName}</strong>
+                        </div>
+                      )}
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="t-caption">Data</span>
+                        <strong className="t-callout tnum text-right">{alertaDuplicata.data}</strong>
+                      </div>
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="t-caption">Fornecedor</span>
+                        <strong className="t-callout text-right">{alertaDuplicata.fornecedor}</strong>
+                      </div>
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="t-caption">Quantidade</span>
+                        <strong className="t-callout tnum text-right">{alertaDuplicata.quantidade}</strong>
+                      </div>
+                    </div>
+
+                    <p className="t-micro mt-4">
+                      Se for uma compra diferente feita no mesmo dia, você pode continuar normalmente.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2.5 mt-5">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-md"
+                        onClick={() => fecharAlertaDuplicata(false)}
+                      >
+                        Não lançar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-md"
+                        onClick={() => fecharAlertaDuplicata(true)}
+                      >
+                        Lançar mesmo assim
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {xmlCompraAberta && (
