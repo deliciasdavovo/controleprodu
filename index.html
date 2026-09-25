@@ -12199,7 +12199,9 @@
               const opcao = match.opt;
               const unidadesSalvas = Number(opcao?.packageUnits) > 0 ? Number(opcao.packageUnits) : 0;
               const pacoteSalvo = opcao?.packageType || '';
-              const compraPorPacote = baseXml.isPackage || unidadesSalvas > 0;
+              // Cadastro existente manda na estrutura. O XML informa como a nota
+              // veio, mas nunca troca unidade-base nem inventa volume no cadastro.
+              const compraPorPacote = opcao ? unidadesSalvas > 0 : (baseXml.isPackage || unidadesSalvas > 0);
               const tipo = opcao?.purchaseKind
                 || (String(opcao?.value || '').startsWith('revenda:') ? 'revenda' : 'insumo');
 
@@ -12213,9 +12215,9 @@
                 purchaseKind: tipo,
                 unit: opcao?.unit || baseXml.unit,
                 purchaseUnit: opcao?.purchaseUnit || baseXml.purchaseUnit,
-                packageType: pacoteSalvo || baseXml.packageType || 'caixa',
+                packageType: opcao ? (pacoteSalvo || '') : (baseXml.packageType || 'caixa'),
                 volumes: qCom,
-                unitsPerPackage: compraPorPacote ? (unidadesSalvas || 1) : 0,
+                unitsPerPackage: opcao ? unidadesSalvas : (compraPorPacote ? (unidadesSalvas || 1) : 0),
                 cost: custoLinha,
                 xmlUnit: uCom,
                 confidence: match.confidence,
@@ -12495,8 +12497,8 @@
                                         purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
                                         unit: opt.unit || item.unit,
                                         purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
-                                        packageType: opt.packageType || item.packageType,
-                                        unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage
+                                        packageType: opt.packageType || '',
+                                        unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : 0
                                       });
                                     }}
                                     placeholder="Vincular ao cadastro"
@@ -13747,11 +13749,22 @@
               }
 
               if (insumo?.id) {
+                const qtyBaseInsumo = unidadesPorVolume > 0
+                  ? qty
+                  : converterQuantidadeUnidade(
+                      volumes,
+                      item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(insumo.unit || 'un'),
+                      insumo.unit || 'un'
+                    );
                 await onAddSupplyPurchase(insumo.id, {
                   supplier: fornecedor,
                   purchaseDate: data || dataSugerida,
-                  qty,
-                  purchaseUnit: unidadeCompra,
+                  qty: qtyBaseInsumo,
+                  // Mantém a forma comercial só como referência da compra.
+                  // A quantidade fica sempre na unidade-base travada do cadastro.
+                  purchaseUnit: unidadesPorVolume > 0
+                    ? unidadeCompra
+                    : (item.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit || 'un')),
                   cost
                 });
               }
@@ -16352,6 +16365,92 @@
 
         return (
           <div className="space-y-5">
+            {unificarFornecedorAberto && (
+              <div className="fixed inset-0 z-[130] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4">
+                <button
+                  type="button"
+                  className="absolute inset-0"
+                  aria-label="Fechar unificação de fornecedores"
+                  onClick={() => !unificandoFornecedor && setUnificarFornecedorAberto(false)}
+                />
+                <div className="relative w-full max-w-[520px] rounded-[24px] bg-white border hairline shadow-[0_24px_70px_rgba(0,0,0,0.24)] p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="t-overline mb-1">Unificar fornecedores</p>
+                      <h3 className="t-title">Juntar nomes duplicados</h3>
+                      <p className="t-caption mt-1.5">
+                        Todas as compras do fornecedor duplicado passam a usar o nome correto. Nenhum lançamento é apagado.
+                      </p>
+                    </div>
+                    <button type="button" disabled={unificandoFornecedor} onClick={() => setUnificarFornecedorAberto(false)} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                      <Icons.X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <label className="t-caption block mb-1">Fornecedor duplicado</label>
+                      <PickerField
+                        value={fornecedorOrigemUniao}
+                        options={nomesFornecedoresUnicos.map((nome) => ({ value: nome, label: nome }))}
+                        onPick={(opt) => {
+                          setFornecedorOrigemUniao(opt.value);
+                          if (opt.value === fornecedorDestinoUniao) setFornecedorDestinoUniao('');
+                        }}
+                        placeholder="Escolha o nome que será substituído"
+                        className="field field-md w-full"
+                        panelMinWidth={390}
+                      />
+                    </div>
+                    <div>
+                      <label className="t-caption block mb-1">Nome correto que vai permanecer</label>
+                      <PickerField
+                        value={fornecedorDestinoUniao}
+                        options={nomesFornecedoresUnicos.filter((nome) => nome !== fornecedorOrigemUniao).map((nome) => ({ value: nome, label: nome }))}
+                        onPick={(opt) => setFornecedorDestinoUniao(opt.value)}
+                        placeholder="Escolha o fornecedor correto"
+                        className="field field-md w-full"
+                        panelMinWidth={390}
+                      />
+                    </div>
+                  </div>
+
+                  {fornecedorOrigemUniao && fornecedorDestinoUniao && (
+                    <div className="mt-4 rounded-[16px] bg-black/[0.035] p-4">
+                      <span className="t-caption block">Será unificado assim:</span>
+                      <div className="mt-1.5 t-callout">
+                        <span className="line-through ink-quiet">{fornecedorOrigemUniao}</span>
+                        <span className="mx-2">→</span>
+                        <strong>{fornecedorDestinoUniao}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2.5 mt-5">
+                    <button type="button" disabled={unificandoFornecedor} onClick={() => setUnificarFornecedorAberto(false)} className="btn btn-secondary btn-md">
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!fornecedorOrigemUniao || !fornecedorDestinoUniao || unificandoFornecedor}
+                      onClick={async () => {
+                        setUnificandoFornecedor(true);
+                        try {
+                          await onUnifySupplier(fornecedorOrigemUniao, fornecedorDestinoUniao);
+                          setUnificarFornecedorAberto(false);
+                        } finally {
+                          setUnificandoFornecedor(false);
+                        }
+                      }}
+                      className="btn btn-primary btn-md disabled:opacity-40"
+                    >
+                      {unificandoFornecedor ? 'Unificando…' : 'Unificar fornecedor'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
@@ -19476,7 +19575,8 @@
         separatedProducts,
         resalePurchases,
         currentUnit,
-        unitName
+        unitName,
+        onUnifySupplier
       }) => {
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
@@ -19499,6 +19599,10 @@
         const [historicoItem, setHistoricoItem] = useState(null);
         const [graficoHistoricoAberto, setGraficoHistoricoAberto] = useState(false);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
+        const [unificarFornecedorAberto, setUnificarFornecedorAberto] = useState(false);
+        const [fornecedorOrigemUniao, setFornecedorOrigemUniao] = useState('');
+        const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
+        const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const alterarPeriodoVariacao = (valor) => {
@@ -19509,6 +19613,10 @@
           () => reunirCompras(supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit),
           [supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit]
         );
+        const nomesFornecedoresUnicos = useMemo(() => Array.from(new Set(
+          todas.map((compra) => String(compra.fornecedor || '').trim())
+            .filter((nome) => nome && nome !== 'Sem fornecedor')
+        )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [todas]);
 
         // Tipo + período alimentam também o placar; a busca só estreita a lista.
         const porTipo = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
@@ -21617,6 +21725,19 @@ ${BARRA_ACOES_HTML}
                     {unitName} · o preço de cada item, compra a compra. Vermelho subiu, verde caiu.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFornecedorOrigemUniao('');
+                    setFornecedorDestinoUniao('');
+                    setUnificarFornecedorAberto(true);
+                  }}
+                  disabled={nomesFornecedoresUnicos.length < 2}
+                  className="btn btn-secondary btn-md shrink-0 disabled:opacity-40"
+                  title="Juntar dois nomes de fornecedor em um único cadastro histórico"
+                >
+                  ⇄ Unificar fornecedores
+                </button>
                 {/* Cada saída responde a uma pergunta diferente. O texto fica
                     visível para não depender de descobrir pelo nome do PDF. */}
                 <div className="w-full xl:w-[800px]">
@@ -23896,6 +24017,40 @@ ${BARRA_ACOES_HTML}
         // A linha da planilha edita a ÚLTIMA compra, que é a que manda no
         // custo. Se o insumo ainda não tem nenhuma, a primeira digitação
         // cria uma — senão o campo aceitaria o número e não guardaria nada.
+        const handleUnifySupplier = (origem, destino) => {
+          const nomeOrigem = String(origem || '').trim();
+          const nomeDestino = String(destino || '').trim();
+          if (!nomeOrigem || !nomeDestino || nomeOrigem === nomeDestino) return Promise.resolve();
+
+          return write('Unificar fornecedores', async () => {
+            await Promise.all([
+              run('unificar fornecedor nas compras de insumo',
+                sb.from('supply_purchases').update({ supplier: nomeDestino }).eq('supplier', nomeOrigem)),
+              run('unificar fornecedor nas compras de revenda',
+                sb.from('resale_purchases').update({ supplier: nomeDestino }).eq('supplier', nomeOrigem))
+            ]);
+
+            setSupplyPurchases((prev) => prev.map((compra) =>
+              compra.supplier === nomeOrigem ? { ...compra, supplier: nomeDestino } : compra
+            ));
+            setResalePurchases((prev) => prev.map((compra) =>
+              compra.supplier === nomeOrigem ? { ...compra, supplier: nomeDestino } : compra
+            ));
+
+            // Atualiza também os vínculos locais aprendidos pelo XML, para que
+            // o nome antigo volte já apontando para o fornecedor correto.
+            try {
+              const chave = 'dv_xml_supplier_links_v1';
+              const atuais = JSON.parse(localStorage.getItem(chave) || '{}') || {};
+              Object.keys(atuais).forEach((k) => {
+                if (normalizeName(atuais[k]) === normalizeName(nomeOrigem)) atuais[k] = nomeDestino;
+              });
+              atuais[normalizeName(nomeOrigem)] = nomeDestino;
+              localStorage.setItem(chave, JSON.stringify(atuais));
+            } catch {}
+          });
+        };
+
         const handleSetUltimaCompraInsumo = (supplyId, campos) => {
           const uc = ultimaCompra(supplyPurchases.filter((c) => c.supplyId === supplyId));
           if (uc) handleUpdateSupplyPurchase({ ...uc, ...campos });
@@ -25130,6 +25285,7 @@ ${BARRA_ACOES_HTML}
                     resalePurchases={resalePurchases}
                     currentUnit={currentUnit}
                     unitName={getUnitName(units, currentUnit)}
+                    onUnifySupplier={handleUnifySupplier}
                   />
                 ) : <CmvSetupNotice />
               )}
