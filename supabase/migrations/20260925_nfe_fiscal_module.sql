@@ -59,6 +59,7 @@ create table if not exists public.nfe_items (
 
 create table if not exists public.nfe_product_mappings (
   id uuid primary key default gen_random_uuid(),
+  source_profile text not null default 'default',
   issuer_cnpj text not null,
   supplier_product_code text not null,
   description_hint text not null default '',
@@ -68,7 +69,6 @@ create table if not exists public.nfe_product_mappings (
   purchase_unit text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(issuer_cnpj, supplier_product_code),
   check ((supply_id is not null)::int + (separated_product_id is not null)::int = 1)
 );
 
@@ -108,6 +108,9 @@ create index if not exists nfe_items_document_idx on public.nfe_items(document_i
 create index if not exists nfe_items_mapping_status_idx on public.nfe_items(mapping_status);
 create index if not exists nfe_items_supply_id_idx on public.nfe_items(supply_id);
 create index if not exists nfe_items_separated_product_id_idx on public.nfe_items(separated_product_id);
+create unique index if not exists nfe_product_mappings_profile_supplier_code_unique
+  on public.nfe_product_mappings(source_profile, issuer_cnpj, supplier_product_code);
+create index if not exists nfe_product_mappings_profile_idx on public.nfe_product_mappings(source_profile);
 create index if not exists nfe_product_mappings_supply_id_idx on public.nfe_product_mappings(supply_id);
 create index if not exists nfe_product_mappings_separated_product_id_idx on public.nfe_product_mappings(separated_product_id);
 create unique index if not exists supply_purchases_nfe_item_unique
