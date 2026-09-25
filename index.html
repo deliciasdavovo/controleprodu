@@ -3237,6 +3237,9 @@
       // ==========================================
       const SUPABASE_URL = 'https://rnycjwlmzpackuodflki.supabase.co';
       const SUPABASE_KEY = 'sb_publishable_W9Z02Rr3nlUqS1ec5_OCiw_Ezoc_iWk';
+      // A Edge Function fiscal mantém verify_jwt=true. Como a chave publishable
+      // nova não é JWT, só esta chamada usa a anon JWT legada (também pública).
+      const NFE_FUNCTION_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJueWNqd2xtenBhY2t1b2RmbGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzIwNjIsImV4cCI6MjEwMTQ0ODA2Mn0.gWSAskgmJNZzuJFkhRGjw_8wgundHq4nkRJvjnaFRZk';
 
       const isSupabaseConfigured =
         SUPABASE_URL.startsWith('https://') &&
@@ -3246,6 +3249,12 @@
 
       const sb = isSupabaseConfigured && window.supabase
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+        : null;
+
+      const nfeSb = isSupabaseConfigured && window.supabase
+        ? window.supabase.createClient(SUPABASE_URL, NFE_FUNCTION_ANON_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false }
+          })
         : null;
 
       // Toda consulta passa por aqui: erro do banco vira exceção com contexto
@@ -17718,10 +17727,10 @@
         const [search, setSearch] = useState('');
 
         const fiscalCall = async (action, payload = {}) => {
-          if (!sb) throw new Error('Supabase não conectado.');
+          if (!nfeSb) throw new Error('Supabase não conectado.');
           if (!fiscalToken) throw new Error('Informe o código fiscal deste aparelho.');
 
-          const result = await sb.functions.invoke('nfe-fiscal', {
+          const result = await nfeSb.functions.invoke('nfe-fiscal', {
             body: {
               action,
               unit_code: currentUnit,
