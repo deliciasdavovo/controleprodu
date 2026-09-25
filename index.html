@@ -4083,7 +4083,8 @@
           tabs: [
             { id: 'insumos', label: 'Cadastros', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
-            { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart }
+            { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart },
+            { id: 'nfe', label: 'Notas NF-e', fullLabel: 'Notas fiscais recebidas', icon: Icons.ClipboardList }
           ]
         }
       };
@@ -17688,6 +17689,801 @@
         );
       };
 
+      // ==========================================
+      // NF-e — NOTAS RECEBIDAS
+      // ==========================================
+      const NfeView = ({
+        currentUnit,
+        unitName,
+        supplies,
+        separatedProducts,
+        onImported
+      }) => {
+        const TOKEN_KEY = 'dv-nfe-fiscal-token';
+        const [fiscalToken, setFiscalToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
+        const [tokenDraft, setTokenDraft] = useState('');
+        const [status, setStatus] = useState(null);
+        const [documents, setDocuments] = useState([]);
+        const [syncState, setSyncState] = useState(null);
+        const [selected, setSelected] = useState(null);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
+        const [notice, setNotice] = useState('');
+        const [setupOpen, setSetupOpen] = useState(false);
+        const [certFile, setCertFile] = useState(null);
+        const [certPassword, setCertPassword] = useState('');
+        const [certCnpj, setCertCnpj] = useState('');
+        const [xmlFile, setXmlFile] = useState(null);
+        const [mappingDrafts, setMappingDrafts] = useState({});
+        const [search, setSearch] = useState('');
+
+        const fiscalCall = async (action, payload = {}) => {
+          if (!sb) throw new Error('Supabase não conectado.');
+          if (!fiscalToken) throw new Error('Informe o código fiscal deste aparelho.');
+
+          const result = await sb.functions.invoke('nfe-fiscal', {
+            body: {
+              action,
+              unit_code: currentUnit,
+              ...payload
+            },
+            headers: {
+              'x-nfe-token': fiscalToken
+            }
+          });
+
+          if (result.error) throw new Error(result.error.message || 'Falha ao acessar o módulo fiscal.');
+          if (result.data && result.data.error) throw new Error(result.data.error);
+          return result.data || {};
+        };
+
+        const fileToBase64 = (file) => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const raw = String(reader.result || '');
+            resolve(raw.includes(',') ? raw.split(',').pop() : raw);
+          };
+          reader.onerror = () => reject(new Error('Não foi possível ler o certificado.'));
+          reader.readAsDataURL(file);
+        });
+
+        const carregar = async (options = {}) => {
+          if (!fiscalToken || !currentUnit) return;
+          setLoading(true);
+          setError('');
+          try {
+            const pair = await Promise.all([
+              fiscalCall('status'),
+              fiscalCall('list')
+            ]);
+            const statusData = pair[0];
+            const listData = pair[1];
+            setStatus(statusData);
+            setDocuments(listData.documents || []);
+            setSyncState(listData.sync || statusData.sync || null);
+
+            if (!options.preserveSelection) {
+              setSelected(null);
+            } else if (selected && selected.document && selected.document.id) {
+              const detail = await fiscalCall('get', { document_id: selected.document.id });
+              setSelected(detail);
+            }
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        useEffect(() => {
+          setSelected(null);
+          setMappingDrafts({});
+          if (fiscalToken && currentUnit) carregar();
+        }, [currentUnit, fiscalToken]);
+
+        const salvarToken = () => {
+          const value = tokenDraft.trim();
+          if (!value) return;
+          localStorage.setItem(TOKEN_KEY, value);
+          setFiscalToken(value);
+          setTokenDraft('');
+        };
+
+        const esquecerToken = () => {
+          localStorage.removeItem(TOKEN_KEY);
+          setFiscalToken('');
+          setTokenDraft('');
+          setStatus(null);
+          setDocuments([]);
+          setSelected(null);
+          setError('');
+        };
+
+        const configurarCertificado = async () => {
+          if (!certFile) {
+            setError('Selecione o arquivo A1 (.pfx ou .p12).');
+            return;
+          }
+          if (!certPassword.trim()) {
+            setError('Informe a senha do certificado.');
+            return;
+          }
+          const cnpj = certCnpj.replace(/\D/g, '');
+          if (cnpj.length !== 14) {
+            setError('Informe o CNPJ com 14 dígitos.');
+            return;
+          }
+
+          setLoading(true);
+          setError('');
+          setNotice('');
+          try {
+            const pfxBase64 = await fileToBase64(certFile);
+            await fiscalCall('configure_certificate', {
+              pfx_base64: pfxBase64,
+              password: certPassword,
+              cnpj,
+              uf_code: '35',
+              environment: 1
+            });
+            setCertPassword('');
+            setCertFile(null);
+            setSetupOpen(false);
+            setNotice('Certificado A1 conectado com segurança para esta unidade.');
+            await carregar();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const removerCertificado = async () => {
+          const ok = window.confirm('Remover o certificado fiscal desta unidade? As notas já recebidas não serão apagadas.');
+          if (!ok) return;
+          setLoading(true);
+          setError('');
+          try {
+            await fiscalCall('clear_certificate');
+            setStatus((s) => ({ ...(s || {}), certificateConfigured: false, cnpjConfigured: false, cnpjMasked: '' }));
+            setNotice('Certificado removido desta unidade.');
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const sincronizar = async () => {
+          setLoading(true);
+          setError('');
+          setNotice('');
+          try {
+            const result = await fiscalCall('sync');
+            const recebidas = Number(result.received) || 0;
+            setNotice(
+              recebidas > 0
+                ? String(recebidas) + ' ' + (recebidas === 1 ? 'documento recebido' : 'documentos recebidos') + ' da SEFAZ.'
+                : (result.message || 'Consulta concluída. Nenhum documento novo.')
+            );
+            await carregar();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const importarXmlManual = async () => {
+          if (!xmlFile) return;
+          setLoading(true);
+          setError('');
+          setNotice('');
+          try {
+            const xml = await xmlFile.text();
+            await fiscalCall('import_xml', { xml });
+            setXmlFile(null);
+            setNotice('XML lido e adicionado às notas recebidas.');
+            await carregar();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const abrirNota = async (doc) => {
+          setLoading(true);
+          setError('');
+          try {
+            const detail = await fiscalCall('get', { document_id: doc.id });
+            setSelected(detail);
+            const drafts = {};
+            (detail.items || []).forEach((item) => {
+              const existingRef = item.supply_id
+                ? 'supply:' + item.supply_id
+                : item.separated_product_id
+                  ? 'resale:' + item.separated_product_id
+                  : '';
+              drafts[item.id] = {
+                target: existingRef,
+                qty: item.purchase_qty ?? item.qty ?? '',
+                unit: item.purchase_unit || item.commercial_unit || 'un'
+              };
+            });
+            setMappingDrafts(drafts);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const targetOptions = useMemo(() => {
+          const options = [];
+          supplies.forEach((s) => options.push({
+            value: 'supply:' + s.id,
+            label: 'Insumo · ' + s.name,
+            unit: s.purchaseUnit || s.unit || 'un'
+          }));
+          separatedProducts
+            .filter((p) => p.unit === currentUnit)
+            .forEach((p) => options.push({
+              value: 'resale:' + p.id,
+              label: 'Revenda · ' + p.productName,
+              unit: p.purchaseUnit || p.unitOfMeasure || 'un'
+            }));
+          return options.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+        }, [supplies, separatedProducts, currentUnit]);
+
+        const updateDraft = (itemId, patch) => {
+          setMappingDrafts((prev) => ({
+            ...prev,
+            [itemId]: { ...(prev[itemId] || {}), ...patch }
+          }));
+        };
+
+        const escolherAlvo = (item, value) => {
+          const opt = targetOptions.find((o) => o.value === value);
+          updateDraft(item.id, {
+            target: value,
+            unit: opt?.unit || item.purchase_unit || item.commercial_unit || 'un'
+          });
+        };
+
+        const salvarVinculo = async (item) => {
+          const draft = mappingDrafts[item.id] || {};
+          if (!draft.target) {
+            setError('Escolha o item correspondente no cadastro.');
+            return;
+          }
+          const parts = String(draft.target).split(':');
+          const kind = parts[0];
+          const targetId = parts[1];
+          const originalQty = Number(item.qty) || 1;
+          const desiredQty = Number(String(draft.qty || '').replace(',', '.')) || originalQty;
+          const multiplier = desiredQty / originalQty;
+
+          setLoading(true);
+          setError('');
+          try {
+            const detail = await fiscalCall('save_mapping', {
+              item_id: item.id,
+              kind,
+              target_id: targetId,
+              qty_multiplier: multiplier,
+              purchase_unit: draft.unit || item.commercial_unit || 'un'
+            });
+            setSelected(detail);
+            setNotice('Vínculo salvo. Nas próximas notas deste fornecedor o item será reconhecido automaticamente.');
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const ignorarItem = async (item) => {
+          setLoading(true);
+          setError('');
+          try {
+            const detail = await fiscalCall('save_mapping', {
+              item_id: item.id,
+              kind: 'ignore'
+            });
+            setSelected(detail);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const importarNota = async () => {
+          if (!selected || !selected.document || !selected.document.id) return;
+          const ok = window.confirm(
+            'Importar a NF-e ' + (selected.document.nfe_number || '') + ' para o histórico de compras de ' + unitName + '?'
+          );
+          if (!ok) return;
+
+          setLoading(true);
+          setError('');
+          setNotice('');
+          try {
+            const result = await fiscalCall('import_document', {
+              document_id: selected.document.id
+            });
+            setNotice(
+              result.alreadyImported
+                ? 'Esta NF-e já havia sido importada.'
+                : String(result.itemsImported || 0) + ' itens foram lançados no histórico de compras.'
+            );
+            if (onImported) await onImported();
+            await carregar();
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const statusMeta = {
+          received: { label: 'Recebida', tone: 'tone-quiet' },
+          awaiting_xml: { label: 'Aguardando XML', tone: 'tone-last' },
+          ready: { label: 'Pronta para importar', tone: 'tone-fresh' },
+          needs_mapping: { label: 'Vincular itens', tone: 'tone-last' },
+          imported: { label: 'Importada', tone: 'tone-fresh' },
+          cancelled: { label: 'Cancelada', tone: 'tone-expired' },
+          error: { label: 'Erro', tone: 'tone-expired' }
+        };
+
+        const visibleDocuments = documents.filter((doc) => {
+          const term = search.trim().toLowerCase();
+          if (!term) return true;
+          return casaComBusca(doc.issuer_name, term)
+            || casaComBusca(doc.nfe_number, term)
+            || casaComBusca(doc.access_key, term);
+        });
+
+        const pendingCount = documents.filter((d) => d.status === 'needs_mapping' || d.status === 'ready').length;
+        const importedCount = documents.filter((d) => d.status === 'imported').length;
+
+        if (!fiscalToken) {
+          return (
+            <div className="max-w-xl mx-auto">
+              <div className="card p-6 sm:p-7">
+                <div className="t-overline flex items-center gap-1.5">
+                  <Icons.ClipboardList className="w-3.5 h-3.5" />
+                  Notas NF-e
+                </div>
+                <h2 className="t-display mt-2">Ativar módulo fiscal neste aparelho</h2>
+                <p className="t-body mt-2">
+                  Digite o código fiscal uma vez. Ele fica salvo somente neste navegador e protege certificado,
+                  XML e importação de notas.
+                </p>
+                <div className="mt-5 flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="password"
+                    value={tokenDraft}
+                    onChange={(e) => setTokenDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') salvarToken(); }}
+                    placeholder="Código fiscal"
+                    className="field field-md flex-1"
+                    autoComplete="off"
+                  />
+                  <button type="button" onClick={salvarToken} className="btn btn-primary btn-md">
+                    Entrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+              <div>
+                <div className="t-overline">CMV · Notas NF-e</div>
+                <h2 className="t-display mt-1">Notas recebidas</h2>
+                <p className="t-body mt-1">
+                  {unitName} · consulta e importação das NF-e destinadas ao CNPJ desta unidade.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => carregar({ preserveSelection: true })}
+                  disabled={loading}
+                  className="btn btn-secondary btn-md"
+                >
+                  Atualizar
+                </button>
+                <button
+                  type="button"
+                  onClick={sincronizar}
+                  disabled={loading || !status?.certificateConfigured}
+                  className="btn btn-primary btn-md"
+                >
+                  <Icons.History className="w-4 h-4" />
+                  Sincronizar notas
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="card-quiet p-4 flex items-start gap-2.5 border border-[#7d2027]/20 bg-[#7d2027]/[0.06]">
+                <Icons.AlertTriangle className="w-4 h-4 ink-expired shrink-0 mt-0.5" />
+                <div className="t-callout ink-expired flex-1">{error}</div>
+                <button type="button" onClick={() => setError('')} className="btn btn-secondary btn-sm">Fechar</button>
+              </div>
+            )}
+
+            {notice && (
+              <div className="card-quiet p-4 flex items-start gap-2.5">
+                <Icons.CheckCircle2 className="w-4 h-4 ink-fresh shrink-0 mt-0.5" />
+                <div className="t-callout flex-1">{notice}</div>
+                <button type="button" onClick={() => setNotice('')} className="btn btn-secondary btn-sm">Fechar</button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+              <div className="card p-5 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="t-overline">Conexão fiscal</div>
+                    <h3 className="t-title mt-1">
+                      {status?.certificateConfigured ? 'Certificado conectado' : 'Falta conectar o certificado A1'}
+                    </h3>
+                    {status?.certificateConfigured ? (
+                      <p className="t-micro mt-1">
+                        CNPJ {status.cnpjMasked || 'configurado'} · SP · ambiente de produção
+                      </p>
+                    ) : (
+                      <p className="t-micro mt-1">
+                        Conecte o .pfx/.p12 desta unidade. O arquivo e a senha ficam criptografados no Supabase Vault.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSetupOpen((v) => !v)}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      {status?.certificateConfigured ? 'Trocar A1' : 'Conectar A1'}
+                    </button>
+                    {status?.certificateConfigured && (
+                      <button type="button" onClick={removerCertificado} className="btn btn-danger-quiet btn-sm">
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {setupOpen && (
+                  <div className="mt-5 pt-5 border-t hairline grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="t-caption">Certificado A1 (.pfx ou .p12)</label>
+                      <input
+                        type="file"
+                        accept=".pfx,.p12,application/x-pkcs12"
+                        onChange={(e) => setCertFile(e.target.files?.[0] || null)}
+                        className="field field-md w-full file:mr-3 file:border-0 file:bg-transparent file:font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="t-caption">CNPJ desta unidade</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={certCnpj}
+                        onChange={(e) => setCertCnpj(e.target.value)}
+                        placeholder="00.000.000/0000-00"
+                        className="field field-md w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="t-caption">Senha do A1</label>
+                      <input
+                        type="password"
+                        value={certPassword}
+                        onChange={(e) => setCertPassword(e.target.value)}
+                        className="field field-md w-full"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={configurarCertificado}
+                        disabled={loading}
+                        className="btn btn-primary btn-md w-full sm:w-auto"
+                      >
+                        Salvar certificado
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="card p-5 sm:p-6">
+                <div className="t-overline">Sincronização</div>
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div>
+                    <span className="t-overline-sm block">Notas</span>
+                    <strong className="t-metric-xs tnum">{documents.length}</strong>
+                  </div>
+                  <div>
+                    <span className="t-overline-sm block">Pendentes</span>
+                    <strong className="t-metric-xs tnum">{pendingCount}</strong>
+                  </div>
+                  <div>
+                    <span className="t-overline-sm block">Importadas</span>
+                    <strong className="t-metric-xs tnum">{importedCount}</strong>
+                  </div>
+                </div>
+                <p className="t-micro mt-4">
+                  {syncState?.last_sync_at
+                    ? 'Última consulta: ' + new Date(syncState.last_sync_at).toLocaleString('pt-BR')
+                    : 'Ainda não houve consulta à SEFAZ nesta unidade.'}
+                </p>
+                {syncState?.last_status_message && (
+                  <p className="t-nano mt-1 ink-quiet">{syncState.last_status_message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="card p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                  <div className="t-overline">Notas recebidas</div>
+                  <h3 className="t-title mt-1">Histórico fiscal da unidade</h3>
+                </div>
+                <div className="relative w-full sm:w-80">
+                  <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar fornecedor, nº ou chave"
+                    className="field field-sm field-search w-full"
+                  />
+                </div>
+              </div>
+
+              {loading && documents.length === 0 ? (
+                <div className="py-10 text-center t-body ink-quiet">Carregando notas…</div>
+              ) : visibleDocuments.length === 0 ? (
+                <div className="py-8">
+                  <p className="t-body ink-quiet">
+                    {status?.certificateConfigured
+                      ? 'Nenhuma nota recebida ainda. Use “Sincronizar notas”.'
+                      : 'Conecte o certificado A1 para começar a receber as NF-e.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 divide-y divide-black/[0.07]">
+                  {visibleDocuments.map((doc) => {
+                    const metaStatus = statusMeta[doc.status] || statusMeta.received;
+                    return (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => abrirNota(doc)}
+                        className="w-full py-3.5 text-left flex items-start gap-3 hover:bg-black/[0.018] rounded-xl px-1 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="t-callout truncate max-w-full">{doc.issuer_name || 'Fornecedor não identificado'}</strong>
+                            <span className={'pill ' + metaStatus.tone}>{metaStatus.label}</span>
+                          </div>
+                          <div className="t-micro mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                            <span>{formatDateBR(doc.issue_date) || 'Sem data'}</span>
+                            <span>NF {doc.nfe_number || '—'}</span>
+                            {doc.series && <span>Série {doc.series}</span>}
+                          </div>
+                          <div className="t-nano mt-1 ink-quiet truncate">{doc.access_key}</div>
+                        </div>
+                        <strong className="t-callout tnum shrink-0">{formatCurrencyBR(doc.total_value)}</strong>
+                        <Icons.ChevronRight className="w-4 h-4 shrink-0 mt-1 ink-quiet" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="t-overline">Plano B</div>
+                  <h3 className="t-title mt-1">Importar XML manualmente</h3>
+                  <p className="t-micro mt-1">
+                    Útil para uma nota cujo XML você já recebeu, mesmo antes da sincronização automática.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="file"
+                    accept=".xml,text/xml,application/xml"
+                    onChange={(e) => setXmlFile(e.target.files?.[0] || null)}
+                    className="field field-sm w-full sm:w-64 file:mr-2 file:border-0 file:bg-transparent file:font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={importarXmlManual}
+                    disabled={!xmlFile || loading}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    Ler XML
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {selected?.document && (
+              <div className="fixed inset-0 z-[160] bg-black/35 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4" onMouseDown={(e) => {
+                if (e.target === e.currentTarget) setSelected(null);
+              }}>
+                <div className="bg-white w-full sm:max-w-4xl max-h-[94vh] sm:max-h-[90vh] overflow-y-auto rounded-t-[22px] sm:rounded-[22px] shadow-apple-lg">
+                  <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-xl border-b hairline px-4 sm:px-6 py-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="t-overline">NF-e {selected.document.nfe_number || '—'}</div>
+                      <h3 className="t-title mt-1 truncate">{selected.document.issuer_name || 'Fornecedor'}</h3>
+                      <div className="t-micro mt-1">
+                        {formatDateBR(selected.document.issue_date)} · {formatCurrencyBR(selected.document.total_value)}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setSelected(null)} className="w-9 h-9 rounded-full bg-black/[0.05] flex items-center justify-center shrink-0">
+                      <Icons.X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-6 space-y-4">
+                    {selected.document.document_kind !== 'full' ? (
+                      <div className="card-quiet p-4">
+                        <div className="t-callout font-semibold">Resumo recebido; XML completo ainda não disponível.</div>
+                        <p className="t-micro mt-1">
+                          O sistema não faz manifestação fiscal automaticamente. Sincronize novamente mais tarde ou importe o XML manualmente se você já o tiver.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-3">
+                          {(selected.items || []).map((item) => {
+                            const mapped = item.mapping_status !== 'unmapped';
+                            const ignored = item.mapping_status === 'ignored';
+                            const imported = item.mapping_status === 'imported';
+                            const draft = mappingDrafts[item.id] || {
+                              target: '',
+                              qty: item.purchase_qty ?? item.qty,
+                              unit: item.purchase_unit || item.commercial_unit || 'un'
+                            };
+                            const targetLabel = item.supply_id
+                              ? supplies.find((s) => s.id === item.supply_id)?.name
+                              : item.separated_product_id
+                                ? separatedProducts.find((p) => p.id === item.separated_product_id)?.productName
+                                : '';
+
+                            return (
+                              <div key={item.id} className="rounded-2xl border hairline p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="t-title">{item.description || 'Item sem descrição'}</div>
+                                    <div className="t-nano mt-1 ink-quiet">
+                                      Código {item.supplier_product_code || '—'} · {item.qty} {item.commercial_unit || 'un'}
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <strong className="t-callout tnum block">{formatCurrencyBR(item.total_value)}</strong>
+                                    <span className="t-nano ink-quiet">{formatCurrencyBR(item.unit_value)}/{item.commercial_unit || 'un'}</span>
+                                  </div>
+                                </div>
+
+                                {mapped ? (
+                                  <div className={ignored ? "mt-3 rounded-xl px-3 py-2.5 bg-black/[0.035]" : "mt-3 rounded-xl px-3 py-2.5 bg-[#2e7d51]/[0.08]"}>
+                                    <div>
+                                      <span className="t-overline-sm block">{ignored ? 'Não importar' : imported ? 'Importado' : 'Vinculado ao cadastro'}</span>
+                                      <strong className="t-callout">{ignored ? 'Item ignorado' : (targetLabel || 'Cadastro vinculado')}</strong>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-4 grid grid-cols-12 gap-2">
+                                    <div className="col-span-12">
+                                      <label className="t-caption">Este item corresponde a</label>
+                                      <select
+                                        value={draft.target || ''}
+                                        onChange={(e) => escolherAlvo(item, e.target.value)}
+                                        className="field field-md field-select w-full"
+                                      >
+                                        <option value="">Escolha no cadastro…</option>
+                                        {targetOptions.map((opt) => (
+                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="col-span-7 sm:col-span-5">
+                                      <label className="t-caption">Quantidade no sistema</label>
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={draft.qty ?? ''}
+                                        onChange={(e) => updateDraft(item.id, { qty: e.target.value })}
+                                        className="field field-md tnum w-full"
+                                      />
+                                    </div>
+                                    <div className="col-span-5 sm:col-span-3">
+                                      <label className="t-caption">Unidade</label>
+                                      <input
+                                        type="text"
+                                        value={draft.unit || ''}
+                                        onChange={(e) => updateDraft(item.id, { unit: e.target.value })}
+                                        className="field field-md w-full"
+                                      />
+                                    </div>
+                                    <div className="col-span-12 sm:col-span-4 flex items-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => salvarVinculo(item)}
+                                        disabled={!draft.target || loading}
+                                        className="btn btn-primary btn-md flex-1"
+                                      >
+                                        Vincular
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => ignorarItem(item)}
+                                        disabled={loading}
+                                        className="btn btn-secondary btn-md"
+                                      >
+                                        Ignorar
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {selected.document.status !== 'imported' && (
+                          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xl border-t hairline -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 py-4">
+                            <button
+                              type="button"
+                              onClick={importarNota}
+                              disabled={
+                                loading
+                                || (selected.items || []).some((i) => i.mapping_status === 'unmapped')
+                              }
+                              className="btn btn-primary btn-lg w-full"
+                            >
+                              <Icons.ShoppingCart className="w-4 h-4" />
+                              Importar compra
+                            </button>
+                            {(selected.items || []).some((i) => i.mapping_status === 'unmapped') && (
+                              <p className="t-nano text-center mt-2 ink-quiet">
+                                Vincule ou ignore todos os itens antes de importar.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button type="button" onClick={esquecerToken} className="t-caption underline underline-offset-2 ink-quiet">
+                Esquecer código fiscal neste aparelho
+              </button>
+            </div>
+          </div>
+        );
+      };
+
       const SuppliersView = ({
         supplies,
         supplyPurchases,
@@ -23277,6 +24073,18 @@ ${BARRA_ACOES_HTML}
                     resalePurchases={resalePurchases}
                     currentUnit={currentUnit}
                     unitName={getUnitName(units, currentUnit)}
+                  />
+                ) : <CmvSetupNotice />
+              )}
+
+              {activeTab === 'nfe' && (
+                cmvReady ? (
+                  <NfeView
+                    currentUnit={currentUnit}
+                    unitName={getUnitName(units, currentUnit)}
+                    supplies={supplies}
+                    separatedProducts={separatedProducts}
+                    onImported={() => reload({ silent: true })}
                   />
                 ) : <CmvSetupNotice />
               )}
