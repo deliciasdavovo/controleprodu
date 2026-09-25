@@ -19004,29 +19004,35 @@ ${BARRA_ACOES_HTML}
 
           const secaoFornecedor = (guia) => {
             const linhas = guia.itens.map((i) => {
-              const recentesCronologicas = [...i.recentes].reverse();
-              const quantidadesTexto = recentesCronologicas
-                .map((c) => formatQuantidadeCompra(c))
-                .join(' · ');
-              const precosTexto = recentesCronologicas
-                .map((c) => formatPrecoCompraComercial(c))
-                .join(' → ');
+              // Mais recente primeiro. Quantidade e preço ficam juntos porque
+              // pertencem à mesma compra; separar em colunas exigia reconstruir
+              // mentalmente qual preço correspondia a qual quantidade.
+              const historicoRecente = i.recentes.length
+                ? i.recentes.map((compra, indice) =>
+                    '<div class="compra-recente">'
+                    + '<span class="compra-posicao">' + (indice + 1) + 'ª</span>'
+                    + '<span class="compra-qtd">' + escaparHtml(formatQuantidadeCompra(compra)) + '</span>'
+                    + '<strong class="compra-preco">' + escaparHtml(formatPrecoCompraComercial(compra)) + '</strong>'
+                    + (compra.data ? '<small>' + escaparHtml(formatDateBR(compra.data)) + '</small>' : '')
+                    + '</div>'
+                  ).join('')
+                : '<span class="quieto">Sem histórico recente</span>';
+
               const habitual = i.quantidadeHabitual > 0
-                ? '≈ ' + formatQuantidadeAcumulada(i.quantidadeHabitual, i.unidade)
+                ? formatQuantidadeAcumulada(i.quantidadeHabitual, i.unidade)
                 : '—';
               const alerta = i.alternativa
                 ? '<div class="alerta"><b>Mais barato em ' + escaparHtml(i.alternativa.fornecedor) + '</b>'
                   + '<span>' + escaparHtml(formatPrecoCompraComercial(i.alternativa))
-                  + ' · ' + i.economiaPct.toFixed(1).replace('.', ',') + '% abaixo</span></div>'
-                : '<span class="quieto">—</span>';
+                  + '<br>' + i.economiaPct.toFixed(1).replace('.', ',') + '% abaixo</span></div>'
+                : '<span class="quieto">Sem alerta</span>';
 
               return '<tr>'
                 + '<td class="produto" data-rot="Produto"><b>' + escaparHtml(i.item) + '</b><small>' + escaparHtml(i.tipo) + '</small></td>'
                 + '<td class="num forte" data-rot="Compra habitual">' + escaparHtml(habitual) + '</td>'
-                + '<td class="num historico" data-rot="Últimas quantidades">' + escaparHtml(quantidadesTexto || '—') + '</td>'
-                + '<td class="num historico" data-rot="Preços recentes">' + escaparHtml(precosTexto || '—') + '</td>'
-                + '<td data-rot="Frequência">' + escaparHtml(i.frequencia) + '</td>'
-                + '<td data-rot="Atenção">' + alerta + '</td>'
+                + '<td class="historico-compras" data-rot="Histórico recente">' + historicoRecente + '</td>'
+                + '<td data-rot="Frequência">' + escaparHtml(i.frequencia.replace(/^≈\s*/, '')) + '</td>'
+                + '<td class="' + (i.alternativa ? 'tem-alerta' : 'sem-alerta') + '" data-rot="Atenção">' + alerta + '</td>'
                 + '</tr>';
             }).join('');
 
@@ -19037,8 +19043,8 @@ ${BARRA_ACOES_HTML}
               + '<div><span class="rotulo">Alertas de preço</span><b>' + guia.alertas + '</b></div>'
               + '<div><span class="rotulo">Último lançamento registrado</span><b>' + (guia.ultimaData ? formatDateBR(guia.ultimaData) : '—') + '</b></div>'
               + '</div>'
-              + '<table><colgroup><col style="width:20%"><col style="width:12%"><col style="width:17%"><col style="width:22%"><col style="width:12%"><col style="width:17%"></colgroup>'
-              + '<thead><tr><th>Produto</th><th class="num">Compra habitual</th><th class="num">Últimas quantidades</th><th class="num">Preços recentes</th><th>Frequência</th><th>Atenção</th></tr></thead>'
+              + '<table><colgroup><col style="width:22%"><col style="width:13%"><col style="width:35%"><col style="width:13%"><col style="width:17%"></colgroup>'
+              + '<thead><tr><th>Produto</th><th class="num">Compra habitual</th><th>Histórico recente</th><th>Frequência</th><th>Atenção</th></tr></thead>'
               + '<tbody>' + linhas + '</tbody></table>'
               + '</section>';
           };
@@ -19066,9 +19072,10 @@ ${BARRA_ACOES_HTML}
             + 'table{width:100%;border-collapse:collapse;table-layout:fixed;}thead{display:table-header-group;}tr{page-break-inside:avoid;}'
             + 'th,td{padding:5px 5px;border-bottom:1px solid #d7d7d7;text-align:left;vertical-align:top;overflow-wrap:anywhere;}'
             + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.03em;border-bottom:1.5px solid #111;}td small{display:block;color:#666;font-size:6.7pt;margin-top:1px;}'
-            + '.num{text-align:right;font-variant-numeric:tabular-nums;}.forte{font-weight:700;}.historico{font-size:7.4pt;line-height:1.45;}.quieto{color:#777;}'
+            + '.num{text-align:right;font-variant-numeric:tabular-nums;}.forte{font-weight:700;}.quieto{color:#777;}'
+            + '.historico-compras{font-variant-numeric:tabular-nums;}.compra-recente{display:grid;grid-template-columns:18px minmax(50px,.8fr) minmax(88px,1.2fr);gap:5px 7px;align-items:baseline;padding:2px 0;border-bottom:1px solid #ededed;}.compra-recente:last-child{border-bottom:0;}.compra-posicao{font-size:6.5pt;color:#777;font-weight:700;}.compra-qtd{font-size:7.3pt;}.compra-preco{font-size:7.5pt;text-align:right;}.compra-recente small{grid-column:2/-1;color:#777;font-size:6.2pt;text-align:right;margin:0;}'
             + '.alerta{color:#7d2027;font-size:7.3pt;line-height:1.35;}.alerta b,.alerta span{display:block;}.alerta span{margin-top:1px;font-weight:600;}'
-            + '@media screen and (max-width:700px){'
+            + '@media screen and (max-width:960px){'
             + 'body{padding:0 14px 28px;max-width:none;font-size:14px;}'
             + '.acoes{position:static;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;margin-bottom:10px;}'
             + '.acao-imprimir,.acao-imagem{min-height:44px;padding:10px 8px;font-size:12px;border-radius:12px;}'
@@ -19083,7 +19090,8 @@ ${BARRA_ACOES_HTML}
             + 'td::before{content:attr(data-rot);text-align:left;color:#6e6e73;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.035em;}'
             + 'td.produto{display:block;text-align:left!important;padding:2px 0 10px;margin-bottom:3px;border-bottom:1px solid #ecece8;}'
             + 'td.produto::before{display:none;}td.produto b{display:block;font-size:16px;line-height:1.25;}td.produto small{font-size:11px;margin-top:3px;}'
-            + '.historico{font-size:12px;}.alerta{font-size:12px;line-height:1.4;}.quieto{font-size:12px;}'
+            + '.historico-compras{font-size:12px;}.compra-recente{grid-template-columns:28px minmax(70px,.8fr) minmax(0,1.2fr);gap:4px 8px;padding:7px 0;border-bottom:1px solid #efefeb;}.compra-posicao{font-size:10px;text-align:left;color:#86868b;}.compra-qtd{font-size:13px;text-align:left;}.compra-preco{font-size:13px;text-align:right;white-space:normal;}.compra-recente small{grid-column:2/-1;font-size:10px;text-align:right;color:#86868b;}'
+            + 'td.sem-alerta{display:none;}.alerta{font-size:12px;line-height:1.4;}.quieto{font-size:12px;}'
             + '}'
             + '</style></head><body>'
             + BARRA_ACOES_HTML
