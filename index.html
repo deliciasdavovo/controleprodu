@@ -13689,7 +13689,7 @@
           for (const item of itens) {
             const nome = String(item.name || '').trim();
             const tipo = item.purchaseKind || 'revenda';
-            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza'].includes(tipo);
+            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
             const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
             const volumes = Number(item.volumes) || 0;
             const unidadesPorVolume = Number(item.unitsPerPackage) || 0;
