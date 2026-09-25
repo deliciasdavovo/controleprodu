@@ -12242,13 +12242,22 @@
                   const resaleId = String(item.catalogValue).startsWith('revenda:')
                     ? String(item.catalogValue).slice(8)
                     : null;
-                  const qty = (Number(item.volumes) || 0) * ((Number(item.unitsPerPackage) || 0) > 0 ? Number(item.unitsPerPackage) : 1);
+                  const volumesItem = Number(item.volumes) || 0;
+                  const unidadesPacoteItem = Number(item.unitsPerPackage) || 0;
+                  const qty = volumesItem * (unidadesPacoteItem > 0 ? unidadesPacoteItem : 1);
+                  const qtySupply = temFaceInsumo && unidadesPacoteItem <= 0
+                    ? converterQuantidadeUnidade(
+                        volumesItem,
+                        item.purchaseUnit || item.unit || 'un',
+                        item.unit || 'un'
+                      )
+                    : qty;
                   const duplicata = detectarDuplicata({
                     supplier: fornecedorResolvido.nome || fornecedorXml,
                     purchaseDate: dataCompraXml,
                     supplyId: temFaceInsumo ? supplyId : null,
                     resaleId: temFaceRevenda ? resaleId : null,
-                    supplyQty: qty,
+                    supplyQty: qtySupply,
                     resaleQty: qty,
                     displayQty: Number(item.volumes) || 0,
                     itemName: item.name || item.originalName
@@ -24047,6 +24056,17 @@ ${BARRA_ACOES_HTML}
               });
               atuais[normalizeName(nomeOrigem)] = nomeDestino;
               localStorage.setItem(chave, JSON.stringify(atuais));
+
+              const chaveProdutos = 'dv_xml_product_links_v1';
+              const produtos = JSON.parse(localStorage.getItem(chaveProdutos) || '{}') || {};
+              const prefixoOrigem = normalizeName(nomeOrigem) + '::';
+              const prefixoDestino = normalizeName(nomeDestino) + '::';
+              Object.keys(produtos).forEach((k) => {
+                if (!k.startsWith(prefixoOrigem)) return;
+                const codigo = k.slice(prefixoOrigem.length);
+                if (!produtos[prefixoDestino + codigo]) produtos[prefixoDestino + codigo] = produtos[k];
+              });
+              localStorage.setItem(chaveProdutos, JSON.stringify(produtos));
             } catch {}
           });
         };
