@@ -12232,7 +12232,7 @@
               ? lidos.flatMap((item) => {
                   if (!item.catalogValue) return [];
                   const tipo = item.purchaseKind || 'revenda';
-                  const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza'].includes(tipo);
+                  const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
                   const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
                   const supplyId = String(item.catalogValue).startsWith('insumo:')
                     ? String(item.catalogValue).slice(7)
@@ -12572,6 +12572,7 @@
                                     <option value="insumo_revenda">Insumo + revenda</option>
                                     <option value="embalagem">Embalagem</option>
                                     <option value="limpeza">Limpeza</option>
+                                    <option value="outros">Outros</option>
                                   </select>
                                 </td>
                                 <td className="py-2 px-3">
@@ -12770,7 +12771,7 @@
                                   </td>
                                   <td className="py-2 px-3">
                                     <select value={item.purchaseKind} onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })} className="field field-select h-9 text-[12px] w-36">
-                                      <option value="revenda">Revenda</option><option value="insumo">Insumo</option><option value="insumo_revenda">Insumo + revenda</option><option value="embalagem">Embalagem</option><option value="limpeza">Limpeza</option>
+                                      <option value="revenda">Revenda</option><option value="insumo">Insumo</option><option value="insumo_revenda">Insumo + revenda</option><option value="embalagem">Embalagem</option><option value="limpeza">Limpeza</option><option value="outros">Outros</option>
                                     </select>
                                   </td>
                                   <td className="py-2 px-3"><select value={item.unit} onChange={(e) => alterar(item.id, { unit: e.target.value })} className="field field-select h-9 text-[12px] w-20"><option value="un">un</option><option value="g">g</option><option value="ml">ml</option></select></td>
@@ -12874,6 +12875,7 @@
           { value: 'insumo_revenda', label: 'Insumo + revenda' },
           { value: 'embalagem', label: 'Embalagem' },
           { value: 'limpeza', label: 'Limpeza' },
+          { value: 'outros', label: 'Outros' },
           { value: 'producao', label: 'Produção' }
         ];
         const TIPOS_TABELA = [
@@ -12882,6 +12884,7 @@
           { value: 'insumo_revenda', label: 'Insumo + revenda' },
           { value: 'embalagem', label: 'Embalagem' },
           { value: 'limpeza', label: 'Limpeza' },
+          { value: 'outros', label: 'Outros' },
           { value: 'producao', label: 'Produção' }
         ];
         const UNIDADES_EQUIVALENCIA = [
@@ -13021,7 +13024,7 @@
         );
         const modoProducao = draft.type === 'producao';
         const tipoCompra = draft.purchaseKind || (draft.resaleAlso ? 'insumo_revenda' : 'insumo');
-        const classeInterna = draft.supplyClass === 'embalagem' || draft.supplyClass === 'limpeza';
+        const classeInterna = ['embalagem', 'limpeza', 'outros'].includes(draft.supplyClass);
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
         // Volume e equivalência são opcionais. Para item novo, o volume ainda
@@ -13260,7 +13263,7 @@
               hint: rev
                 ? `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))} · revenda também`
                 : `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))}`,
-              purchaseKind: x.supplyClass === 'embalagem' || x.supplyClass === 'limpeza' ? x.supplyClass : (rev ? 'insumo_revenda' : 'insumo'),
+              purchaseKind: ['embalagem', 'limpeza', 'outros'].includes(x.supplyClass) ? x.supplyClass : (rev ? 'insumo_revenda' : 'insumo'),
               unit: x.unit || 'un',
               purchaseUnit: x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit),
               packageType: x.packageType || '',
@@ -13317,7 +13320,7 @@
                 resaleAlso: false
               };
             }
-            if (tipo === 'embalagem' || tipo === 'limpeza') {
+            if (tipo === 'embalagem' || tipo === 'limpeza' || tipo === 'outros') {
               return {
                 ...d,
                 type: 'insumo',
@@ -13656,8 +13659,8 @@
           setDraft((d) => ({
             ...BLANK_ENTRY,
             type: 'insumo',
-            purchaseKind: (d.supplyClass === 'embalagem' || d.supplyClass === 'limpeza') ? 'insumo' : (d.purchaseKind || 'insumo'),
-            resaleAlso: (d.supplyClass === 'embalagem' || d.supplyClass === 'limpeza') ? false : (d.purchaseKind || 'insumo') === 'insumo_revenda',
+            purchaseKind: ['embalagem', 'limpeza', 'outros'].includes(d.supplyClass) ? 'insumo' : (d.purchaseKind || 'insumo'),
+            resaleAlso: ['embalagem', 'limpeza', 'outros'].includes(d.supplyClass) ? false : (d.purchaseKind || 'insumo') === 'insumo_revenda',
             unit: unidadeTecnicaDaCompra(d.purchaseUnit),
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
@@ -13718,7 +13721,7 @@
             }
 
             if (temFaceInsumo) {
-              const classe = tipo === 'embalagem' || tipo === 'limpeza' ? tipo : 'insumo';
+              const classe = ['embalagem', 'limpeza', 'outros'].includes(tipo) ? tipo : 'insumo';
               if (!insumo) {
                 insumo = await onAddSupply({
                   name: nome,
@@ -13811,7 +13814,9 @@
           const insumos = supplies.map((x) => {
             const tipoBase = x.supplyClass === 'embalagem'
               ? 'embalagem'
-              : x.supplyClass === 'limpeza' ? 'limpeza' : 'insumo';
+              : x.supplyClass === 'limpeza'
+                ? 'limpeza'
+                : x.supplyClass === 'outros' ? 'outros' : 'insumo';
             // Embalagem e limpeza são uso interno; não viram híbrido por acaso.
             const rev = tipoBase === 'insumo'
               ? revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name))
@@ -13962,7 +13967,7 @@
         const alterarTipoDaTabela = async (linha, novoTipo) => {
           if (!novoTipo || novoTipo === linha.tipo) return;
 
-          const tiposSupply = ['insumo', 'embalagem', 'limpeza'];
+          const tiposSupply = ['insumo', 'embalagem', 'limpeza', 'outros'];
           if (tiposSupply.includes(novoTipo)) {
             const novaClasse = novoTipo === 'insumo' ? 'insumo' : novoTipo;
             if (tiposSupply.includes(linha.tipo)) {
@@ -13973,11 +13978,11 @@
               return onUpdateSupply({ ...linha.source, supplyClass: novaClasse });
             }
             if (linha.tipo === 'revenda' && novoTipo !== 'insumo') {
-              window.alert('Transforme a revenda em Insumo primeiro; depois escolha Embalagem ou Limpeza. Assim o histórico da compra é preservado.');
+              window.alert('Transforme a revenda em Insumo primeiro; depois escolha o tipo interno desejado. Assim o histórico da compra é preservado.');
               return;
             }
             if (linha.tipo === 'producao' && novoTipo !== 'insumo') {
-              window.alert('Transforme o produto em Insumo primeiro; depois escolha Embalagem ou Limpeza.');
+              window.alert('Transforme o produto em Insumo primeiro; depois escolha o tipo interno desejado.');
               return;
             }
           }
@@ -14027,7 +14032,7 @@
           return onChangeCatalogType(linha, novoTipo);
         };
 
-        const supplyOptions = supplies.map((s) => ({
+        const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
           hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
@@ -14099,7 +14104,7 @@
             <div>
               <h2 className="t-display">Cadastros, compras &amp; fichas</h2>
               <p className="t-body mt-1">
-                Um único cadastro para Insumo, Revenda, Insumo + revenda e Produção. Compras e fichas ficam no mesmo lugar.
+                Um único cadastro para Insumo, Revenda, Outros e Produção. Compras e fichas ficam no mesmo lugar.
               </p>
             </div>
 
@@ -14218,6 +14223,11 @@
                               </button>
                             )}
                           </div>
+                          {tipoCadastroAtual === 'outros' && (
+                            <div className="col-span-12 -mt-2">
+                              <p className="t-micro">Para manutenção, utensílios, equipamentos e outras aquisições que não entram em ficha técnica ou revenda.</p>
+                            </div>
+                          )}
 
                           <div className="col-span-12">
                             <label className="t-caption">Produto / item</label>
@@ -15969,7 +15979,7 @@
           (linha) => String(linha.produto.id) === String(fichaProdutoId)
         ) || null;
 
-        const supplyOptions = supplies.map((s) => ({
+        const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
           hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
