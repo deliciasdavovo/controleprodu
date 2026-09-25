@@ -12627,6 +12627,57 @@
 
         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
+
+        // Evita lançamentos acidentais repetidos sem bloquear exceções reais.
+        // Consideramos possível duplicata quando o MESMO item já tem compra
+        // com a mesma data, fornecedor e quantidade. O usuário sempre pode
+        // confirmar e lançar mesmo assim.
+        const confirmarPossivelDuplicataCompra = ({
+          supplier,
+          purchaseDate,
+          supplyId = null,
+          resaleId = null,
+          supplyQty = null,
+          resaleQty = null,
+          displayQty = null
+        }) => {
+          const data = String(purchaseDate || '').slice(0, 10);
+          const fornecedorNormalizado = normalizeName(String(supplier || '').trim());
+          const mesmaCompra = (compra, quantidadeEsperada) => {
+            if (!(Number(quantidadeEsperada) >= 0)) return false;
+            const mesmaData = String(compra?.purchaseDate || '').slice(0, 10) === data;
+            const mesmoFornecedor = normalizeName(String(compra?.supplier || '').trim()) === fornecedorNormalizado;
+            const mesmaQuantidade = Math.abs((Number(compra?.qty) || 0) - Number(quantidadeEsperada)) < 0.000001;
+            return mesmaData && mesmoFornecedor && mesmaQuantidade;
+          };
+
+          const duplicataInsumo = supplyId
+            ? comprasDoInsumo(supplyId).find((compra) => mesmaCompra(compra, supplyQty))
+            : null;
+          const duplicataRevenda = resaleId
+            ? comprasDaRevenda(resaleId).find((compra) => mesmaCompra(compra, resaleQty))
+            : null;
+
+          if (!duplicataInsumo && !duplicataRevenda) return true;
+
+          const qtdExibida = Number(displayQty);
+          const quantidadeTexto = Number.isFinite(qtdExibida)
+            ? numeroCurtoBR(qtdExibida)
+            : numeroCurtoBR(Number(duplicataInsumo?.qty ?? duplicataRevenda?.qty) || 0);
+          const fornecedorTexto = String(supplier || '').trim() || 'Sem fornecedor';
+          const dataTexto = data ? formatDateBR(data) : 'Sem data';
+
+          return window.confirm(
+            '⚠️ POSSÍVEL COMPRA DUPLICADA\n\n'
+            + 'Já existe um lançamento deste item com os mesmos dados:\n'
+            + 'Data: ' + dataTexto + '\n'
+            + 'Fornecedor: ' + fornecedorTexto + '\n'
+            + 'Quantidade: ' + quantidadeTexto + '\n\n'
+            + 'Deseja lançar mesmo assim?\n\n'
+            + 'OK = lançar mesmo assim\n'
+            + 'Cancelar = não lançar'
+          );
+        };
         // Mantém as listas de apoio estáveis enquanto a pessoa digita. Antes,
         // este filter criava um array novo em toda tecla e fazia a tabela
         // inteira (inclusive custos e fichas) ser recalculada sem necessidade.
@@ -13128,6 +13179,28 @@
             return;
           }
 
+          if (qty > 0 && cost > 0) {
+            const fornecedorCompra = String(draft.supplier || '').trim();
+            const dataCompra = draft.purchaseDate || dataSugerida;
+            const qtyInsumoDuplicata = supplyExistente
+              ? qtdCompraNaBase(
+                  qty,
+                  unidadeCompraEfetiva(unidadeCompraSalva),
+                  supplyExistente.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra)
+                )
+              : qty;
+            const podeLancar = confirmarPossivelDuplicataCompra({
+              supplier: fornecedorCompra,
+              purchaseDate: dataCompra,
+              supplyId: temInsumo ? supplyExistente?.id : null,
+              resaleId: temRevenda ? revendaExistente?.id : null,
+              supplyQty: qtyInsumoDuplicata,
+              resaleQty: qty,
+              displayQty: qtdInformada
+            });
+            if (!podeLancar) return;
+          }
+
           // Um cadastro comprado pode ser só insumo, só revenda ou os dois.
           // A mesma linha de compra alimenta apenas os históricos que pertencem
           // àquele tipo — sem obrigar revenda pura a nascer como insumo.
@@ -13291,6 +13364,27 @@
             let insumo = String(item.catalogValue || '').startsWith('insumo:')
               ? supplies.find((s) => String(s.id) === String(item.catalogValue).slice(7))
               : supplies.find((s) => normalizeName(s.name) === normalizeName(nome));
+            let revenda = String(item.catalogValue || '').startsWith('revenda:')
+              ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
+              : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
+
+            const qtyInsumoDuplicata = insumo
+              ? qtdCompraNaBase(
+                  qty,
+                  unidadeCompraEfetiva(unidadeCompra),
+                  insumo.unit || unidadeTecnicaDaCompra(item.purchaseUnit || item.unit || 'un')
+                )
+              : qty;
+            const podeLancar = confirmarPossivelDuplicataCompra({
+              supplier: fornecedor,
+              purchaseDate: data || dataSugerida,
+              supplyId: temFaceInsumo ? insumo?.id : null,
+              resaleId: temFaceRevenda ? revenda?.id : null,
+              supplyQty: qtyInsumoDuplicata,
+              resaleQty: qty,
+              displayQty: volumes
+            });
+            if (!podeLancar) continue;
 
             if (temFaceInsumo) {
               const classe = tipo === 'embalagem' || tipo === 'limpeza' ? tipo : 'insumo';
@@ -13324,10 +13418,6 @@
                 });
               }
             }
-
-            let revenda = String(item.catalogValue || '').startsWith('revenda:')
-              ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
-              : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
             if (temFaceRevenda) {
               if (!revenda) {
