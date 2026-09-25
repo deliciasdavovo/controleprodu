@@ -13368,19 +13368,15 @@
               ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
-            const qtyInsumoDuplicata = insumo
-              ? qtdCompraNaBase(
-                  qty,
-                  unidadeCompraEfetiva(unidadeCompra),
-                  insumo.unit || unidadeTecnicaDaCompra(item.purchaseUnit || item.unit || 'un')
-                )
-              : qty;
             const podeLancar = confirmarPossivelDuplicataCompra({
               supplier: fornecedor,
               purchaseDate: data || dataSugerida,
               supplyId: temFaceInsumo ? insumo?.id : null,
               resaleId: temFaceRevenda ? revenda?.id : null,
-              supplyQty: qtyInsumoDuplicata,
+              // Na importação/colagem, este fluxo grava "qty" diretamente
+              // tanto em insumo quanto em revenda; a comparação usa o mesmo
+              // valor para detectar exatamente o que seria salvo de novo.
+              supplyQty: qty,
               resaleQty: qty,
               displayQty: volumes
             });
