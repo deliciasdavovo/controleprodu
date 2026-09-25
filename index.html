@@ -17696,6 +17696,9 @@
         currentUnit,
         unitName
       }) => {
+        const [modoFornecedores, setModoFornecedores] = useState('analise');
+        const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
+        const [buscaGuiaCompra, setBuscaGuiaCompra] = useState('');
         const [visao, setVisao] = useState('item');
         const [modoValorComprado, setModoValorComprado] = useState('agrupado');
         const [busca, setBusca] = useState('');
@@ -18844,6 +18847,250 @@ ${BARRA_ACOES_HTML}
         const cairam = porItem.filter((i) => i.atual.variacaoPct < -0.5).length;
         const comEscolha = porItem.filter((i) => i.medias.length > 1);
 
+        // GUIA DE COMPRA POR FORNECEDOR
+        // É uma referência histórica para ser enviada a quem compra. Não tenta
+        // dizer "o que falta comprar", porque as notas podem entrar com atraso.
+        const inicioGuiaCompra = useMemo(() => {
+          const meses = Number(periodoGuiaCompra) || 3;
+          const hoje = new Date(getTodayDateString() + 'T12:00:00');
+          hoje.setDate(1);
+          hoje.setMonth(hoje.getMonth() - (meses - 1));
+          return [
+            hoje.getFullYear(),
+            String(hoje.getMonth() + 1).padStart(2, '0'),
+            '01'
+          ].join('-');
+        }, [periodoGuiaCompra]);
+
+        const guiasCompra = useMemo(() => {
+          const hoje = getTodayDateString();
+          const base = todas.filter((c) =>
+            c.fornecedor
+            && c.fornecedor !== 'Sem fornecedor'
+            && c.data
+            && c.data >= inicioGuiaCompra
+            && c.data <= hoje
+          );
+
+          // Último preço registrado de cada fornecedor para cada item, dentro
+          // da mesma janela histórica. É daí que nasce o alerta "mais barato em
+          // outro fornecedor".
+          const ultimoPorItemFornecedor = {};
+          base.forEach((c) => {
+            const chaveItem = c.itemId;
+            const chaveFornecedor = normalizeName(c.fornecedor);
+            ultimoPorItemFornecedor[chaveItem] = ultimoPorItemFornecedor[chaveItem] || {};
+            const atual = ultimoPorItemFornecedor[chaveItem][chaveFornecedor];
+            const assinatura = (c.data || '') + '|' + (c.criadoEm || '');
+            const assinaturaAtual = atual ? (atual.data || '') + '|' + (atual.criadoEm || '') : '';
+            if (!atual || assinatura >= assinaturaAtual) {
+              ultimoPorItemFornecedor[chaveItem][chaveFornecedor] = c;
+            }
+          });
+
+          const fornecedores = {};
+          base.forEach((c) => {
+            const nome = c.fornecedor;
+            const atual = fornecedores[nome] || { nome, compras: [], itens: {} };
+            atual.compras.push(c);
+            (atual.itens[c.itemId] = atual.itens[c.itemId] || []).push(c);
+            fornecedores[nome] = atual;
+          });
+
+          const mediana = (valores) => {
+            const lista = valores.filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
+            if (!lista.length) return 0;
+            const meio = Math.floor(lista.length / 2);
+            return lista.length % 2 ? lista[meio] : (lista[meio - 1] + lista[meio]) / 2;
+          };
+
+          const rotuloFrequencia = (datas) => {
+            const unicas = [...new Set(datas.filter(Boolean))].sort();
+            if (unicas.length < 2) return '1 registro no período';
+            const intervalos = [];
+            for (let i = 1; i < unicas.length; i += 1) {
+              const a = new Date(unicas[i - 1] + 'T12:00:00');
+              const b = new Date(unicas[i] + 'T12:00:00');
+              const dias = Math.round((b - a) / 86400000);
+              if (dias > 0) intervalos.push(dias);
+            }
+            if (!intervalos.length) return unicas.length + ' registros';
+            const media = Math.round(intervalos.reduce((s, v) => s + v, 0) / intervalos.length);
+            if (media <= 9) return '≈ semanal';
+            if (media <= 18) return '≈ quinzenal';
+            if (media <= 40) return '≈ mensal';
+            return '≈ a cada ' + media + ' dias';
+          };
+
+          return Object.values(fornecedores).map((fornecedor) => {
+            const itens = Object.values(fornecedor.itens).map((lista) => {
+              const ordenadas = [...lista].sort((a, b) => {
+                const d = (b.data || '').localeCompare(a.data || '');
+                return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+              });
+              const recentes = ordenadas.slice(0, 3);
+              const atual = recentes[0];
+              const quantidades = recentes.map((c) => Number(c.qty) || 0);
+              const quantidadeHabitual = mediana(quantidades);
+              const datas = ordenadas.map((c) => c.data);
+
+              const alternativas = Object.values(ultimoPorItemFornecedor[atual.itemId] || {})
+                .filter((c) =>
+                  normalizeName(c.fornecedor) !== normalizeName(fornecedor.nome)
+                  && Number(c.custoUnit) > 0
+                  && Number(atual.custoUnit) > 0
+                  && Number(c.custoUnit) < Number(atual.custoUnit) - 0.000001
+                )
+                .sort((a, b) => Number(a.custoUnit) - Number(b.custoUnit));
+
+              const alternativa = alternativas[0] || null;
+              const economiaPct = alternativa && Number(atual.custoUnit) > 0
+                ? ((Number(atual.custoUnit) - Number(alternativa.custoUnit)) / Number(atual.custoUnit)) * 100
+                : 0;
+
+              return {
+                itemId: atual.itemId,
+                item: atual.item,
+                tipo: atual.tipo,
+                unidade: atual.unidade,
+                atual,
+                recentes,
+                compras: ordenadas.length,
+                quantidadeHabitual,
+                frequencia: rotuloFrequencia(datas),
+                alternativa,
+                economiaPct
+              };
+            }).sort((a, b) => {
+              const alerta = Number(Boolean(b.alternativa)) - Number(Boolean(a.alternativa));
+              return alerta || a.item.localeCompare(b.item, 'pt-BR');
+            });
+
+            const ultimaData = fornecedor.compras.reduce(
+              (maior, compra) => (compra.data || '') > maior ? (compra.data || '') : maior,
+              ''
+            );
+
+            return {
+              nome: fornecedor.nome,
+              itens,
+              recorrentes: itens.filter((i) => i.compras >= 2).length,
+              alertas: itens.filter((i) => i.alternativa).length,
+              ultimaData
+            };
+          }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        }, [todas, inicioGuiaCompra]);
+
+        const termoGuia = normalizeName(buscaGuiaCompra);
+        const guiasCompraVisiveis = guiasCompra.filter((guia) =>
+          !termoGuia
+          || normalizeName(guia.nome).includes(termoGuia)
+          || guia.itens.some((i) => normalizeName(i.item).includes(termoGuia))
+        );
+
+        const gerarGuiaCompra = (nomeFornecedor = null) => {
+          const selecionados = nomeFornecedor
+            ? guiasCompra.filter((g) => g.nome === nomeFornecedor)
+            : guiasCompraVisiveis;
+
+          if (!selecionados.length) {
+            window.alert('Nenhum fornecedor encontrado para gerar o guia.');
+            return;
+          }
+
+          const periodoTexto = periodoGuiaCompra === '12'
+            ? 'último 1 ano'
+            : 'últimos ' + periodoGuiaCompra + ' meses';
+
+          const secaoFornecedor = (guia) => {
+            const linhas = guia.itens.map((i) => {
+              const recentesCronologicas = [...i.recentes].reverse();
+              const quantidadesTexto = recentesCronologicas
+                .map((c) => formatQuantidadeCompra(c))
+                .join(' · ');
+              const precosTexto = recentesCronologicas
+                .map((c) => formatPrecoCompraComercial(c))
+                .join(' → ');
+              const habitual = i.quantidadeHabitual > 0
+                ? '≈ ' + formatQuantidadeAcumulada(i.quantidadeHabitual, i.unidade)
+                : '—';
+              const alerta = i.alternativa
+                ? '<div class="alerta"><b>Mais barato em ' + escaparHtml(i.alternativa.fornecedor) + '</b>'
+                  + '<span>' + escaparHtml(formatPrecoCompraComercial(i.alternativa))
+                  + ' · ' + i.economiaPct.toFixed(1).replace('.', ',') + '% abaixo</span></div>'
+                : '<span class="quieto">—</span>';
+
+              return '<tr>'
+                + '<td><b>' + escaparHtml(i.item) + '</b><small>' + escaparHtml(i.tipo) + '</small></td>'
+                + '<td class="num forte">' + escaparHtml(habitual) + '</td>'
+                + '<td class="num historico">' + escaparHtml(quantidadesTexto || '—') + '</td>'
+                + '<td class="num historico">' + escaparHtml(precosTexto || '—') + '</td>'
+                + '<td>' + escaparHtml(i.frequencia) + '</td>'
+                + '<td>' + alerta + '</td>'
+                + '</tr>';
+            }).join('');
+
+            return '<section class="fornecedor">'
+              + '<div class="fornecedor-cabecalho">'
+              + '<div><span class="rotulo">Fornecedor</span><h2>' + escaparHtml(guia.nome) + '</h2></div>'
+              + '<div><span class="rotulo">Itens no guia</span><b>' + guia.itens.length + '</b></div>'
+              + '<div><span class="rotulo">Alertas de preço</span><b>' + guia.alertas + '</b></div>'
+              + '<div><span class="rotulo">Último lançamento registrado</span><b>' + (guia.ultimaData ? formatDateBR(guia.ultimaData) : '—') + '</b></div>'
+              + '</div>'
+              + '<table><colgroup><col style="width:20%"><col style="width:12%"><col style="width:17%"><col style="width:22%"><col style="width:12%"><col style="width:17%"></colgroup>'
+              + '<thead><tr><th>Produto</th><th class="num">Compra habitual</th><th class="num">Últimas quantidades</th><th class="num">Preços recentes</th><th>Frequência</th><th>Atenção</th></tr></thead>'
+              + '<tbody>' + linhas + '</tbody></table>'
+              + '</section>';
+          };
+
+          const titulo = nomeFornecedor
+            ? 'Guia de compra — ' + nomeFornecedor
+            : 'Guias de compra por fornecedor';
+
+          const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+            + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            + '<title>' + escaparHtml(titulo) + ' — ' + escaparHtml(unitName) + '</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com">'
+            + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+            + '<style>'
+            + '@page{size:A4 portrait;margin:10mm 9mm;}*{box-sizing:border-box;}'
+            + 'body{font-family:Manrope,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#171717;margin:0 auto;padding:0 3vw 40px;max-width:860px;font-size:8.2pt;}'
+            + '@media print{body{padding:0;max-width:none;}.fornecedor{page-break-before:always;}.fornecedor:first-of-type{page-break-before:auto;}}'
+            + BARRA_ACOES_CSS
+            + 'header{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:10px;}'
+            + 'h1{font-size:18pt;line-height:1.1;margin:0;}.sub{color:#555;margin-top:4px;}'
+            + '.aviso{margin:10px 0 14px;padding:8px 10px;background:#f4f1ea;border-left:3px solid #8a5a00;font-size:8.2pt;line-height:1.45;}'
+            + '.fornecedor{margin-top:16px;}.fornecedor-cabecalho{display:grid;grid-template-columns:1.5fr .55fr .55fr 1fr;gap:8px;align-items:end;padding:8px 9px;background:#ececea;border-radius:4px 4px 0 0;}'
+            + '.fornecedor-cabecalho h2{font-size:13pt;margin:2px 0 0;}.fornecedor-cabecalho b{display:block;font-size:10pt;}.rotulo{display:block;color:#666;font-size:6.8pt;text-transform:uppercase;letter-spacing:.05em;}'
+            + 'table{width:100%;border-collapse:collapse;table-layout:fixed;}thead{display:table-header-group;}tr{page-break-inside:avoid;}'
+            + 'th,td{padding:5px 5px;border-bottom:1px solid #d7d7d7;text-align:left;vertical-align:top;overflow-wrap:anywhere;}'
+            + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.03em;border-bottom:1.5px solid #111;}td small{display:block;color:#666;font-size:6.7pt;margin-top:1px;}'
+            + '.num{text-align:right;font-variant-numeric:tabular-nums;}.forte{font-weight:700;}.historico{font-size:7.4pt;line-height:1.45;}.quieto{color:#777;}'
+            + '.alerta{color:#7d2027;font-size:7.3pt;line-height:1.35;}.alerta b,.alerta span{display:block;}.alerta span{margin-top:1px;font-weight:600;}'
+            + '</style></head><body>'
+            + BARRA_ACOES_HTML
+            + '<header><h1>' + escaparHtml(titulo) + '</h1>'
+            + '<div class="sub">' + escaparHtml(unitName) + ' · base histórica: ' + escaparHtml(periodoTexto) + ' · gerado em ' + formatDateBR(getTodayDateString()) + '</div></header>'
+            + '<div class="aviso"><b>Referência histórica para compra.</b> Este guia não representa estoque nem pedido pendente. '
+            + 'Como as notas podem ser lançadas com alguns dias de atraso, use as quantidades, preços e frequência como referência e confirme a necessidade atual antes do pedido.</div>'
+            + selecionados.map(secaoFornecedor).join('')
+            + '</body></html>';
+
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela do guia. Libere as janelas para este site e tente de novo.');
+            return;
+          }
+          janela.document.write(html);
+          janela.document.close();
+          if (window.matchMedia('(min-width: 900px)').matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) {} };
+            if (janela.document.readyState === 'complete') setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
+        };
+
         if (todas.length === 0) {
           return (
             <div className="space-y-5">
@@ -18857,6 +19104,167 @@ ${BARRA_ACOES_HTML}
                   {' '}<strong>Insumos &amp; fichas</strong> — elas aparecem aqui sozinhas, com a variação de preço já calculada.
                 </p>
               </div>
+            </div>
+          );
+        }
+
+        if (modoFornecedores === 'guia') {
+          return (
+            <div className="space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+                <div>
+                  <h2 className="t-display">Fornecedores</h2>
+                  <p className="t-body mt-1">{unitName} · relatórios para enviar a quem faz as compras.</p>
+                </div>
+                <div className="segmented w-full sm:w-auto sm:inline-flex">
+                  <button
+                    type="button"
+                    onClick={() => setModoFornecedores('analise')}
+                    data-active={modoFornecedores === 'analise'}
+                    className="flex-1 sm:flex-none h-9 px-5"
+                  >
+                    Análise
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoFornecedores('guia')}
+                    data-active={modoFornecedores === 'guia'}
+                    className="flex-1 sm:flex-none h-9 px-5"
+                  >
+                    Guia de compra
+                  </button>
+                </div>
+              </div>
+
+              <div className="card p-5 sm:p-6">
+                <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
+                  <div className="max-w-2xl">
+                    <div className="t-overline">Guia de compra por fornecedor</div>
+                    <h3 className="t-title mt-1">Referência histórica para mandar ao comprador</h3>
+                    <p className="t-body ink-quiet mt-2">
+                      Não depende da última nota estar lançada. Mostra quantidade habitual, últimas quantidades,
+                      preços recentes, frequência e avisa quando o mesmo item aparece mais barato em outro fornecedor.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => gerarGuiaCompra()}
+                    disabled={guiasCompraVisiveis.length === 0}
+                    className="btn btn-primary btn-md shrink-0"
+                  >
+                    <Icons.ClipboardList className="w-4 h-4" />
+                    Gerar todos
+                  </button>
+                </div>
+
+                <div className="mt-5 flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="segmented w-full sm:w-auto sm:inline-flex">
+                    {[
+                      { valor: '3', rotulo: '3 meses' },
+                      { valor: '6', rotulo: '6 meses' },
+                      { valor: '9', rotulo: '9 meses' },
+                      { valor: '12', rotulo: '1 ano' }
+                    ].map((opcao) => (
+                      <button
+                        key={opcao.valor}
+                        type="button"
+                        onClick={() => setPeriodoGuiaCompra(opcao.valor)}
+                        data-active={periodoGuiaCompra === opcao.valor}
+                        className="flex-1 sm:flex-none h-8 px-4"
+                      >
+                        {opcao.rotulo}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1 max-w-md">
+                    <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                    <input
+                      type="text"
+                      placeholder="Buscar fornecedor ou produto…"
+                      value={buscaGuiaCompra}
+                      onChange={(e) => setBuscaGuiaCompra(e.target.value)}
+                      className="field field-sm field-search"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-[#F4F1EA] px-4 py-3 border border-black/[0.05]">
+                  <p className="t-callout font-semibold">Importante sobre o atraso das notas</p>
+                  <p className="t-micro mt-1">
+                    O documento é uma referência do histórico registrado, não uma lista automática do que está faltando comprar.
+                    A data do último lançamento de cada fornecedor aparece no próprio relatório.
+                  </p>
+                </div>
+              </div>
+
+              {guiasCompraVisiveis.length === 0 ? (
+                <div className="card p-6">
+                  <p className="t-body ink-quiet">Nenhum fornecedor encontrado nesta base histórica.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {guiasCompraVisiveis.map((guia) => (
+                    <div key={guia.nome} className="card p-5 sm:p-6 flex flex-col gap-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <span className="t-overline">Fornecedor</span>
+                          <h3 className="t-title mt-1 truncate" title={guia.nome}>{guia.nome}</h3>
+                          <p className="t-micro mt-1">
+                            Último lançamento registrado: <strong>{guia.ultimaData ? formatDateBR(guia.ultimaData) : '—'}</strong>
+                          </p>
+                        </div>
+                        {guia.alertas > 0 && (
+                          <span className="pill tone-expired shrink-0">
+                            {guia.alertas} {guia.alertas === 1 ? 'preço melhor fora' : 'preços melhores fora'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
+                          <span className="t-overline-sm block">Itens</span>
+                          <strong className="t-metric-xs tnum block mt-1">{guia.itens.length}</strong>
+                        </div>
+                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
+                          <span className="t-overline-sm block">Recorrentes</span>
+                          <strong className="t-metric-xs tnum block mt-1">{guia.recorrentes}</strong>
+                        </div>
+                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
+                          <span className="t-overline-sm block">Alertas</span>
+                          <strong className={"t-metric-xs tnum block mt-1 " + (guia.alertas > 0 ? 'ink-expired' : '')}>{guia.alertas}</strong>
+                        </div>
+                      </div>
+
+                      {guia.alertas > 0 && (
+                        <div className="rounded-xl border border-[#7D2027]/15 bg-[#7D2027]/[0.035] px-3.5 py-3">
+                          <div className="t-overline-sm ink-expired">Atenção antes de comprar</div>
+                          <div className="mt-2 space-y-1.5">
+                            {guia.itens.filter((i) => i.alternativa).slice(0, 3).map((i) => (
+                              <div key={i.itemId} className="t-micro flex flex-wrap items-baseline gap-x-1.5">
+                                <strong>{i.item}</strong>
+                                <span>está {i.economiaPct.toFixed(1).replace('.', ',')}% mais barato em</span>
+                                <strong className="ink-fresh">{i.alternativa.fornecedor}</strong>
+                              </div>
+                            ))}
+                            {guia.alertas > 3 && (
+                              <div className="t-nano ink-quiet">+ {guia.alertas - 3} alertas no relatório completo</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => gerarGuiaCompra(guia.nome)}
+                        className="btn btn-primary btn-md w-full mt-auto"
+                      >
+                        <Icons.ClipboardList className="w-4 h-4" />
+                        Gerar relatório deste fornecedor
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         }
@@ -19246,6 +19654,25 @@ ${BARRA_ACOES_HTML}
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="segmented w-full sm:w-auto sm:inline-flex">
+              <button
+                type="button"
+                onClick={() => setModoFornecedores('analise')}
+                data-active={modoFornecedores === 'analise'}
+                className="flex-1 sm:flex-none h-9 px-5"
+              >
+                Análise
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoFornecedores('guia')}
+                data-active={modoFornecedores === 'guia'}
+                className="flex-1 sm:flex-none h-9 px-5"
+              >
+                Guia de compra
+              </button>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
