@@ -19021,12 +19021,12 @@ ${BARRA_ACOES_HTML}
                 : '<span class="quieto">—</span>';
 
               return '<tr>'
-                + '<td><b>' + escaparHtml(i.item) + '</b><small>' + escaparHtml(i.tipo) + '</small></td>'
-                + '<td class="num forte">' + escaparHtml(habitual) + '</td>'
-                + '<td class="num historico">' + escaparHtml(quantidadesTexto || '—') + '</td>'
-                + '<td class="num historico">' + escaparHtml(precosTexto || '—') + '</td>'
-                + '<td>' + escaparHtml(i.frequencia) + '</td>'
-                + '<td>' + alerta + '</td>'
+                + '<td class="produto" data-rot="Produto"><b>' + escaparHtml(i.item) + '</b><small>' + escaparHtml(i.tipo) + '</small></td>'
+                + '<td class="num forte" data-rot="Compra habitual">' + escaparHtml(habitual) + '</td>'
+                + '<td class="num historico" data-rot="Últimas quantidades">' + escaparHtml(quantidadesTexto || '—') + '</td>'
+                + '<td class="num historico" data-rot="Preços recentes">' + escaparHtml(precosTexto || '—') + '</td>'
+                + '<td data-rot="Frequência">' + escaparHtml(i.frequencia) + '</td>'
+                + '<td data-rot="Atenção">' + alerta + '</td>'
                 + '</tr>';
             }).join('');
 
@@ -19068,6 +19068,23 @@ ${BARRA_ACOES_HTML}
             + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.03em;border-bottom:1.5px solid #111;}td small{display:block;color:#666;font-size:6.7pt;margin-top:1px;}'
             + '.num{text-align:right;font-variant-numeric:tabular-nums;}.forte{font-weight:700;}.historico{font-size:7.4pt;line-height:1.45;}.quieto{color:#777;}'
             + '.alerta{color:#7d2027;font-size:7.3pt;line-height:1.35;}.alerta b,.alerta span{display:block;}.alerta span{margin-top:1px;font-weight:600;}'
+            + '@media screen and (max-width:700px){'
+            + 'body{padding:0 14px 28px;max-width:none;font-size:14px;}'
+            + '.acoes{position:static;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;margin-bottom:10px;}'
+            + '.acao-imprimir,.acao-imagem{min-height:44px;padding:10px 8px;font-size:12px;border-radius:12px;}'
+            + '.acoes-dica{grid-column:1/-1;font-size:11px;line-height:1.35;}'
+            + 'header{margin-bottom:10px;padding-bottom:10px;}h1{font-size:22px;line-height:1.15;}.sub{font-size:12px;line-height:1.45;}'
+            + '.aviso{font-size:12px;line-height:1.45;margin:10px 0 14px;border-radius:10px;padding:10px 12px;}'
+            + '.fornecedor{margin-top:14px;}.fornecedor-cabecalho{grid-template-columns:1fr 1fr;gap:10px;padding:12px;border-radius:14px;background:#f1f1ef;}'
+            + '.fornecedor-cabecalho>div:first-child{grid-column:1/-1;}.fornecedor-cabecalho h2{font-size:20px;margin-top:2px;}.fornecedor-cabecalho b{font-size:13px;}.rotulo{font-size:9px;}'
+            + 'table,tbody,tr,td{display:block;width:100%;}thead,colgroup{display:none;}'
+            + 'tbody{display:block;}tr{margin:10px 0 12px;border:1px solid #deded8;border-radius:14px;padding:11px 12px;background:#fff;}'
+            + 'td{border:0;padding:6px 0;display:grid;grid-template-columns:minmax(105px,.85fr) minmax(0,1.15fr);gap:10px;align-items:start;text-align:right!important;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}'
+            + 'td::before{content:attr(data-rot);text-align:left;color:#6e6e73;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.035em;}'
+            + 'td.produto{display:block;text-align:left!important;padding:2px 0 10px;margin-bottom:3px;border-bottom:1px solid #ecece8;}'
+            + 'td.produto::before{display:none;}td.produto b{display:block;font-size:16px;line-height:1.25;}td.produto small{font-size:11px;margin-top:3px;}'
+            + '.historico{font-size:12px;}.alerta{font-size:12px;line-height:1.4;}.quieto{font-size:12px;}'
+            + '}'
             + '</style></head><body>'
             + BARRA_ACOES_HTML
             + '<header><h1>' + escaparHtml(titulo) + '</h1>'
@@ -19110,8 +19127,8 @@ ${BARRA_ACOES_HTML}
 
         if (modoFornecedores === 'guia') {
           return (
-            <div className="space-y-5">
-              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div className="space-y-4 sm:space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
                   <h2 className="t-display">Fornecedores</h2>
                   <p className="t-body mt-1">{unitName} · relatórios para enviar a quem faz as compras.</p>
@@ -19136,12 +19153,12 @@ ${BARRA_ACOES_HTML}
                 </div>
               </div>
 
-              <div className="card p-5 sm:p-6">
-                <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
+              <div className="card p-4 sm:p-6">
+                <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 sm:gap-5">
                   <div className="max-w-2xl">
                     <div className="t-overline">Guia de compra por fornecedor</div>
                     <h3 className="t-title mt-1">Referência histórica para mandar ao comprador</h3>
-                    <p className="t-body ink-quiet mt-2">
+                    <p className="t-micro sm:t-body ink-quiet mt-2 leading-relaxed">
                       Não depende da última nota estar lançada. Mostra quantidade habitual, últimas quantidades,
                       preços recentes, frequência e avisa quando o mesmo item aparece mais barato em outro fornecedor.
                     </p>
@@ -19150,7 +19167,7 @@ ${BARRA_ACOES_HTML}
                     type="button"
                     onClick={() => gerarGuiaCompra()}
                     disabled={guiasCompraVisiveis.length === 0}
-                    className="btn btn-primary btn-md shrink-0"
+                    className="btn btn-primary btn-md w-full sm:w-auto shrink-0"
                   >
                     <Icons.ClipboardList className="w-4 h-4" />
                     Gerar todos
@@ -19158,7 +19175,7 @@ ${BARRA_ACOES_HTML}
                 </div>
 
                 <div className="mt-5 flex flex-col md:flex-row md:items-center gap-3">
-                  <div className="segmented w-full sm:w-auto sm:inline-flex">
+                  <div className="grid grid-cols-4 sm:flex bg-black/[0.045] rounded-xl p-1 gap-1 w-full sm:w-auto">
                     {[
                       { valor: '3', rotulo: '3 meses' },
                       { valor: '6', rotulo: '6 meses' },
@@ -19170,7 +19187,7 @@ ${BARRA_ACOES_HTML}
                         type="button"
                         onClick={() => setPeriodoGuiaCompra(opcao.valor)}
                         data-active={periodoGuiaCompra === opcao.valor}
-                        className="flex-1 sm:flex-none h-8 px-4"
+                        className="h-8 px-2 sm:px-4 rounded-lg text-[11px] sm:text-[12px] font-semibold transition-colors"
                       >
                         {opcao.rotulo}
                       </button>
@@ -19204,8 +19221,8 @@ ${BARRA_ACOES_HTML}
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {guiasCompraVisiveis.map((guia) => (
-                    <div key={guia.nome} className="card p-5 sm:p-6 flex flex-col gap-4">
-                      <div className="flex items-start justify-between gap-4">
+                    <div key={guia.nome} className="card p-4 sm:p-6 flex flex-col gap-3 sm:gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
                         <div className="min-w-0">
                           <span className="t-overline">Fornecedor</span>
                           <h3 className="t-title mt-1 truncate" title={guia.nome}>{guia.nome}</h3>
@@ -19220,19 +19237,16 @@ ${BARRA_ACOES_HTML}
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
-                          <span className="t-overline-sm block">Itens</span>
-                          <strong className="t-metric-xs tnum block mt-1">{guia.itens.length}</strong>
-                        </div>
-                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
-                          <span className="t-overline-sm block">Recorrentes</span>
-                          <strong className="t-metric-xs tnum block mt-1">{guia.recorrentes}</strong>
-                        </div>
-                        <div className="rounded-xl bg-black/[0.035] px-3 py-3">
-                          <span className="t-overline-sm block">Alertas</span>
-                          <strong className={"t-metric-xs tnum block mt-1 " + (guia.alertas > 0 ? 'ink-expired' : '')}>{guia.alertas}</strong>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-black/[0.035] px-3.5 py-2.5">
+                        <span className="t-micro"><strong className="tnum">{guia.itens.length}</strong> itens</span>
+                        <span className="ink-quiet">·</span>
+                        <span className="t-micro"><strong className="tnum">{guia.recorrentes}</strong> recorrentes</span>
+                        {guia.alertas > 0 && (
+                          <>
+                            <span className="ink-quiet">·</span>
+                            <span className="t-micro ink-expired"><strong className="tnum">{guia.alertas}</strong> {guia.alertas === 1 ? 'alerta' : 'alertas'}</span>
+                          </>
+                        )}
                       </div>
 
                       {guia.alertas > 0 && (
@@ -19240,9 +19254,9 @@ ${BARRA_ACOES_HTML}
                           <div className="t-overline-sm ink-expired">Atenção antes de comprar</div>
                           <div className="mt-2 space-y-1.5">
                             {guia.itens.filter((i) => i.alternativa).slice(0, 3).map((i) => (
-                              <div key={i.itemId} className="t-micro flex flex-wrap items-baseline gap-x-1.5">
-                                <strong>{i.item}</strong>
-                                <span>está {i.economiaPct.toFixed(1).replace('.', ',')}% mais barato em</span>
+                              <div key={i.itemId} className="t-micro leading-relaxed">
+                                <strong className="block sm:inline">{i.item}</strong>
+                                <span className="sm:ml-1"> {i.economiaPct.toFixed(1).replace('.', ',')}% mais barato em </span>
                                 <strong className="ink-fresh">{i.alternativa.fornecedor}</strong>
                               </div>
                             ))}
@@ -19256,7 +19270,7 @@ ${BARRA_ACOES_HTML}
                       <button
                         type="button"
                         onClick={() => gerarGuiaCompra(guia.nome)}
-                        className="btn btn-primary btn-md w-full mt-auto"
+                        className="btn btn-primary btn-md w-full min-h-[44px] mt-auto"
                       >
                         <Icons.ClipboardList className="w-4 h-4" />
                         Gerar relatório deste fornecedor
