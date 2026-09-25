@@ -12023,21 +12023,77 @@
           return { unit: 'un', purchaseUnit: 'un', packageType: '', isPackage: false };
         };
 
-        const melhorOpcao = (nome) => {
-          const nomeNormalizado = normalizeName(nome);
-          const palavras = nomeNormalizado.split(' ').filter((p) => p.length > 2);
-          let melhor = null;
-          catalogOptions.forEach((opt) => {
-            const alvo = normalizeName(opt.label);
-            let nota = 0;
-            if (nomeNormalizado && alvo === nomeNormalizado) nota = 1;
-            else if (palavras.length) {
-              const acertos = palavras.filter((p) => alvo.includes(p)).length;
-              nota = acertos / palavras.length;
+        const XML_LINKS_KEY = 'dv_xml_product_links_v1';
+
+        const lerVinculosXml = () => {
+          try {
+            return JSON.parse(localStorage.getItem(XML_LINKS_KEY) || '{}') || {};
+          } catch {
+            return {};
+          }
+        };
+
+        const chaveVinculoXml = (fornecedorNome, codigo) => {
+          const fornecedorChave = normalizeName(String(fornecedorNome || '').trim());
+          const codigoChave = normalizeName(String(codigo || '').trim());
+          return fornecedorChave && codigoChave ? fornecedorChave + '::' + codigoChave : '';
+        };
+
+        const salvarVinculoXml = (fornecedorNome, codigo, catalogValue) => {
+          const chave = chaveVinculoXml(fornecedorNome, codigo);
+          if (!chave || !catalogValue) return;
+          try {
+            const atuais = lerVinculosXml();
+            atuais[chave] = catalogValue;
+            localStorage.setItem(XML_LINKS_KEY, JSON.stringify(atuais));
+          } catch {}
+        };
+
+        const limparNomeXml = (nome) => normalizeName(nome)
+          .replace(/\b\d+(?:[.,]\d+)?\s*(kg|g|gr|ml|l|lt|un|und|pct|pac|cx|fd|fdo)\b/g, ' ')
+          .replace(/\b(cx|caixa|pct|pac|pacote|fd|fdo|fardo|dp|dsp|display|bdj|bandeja|pet|un|und|kg|g|gr|ml|l|lt)\b/g, ' ')
+          .replace(/\b(c\/sal|s\/sal|com sal|sem sal)\b/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const rankingOpcoes = (nome) => {
+          const origem = limparNomeXml(nome);
+          const palavrasOrigem = origem.split(' ').filter((p) => p.length > 2);
+          return catalogOptions
+            .map((opt) => {
+              const alvo = limparNomeXml(opt.label);
+              const palavrasAlvo = alvo.split(' ').filter((p) => p.length > 2);
+              let nota = 0;
+              if (origem && alvo === origem) nota = 1;
+              else if (origem && (origem.includes(alvo) || alvo.includes(origem))) nota = 0.92;
+              else if (palavrasOrigem.length && palavrasAlvo.length) {
+                const intersecao = palavrasOrigem.filter((p) => palavrasAlvo.includes(p)).length;
+                const coberturaOrigem = intersecao / palavrasOrigem.length;
+                const coberturaAlvo = intersecao / palavrasAlvo.length;
+                nota = (coberturaOrigem * 0.6) + (coberturaAlvo * 0.4);
+              }
+              return { opt, nota };
+            })
+            .sort((a, b) => b.nota - a.nota)
+            .slice(0, 3);
+        };
+
+        const melhorOpcao = (nome, fornecedorNome, codigo) => {
+          const chaveAprendida = chaveVinculoXml(fornecedorNome, codigo);
+          if (chaveAprendida) {
+            const valorAprendido = lerVinculosXml()[chaveAprendida];
+            const aprendida = catalogOptions.find((opt) => opt.value === valorAprendido);
+            if (aprendida) {
+              return { opt: aprendida, confidence: 'learned', score: 1, suggestions: [{ opt: aprendida, nota: 1 }] };
             }
-            if (!melhor || nota > melhor.nota) melhor = { opt, nota };
-          });
-          return melhor && melhor.nota >= 0.6 ? melhor.opt : null;
+          }
+
+          const ranking = rankingOpcoes(nome);
+          const melhor = ranking[0] || null;
+          if (!melhor) return { opt: null, confidence: 'new', score: 0, suggestions: [] };
+          if (melhor.nota >= 0.88) return { opt: melhor.opt, confidence: 'high', score: melhor.nota, suggestions: ranking };
+          if (melhor.nota >= 0.48) return { opt: null, confidence: 'possible', score: melhor.nota, suggestions: ranking };
+          return { opt: null, confidence: 'new', score: melhor.nota, suggestions: ranking };
         };
 
         const lerArquivo = async (file) => {
@@ -12075,7 +12131,8 @@
               const custoLinha = Math.max(0, vProd - vDesc + vFrete + vSeg + vOutro);
 
               const baseXml = unidadeDoXml(uCom);
-              const opcao = melhorOpcao(descricao);
+              const match = melhorOpcao(descricao, fornecedorXml, codigo);
+              const opcao = match.opt;
               const unidadesSalvas = Number(opcao?.packageUnits) > 0 ? Number(opcao.packageUnits) : 0;
               const pacoteSalvo = opcao?.packageType || '';
               const compraPorPacote = baseXml.isPackage || unidadesSalvas > 0;
@@ -12096,7 +12153,11 @@
                 volumes: qCom,
                 unitsPerPackage: compraPorPacote ? (unidadesSalvas || 1) : 0,
                 cost: custoLinha,
-                xmlUnit: uCom
+                xmlUnit: uCom,
+                confidence: match.confidence,
+                matchScore: match.score,
+                suggestions: match.suggestions,
+                allowCreateNew: false
               };
             });
 
@@ -12119,6 +12180,11 @@
 
         const confirmar = async () => {
           if (!selecionados.length || salvando) return;
+          const semVinculo = selecionados.find((item) => !item.catalogValue && !item.allowCreateNew);
+          if (semVinculo) {
+            window.alert('Revise os itens marcados como possível correspondência ou produto novo. Escolha um cadastro existente ou confirme “Criar novo cadastro”.');
+            return;
+          }
           const incompleto = selecionados.find((item) =>
             !String(item.name || '').trim()
             || !(Number(item.volumes) > 0)
@@ -12227,21 +12293,80 @@
                                   <PickerField
                                     value={item.name}
                                     options={catalogOptions}
-                                    onType={(name) => alterar(item.id, { name, catalogValue: '' })}
-                                    onPick={(opt) => alterar(item.id, {
-                                      name: opt.label,
-                                      catalogValue: opt.value,
-                                      purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
-                                      unit: opt.unit || item.unit,
-                                      purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
-                                      packageType: opt.packageType || item.packageType,
-                                      unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage
-                                    })}
+                                    onType={(name) => alterar(item.id, { name, catalogValue: '', confidence: 'possible', allowCreateNew: false })}
+                                    onPick={(opt) => {
+                                      salvarVinculoXml(fornecedor, item.supplierCode, opt.value);
+                                      alterar(item.id, {
+                                        name: opt.label,
+                                        catalogValue: opt.value,
+                                        confidence: 'confirmed',
+                                        allowCreateNew: false,
+                                        purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
+                                        unit: opt.unit || item.unit,
+                                        purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
+                                        packageType: opt.packageType || item.packageType,
+                                        unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage
+                                      });
+                                    }}
                                     placeholder="Vincular ao cadastro"
                                     emptyLabel="Produto novo"
                                     className="field h-9 px-2.5 text-[12px] font-semibold"
                                     panelMinWidth={330}
                                   />
+                                  <div className="mt-1.5">
+                                    {(item.confidence === 'high' || item.confidence === 'learned' || item.confidence === 'confirmed') && item.catalogValue ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-[#edf7ef] px-2 py-1 text-[10px] font-bold text-[#2f6b3f]">
+                                        <Icons.Check className="w-3 h-3" />
+                                        {item.confidence === 'learned' ? 'Reconhecido pelo histórico' : 'Cadastro encontrado'}
+                                      </span>
+                                    ) : item.confidence === 'possible' ? (
+                                      <div className="space-y-1.5">
+                                        <span className="inline-flex rounded-full bg-[#fff4df] px-2 py-1 text-[10px] font-bold text-[#8a5a00]">
+                                          Encontramos cadastros parecidos
+                                        </span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {(item.suggestions || []).map(({ opt, nota }) => (
+                                            <button
+                                              key={opt.value}
+                                              type="button"
+                                              className="rounded-lg border hairline bg-white px-2 py-1 text-[10px] font-semibold hover:bg-black/[0.03]"
+                                              onClick={() => {
+                                                salvarVinculoXml(fornecedor, item.supplierCode, opt.value);
+                                                alterar(item.id, {
+                                                  name: opt.label,
+                                                  catalogValue: opt.value,
+                                                  confidence: 'confirmed',
+                                                  allowCreateNew: false,
+                                                  purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
+                                                  unit: opt.unit || item.unit,
+                                                  purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
+                                                  packageType: opt.packageType || item.packageType,
+                                                  unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage
+                                                });
+                                              }}
+                                            >
+                                              {opt.label} · {Math.round(nota * 100)}%
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="text-[10px] font-bold text-[#6e6e73] underline underline-offset-2"
+                                          onClick={() => alterar(item.id, { allowCreateNew: true, confidence: 'new-confirmed', catalogValue: '' })}
+                                        >
+                                          Nenhum deles — criar novo cadastro
+                                        </button>
+                                      </div>
+                                    ) : !item.catalogValue ? (
+                                      <button
+                                        type="button"
+                                        className="inline-flex rounded-full bg-[#f5f5f7] px-2 py-1 text-[10px] font-bold text-[#6e6e73] hover:bg-[#ececf0]"
+                                        onClick={() => alterar(item.id, { allowCreateNew: true, confidence: 'new-confirmed' })}
+                                      >
+                                        Confirmar criação de novo cadastro
+                                      </button>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 <td className="py-2 px-3">
                                   <select value={item.purchaseKind} onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })} className="field field-select h-9 text-[12px] w-36">
@@ -12270,8 +12395,8 @@
                     </div>
 
                     <p className="t-micro">
-                      Produtos já conhecidos são sugeridos automaticamente. Nos novos, escolha o tipo antes de salvar.
-                      Se a NF-e trouxer caixa, fardo ou pacote, confira quantas unidades vêm em cada volume.
+                      O sistema vincula automaticamente apenas quando a correspondência é forte. Em caso de dúvida, escolha um cadastro parecido ou confirme a criação de um novo.
+                      Suas escolhas por fornecedor + código da NF-e ficam memorizadas para as próximas importações.
                     </p>
 
                     <div className="flex flex-wrap justify-between gap-2">
