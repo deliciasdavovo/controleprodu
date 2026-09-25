@@ -11984,7 +11984,7 @@
       // conferência. Nada é salvo na leitura: a pessoa corrige descrição,
       // tipo, volume, quantidade e valor antes de confirmar.
 
-      const XmlPurchaseModal = ({ catalogOptions, dataSugerida, onConfirm, onClose }) => {
+      const XmlPurchaseModal = ({ catalogOptions, dataSugerida, detectarDuplicata, onConfirm, onClose }) => {
         const [arquivo, setArquivo] = useState(null);
         const [itens, setItens] = useState([]);
         const [fornecedor, setFornecedor] = useState('');
@@ -11994,6 +11994,8 @@
         const [erro, setErro] = useState('');
         const [lendo, setLendo] = useState(false);
         const [salvando, setSalvando] = useState(false);
+        const [duplicatasAntesDaConferencia, setDuplicatasAntesDaConferencia] = useState([]);
+        const [duplicatasRevisadas, setDuplicatasRevisadas] = useState(false);
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -12163,10 +12165,40 @@
 
             if (!lidos.length) throw new Error('Não encontrei produtos dentro desta NF-e.');
 
+            const dataCompraXml = dataXml ? dataXml.slice(0, 10) : (dataSugerida || getTodayDateString());
+            const duplicatasEncontradas = typeof detectarDuplicata === 'function'
+              ? lidos.flatMap((item) => {
+                  if (!item.catalogValue) return [];
+                  const tipo = item.purchaseKind || 'revenda';
+                  const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza'].includes(tipo);
+                  const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
+                  const supplyId = String(item.catalogValue).startsWith('insumo:')
+                    ? String(item.catalogValue).slice(7)
+                    : null;
+                  const resaleId = String(item.catalogValue).startsWith('revenda:')
+                    ? String(item.catalogValue).slice(8)
+                    : null;
+                  const qty = (Number(item.volumes) || 0) * ((Number(item.unitsPerPackage) || 0) > 0 ? Number(item.unitsPerPackage) : 1);
+                  const duplicata = detectarDuplicata({
+                    supplier: fornecedorXml,
+                    purchaseDate: dataCompraXml,
+                    supplyId: temFaceInsumo ? supplyId : null,
+                    resaleId: temFaceRevenda ? resaleId : null,
+                    supplyQty: qty,
+                    resaleQty: qty,
+                    displayQty: Number(item.volumes) || 0,
+                    itemName: item.name || item.originalName
+                  });
+                  return duplicata ? [{ ...duplicata, itemId: item.id }] : [];
+                })
+              : [];
+
             setFornecedor(fornecedorXml);
-            setData(dataXml ? dataXml.slice(0, 10) : (dataSugerida || getTodayDateString()));
+            setData(dataCompraXml);
             setNumeroNota(nNF);
             setChave(chaveXml);
+            setDuplicatasAntesDaConferencia(duplicatasEncontradas);
+            setDuplicatasRevisadas(duplicatasEncontradas.length === 0);
             setItens(lidos);
           } catch (e) {
             setItens([]);
@@ -12244,6 +12276,65 @@
                         <p className="t-callout ink-expired">{erro}</p>
                       </div>
                     )}
+                  </div>
+                ) : !duplicatasRevisadas && duplicatasAntesDaConferencia.length > 0 ? (
+                  <div className="max-w-2xl mx-auto py-3 sm:py-6">
+                    <div className="rounded-[22px] border border-[#8a5a00]/15 bg-[#fffaf0] p-5 sm:p-6">
+                      <div className="flex items-start gap-3">
+                        <span className="w-10 h-10 rounded-[13px] bg-[#fff0cf] text-[#8a5a00] flex items-center justify-center shrink-0">
+                          <Icons.AlertTriangle className="w-5 h-5" />
+                        </span>
+                        <div>
+                          <p className="t-overline mb-1">Antes da conferência</p>
+                          <h3 className="t-title">
+                            {duplicatasAntesDaConferencia.length === 1
+                              ? 'Encontramos uma compra que pode estar duplicada'
+                              : 'Encontramos compras que podem estar duplicadas'}
+                          </h3>
+                          <p className="t-caption mt-1.5">
+                            Veja isso agora, antes de revisar todos os itens da nota.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 space-y-2">
+                        {duplicatasAntesDaConferencia.map((dup) => (
+                          <div key={dup.itemId} className="rounded-[15px] bg-white border hairline p-3.5">
+                            <strong className="t-callout block">{dup.itemName || 'Item da nota'}</strong>
+                            <div className="t-micro mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                              <span>{dup.data}</span>
+                              <span>{dup.fornecedor}</span>
+                              <span>Qtd. {dup.quantidade}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="t-micro mt-4">
+                        Se esta for realmente uma nova compra feita com os mesmos dados, você pode continuar para a conferência.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-md"
+                          onClick={() => { setItens([]); setArquivo(null); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); }}
+                        >
+                          Não importar esta nota
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-md"
+                          onClick={() => {
+                            const ids = new Set(duplicatasAntesDaConferencia.map((dup) => dup.itemId));
+                            setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, duplicateAccepted: true } : item));
+                            setDuplicatasRevisadas(true);
+                          }}
+                        >
+                          Continuar para conferência
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -12400,7 +12491,7 @@
                     </p>
 
                     <div className="flex flex-wrap justify-between gap-2">
-                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); }} className="btn btn-secondary btn-md">
+                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); }} className="btn btn-secondary btn-md">
                         Trocar XML
                       </button>
                       <button type="button" disabled={!selecionados.length || salvando} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
@@ -12766,7 +12857,7 @@
         // Consideramos possível duplicata quando o MESMO item já tem compra
         // com a mesma data, fornecedor e quantidade. O usuário sempre pode
         // confirmar e lançar mesmo assim.
-        const confirmarPossivelDuplicataCompra = ({
+        const detectarPossivelDuplicataCompra = ({
           supplier,
           purchaseDate,
           supplyId = null,
@@ -12793,21 +12884,25 @@
             ? comprasDaRevenda(resaleId).find((compra) => mesmaCompra(compra, resaleQty))
             : null;
 
-          if (!duplicataInsumo && !duplicataRevenda) return Promise.resolve(true);
+          if (!duplicataInsumo && !duplicataRevenda) return null;
 
           const qtdExibida = Number(displayQty);
-          const quantidadeTexto = Number.isFinite(qtdExibida)
-            ? numeroCurtoBR(qtdExibida)
-            : numeroCurtoBR(Number(duplicataInsumo?.qty ?? duplicataRevenda?.qty) || 0);
+          return {
+            itemName: String(itemName || '').trim(),
+            data: data ? formatDateBR(data) : 'Sem data',
+            fornecedor: String(supplier || '').trim() || 'Sem fornecedor',
+            quantidade: Number.isFinite(qtdExibida)
+              ? numeroCurtoBR(qtdExibida)
+              : numeroCurtoBR(Number(duplicataInsumo?.qty ?? duplicataRevenda?.qty) || 0)
+          };
+        };
 
+        const confirmarPossivelDuplicataCompra = (dados) => {
+          const duplicata = detectarPossivelDuplicataCompra(dados);
+          if (!duplicata) return Promise.resolve(true);
           return new Promise((resolve) => {
             resolverDuplicataRef.current = resolve;
-            setAlertaDuplicata({
-              itemName: String(itemName || '').trim(),
-              data: data ? formatDateBR(data) : 'Sem data',
-              fornecedor: String(supplier || '').trim() || 'Sem fornecedor',
-              quantidade: quantidadeTexto
-            });
+            setAlertaDuplicata(duplicata);
           });
         };
 
@@ -13502,20 +13597,19 @@
               ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
-            const podeLancar = await confirmarPossivelDuplicataCompra({
-              supplier: fornecedor,
-              purchaseDate: data || dataSugerida,
-              supplyId: temFaceInsumo ? insumo?.id : null,
-              resaleId: temFaceRevenda ? revenda?.id : null,
-              // Na importação/colagem, este fluxo grava "qty" diretamente
-              // tanto em insumo quanto em revenda; a comparação usa o mesmo
-              // valor para detectar exatamente o que seria salvo de novo.
-              supplyQty: qty,
-              resaleQty: qty,
-              displayQty: volumes,
-              itemName: nome
-            });
-            if (!podeLancar) continue;
+            if (!item.duplicateAccepted) {
+              const podeLancar = await confirmarPossivelDuplicataCompra({
+                supplier: fornecedor,
+                purchaseDate: data || dataSugerida,
+                supplyId: temFaceInsumo ? insumo?.id : null,
+                resaleId: temFaceRevenda ? revenda?.id : null,
+                supplyQty: qty,
+                resaleQty: qty,
+                displayQty: volumes,
+                itemName: nome
+              });
+              if (!podeLancar) continue;
+            }
 
             if (temFaceInsumo) {
               const classe = tipo === 'embalagem' || tipo === 'limpeza' ? tipo : 'insumo';
@@ -15247,6 +15341,7 @@
               <XmlPurchaseModal
                 catalogOptions={opcoesCompra}
                 dataSugerida={dataSugerida}
+                detectarDuplicata={detectarPossivelDuplicataCompra}
                 onConfirm={salvarItensNotaColada}
                 onClose={() => setXmlCompraAberta(false)}
               />
