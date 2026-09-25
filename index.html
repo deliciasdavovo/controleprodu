@@ -17716,7 +17716,7 @@
         const [historicoItem, setHistoricoItem] = useState(null);
         const [graficoHistoricoAberto, setGraficoHistoricoAberto] = useState(false);
         const [resumoPeriodoAberto, setResumoPeriodoAberto] = useState(false);
-        const limiteAtual = Number(limite) || 10;
+        const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const alterarPeriodoVariacao = (valor) => {
           setPeriodoRelatorioPrecos(valor);
@@ -19804,13 +19804,14 @@ ${BARRA_ACOES_HTML}
                 value={limite}
                 onChange={(e) => setLimite(e.target.value)}
                 className="field field-sm field-select field-auto"
-                title="Limitar a tela e os relatórios aos primeiros resultados da ordenação atual"
+                title="Escolha quantos resultados mostrar na tela e nos relatórios, ou use Sem limite para incluir todos"
                 aria-label="Quantidade máxima de resultados"
               >
                 <option value="10">Top 10</option>
                 <option value="30">Top 30</option>
                 <option value="50">Top 50</option>
                 <option value="100">Top 100</option>
+                <option value="todos">Sem limite</option>
               </select>
             </div>
 
