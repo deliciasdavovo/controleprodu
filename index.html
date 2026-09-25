@@ -17700,6 +17700,7 @@
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
         const [buscaGuiaCompra, setBuscaGuiaCompra] = useState('');
         const [visao, setVisao] = useState('item');
+        const [diaCalendarioSelecionado, setDiaCalendarioSelecionado] = useState('');
         const [modoValorComprado, setModoValorComprado] = useState('agrupado');
         const [busca, setBusca] = useState('');
         const [tipoFiltro, setTipoFiltro] = useState('todos');
@@ -17933,6 +17934,93 @@ const resumoFornecedoresPeriodo = useMemo(() => {
             }))
           ];
         }, [todas]);
+
+        const mesCalendario = mesFiltro || (mesesDisponiveis[1]?.value || getTodayDateString().slice(0, 7));
+
+        const calendarioCompras = useMemo(() => {
+          const baseCategoria = tipoFiltro === 'todos'
+            ? todas
+            : todas.filter((c) => c.tipo === tipoFiltro);
+          const baseBusca = termo
+            ? baseCategoria.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
+            : baseCategoria;
+          return baseBusca.filter((c) => c.data && c.data.startsWith(mesCalendario));
+        }, [todas, tipoFiltro, termo, mesCalendario]);
+
+        const calendarioResumo = useMemo(() => {
+          const [ano, mes] = mesCalendario.split('-').map(Number);
+          const primeiroDia = new Date(ano, mes - 1, 1);
+          const diasNoMes = new Date(ano, mes, 0).getDate();
+          const deslocamento = (primeiroDia.getDay() + 6) % 7; // segunda = primeira coluna
+          const porDia = {};
+
+          calendarioCompras.forEach((compra) => {
+            const data = compra.data;
+            const atual = porDia[data] || {
+              data,
+              total: 0,
+              lancamentos: 0,
+              itens: [],
+              fornecedores: new Set()
+            };
+            atual.total += Number(compra.cost) || 0;
+            atual.lancamentos += 1;
+            atual.itens.push(compra);
+            if (compra.fornecedor && compra.fornecedor !== 'Sem fornecedor') atual.fornecedores.add(compra.fornecedor);
+            porDia[data] = atual;
+          });
+
+          const maiorTotal = Math.max(0, ...Object.values(porDia).map((d) => d.total));
+          const celulas = Array(deslocamento).fill(null);
+          for (let dia = 1; dia <= diasNoMes; dia += 1) {
+            const data = [ano, String(mes).padStart(2, '0'), String(dia).padStart(2, '0')].join('-');
+            const info = porDia[data] || null;
+            let nivel = 0;
+            if (info && maiorTotal > 0) {
+              const proporcao = info.total / maiorTotal;
+              nivel = proporcao >= 0.66 ? 3 : proporcao >= 0.33 ? 2 : 1;
+            }
+            celulas.push({ dia, data, info, nivel });
+          }
+
+          const totalMes = calendarioCompras.reduce((s, c) => s + (Number(c.cost) || 0), 0);
+          const fornecedoresMes = new Set(
+            calendarioCompras
+              .filter((c) => c.fornecedor && c.fornecedor !== 'Sem fornecedor')
+              .map((c) => c.fornecedor)
+          ).size;
+
+          return {
+            celulas,
+            porDia,
+            totalMes,
+            fornecedoresMes,
+            diasComCompra: Object.keys(porDia).length
+          };
+        }, [calendarioCompras, mesCalendario]);
+
+        const detalheCalendarioSelecionado = useMemo(() => {
+          const dia = calendarioResumo.porDia[diaCalendarioSelecionado];
+          if (!dia) return null;
+          const grupos = {};
+          dia.itens.forEach((compra) => {
+            const nome = compra.fornecedor || 'Sem fornecedor';
+            const grupo = grupos[nome] || { nome, total: 0, itens: [] };
+            grupo.total += Number(compra.cost) || 0;
+            grupo.itens.push(compra);
+            grupos[nome] = grupo;
+          });
+          return {
+            ...dia,
+            fornecedores: Object.values(grupos).sort((a, b) => b.total - a.total)
+          };
+        }, [calendarioResumo, diaCalendarioSelecionado]);
+
+        const formatarValorCalendario = (valor) => {
+          const numero = Number(valor) || 0;
+          if (numero >= 1000) return 'R$ ' + (numero / 1000).toFixed(numero >= 10000 ? 0 : 1).replace('.', ',') + ' mil';
+          return formatCurrencyBR(numero);
+        };
 
         const comprasHistoricoFornecedor = historicoFornecedor
           ? [...porPeriodo.filter((c) => c.fornecedor === historicoFornecedor)].sort((a, b) => {
@@ -18835,12 +18923,22 @@ ${BARRA_ACOES_HTML}
             { v: 'recente', t: 'Compra mais recente' },
             { v: 'compras_desc', t: 'Mais compras' },
             { v: 'nome_asc', t: 'Nome (A–Z)' }
+          ],
+          calendario: [
+            { v: 'recente', t: 'Calendário mensal' }
           ]
         };
 
         const trocarVisao = (nova) => {
           setVisao(nova);
           setOrdem(OPCOES_ORDEM[nova][0].v);
+          if (nova === 'calendario') {
+            const mesPadrao = mesFiltro || mesesDisponiveis[1]?.value || getTodayDateString().slice(0, 7);
+            setMesFiltro(mesPadrao);
+            setDataInicio('');
+            setDataFim('');
+            setDiaCalendarioSelecionado('');
+          }
         };
 
         const subiram = porItem.filter((i) => i.atual.variacaoPct > 0.5).length;
@@ -19750,12 +19848,13 @@ ${BARRA_ACOES_HTML}
             )}
 
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <div className="segmented flex-1 lg:flex-none lg:inline-flex">
-                <button onClick={() => trocarVisao('item')} data-active={visao === 'item'} className="flex-1 lg:flex-none h-9 px-4">Por item</button>
-                <button onClick={() => trocarVisao('valor')} data-active={visao === 'valor'} className="flex-1 lg:flex-none h-9 px-4">Por valor comprado</button>
-                <button onClick={() => trocarVisao('marca')} data-active={visao === 'marca'} className="flex-1 lg:flex-none h-9 px-4">Comparar marcas</button>
-                <button onClick={() => trocarVisao('fornecedor')} data-active={visao === 'fornecedor'} className="flex-1 lg:flex-none h-9 px-4">Por fornecedor</button>
-                <button onClick={() => trocarVisao('compra')} data-active={visao === 'compra'} className="flex-1 lg:flex-none h-9 px-4">Por compra</button>
+              <div className="segmented flex-1 lg:flex-none lg:inline-flex overflow-x-auto">
+                <button onClick={() => trocarVisao('item')} data-active={visao === 'item'} className="shrink-0 h-9 px-4">Por item</button>
+                <button onClick={() => trocarVisao('valor')} data-active={visao === 'valor'} className="shrink-0 h-9 px-4">Por valor comprado</button>
+                <button onClick={() => trocarVisao('marca')} data-active={visao === 'marca'} className="shrink-0 h-9 px-4">Comparar marcas</button>
+                <button onClick={() => trocarVisao('fornecedor')} data-active={visao === 'fornecedor'} className="shrink-0 h-9 px-4">Por fornecedor</button>
+                <button onClick={() => trocarVisao('compra')} data-active={visao === 'compra'} className="shrink-0 h-9 px-4">Por compra</button>
+                <button onClick={() => trocarVisao('calendario')} data-active={visao === 'calendario'} className="shrink-0 h-9 px-4">Calendário</button>
               </div>
               <div className="relative flex-1 max-w-sm">
                 <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
@@ -19773,54 +19872,59 @@ ${BARRA_ACOES_HTML}
                   options={mesesDisponiveis}
                   onPick={(opt) => {
                     setMesFiltro(opt.value);
+                    setDiaCalendarioSelecionado('');
                     if (opt.value) { setDataInicio(''); setDataFim(''); }
                   }}
                   className="field field-sm"
                   title="Filtrar compras por mês"
                 />
               </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => { setDataInicio(e.target.value); setMesFiltro(''); }}
-                  title="Data inicial"
-                  className="field field-sm w-[136px]"
-                />
-                <span className="t-micro">até</span>
-                <input
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => { setDataFim(e.target.value); setMesFiltro(''); }}
-                  title="Data final"
-                  className="field field-sm w-[136px]"
-                />
-              </div>
-              {(mesFiltro || dataInicio || dataFim) && (
-                <button
-                  type="button"
-                  onClick={() => { setMesFiltro(''); setDataInicio(''); setDataFim(''); }}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Limpar período
-                </button>
+              {visao !== 'calendario' && (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => { setDataInicio(e.target.value); setMesFiltro(''); }}
+                      title="Data inicial"
+                      className="field field-sm w-[136px]"
+                    />
+                    <span className="t-micro">até</span>
+                    <input
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => { setDataFim(e.target.value); setMesFiltro(''); }}
+                      title="Data final"
+                      className="field field-sm w-[136px]"
+                    />
+                  </div>
+                  {(mesFiltro || dataInicio || dataFim) && (
+                    <button
+                      type="button"
+                      onClick={() => { setMesFiltro(''); setDataInicio(''); setDataFim(''); }}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Limpar período
+                    </button>
+                  )}
+                  <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-sm field-select field-auto">
+                    {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
+                  </select>
+                  <select
+                    value={limite}
+                    onChange={(e) => setLimite(e.target.value)}
+                    className="field field-sm field-select field-auto"
+                    title="Escolha quantos resultados mostrar na tela e nos relatórios, ou use Sem limite para incluir todos"
+                    aria-label="Quantidade máxima de resultados"
+                  >
+                    <option value="10">Top 10</option>
+                    <option value="30">Top 30</option>
+                    <option value="50">Top 50</option>
+                    <option value="100">Top 100</option>
+                    <option value="todos">Sem limite</option>
+                  </select>
+                </>
               )}
-              <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-sm field-select field-auto">
-                {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
-              </select>
-              <select
-                value={limite}
-                onChange={(e) => setLimite(e.target.value)}
-                className="field field-sm field-select field-auto"
-                title="Escolha quantos resultados mostrar na tela e nos relatórios, ou use Sem limite para incluir todos"
-                aria-label="Quantidade máxima de resultados"
-              >
-                <option value="10">Top 10</option>
-                <option value="30">Top 30</option>
-                <option value="50">Top 50</option>
-                <option value="100">Top 100</option>
-                <option value="todos">Sem limite</option>
-              </select>
             </div>
 
             <div className="segmented w-full sm:w-auto sm:inline-flex">
@@ -19834,7 +19938,139 @@ ${BARRA_ACOES_HTML}
             {compras.length === 0 ? (
               <div className="card p-6"><p className="t-body ink-quiet">Nenhum resultado com os filtros atuais.</p></div>
             ) : (
-              <div className="card p-5 sm:p-6">
+              <div className="card p-4 sm:p-6">
+                {/* ---------------- CALENDÁRIO ---------------- */}
+                {visao === 'calendario' && (
+                  <div className="space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                      <div>
+                        <div className="t-overline">Histórico visual</div>
+                        <h3 className="t-title mt-1">
+                          {new Date(mesCalendario + '-01T12:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                        </h3>
+                        <p className="t-micro mt-1 ink-quiet">
+                          Dias destacados têm compras registradas. Toque em um dia para ver fornecedores e itens.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        <div>
+                          <span className="t-overline-sm block">Dias com compra</span>
+                          <strong className="t-metric-xs tnum">{calendarioResumo.diasComCompra}</strong>
+                        </div>
+                        <div>
+                          <span className="t-overline-sm block">Fornecedores</span>
+                          <strong className="t-metric-xs tnum">{calendarioResumo.fornecedoresMes}</strong>
+                        </div>
+                        <div>
+                          <span className="t-overline-sm block">Total no mês</span>
+                          <strong className="t-callout tnum block mt-1">{formatCurrencyBR(calendarioResumo.totalMes)}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border hairline bg-[#F8F8F6] p-2.5 sm:p-4">
+                      <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5">
+                        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((dia) => (
+                          <div key={dia} className="text-center t-overline-sm py-1">{dia}</div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                        {calendarioResumo.celulas.map((celula, indice) => {
+                          if (!celula) return <div key={'vazio-' + indice} className="aspect-square min-h-[46px] sm:min-h-[72px]" />;
+                          const ativo = diaCalendarioSelecionado === celula.data;
+                          const temCompra = !!celula.info;
+                          const nivelClasse = celula.nivel === 3
+                            ? 'bg-[#0E0937] text-white border-[#0E0937]'
+                            : celula.nivel === 2
+                              ? 'bg-[#0E0937]/[0.12] border-[#0E0937]/20'
+                              : celula.nivel === 1
+                                ? 'bg-[#0E0937]/[0.055] border-[#0E0937]/10'
+                                : 'bg-white border-black/[0.05]';
+
+                          return (
+                            <button
+                              key={celula.data}
+                              type="button"
+                              onClick={() => temCompra && setDiaCalendarioSelecionado(celula.data)}
+                              disabled={!temCompra}
+                              aria-label={temCompra
+                                ? `${formatDateBR(celula.data)} · ${celula.info.lancamentos} lançamentos · ${formatCurrencyBR(celula.info.total)}`
+                                : formatDateBR(celula.data)}
+                              className={`aspect-square min-h-[46px] sm:min-h-[72px] rounded-xl border p-1.5 sm:p-2 text-left flex flex-col justify-between transition-all ${nivelClasse} ${ativo ? 'ring-2 ring-[#0E0937] ring-offset-2' : ''} ${temCompra ? 'cursor-pointer active:scale-[0.97]' : 'cursor-default'}`}
+                            >
+                              <span className={`text-[12px] sm:text-[13px] font-bold tnum ${celula.nivel === 3 ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                                {celula.dia}
+                              </span>
+                              {temCompra && (
+                                <span className={`block min-w-0 ${celula.nivel === 3 ? 'text-white' : 'text-[#1d1d1f]'}`}>
+                                  <strong className="block text-[9px] sm:text-[11px] leading-tight tnum truncate">
+                                    {formatarValorCalendario(celula.info.total)}
+                                  </strong>
+                                  <span className={`block text-[8px] sm:text-[9px] leading-tight mt-0.5 ${celula.nivel === 3 ? 'text-white/75' : 'ink-quiet'}`}>
+                                    {celula.info.fornecedores.size} {celula.info.fornecedores.size === 1 ? 'forn.' : 'forn.'}
+                                  </span>
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {detalheCalendarioSelecionado ? (
+                      <div className="space-y-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <div>
+                            <span className="t-overline">Dia selecionado</span>
+                            <h4 className="t-title mt-1">
+                              {new Date(detalheCalendarioSelecionado.data + 'T12:00:00').toLocaleDateString('pt-BR', {
+                                weekday: 'long',
+                                day: '2-digit',
+                                month: 'long'
+                              })}
+                            </h4>
+                          </div>
+                          <strong className="t-title tnum">{formatCurrencyBR(detalheCalendarioSelecionado.total)}</strong>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                          {detalheCalendarioSelecionado.fornecedores.map((fornecedor) => (
+                            <div key={fornecedor.nome} className="rounded-2xl border hairline p-4 bg-white">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <h5 className="t-title truncate" title={fornecedor.nome}>{fornecedor.nome}</h5>
+                                  <span className="t-micro ink-quiet">
+                                    {fornecedor.itens.length} {fornecedor.itens.length === 1 ? 'item lançado' : 'itens lançados'}
+                                  </span>
+                                </div>
+                                <strong className="t-callout tnum shrink-0">{formatCurrencyBR(fornecedor.total)}</strong>
+                              </div>
+                              <div className="mt-3 divide-y divide-black/[0.06]">
+                                {fornecedor.itens.map((item) => (
+                                  <div key={item.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <span className="t-callout font-semibold block">{item.item}</span>
+                                      <span className="t-nano ink-quiet block mt-0.5">{item.tipo}</span>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <span className="t-micro tnum block">{formatQuantidadeCompra(item)}</span>
+                                      <strong className="t-callout tnum block mt-0.5">{formatCurrencyBR(item.cost)}</strong>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-black/10 px-4 py-5 text-center">
+                        <p className="t-body ink-quiet">Toque em um dia destacado para abrir os detalhes.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* ---------------- COMPARAR MARCAS ---------------- */}
                 {visao === 'marca' && (
                   <div>
