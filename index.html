@@ -11984,7 +11984,7 @@
       // conferência. Nada é salvo na leitura: a pessoa corrige descrição,
       // tipo, volume, quantidade e valor antes de confirmar.
 
-      const XmlPurchaseModal = ({ catalogOptions, dataSugerida, detectarDuplicata, onConfirm, onClose }) => {
+      const XmlPurchaseModal = ({ catalogOptions, fornecedores = [], dataSugerida, detectarDuplicata, onConfirm, onClose }) => {
         const [arquivo, setArquivo] = useState(null);
         const [itens, setItens] = useState([]);
         const [fornecedor, setFornecedor] = useState('');
@@ -11996,6 +11996,8 @@
         const [salvando, setSalvando] = useState(false);
         const [duplicatasAntesDaConferencia, setDuplicatasAntesDaConferencia] = useState([]);
         const [duplicatasRevisadas, setDuplicatasRevisadas] = useState(false);
+        const [fornecedorXmlOriginal, setFornecedorXmlOriginal] = useState('');
+        const [fornecedorConfidence, setFornecedorConfidence] = useState('none');
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -12009,6 +12011,65 @@
         const numeroXml = (valor) => {
           const n = Number(String(valor || '').replace(',', '.'));
           return Number.isFinite(n) ? n : 0;
+        };
+
+        const XML_SUPPLIER_LINKS_KEY = 'dv_xml_supplier_links_v1';
+
+        const lerVinculosFornecedorXml = () => {
+          try {
+            return JSON.parse(localStorage.getItem(XML_SUPPLIER_LINKS_KEY) || '{}') || {};
+          } catch {
+            return {};
+          }
+        };
+
+        const salvarVinculoFornecedorXml = (nomeXml, nomeCadastro) => {
+          const chave = normalizeName(String(nomeXml || '').trim());
+          const valor = String(nomeCadastro || '').trim();
+          if (!chave || !valor) return;
+          try {
+            const atuais = lerVinculosFornecedorXml();
+            atuais[chave] = valor;
+            localStorage.setItem(XML_SUPPLIER_LINKS_KEY, JSON.stringify(atuais));
+          } catch {}
+        };
+
+        const palavrasFornecedor = (nome) => normalizeName(nome)
+          .replace(/\b(ltda|me|epp|sa|s a|comercio|comercial|distribuidora|distribuicao|industria|alimentos|produtos)\b/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .split(' ')
+          .filter((p) => p.length > 2);
+
+        const resolverFornecedorXml = (nomeXml) => {
+          const bruto = String(nomeXml || '').trim();
+          if (!bruto) return { nome: '', confidence: 'none', original: '' };
+
+          const chave = normalizeName(bruto);
+          const aprendido = lerVinculosFornecedorXml()[chave];
+          if (aprendido && fornecedores.some((f) => normalizeName(f) === normalizeName(aprendido))) {
+            return { nome: aprendido, confidence: 'learned', original: bruto };
+          }
+
+          const exato = fornecedores.find((f) => normalizeName(f) === chave);
+          if (exato) return { nome: exato, confidence: 'exact', original: bruto };
+
+          const origem = palavrasFornecedor(bruto);
+          let melhor = null;
+          fornecedores.forEach((f) => {
+            const alvo = palavrasFornecedor(f);
+            if (!origem.length || !alvo.length) return;
+            const inter = origem.filter((p) => alvo.includes(p)).length;
+            const coberturaOrigem = inter / origem.length;
+            const coberturaAlvo = inter / alvo.length;
+            const nota = (coberturaOrigem * 0.55) + (coberturaAlvo * 0.45);
+            if (!melhor || nota > melhor.nota) melhor = { nome: f, nota };
+          });
+
+          if (melhor && melhor.nota >= 0.72) {
+            return { nome: melhor.nome, confidence: 'matched', score: melhor.nota, original: bruto };
+          }
+          return { nome: bruto, confidence: 'raw', original: bruto };
         };
 
         const unidadeDoXml = (uCom) => {
@@ -12114,6 +12175,7 @@
             const ide = filhoLocal(infNFe, 'ide');
             const emit = filhoLocal(infNFe, 'emit');
             const fornecedorXml = textoLocal(emit, 'xNome') || textoLocal(emit, 'xFant');
+            const fornecedorResolvido = resolverFornecedorXml(fornecedorXml);
             const dataXml = textoLocal(ide, 'dhEmi') || textoLocal(ide, 'dEmi');
             const nNF = textoLocal(ide, 'nNF');
             const chaveXml = String(infNFe.getAttribute('Id') || '').replace(/^NFe/, '');
@@ -12133,7 +12195,7 @@
               const custoLinha = Math.max(0, vProd - vDesc + vFrete + vSeg + vOutro);
 
               const baseXml = unidadeDoXml(uCom);
-              const match = melhorOpcao(descricao, fornecedorXml, codigo);
+              const match = melhorOpcao(descricao, fornecedorResolvido.nome || fornecedorXml, codigo);
               const opcao = match.opt;
               const unidadesSalvas = Number(opcao?.packageUnits) > 0 ? Number(opcao.packageUnits) : 0;
               const pacoteSalvo = opcao?.packageType || '';
@@ -12180,7 +12242,7 @@
                     : null;
                   const qty = (Number(item.volumes) || 0) * ((Number(item.unitsPerPackage) || 0) > 0 ? Number(item.unitsPerPackage) : 1);
                   const duplicata = detectarDuplicata({
-                    supplier: fornecedorXml,
+                    supplier: fornecedorResolvido.nome || fornecedorXml,
                     purchaseDate: dataCompraXml,
                     supplyId: temFaceInsumo ? supplyId : null,
                     resaleId: temFaceRevenda ? resaleId : null,
@@ -12193,7 +12255,12 @@
                 })
               : [];
 
-            setFornecedor(fornecedorXml);
+            setFornecedor(fornecedorResolvido.nome || fornecedorXml);
+            setFornecedorXmlOriginal(fornecedorXml);
+            setFornecedorConfidence(fornecedorResolvido.confidence);
+            if (fornecedorResolvido.nome && fornecedorXml && fornecedorResolvido.confidence !== 'raw') {
+              salvarVinculoFornecedorXml(fornecedorXml, fornecedorResolvido.nome);
+            }
             setData(dataCompraXml);
             setNumeroNota(nNF);
             setChave(chaveXml);
@@ -12341,7 +12408,40 @@
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-2">
                         <label className="t-caption block mb-1">Fornecedor</label>
-                        <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} className="field field-md w-full" />
+                        <PickerField
+                          value={fornecedor}
+                          options={fornecedores.map((f) => ({ value: f, label: f }))}
+                          onType={(valor) => {
+                            setFornecedor(valor);
+                            setFornecedorConfidence('manual');
+                          }}
+                          onPick={(opt) => {
+                            setFornecedor(opt.label);
+                            setFornecedorConfidence('confirmed');
+                            salvarVinculoFornecedorXml(fornecedorXmlOriginal || fornecedor, opt.label);
+                          }}
+                          placeholder="Fornecedor"
+                          emptyLabel="Nenhum fornecedor encontrado"
+                          className="field field-md w-full"
+                          panelMinWidth={330}
+                        />
+                        {fornecedorXmlOriginal && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            {(fornecedorConfidence === 'exact' || fornecedorConfidence === 'matched' || fornecedorConfidence === 'learned' || fornecedorConfidence === 'confirmed') ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#edf7ef] px-2 py-1 text-[10px] font-bold text-[#2f6b3f]">
+                                <Icons.Check className="w-3 h-3" />
+                                {fornecedorConfidence === 'learned' ? 'Fornecedor reconhecido pelo histórico' : 'Fornecedor reconhecido'}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-[#fff4df] px-2 py-1 text-[10px] font-bold text-[#8a5a00]">
+                                Confira o fornecedor da NF-e
+                              </span>
+                            )}
+                            {normalizeName(fornecedorXmlOriginal) !== normalizeName(fornecedor) && (
+                              <span className="t-nano">NF-e: {fornecedorXmlOriginal}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="t-caption block mb-1">Data da compra</label>
@@ -12491,7 +12591,7 @@
                     </p>
 
                     <div className="flex flex-wrap justify-between gap-2">
-                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); }} className="btn btn-secondary btn-md">
+                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); setFornecedorXmlOriginal(''); setFornecedorConfidence('none'); }} className="btn btn-secondary btn-md">
                         Trocar XML
                       </button>
                       <button type="button" disabled={!selecionados.length || salvando} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
@@ -15340,6 +15440,7 @@
             {xmlCompraAberta && (
               <XmlPurchaseModal
                 catalogOptions={opcoesCompra}
+                fornecedores={fornecedores}
                 dataSugerida={dataSugerida}
                 detectarDuplicata={detectarPossivelDuplicataCompra}
                 onConfirm={salvarItensNotaColada}
