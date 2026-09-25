@@ -14834,7 +14834,7 @@
                           const x = linha.source;
                           const c = linha.compra;
                           const volumeCompraLinha = c ? lerUnidadeCompraVolume(c.purchaseUnit) : null;
-                          const ehSupply = ['insumo', 'embalagem', 'limpeza', 'insumo_revenda'].includes(linha.tipo);
+                          const ehSupply = ['insumo', 'embalagem', 'limpeza', 'outros', 'insumo_revenda'].includes(linha.tipo);
                           const venda = linha.tipo === 'insumo_revenda'
                             ? linha.resaleSource
                             : (linha.tipo === 'revenda' || linha.tipo === 'producao' ? x : null);
