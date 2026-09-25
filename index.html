@@ -12849,7 +12849,8 @@
         onUpdateResalePurchase,
         onDeleteResalePurchase,
         onChangeCatalogType,
-        onDeleteCatalogItem
+        onDeleteCatalogItem,
+        onUnifyCatalogItems
       }) => {
         const [painel, setPainel] = useState('entradas');
         const [busca, setBusca] = useState('');
@@ -12865,6 +12866,9 @@
         const [copiarFichaDe, setCopiarFichaDe] = useState(null);
         const [produtoDestinoCopia, setProdutoDestinoCopia] = useState('');
         const [copiandoFicha, setCopiandoFicha] = useState(false);
+        const [unificarOrigem, setUnificarOrigem] = useState(null);
+        const [unificarDestino, setUnificarDestino] = useState('');
+        const [unificandoCadastro, setUnificandoCadastro] = useState(false);
 
         // A tabela mestre distingue cadastro, classe e finalidade operacional. No formulário de compra,
         // porém, insumo e revenda são a MESMA entrada: revenda é uma opção do
@@ -15101,6 +15105,17 @@
                                       <Icons.ClipboardList className="w-3.5 h-3.5" />
                                     </button>
                                   )}
+                                  {linha.tipo !== 'producao' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setUnificarOrigem(linha); setUnificarDestino(''); }}
+                                      title={`Unificar cadastro de ${linha.name}`}
+                                      className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center text-[15px] font-semibold"
+                                      aria-label={`Unificar cadastro de ${linha.name}`}
+                                    >
+                                      ⇄
+                                    </button>
+                                  )}
                                   <button type="button" onClick={() => onDeleteCatalogItem(linha)} title={`Remover ${linha.name}`} className="w-8 h-8 rounded-full icon-danger flex items-center justify-center">
                                     <Icons.Trash2 className="w-4 h-4" />
                                   </button>
@@ -15116,6 +15131,120 @@
                 </div>
               </div>
             )}
+
+            {unificarOrigem && (() => {
+              const tiposSupply = ['insumo', 'embalagem', 'limpeza', 'outros'];
+              const compativeis = cadastrosUnificados.filter((alvo) => {
+                if (alvo.key === unificarOrigem.key || alvo.tipo === 'producao') return false;
+                if (unificarOrigem.tipo === 'insumo_revenda') return alvo.tipo === 'insumo_revenda';
+                if (unificarOrigem.tipo === 'revenda') return alvo.tipo === 'revenda';
+                if (tiposSupply.includes(unificarOrigem.tipo)) return alvo.tipo === unificarOrigem.tipo;
+                return false;
+              });
+              const destino = compativeis.find((x) => x.key === unificarDestino) || null;
+              return (
+                <div className="fixed inset-0 z-[120] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4">
+                  <button
+                    type="button"
+                    className="absolute inset-0"
+                    aria-label="Fechar unificação"
+                    onClick={() => !unificandoCadastro && setUnificarOrigem(null)}
+                  />
+                  <div className="relative w-full max-w-[520px] rounded-[24px] bg-white border hairline shadow-[0_24px_70px_rgba(0,0,0,0.24)] overflow-hidden">
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="t-overline mb-1">Unificar cadastros</p>
+                          <h3 className="t-title">Qual cadastro deve permanecer?</h3>
+                          <p className="t-caption mt-1.5">
+                            As compras e vínculos de <strong>{unificarOrigem.name}</strong> serão transferidos para o cadastro escolhido abaixo.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={unificandoCadastro}
+                          onClick={() => setUnificarOrigem(null)}
+                          className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0"
+                        >
+                          <Icons.X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-5 rounded-[16px] bg-black/[0.035] p-4">
+                        <span className="t-caption block mb-1">Cadastro duplicado que será removido</span>
+                        <strong className="t-callout">{unificarOrigem.name}</strong>
+                        <span className="t-micro block mt-1">
+                          {TIPOS_TABELA.find((t) => t.value === unificarOrigem.tipo)?.label || unificarOrigem.tipo}
+                        </span>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="t-caption block mb-1">Cadastro correto que vai permanecer</label>
+                        <PickerField
+                          value={unificarDestino}
+                          options={compativeis.map((alvo) => ({
+                            value: alvo.key,
+                            label: alvo.name,
+                            hint: TIPOS_TABELA.find((t) => t.value === alvo.tipo)?.label || alvo.tipo
+                          }))}
+                          onPick={(opt) => setUnificarDestino(opt.value)}
+                          placeholder="Escolha o cadastro correto"
+                          emptyLabel="Nenhum cadastro compatível encontrado"
+                          className="field field-md w-full font-semibold"
+                          panelMinWidth={390}
+                        />
+                      </div>
+
+                      {destino && (
+                        <div className="mt-4 rounded-[16px] border hairline p-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-full bg-[#edf7ef] text-[#2f6b3f] flex items-center justify-center">
+                              <Icons.Check className="w-3.5 h-3.5" />
+                            </span>
+                            <div>
+                              <span className="t-caption block">Vai permanecer</span>
+                              <strong className="t-callout">{destino.name}</strong>
+                            </div>
+                          </div>
+                          <p className="t-micro mt-3">
+                            O histórico do duplicado será movido para este cadastro. Depois, o cadastro duplicado será removido.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2.5 mt-5">
+                        <button
+                          type="button"
+                          disabled={unificandoCadastro}
+                          className="btn btn-secondary btn-md"
+                          onClick={() => setUnificarOrigem(null)}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!destino || unificandoCadastro}
+                          className="btn btn-primary btn-md disabled:opacity-40"
+                          onClick={async () => {
+                            if (!destino) return;
+                            setUnificandoCadastro(true);
+                            try {
+                              await onUnifyCatalogItems(unificarOrigem, destino);
+                              setUnificarOrigem(null);
+                              setUnificarDestino('');
+                            } finally {
+                              setUnificandoCadastro(false);
+                            }
+                          }}
+                        >
+                          {unificandoCadastro ? 'Unificando…' : 'Unificar cadastros'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ---------------- FICHAS TÉCNICAS ---------------- */}
             {painel === 'fichas' && (
@@ -24407,9 +24536,79 @@ ${BARRA_ACOES_HTML}
           });
         };
 
+        const handleUnifyCatalogItems = (origem, destino) => {
+          if (!origem || !destino || origem.key === destino.key) return Promise.resolve();
+
+          const tiposSupply = ['insumo', 'embalagem', 'limpeza', 'outros'];
+          const origemEhSupply = tiposSupply.includes(origem.tipo) || origem.tipo === 'insumo_revenda';
+          const destinoEhSupply = tiposSupply.includes(destino.tipo) || destino.tipo === 'insumo_revenda';
+          const origemEhRevenda = origem.tipo === 'revenda' || origem.tipo === 'insumo_revenda';
+          const destinoEhRevenda = destino.tipo === 'revenda' || destino.tipo === 'insumo_revenda';
+
+          if (origemEhSupply !== destinoEhSupply || origemEhRevenda !== destinoEhRevenda) {
+            setErrorMsg('Esses dois cadastros não são compatíveis para unificação.');
+            return Promise.resolve();
+          }
+
+          return write('Unificar cadastros', async () => {
+            if (origemEhSupply) {
+              const origemSupplyId = origem.id;
+              const destinoSupplyId = destino.id;
+
+              await run('compras do insumo duplicado', sb.from('supply_purchases')
+                .update({ supply_id: destinoSupplyId })
+                .eq('supply_id', origemSupplyId));
+
+              await run('fichas do insumo duplicado', sb.from('recipe_items')
+                .update({ supply_id: destinoSupplyId })
+                .eq('supply_id', origemSupplyId));
+
+              await run('remover insumo duplicado', sb.from('supplies').delete().eq('id', origemSupplyId));
+
+              setSupplyPurchases((prev) => prev.map((compra) =>
+                compra.supplyId === origemSupplyId ? { ...compra, supplyId: destinoSupplyId } : compra
+              ));
+              setRecipeItems((prev) => prev.map((item) =>
+                item.supplyId === origemSupplyId ? { ...item, supplyId: destinoSupplyId } : item
+              ));
+              setSupplies((prev) => prev.filter((item) => item.id !== origemSupplyId));
+            }
+
+            if (origemEhRevenda) {
+              const origemRevendaId = origem.tipo === 'insumo_revenda' ? origem.resaleId : origem.id;
+              const destinoRevendaId = destino.tipo === 'insumo_revenda' ? destino.resaleId : destino.id;
+              const produtoOrigem = separatedProducts.find((item) => item.id === origemRevendaId);
+              const produtoDestino = separatedProducts.find((item) => item.id === destinoRevendaId);
+
+              await run('compras da revenda duplicada', sb.from('resale_purchases')
+                .update({ separated_product_id: destinoRevendaId })
+                .eq('separated_product_id', origemRevendaId));
+
+              if (produtoOrigem && produtoDestino) {
+                const estoqueSomado = Math.max(0, (Number(produtoDestino.currentQty) || 0) + (Number(produtoOrigem.currentQty) || 0));
+                await run('somar estoque da revenda', sb.from('separated_products')
+                  .update({ current_qty: estoqueSomado })
+                  .eq('id', destinoRevendaId));
+                setSeparatedProducts((prev) => prev.map((item) =>
+                  item.id === destinoRevendaId ? { ...item, currentQty: estoqueSomado } : item
+                ));
+              }
+
+              await run('remover revenda duplicada', sb.from('separated_products').delete().eq('id', origemRevendaId));
+
+              setResalePurchases((prev) => prev.map((compra) =>
+                compra.separatedProductId === origemRevendaId
+                  ? { ...compra, separatedProductId: destinoRevendaId }
+                  : compra
+              ));
+              setSeparatedProducts((prev) => prev.filter((item) => item.id !== origemRevendaId));
+            }
+          });
+        };
+
         const handleDeleteCatalogItem = (item) => {
           if (!item) return;
-          if (['insumo', 'embalagem', 'limpeza'].includes(item.tipo)) {
+          if (['insumo', 'embalagem', 'limpeza', 'outros'].includes(item.tipo)) {
             return handleDeleteSupply(item.id);
           }
           if (item.tipo === 'revenda') {
@@ -24895,6 +25094,7 @@ ${BARRA_ACOES_HTML}
                     onDeleteResalePurchase={handleDeleteResalePurchase}
                     onChangeCatalogType={handleChangeCatalogType}
                     onDeleteCatalogItem={handleDeleteCatalogItem}
+                    onUnifyCatalogItems={handleUnifyCatalogItems}
                   />
                 ) : <CmvSetupNotice />
               )}
