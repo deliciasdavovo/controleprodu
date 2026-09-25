@@ -18022,6 +18022,126 @@ const resumoFornecedoresPeriodo = useMemo(() => {
           return formatCurrencyBR(numero);
         };
 
+        const exportarCalendarioCompras = () => {
+          if (!calendarioCompras.length) {
+            window.alert('Não há compras registradas neste mês para exportar.');
+            return;
+          }
+
+          const tituloMes = new Date(mesCalendario + '-01T12:00:00')
+            .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+          const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+          const cabecalhoSemana = diasSemana.map((dia) =>
+            '<div class="dia-semana">' + dia + '</div>'
+          ).join('');
+
+          const celulas = calendarioResumo.celulas.map((celula, indice) => {
+            if (!celula) return '<div class="dia vazio" aria-hidden="true"></div>';
+
+            const temCompra = !!celula.info;
+            const classe = temCompra ? 'dia com-compra nivel-' + celula.nivel : 'dia';
+            const total = temCompra ? formatarValorCalendario(celula.info.total) : '';
+            const fornecedores = temCompra ? celula.info.fornecedores.size : 0;
+            const itens = temCompra ? celula.info.lancamentos : 0;
+
+            return '<div class="' + classe + '">'
+              + '<span class="numero-dia">' + celula.dia + '</span>'
+              + (temCompra
+                ? '<div class="dia-conteudo">'
+                    + '<strong class="dia-total">' + escaparHtml(total) + '</strong>'
+                    + '<span>' + fornecedores + ' forn. · ' + itens + ' itens</span>'
+                  + '</div>'
+                : '')
+              + '</div>';
+          }).join('');
+
+          const detalhesDias = Object.values(calendarioResumo.porDia)
+            .sort((a, b) => (a.data || '').localeCompare(b.data || ''))
+            .map((dia) => {
+              const fornecedores = {};
+              dia.itens.forEach((compra) => {
+                const nome = compra.fornecedor || 'Sem fornecedor';
+                const grupo = fornecedores[nome] || { nome, total: 0, itens: 0 };
+                grupo.total += Number(compra.cost) || 0;
+                grupo.itens += 1;
+                fornecedores[nome] = grupo;
+              });
+
+              const fornecedoresTexto = Object.values(fornecedores)
+                .sort((a, b) => b.total - a.total)
+                .map((f) =>
+                  '<span class="fornecedor-dia"><b>' + escaparHtml(f.nome) + '</b>'
+                  + '<small>' + f.itens + (f.itens === 1 ? ' item' : ' itens')
+                  + ' · ' + formatCurrencyBR(f.total) + '</small></span>'
+                ).join('');
+
+              return '<div class="linha-dia">'
+                + '<div class="linha-data"><b>' + escaparHtml(formatDateBR(dia.data)) + '</b>'
+                + '<span>' + dia.lancamentos + (dia.lancamentos === 1 ? ' item' : ' itens') + '</span></div>'
+                + '<div class="linha-fornecedores">' + fornecedoresTexto + '</div>'
+                + '<div class="linha-total">' + formatCurrencyBR(dia.total) + '</div>'
+              + '</div>';
+            }).join('');
+
+          const categoriaTexto = tipoFiltro === 'todos' ? 'Todas as categorias' : tipoFiltro;
+          const buscaTexto = busca.trim() ? ' · busca: ' + escaparHtml(busca.trim()) : '';
+
+          const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+            + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            + '<title>Calendário de compras — ' + escaparHtml(tituloMes) + ' — ' + escaparHtml(unitName) + '</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com">'
+            + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+            + '<style>'
+            + '@page{size:A4 portrait;margin:10mm;}*{box-sizing:border-box;}'
+            + 'body{font-family:Manrope,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#171717;margin:0 auto;padding:0 3vw 40px;max-width:900px;font-size:9pt;}'
+            + '@media print{body{padding:0;max-width:none;}}'
+            + BARRA_ACOES_CSS
+            + 'header{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:12px;}'
+            + 'h1{font-size:18pt;line-height:1.1;margin:0;}.sub{color:#5f5f63;margin-top:4px;font-size:8.5pt;}'
+            + '.metricas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 14px;}'
+            + '.metrica{border:1px solid #d6d6d2;border-radius:8px;padding:8px 10px;}.metrica span{display:block;color:#666;font-size:7pt;text-transform:uppercase;letter-spacing:.04em;}.metrica b{display:block;font-size:14pt;margin-top:2px;}'
+            + '.calendario{border:1px solid #d7d7d2;border-radius:10px;padding:8px;background:#f8f8f6;}'
+            + '.semana,.grade{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;}'
+            + '.dia-semana{text-align:center;font-size:7pt;font-weight:800;text-transform:uppercase;color:#666;padding:3px 0;}'
+            + '.dia{min-height:72px;border:1px solid #e2e2de;border-radius:7px;background:white;padding:6px;display:flex;flex-direction:column;justify-content:space-between;}'
+            + '.dia.vazio{border-color:transparent;background:transparent;}.numero-dia{font-size:8pt;font-weight:800;}.dia-conteudo{text-align:left;}.dia-total{display:block;font-size:11pt;line-height:1.05;font-variant-numeric:tabular-nums;}.dia-conteudo span{display:block;font-size:6.7pt;color:#666;margin-top:3px;}'
+            + '.nivel-1{background:#f3f2f7}.nivel-2{background:#dedbe9}.nivel-3{background:#0E0937;color:white;border-color:#0E0937}.nivel-3 .dia-conteudo span{color:rgba(255,255,255,.75)}'
+            + 'h2{font-size:12pt;margin:18px 0 7px;padding-bottom:5px;border-bottom:1px solid #bbb;}'
+            + '.linha-dia{display:grid;grid-template-columns:82px 1fr 88px;gap:10px;align-items:start;padding:7px 0;border-bottom:1px solid #dedede;page-break-inside:avoid;}'
+            + '.linha-data b{display:block;font-size:8pt;}.linha-data span{display:block;color:#777;font-size:7pt;margin-top:2px;}.linha-fornecedores{display:flex;flex-wrap:wrap;gap:4px 10px;}.fornecedor-dia{display:inline-block;}.fornecedor-dia b{font-size:8pt;}.fornecedor-dia small{display:block;color:#666;font-size:7pt;}.linha-total{text-align:right;font-weight:800;font-size:9pt;font-variant-numeric:tabular-nums;}'
+            + '@media screen and (max-width:700px){body{padding:0 12px 28px}.acoes{position:static}.metricas{grid-template-columns:1fr 1fr 1fr}.dia{min-height:54px;padding:4px}.dia-total{font-size:9px}.dia-conteudo span{font-size:7px}.linha-dia{grid-template-columns:70px 1fr}.linha-total{grid-column:2;text-align:left}.fornecedor-dia{display:block;width:100%;}}'
+            + '</style></head><body>'
+            + BARRA_ACOES_HTML
+            + '<header><h1>Calendário de compras</h1>'
+            + '<div class="sub">' + escaparHtml(unitName) + ' · ' + escaparHtml(tituloMes)
+            + ' · ' + escaparHtml(categoriaTexto) + buscaTexto + '</div></header>'
+            + '<div class="metricas">'
+            + '<div class="metrica"><span>Dias com compra</span><b>' + calendarioResumo.diasComCompra + '</b></div>'
+            + '<div class="metrica"><span>Fornecedores</span><b>' + calendarioResumo.fornecedoresMes + '</b></div>'
+            + '<div class="metrica"><span>Total no mês</span><b>' + formatCurrencyBR(calendarioResumo.totalMes) + '</b></div>'
+            + '</div>'
+            + '<div class="calendario"><div class="semana">' + cabecalhoSemana + '</div><div class="grade">' + celulas + '</div></div>'
+            + '<h2>Resumo dos dias com compra</h2>'
+            + detalhesDias
+            + '</body></html>';
+
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela do relatório. Libere as janelas e tente novamente.');
+            return;
+          }
+          janela.document.write(html);
+          janela.document.close();
+
+          if (window.matchMedia('(min-width: 900px)').matches) {
+            const abrirImpressao = () => { try { janela.focus(); janela.print(); } catch (e) {} };
+            if (janela.document.readyState === 'complete') setTimeout(abrirImpressao, 250);
+            else janela.onload = () => setTimeout(abrirImpressao, 250);
+          }
+        };
+
         const comprasHistoricoFornecedor = historicoFornecedor
           ? [...porPeriodo.filter((c) => c.fornecedor === historicoFornecedor)].sort((a, b) => {
               const d = (b.data || '').localeCompare(a.data || '');
@@ -19951,6 +20071,15 @@ ${BARRA_ACOES_HTML}
                         <p className="t-micro mt-1 ink-quiet">
                           Dias destacados têm compras registradas. Toque em um dia para ver fornecedores e itens.
                         </p>
+                        <button
+                          type="button"
+                          onClick={exportarCalendarioCompras}
+                          disabled={calendarioCompras.length === 0}
+                          className="btn btn-secondary btn-sm mt-3 w-full sm:w-auto"
+                        >
+                          <Icons.ClipboardList className="w-3.5 h-3.5" />
+                          Exportar calendário
+                        </button>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-2">
                         <div>
@@ -20003,10 +20132,10 @@ ${BARRA_ACOES_HTML}
                               </span>
                               {temCompra && (
                                 <span className={`block min-w-0 ${celula.nivel === 3 ? 'text-white' : 'text-[#1d1d1f]'}`}>
-                                  <strong className="block text-[9px] sm:text-[11px] leading-tight tnum truncate">
+                                  <strong className="block text-[11px] sm:text-[14px] leading-[1.05] tracking-[-0.02em] font-extrabold tnum">
                                     {formatarValorCalendario(celula.info.total)}
                                   </strong>
-                                  <span className={`block text-[8px] sm:text-[9px] leading-tight mt-0.5 ${celula.nivel === 3 ? 'text-white/75' : 'ink-quiet'}`}>
+                                  <span className={`block text-[7px] sm:text-[9px] leading-tight mt-1 ${celula.nivel === 3 ? 'text-white/75' : 'ink-quiet'}`}>
                                     {celula.info.fornecedores.size} {celula.info.fornecedores.size === 1 ? 'forn.' : 'forn.'}
                                   </span>
                                 </span>
