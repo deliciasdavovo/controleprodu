@@ -14863,10 +14863,9 @@
                           const comprasLinha = linha.tipo === 'revenda'
                             ? comprasDaRevenda(x.id)
                             : linha.tipo === 'producao' ? [] : comprasDoInsumo(x.id);
-                          const volumeEditavelNaTabela = linha.tipo === 'embalagem'
-                            || linha.tipo === 'limpeza'
-                            || (linha.tipo === 'insumo_revenda' && (linha.resaleSource?.priceUnit || 'un') === 'un')
-                            || (linha.tipo === 'revenda' && (x.priceUnit || 'un') === 'un');
+                          // Volume pertence ao cadastro e pode ser configurado depois,
+                          // inclusive em itens que nasceram pela importação XML.
+                          const volumeEditavelNaTabela = linha.tipo !== 'producao';
                           const cadastroVolumeLinha = linha.tipo === 'insumo_revenda'
                             ? {
                                 packageType: x.packageType || linha.resaleSource?.packageType || 'caixa',
@@ -14935,8 +14934,9 @@
                                         options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
                                         onPick={(opt) => onUpdateSupply({
                                           ...x,
-                                          purchaseUnit: opt.value,
-                                          unit: unidadeTecnicaDaCompra(opt.value)
+                                          // A unidade-base (g/ml/un) é estrutural e fica travada.
+                                          // Aqui muda somente a forma em que a compra é feita.
+                                          purchaseUnit: opt.value
                                         })}
                                         className="field h-8 pl-2.5 text-[12px]"
                                       />
@@ -14982,9 +14982,44 @@
                                 ) : <span className="t-empty">—</span>}
                               </td>
                               <td className="py-2.5 px-3">
-                                {ehSupply && x.variationUnit && Number(x.variationFactor) > 0
-                                  ? <span className="t-callout font-semibold whitespace-nowrap">{rotuloVariacao(x)}</span>
-                                  : <span className="t-empty">—</span>}
+                                {ehSupply ? (
+                                  <div className="min-w-[225px]">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="t-micro whitespace-nowrap">1 {x.unit || 'un'} =</span>
+                                      <NumeroBRField
+                                        value={x.variationFactor || ''}
+                                        decimals={3}
+                                        onValueChange={(variationFactor) => onUpdateSupply({
+                                          ...x,
+                                          variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
+                                        })}
+                                        placeholder="qtd."
+                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                      />
+                                      <PickerField
+                                        value={x.variationUnit || ''}
+                                        options={UNIDADES_EQUIVALENCIA}
+                                        onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
+                                        placeholder="un."
+                                        className="field h-8 pl-2 text-[12px] w-20"
+                                        panelMinWidth={120}
+                                      />
+                                      {(x.variationUnit || Number(x.variationFactor) > 0) && (
+                                        <button
+                                          type="button"
+                                          title="Remover equivalência"
+                                          onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
+                                          className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
+                                        >
+                                          <Icons.X className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    {x.variationUnit && Number(x.variationFactor) > 0 && (
+                                      <span className="t-nano block mt-1">{rotuloVariacao(x)}</span>
+                                    )}
+                                  </div>
+                                ) : <span className="t-empty">—</span>}
                               </td>
                               <td className="py-2.5 px-3">
                                 {linha.tipo === 'producao' ? <span className="t-empty">—</span> : (
@@ -15116,7 +15151,7 @@
                                   </div>
                                 ) : (
                                   <span className="t-callout font-semibold">
-                                    {linha.tipo === 'embalagem' ? 'Uso interno · embalagem' : linha.tipo === 'limpeza' ? 'Uso interno · limpeza' : 'Ingrediente / insumo'}
+                                    {linha.tipo === 'embalagem' ? 'Uso interno · embalagem' : linha.tipo === 'limpeza' ? 'Uso interno · limpeza' : linha.tipo === 'outros' ? 'Outros · aquisição / manutenção' : 'Ingrediente / insumo'}
                                   </span>
                                 )}
                               </td>
