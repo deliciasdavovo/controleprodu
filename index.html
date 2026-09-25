@@ -12548,12 +12548,18 @@
                                           Nenhum deles — criar novo cadastro
                                         </button>
                                       </div>
+                                    ) : item.allowCreateNew ? (
+                                      <div className="inline-flex items-center gap-1.5 rounded-full bg-[#edf7ef] px-2.5 py-1.5 text-[10px] font-bold text-[#2f6b3f]">
+                                        <Icons.Check className="w-3 h-3" />
+                                        Novo cadastro confirmado
+                                      </div>
                                     ) : !item.catalogValue ? (
                                       <button
                                         type="button"
-                                        className="inline-flex rounded-full bg-[#f5f5f7] px-2 py-1 text-[10px] font-bold text-[#6e6e73] hover:bg-[#ececf0]"
+                                        className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f7] px-2 py-1 text-[10px] font-bold text-[#6e6e73] hover:bg-[#ececf0]"
                                         onClick={() => alterar(item.id, { allowCreateNew: true, confidence: 'new-confirmed' })}
                                       >
+                                        <Icons.Plus className="w-3 h-3" />
                                         Confirmar criação de novo cadastro
                                       </button>
                                     ) : null}
@@ -13753,8 +13759,22 @@
                   unitOfMeasure: 'un',
                   minQty: 0,
                   price: 0,
-                  priceUnit: 'un'
+                  priceUnit: 'un',
+                  purchaseUnit: item.purchaseUnit || item.unit || 'un',
+                  packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
+                  packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
+              }
+              if (revenda?.id && unidadesPorVolume > 0
+                && (!revenda.packageType || !(Number(revenda.packageUnits) > 0))) {
+                const revendaAtualizada = {
+                  ...revenda,
+                  purchaseUnit: revenda.purchaseUnit || item.purchaseUnit || item.unit || 'un',
+                  packageType: item.packageType || 'caixa',
+                  packageUnits: unidadesPorVolume
+                };
+                await onUpdateSeparatedProduct(revendaAtualizada, true);
+                revenda = revendaAtualizada;
               }
               if (revenda?.id) {
                 await onAddResalePurchase(revenda.id, {
