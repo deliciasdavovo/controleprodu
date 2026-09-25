@@ -247,11 +247,12 @@ const normalizeUnit = (unit: string) => {
   return unit.trim() || "un";
 };
 
-const applySavedMappings = async (issuerCnpj: string, documentId: string, rows: any[]) => {
+const applySavedMappings = async (issuerCnpj: string, documentId: string, rows: any[], profile = "default") => {
   if (!issuerCnpj || !rows.length) return rows;
   const { data: mappings } = await admin
     .from("nfe_product_mappings")
     .select("*")
+    .eq("source_profile", safeProfile(profile))
     .eq("issuer_cnpj", issuerCnpj);
 
   const map = new Map((mappings || []).map((m: any) => [m.supplier_product_code, m]));
@@ -340,7 +341,7 @@ const saveFullNfe = async (xml: string, nsu = "", schemaName = "procNFe_v4.00.xs
     .single();
   if (docError) throw docError;
 
-  const mappedRows = await applySavedMappings(issuerCnpj, doc.id, itemRows);
+  const mappedRows = await applySavedMappings(issuerCnpj, doc.id, itemRows, profile);
   await admin.from("nfe_items").delete().eq("document_id", doc.id);
   if (mappedRows.length) {
     const { error: itemsError } = await admin
@@ -617,6 +618,7 @@ const saveMapping = async (body: any) => {
     if (issuerCnpj && item.supplier_product_code) {
       const { error: mapError } = await admin.from("nfe_product_mappings").upsert(
         {
+          source_profile: profile,
           issuer_cnpj: issuerCnpj,
           supplier_product_code: item.supplier_product_code,
           description_hint: item.description || "",
@@ -626,7 +628,7 @@ const saveMapping = async (body: any) => {
           purchase_unit: normalizedPurchaseUnit,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "issuer_cnpj,supplier_product_code" }
+        { onConflict: "source_profile,issuer_cnpj,supplier_product_code" }
       );
       if (mapError) throw mapError;
     }
