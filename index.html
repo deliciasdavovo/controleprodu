@@ -16960,19 +16960,6 @@
       const formatQuantidadeCompra = (compra) =>
         `${numeroCurtoBR(compra?.qtyCompra ?? compra?.qty ?? 0)} ${compra?.unidadeCompra || compra?.unidade || 'un'}`;
 
-      const AvisoRevisaoUnidade = ({ compra, compacto = false }) => {
-        if (!compra?.precisaRevisaoUnidade) return null;
-        return (
-          <span
-            className={`pill tone-last inline-flex items-center gap-1 ${compacto ? 'text-[9px]' : ''}`}
-            title="A unidade do cadastro mudou. Confira a quantidade desta compra antiga."
-          >
-            <Icons.AlertTriangle className="w-3 h-3" />
-            Revisar unidade · era {compra.unidadeCompraOriginal || '—'} → {compra.unidadeCompraOficial || compra.unidadeCompra || '—'}
-          </span>
-        );
-      };
-
       const formatQuantidadeAcumulada = (quantidade, unidade) => {
         const q = Number(quantidade) || 0;
         if (unidade === 'g') return `${numeroCurtoBR(q / 1000)} kg`;
@@ -19642,7 +19629,6 @@
         const [fornecedorOrigemUniao, setFornecedorOrigemUniao] = useState('');
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
-        const [somenteRevisarUnidade, setSomenteRevisarUnidade] = useState(false);
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const identificarCadastroDoItem = (itemId) => {
@@ -19678,13 +19664,9 @@
           return true;
         });
         const termo = busca.trim().toLowerCase();
-        const comprasComBusca = termo
+        const compras = termo
           ? porPeriodo.filter((c) => casaComBusca(c.fornecedor, termo) || casaComBusca(c.item, termo))
           : porPeriodo;
-        const revisoesUnidadeNoPeriodo = comprasComBusca.filter((c) => c.precisaRevisaoUnidade);
-        const compras = somenteRevisarUnidade
-          ? revisoesUnidadeNoPeriodo
-          : comprasComBusca;
 
 const inicioPeriodoVariacao = useMemo(() => {
           const meses = Number(periodoRelatorioPrecos) || 3;
@@ -22086,33 +22068,10 @@ ${BARRA_ACOES_HTML}
               </div>
             </div>
 
-            {revisoesUnidadeNoPeriodo.length > 0 && (
-              <div className="card p-4 border border-[#B7791F]/25 bg-[#B7791F]/[0.055] flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                  <Icons.AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#8A5A16]" />
-                  <div>
-                    <div className="t-callout font-bold text-[#1d1d1f]">
-                      {revisoesUnidadeNoPeriodo.length} {revisoesUnidadeNoPeriodo.length === 1 ? 'compra precisa' : 'compras precisam'} revisar a unidade
-                    </div>
-                    <p className="t-micro mt-0.5">
-                      A unidade do cadastro já vale para o histórico. Estas compras foram lançadas com outra unidade; confira a quantidade antes de considerar o dado corrigido.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSomenteRevisarUnidade((ativo) => !ativo)}
-                  className="btn btn-secondary btn-sm shrink-0"
-                >
-                  {somenteRevisarUnidade ? 'Mostrar todas' : 'Ver só as que precisam corrigir'}
-                </button>
-              </div>
-            )}
-
             {compras.length === 0 ? (
               <div className="card p-6">
                 <p className="t-body ink-quiet">
-                  {somenteRevisarUnidade ? 'Nenhuma compra com unidade para revisar nos filtros atuais.' : 'Nenhum resultado com os filtros atuais.'}
+                  Nenhum resultado com os filtros atuais.
                 </p>
               </div>
             ) : (
@@ -22246,9 +22205,6 @@ ${BARRA_ACOES_HTML}
                                     <div className="min-w-0">
                                       <span className="t-callout font-semibold block">{item.item}</span>
                                       <span className="t-nano ink-quiet block mt-0.5">{item.tipo}</span>
-                                      {item.precisaRevisaoUnidade && (
-                                        <span className="block mt-1"><AvisoRevisaoUnidade compra={item} compacto /></span>
-                                      )}
                                     </div>
                                     <div className="text-right shrink-0">
                                       <span className="t-micro tnum block">{formatQuantidadeCompra(item)}</span>
@@ -22473,9 +22429,6 @@ ${BARRA_ACOES_HTML}
                                       <span className="t-nano ink-quiet tnum block mt-0.5">
                                         {formatQuantidadeCompra(compra)}
                                       </span>
-                                      {compra.precisaRevisaoUnidade && (
-                                        <span className="block mt-1"><AvisoRevisaoUnidade compra={compra} compacto /></span>
-                                      )}
                                       {rotuloConteudoVolume(compra) && (
                                         <span className="t-nano tnum font-semibold block mt-0.5">
                                           {rotuloConteudoVolume(compra)}
@@ -22594,9 +22547,6 @@ ${BARRA_ACOES_HTML}
                                 <td className="py-3 px-3 sticky left-0 bg-white z-10">
                                   <span className="t-callout font-semibold block">{compra.item}</span>
                                   <span className="t-nano ink-quiet block mt-0.5">{compra.tipo}</span>
-                                  {compra.precisaRevisaoUnidade && (
-                                    <span className="block mt-1"><AvisoRevisaoUnidade compra={compra} compacto /></span>
-                                  )}
                                 </td>
                                 <td className="py-3 px-3 t-callout">{compra.fornecedor}</td>
                                 <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(compra)}</td>
@@ -22824,9 +22774,6 @@ ${BARRA_ACOES_HTML}
                                 <tr key={c.id} className="border-t hairline">
                                   <td className="py-2 pr-3 t-body">
                                     <span className="block">{c.item}</span>
-                                    {c.precisaRevisaoUnidade && (
-                                      <span className="block mt-1"><AvisoRevisaoUnidade compra={c} compacto /></span>
-                                    )}
                                   </td>
                                   <td className="py-2 px-3 t-body tnum">{formatDateBR(c.data) || '—'}</td>
                                   <td className="py-2 px-3 text-right t-body tnum">
@@ -22884,9 +22831,6 @@ ${BARRA_ACOES_HTML}
                                     <div className="min-w-0">
                                       <span className="t-callout font-semibold block truncate" title={c.item}>{c.item}</span>
                                       <span className="t-nano ink-quiet block">{c.tipo}</span>
-                                      {c.precisaRevisaoUnidade && (
-                                        <span className="block mt-1"><AvisoRevisaoUnidade compra={c} compacto /></span>
-                                      )}
                                     </div>
                                     <div className="text-right t-callout tnum">
                                       <span className="whitespace-nowrap">{formatQuantidadeCompra(c)}</span>
