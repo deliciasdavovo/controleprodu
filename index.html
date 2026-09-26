@@ -11838,7 +11838,12 @@
                     {ordenadas.length === 0 ? (
                       <tr><td colSpan={6} className="text-center py-8"><p className="t-body ink-quiet">Nenhuma compra lançada ainda</p></td></tr>
                     ) : ordenadas.map((c, idx) => (
-                      <tr key={c.id} className="border-t hairline">
+                      <tr
+                                  key={c.id}
+                                  onDoubleClick={() => abrirCadastroDoItem(c.itemId)}
+                                  title="Dê dois cliques para abrir este item no cadastro"
+                                  className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                                >
                         <td className="py-2 pr-3">
                           <div className="w-32 sm:w-44">
                             <PickerField
@@ -12861,7 +12866,9 @@
         onDeleteResalePurchase,
         onChangeCatalogType,
         onDeleteCatalogItem,
-        onUnifyCatalogItems
+        onUnifyCatalogItems,
+        editTarget,
+        onEditTargetHandled
       }) => {
         const [painel, setPainel] = useState('entradas');
         const [busca, setBusca] = useState('');
@@ -13467,6 +13474,20 @@
             }));
           }
         };
+
+        useEffect(() => {
+          if (!editTarget?.value) return;
+          setPainel('entradas');
+          setBusca('');
+          setClasseFiltro('todos');
+          setPaginaCadastros(1);
+          selecionarCadastro({ value: editTarget.value });
+          requestAnimationFrame(() => {
+            navegarNoCadastro(blocoCadastroRef, true);
+            setTimeout(() => nomeRef.current && nomeRef.current.focus(), 80);
+          });
+          if (onEditTargetHandled) onEditTargetHandled(editTarget.id);
+        }, [editTarget?.id]);
 
         const cadastrar = async (e) => {
           e.preventDefault();
@@ -19541,7 +19562,8 @@
         currentUnit,
         unitName,
         onUnifySupplier,
-        onDeletePurchaseGroup
+        onDeletePurchaseGroup,
+        onRequestEditCatalog
       }) => {
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
@@ -19569,6 +19591,16 @@
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
+
+        const abrirCadastroDoItem = (itemId) => {
+          if (!onRequestEditCatalog) return;
+          const chave = String(itemId || '');
+          if (chave.startsWith('s')) {
+            onRequestEditCatalog('insumo:' + chave.slice(1));
+          } else if (chave.startsWith('r')) {
+            onRequestEditCatalog('revenda:' + chave.slice(1));
+          }
+        };
 
         const alterarPeriodoVariacao = (valor) => {
           setPeriodoRelatorioPrecos(valor);
@@ -22071,7 +22103,12 @@ ${BARRA_ACOES_HTML}
                               </div>
                               <div className="mt-3 divide-y divide-black/[0.06]">
                                 {fornecedor.itens.map((item) => (
-                                  <div key={item.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
+                                  <div
+                                    key={item.id}
+                                    onDoubleClick={() => abrirCadastroDoItem(item.itemId)}
+                                    title="Dê dois cliques para abrir este item no cadastro"
+                                    className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
+                                  >
                                     <div className="min-w-0">
                                       <span className="t-callout font-semibold block">{item.item}</span>
                                       <span className="t-nano ink-quiet block mt-0.5">{item.tipo}</span>
@@ -22177,7 +22214,12 @@ ${BARRA_ACOES_HTML}
                             </thead>
                             <tbody>
                               {comparativoMarcas.map((i) => (
-                                <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors align-top">
+                                <tr
+                                  key={i.itemId}
+                                  onDoubleClick={() => abrirCadastroDoItem(i.itemId)}
+                                  title="Dê dois cliques para abrir este item no cadastro"
+                                  className="border-t hairline hover:bg-black/[0.015] transition-colors align-top cursor-pointer"
+                                >
                                   <td className="py-3 pr-3 sticky left-0 bg-white z-10">
                                     <span className="t-callout font-semibold block" title={i.item}>{i.item}</span>
                                     <span className="t-nano ink-quiet block mt-1">
@@ -22261,7 +22303,15 @@ ${BARRA_ACOES_HTML}
                       </thead>
                       <tbody>
                         {itensOrdenados.map((i) => (
-                          <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                          <tr
+                            key={i.itemId}
+                            onDoubleClick={(e) => {
+                              if (e.target.closest('button,select,input,a,[role="button"]')) return;
+                              abrirCadastroDoItem(i.itemId);
+                            }}
+                            title="Dê dois cliques para abrir este item no cadastro"
+                            className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                          >
                             <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
                               <div className="w-36 sm:w-52">
                                 <span className="t-callout font-semibold block truncate" title={i.item}>{i.item}</span>
@@ -22392,7 +22442,12 @@ ${BARRA_ACOES_HTML}
                           </thead>
                           <tbody>
                             {valorCompradoIndividual.map((compra) => (
-                              <tr key={`${compra.id}-${compra.itemId}`} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                              <tr
+                                key={`${compra.id}-${compra.itemId}`}
+                                onDoubleClick={() => abrirCadastroDoItem(compra.itemId)}
+                                title="Dê dois cliques para abrir este item no cadastro"
+                                className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                              >
                                 <td className="py-3 pr-3 t-callout whitespace-nowrap">
                                   {compra.data ? formatDateBR(compra.data) : '—'}
                                 </td>
@@ -22429,7 +22484,12 @@ ${BARRA_ACOES_HTML}
                           </thead>
                           <tbody>
                             {valorCompradoOrdenado.map((i) => (
-                              <tr key={i.itemId} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                              <tr
+                                key={i.itemId}
+                                onDoubleClick={() => abrirCadastroDoItem(i.itemId)}
+                                title="Dê dois cliques para abrir este item no cadastro"
+                                className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                              >
                                 <td className="py-3 pr-3 sticky left-0 bg-white z-10">
                                   <span className="t-callout font-semibold block">{i.item}</span>
                                   <span className="t-nano ink-quiet block mt-0.5">
@@ -22667,7 +22727,12 @@ ${BARRA_ACOES_HTML}
                             <td className="py-2 px-3">
                               <div className="divide-y divide-black/[0.06]">
                                 {compra.itens.map((c) => (
-                                  <div key={c.id} className="grid grid-cols-[minmax(150px,1fr)_90px_120px_110px] gap-3 items-center py-2 first:pt-1 last:pb-1">
+                                  <div
+                                    key={c.id}
+                                    onDoubleClick={() => abrirCadastroDoItem(c.itemId)}
+                                    title="Dê dois cliques para abrir este item no cadastro"
+                                    className="grid grid-cols-[minmax(150px,1fr)_90px_120px_110px] gap-3 items-center py-2 first:pt-1 last:pb-1 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
+                                  >
                                     <div className="min-w-0">
                                       <span className="t-callout font-semibold block truncate" title={c.item}>{c.item}</span>
                                       <span className="t-nano ink-quiet block">{c.tipo}</span>
@@ -22832,6 +22897,7 @@ ${BARRA_ACOES_HTML}
         const [currentUnit, setCurrentUnit] = useState('');
         const [entryMode, setEntryMode] = useState(null);
         const [activeTab, setActiveTab] = useState('vitrine');
+        const [catalogEditTarget, setCatalogEditTarget] = useState(null);
         const [selectedDay, setSelectedDay] = useState('segunda');
 
         // O dia do pedido de produção anda por conta própria: a vitrine padrão
@@ -25298,6 +25364,8 @@ ${BARRA_ACOES_HTML}
                     onChangeCatalogType={handleChangeCatalogType}
                     onDeleteCatalogItem={handleDeleteCatalogItem}
                     onUnifyCatalogItems={handleUnifyCatalogItems}
+                    editTarget={catalogEditTarget}
+                    onEditTargetHandled={(id) => setCatalogEditTarget((atual) => atual?.id === id ? null : atual)}
                   />
                 ) : <CmvSetupNotice />
               )}
@@ -25335,6 +25403,10 @@ ${BARRA_ACOES_HTML}
                     unitName={getUnitName(units, currentUnit)}
                     onUnifySupplier={handleUnifySupplier}
                     onDeletePurchaseGroup={handleDeletePurchaseGroup}
+                    onRequestEditCatalog={(value) => {
+                      setCatalogEditTarget({ id: Date.now(), value });
+                      setActiveTab('insumos');
+                    }}
                   />
                 ) : <CmvSetupNotice />
               )}
