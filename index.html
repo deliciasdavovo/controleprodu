@@ -14883,7 +14883,24 @@
                             }
                           };
                           return (
-                            <tr key={linha.key} className="border-t hairline hover:bg-black/[0.015] transition-colors">
+                            <tr
+                              key={linha.key}
+                              onDoubleClick={(e) => {
+                                if (e.target.closest('input,button,select,textarea,a,[role="button"]')) return;
+                                const tipoEdicao = linha.tipo === 'producao'
+                                  ? 'producao'
+                                  : linha.tipo === 'revenda'
+                                    ? 'revenda'
+                                    : 'insumo';
+                                const idEdicao = linha.tipo === 'revenda'
+                                  ? x.id
+                                  : x.id;
+                                selecionarCadastro({ value: `${tipoEdicao}:${idEdicao}` });
+                                requestAnimationFrame(() => navegarNoCadastro(blocoCadastroRef, true));
+                              }}
+                              title="Dê dois cliques na linha para abrir este item no formulário de edição"
+                              className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-default"
+                            >
                               <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
                                 <div className="flex items-center gap-1.5">
                                   {linha.tipo !== 'producao' && (
@@ -19523,7 +19540,8 @@
         resalePurchases,
         currentUnit,
         unitName,
-        onUnifySupplier
+        onUnifySupplier,
+        onDeletePurchaseGroup
       }) => {
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
@@ -22630,7 +22648,8 @@ ${BARRA_ACOES_HTML}
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Data</th>
                           <th className="py-3 px-3 font-bold">Fornecedor</th>
                           <th className="py-3 px-3 font-bold min-w-[520px]">Itens da compra</th>
-                          <th className="py-3 pl-3 text-right font-bold min-w-[120px]">Total</th>
+                          <th className="py-3 px-3 text-right font-bold min-w-[120px]">Total</th>
+                          <th className="py-3 pl-3 text-right font-bold min-w-[90px]">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -22672,9 +22691,20 @@ ${BARRA_ACOES_HTML}
                                 ))}
                               </div>
                             </td>
-                            <td className="py-3 pl-3 text-right">
+                            <td className="py-3 px-3 text-right">
                               <span className="t-body tnum font-bold block">{formatCurrencyBR(compra.total)}</span>
                               <span className="t-nano ink-quiet">total da compra</span>
+                            </td>
+                            <td className="py-3 pl-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => onDeletePurchaseGroup && onDeletePurchaseGroup(compra)}
+                                title="Apagar esta compra inteira"
+                                aria-label={`Apagar compra inteira de ${compra.fornecedor} em ${formatDateBR(compra.data) || 'sem data'}`}
+                                className="w-8 h-8 rounded-full icon-danger flex items-center justify-center ml-auto"
+                              >
+                                <Icons.Trash2 className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -24022,6 +24052,53 @@ ${BARRA_ACOES_HTML}
           });
         };
 
+        const handleDeletePurchaseGroup = (compra) => {
+          if (!compra) return;
+          const data = compra.data || '';
+          const nomeFornecedor = compra.fornecedor === 'Sem fornecedor' ? '' : String(compra.fornecedor || '').trim();
+          const chaveFornecedor = normalizeName(nomeFornecedor);
+          const mesmaCompra = (registro) =>
+            normalizeName(String(registro?.supplier || '').trim()) === chaveFornecedor
+            && String(registro?.purchaseDate || '') === data;
+
+          // "Compra inteira" segue a mesma regra da tela Por compra:
+          // mesmo fornecedor + mesma data. Isso inclui itens que podem estar
+          // escondidos por um filtro de categoria e também o espelho de
+          // insumo+revenda criado pelo mesmo lançamento.
+          const idsInsumo = supplyPurchases.filter(mesmaCompra).map((registro) => registro.id);
+          const idsRevenda = resalePurchases.filter(mesmaCompra).map((registro) => registro.id);
+          const quantidade = idsInsumo.length + idsRevenda.length;
+          if (!quantidade) return;
+
+          const rotuloData = data ? formatDateBR(data) : 'sem data';
+          const ok = window.confirm(
+            `Apagar a compra inteira de "${compra.fornecedor}" em ${rotuloData}?\n\n`
+            + `${quantidade} lançamento(s) serão excluídos. Esta ação não pode ser desfeita.`
+          );
+          if (!ok) return;
+
+          return write('Excluir compra inteira', async () => {
+            const tarefas = [];
+            if (idsInsumo.length) {
+              tarefas.push(run(
+                'Excluir itens da compra de insumo',
+                sb.from('supply_purchases').delete().in('id', idsInsumo)
+              ));
+            }
+            if (idsRevenda.length) {
+              tarefas.push(run(
+                'Excluir itens da compra de revenda',
+                sb.from('resale_purchases').delete().in('id', idsRevenda)
+              ));
+            }
+            await Promise.all(tarefas);
+            const insumoSet = new Set(idsInsumo);
+            const revendaSet = new Set(idsRevenda);
+            setSupplyPurchases((prev) => prev.filter((registro) => !insumoSet.has(registro.id)));
+            setResalePurchases((prev) => prev.filter((registro) => !revendaSet.has(registro.id)));
+          });
+        };
+
         const handleSetUltimaCompraInsumo = (supplyId, campos) => {
           const uc = ultimaCompra(supplyPurchases.filter((c) => c.supplyId === supplyId));
           if (uc) handleUpdateSupplyPurchase({ ...uc, ...campos });
@@ -25257,6 +25334,7 @@ ${BARRA_ACOES_HTML}
                     currentUnit={currentUnit}
                     unitName={getUnitName(units, currentUnit)}
                     onUnifySupplier={handleUnifySupplier}
+                    onDeletePurchaseGroup={handleDeletePurchaseGroup}
                   />
                 ) : <CmvSetupNotice />
               )}
