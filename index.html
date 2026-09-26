@@ -2948,6 +2948,13 @@
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
       const rotuloVariacao = (supply) => {
         if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
+        // Na tabela de cadastros a equivalência parte da unidade de compra.
+        // Ex.: Un. compra = un e equivalência = 500 g -> 1 un = 500 g.
+        if (supply.purchaseUnit) {
+          return `1 ${supply.purchaseUnit} = ${supply.variationFactor} ${supply.variationUnit}`;
+        }
+        // Mantém compatibilidade com usos antigos do formulário que ainda
+        // passam apenas unidade-base + variação.
         return supply.unit === 'un'
           ? `1 un = ${supply.variationFactor} ${supply.variationUnit}`
           : `1 ${supply.variationUnit} = ${supply.variationFactor} ${supply.unit}`;
@@ -15046,7 +15053,7 @@
                                 {ehSupply ? (
                                   <div className="min-w-[225px]">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="t-micro whitespace-nowrap">1 {x.unit || 'un'} =</span>
+                                      <span className="t-micro whitespace-nowrap">1 {x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)} =</span>
                                       <NumeroBRField
                                         value={x.variationFactor || ''}
                                         decimals={3}
