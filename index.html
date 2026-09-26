@@ -21948,8 +21948,8 @@ ${BARRA_ACOES_HTML}
               </div>
             )}
 
-            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <div className="segmented flex-1 lg:flex-none lg:inline-flex overflow-x-auto">
+            <div className="space-y-3">
+              <div className="segmented w-full overflow-x-auto flex">
                 <button onClick={() => trocarVisao('item')} data-active={visao === 'item'} className="shrink-0 h-9 px-4">Por item</button>
                 <button onClick={() => trocarVisao('valor')} data-active={visao === 'valor'} className="shrink-0 h-9 px-4">Por valor comprado</button>
                 <button onClick={() => trocarVisao('marca')} data-active={visao === 'marca'} className="shrink-0 h-9 px-4">Comparar marcas</button>
@@ -21957,83 +21957,133 @@ ${BARRA_ACOES_HTML}
                 <button onClick={() => trocarVisao('compra')} data-active={visao === 'compra'} className="shrink-0 h-9 px-4">Por compra</button>
                 <button onClick={() => trocarVisao('calendario')} data-active={visao === 'calendario'} className="shrink-0 h-9 px-4">Calendário</button>
               </div>
-              <div className="relative flex-1 max-w-sm">
-                <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
-                <input
-                  type="text"
-                  placeholder={visao === 'marca' ? 'Digite o produto: muçarela, ervilha…' : 'Buscar fornecedor ou item…'}
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="field field-sm field-search"
-                />
-              </div>
-              <div className="w-44">
-                <PickerField
-                  value={mesFiltro}
-                  options={mesesDisponiveis}
-                  onPick={(opt) => {
-                    setMesFiltro(opt.value);
-                    setDiaCalendarioSelecionado('');
-                    if (opt.value) { setDataInicio(''); setDataFim(''); }
-                  }}
-                  className="field field-sm"
-                  title="Filtrar compras por mês"
-                />
-              </div>
-              {visao !== 'calendario' && (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="date"
-                      value={dataInicio}
-                      onChange={(e) => { setDataInicio(e.target.value); setMesFiltro(''); }}
-                      title="Data inicial"
-                      className="field field-sm w-[136px]"
-                    />
-                    <span className="t-micro">até</span>
-                    <input
-                      type="date"
-                      value={dataFim}
-                      onChange={(e) => { setDataFim(e.target.value); setMesFiltro(''); }}
-                      title="Data final"
-                      className="field field-sm w-[136px]"
+
+              <div className="card-quiet p-3 sm:p-4 space-y-3">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(260px,1fr)_180px_auto] gap-3 items-end">
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Buscar</label>
+                    <div className="relative">
+                      <Icons.Search className="w-4 h-4 text-[#86868b] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder={visao === 'marca' ? 'Produto ou marca…' : 'Fornecedor ou item…'}
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        className="field field-md field-search w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Mês</label>
+                    <PickerField
+                      value={mesFiltro}
+                      options={mesesDisponiveis}
+                      onPick={(opt) => {
+                        setMesFiltro(opt.value);
+                        setDiaCalendarioSelecionado('');
+                        if (opt.value) { setDataInicio(''); setDataFim(''); }
+                      }}
+                      className="field field-md w-full"
+                      title="Filtrar compras por mês"
                     />
                   </div>
-                  {(mesFiltro || dataInicio || dataFim) && (
-                    <button
-                      type="button"
-                      onClick={() => { setMesFiltro(''); setDataInicio(''); setDataFim(''); }}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Limpar período
-                    </button>
-                  )}
-                  <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-sm field-select field-auto">
-                    {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
-                  </select>
-                  <select
-                    value={limite}
-                    onChange={(e) => setLimite(e.target.value)}
-                    className="field field-sm field-select field-auto"
-                    title="Escolha quantos resultados mostrar na tela e nos relatórios, ou use Sem limite para incluir todos"
-                    aria-label="Quantidade máxima de resultados"
-                  >
-                    <option value="10">Top 10</option>
-                    <option value="30">Top 30</option>
-                    <option value="50">Top 50</option>
-                    <option value="100">Top 100</option>
-                    <option value="todos">Sem limite</option>
-                  </select>
-                </>
-              )}
-            </div>
 
-            <div className="segmented w-full sm:w-auto sm:inline-flex">
-              {['todos', ...CATEGORIAS_COMPRA].map((t) => (
-                <button key={t} onClick={() => setTipoFiltro(t)} data-active={tipoFiltro === t} className="flex-1 sm:flex-none h-8 px-4">
-                  {t === 'todos' ? 'Todos' : t}
-                </button>
-              ))}
+                  {visao !== 'calendario' && (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="min-w-[150px]">
+                        <label className="t-overline-sm block mb-1.5">Ordenar</label>
+                        <select value={ordem} onChange={(e) => setOrdem(e.target.value)} className="field field-md field-select w-full">
+                          {OPCOES_ORDEM[visao].map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}
+                        </select>
+                      </div>
+                      <div className="min-w-[130px]">
+                        <label className="t-overline-sm block mb-1.5">Mostrar</label>
+                        <select
+                          value={limite}
+                          onChange={(e) => setLimite(e.target.value)}
+                          className="field field-md field-select w-full"
+                          title="Quantidade máxima de resultados"
+                        >
+                          <option value="10">Top 10</option>
+                          <option value="30">Top 30</option>
+                          <option value="50">Top 50</option>
+                          <option value="100">Top 100</option>
+                          <option value="todos">Sem limite</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {visao !== 'calendario' && (
+                  <div className="flex flex-col lg:flex-row lg:items-end gap-3 pt-1 border-t hairline">
+                    <div className="flex-1">
+                      <label className="t-overline-sm block mb-1.5 mt-2">Categoria</label>
+                      <div className="segmented w-full lg:w-auto lg:inline-flex overflow-x-auto">
+                        {['todos', ...CATEGORIAS_COMPRA].map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setTipoFiltro(t)}
+                            data-active={tipoFiltro === t}
+                            className="shrink-0 h-8 px-4"
+                          >
+                            {t === 'todos' ? 'Todos' : t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="t-overline-sm block mb-1.5 mt-2">Período personalizado</label>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                        <input
+                          type="date"
+                          value={dataInicio}
+                          onChange={(e) => { setDataInicio(e.target.value); setMesFiltro(''); }}
+                          title="Data inicial"
+                          className="field field-sm min-w-0"
+                        />
+                        <span className="t-micro">até</span>
+                        <input
+                          type="date"
+                          value={dataFim}
+                          onChange={(e) => { setDataFim(e.target.value); setMesFiltro(''); }}
+                          title="Data final"
+                          className="field field-sm min-w-0"
+                        />
+                      </div>
+                    </div>
+
+                    {(busca || mesFiltro || dataInicio || dataFim || tipoFiltro !== 'todos') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBusca('');
+                          setMesFiltro('');
+                          setDataInicio('');
+                          setDataFim('');
+                          setTipoFiltro('todos');
+                          setDiaCalendarioSelecionado('');
+                        }}
+                        className="btn btn-secondary btn-sm lg:mb-0.5"
+                      >
+                        Limpar filtros
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {visao === 'calendario' && busca && (
+                  <button
+                    type="button"
+                    onClick={() => setBusca('')}
+                    className="btn btn-secondary btn-sm w-full sm:w-auto"
+                  >
+                    Limpar busca
+                  </button>
+                )}
+              </div>
             </div>
 
             {revisoesUnidadeNoPeriodo.length > 0 && (
