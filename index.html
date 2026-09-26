@@ -3403,6 +3403,8 @@
         purchaseDate: row.purchase_date || '',
         qty: Number(row.qty) || 0,
         purchaseUnit: row.purchase_unit || '',
+        previousPurchaseUnit: row.previous_purchase_unit || '',
+        unitReviewRequired: !!row.unit_review_required,
         cost: Number(row.cost) || 0,
         criadoEm: row.created_at
       });
@@ -3432,6 +3434,8 @@
         purchaseDate: row.purchase_date || '',
         qty: Number(row.qty) || 0,
         purchaseUnit: row.purchase_unit || 'un',
+        previousPurchaseUnit: row.previous_purchase_unit || '',
+        unitReviewRequired: !!row.unit_review_required,
         cost: Number(row.cost) || 0,
         criadoEm: row.created_at
       });
@@ -16813,17 +16817,12 @@
             // por unidade e não pode aparecer como fração de caixa no relatório.
             const volumeEfetivo = volumeCompra;
             const unidadeOficial = s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit);
-            const unidadeOriginal = volumeEfetivo ? '' : (c.purchaseUnit || unidadeOficial);
-            // A unidade do CADASTRO é a referência oficial de todas as compras.
-            // A unidade antiga do lançamento fica preservada só para apontar
-            // quais compras precisam ser conferidas depois de uma troca.
-            const unidadeCompra = volumeEfetivo?.tipo || unidadeOficial;
-            const precisaRevisaoUnidade = !volumeEfetivo
-              && !!unidadeOriginal
-              && unidadeOriginal !== unidadeOficial;
+            const unidadeCompra = volumeEfetivo?.tipo || c.purchaseUnit || unidadeOficial;
+            const precisaRevisaoUnidade = !volumeEfetivo && !!c.unitReviewRequired;
+            const unidadeOriginal = precisaRevisaoUnidade ? (c.previousPurchaseUnit || '') : '';
             const qtyCompra = volumeEfetivo?.unidades
               ? (Number(c.qty) || 0) / Number(volumeEfetivo.unidades)
-              : converterQuantidadeUnidade(Number(c.qty) || 0, s.unit, unidadeOficial);
+              : converterQuantidadeUnidade(Number(c.qty) || 0, s.unit, unidadeCompra);
             compras.push({
               id: c.id,
               itemId: `s${s.id}`,
@@ -16874,14 +16873,12 @@
             if (espelhoDoInsumo) return;
 
             const unidadeOficial = p.purchaseUnit || p.priceUnit || 'un';
-            const unidadeOriginal = volumeCompra ? '' : (c.purchaseUnit || unidadeOficial);
-            const unidadeCompra = volumeCompra?.tipo || unidadeOficial;
-            const precisaRevisaoUnidade = !volumeCompra
-              && !!unidadeOriginal
-              && unidadeOriginal !== unidadeOficial;
+            const unidadeCompra = volumeCompra?.tipo || c.purchaseUnit || unidadeOficial;
+            const precisaRevisaoUnidade = !volumeCompra && !!c.unitReviewRequired;
+            const unidadeOriginal = precisaRevisaoUnidade ? (c.previousPurchaseUnit || '') : '';
             const qtyCompra = volumeCompra?.unidades
               ? (Number(c.qty) || 0) / Number(volumeCompra.unidades)
-              : converterQuantidadeUnidade(Number(c.qty) || 0, unidadeOriginal, unidadeOficial);
+              : Number(c.qty) || 0;
             compras.push({
               id: c.id,
               itemId: `r${p.id}`,
@@ -24276,18 +24273,44 @@ ${BARRA_ACOES_HTML}
           });
         };
 
-        const handleUpdateSupply = (updated, immediate = false) => {
-          setSupplies((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        const aplicarMudancaUnidadeHistoricoLocal = (kind, itemId, novaUnidade) => {
+          const atualizar = (compra) => {
+            const donoCerto = kind === 'supply'
+              ? compra.supplyId === itemId
+              : compra.separatedProductId === itemId;
+            if (!donoCerto || String(compra.purchaseUnit || '').startsWith('pack:') || compra.purchaseUnit === novaUnidade) {
+              return compra;
+            }
+            return {
+              ...compra,
+              previousPurchaseUnit: compra.unitReviewRequired
+                ? (compra.previousPurchaseUnit || compra.purchaseUnit || '')
+                : (compra.purchaseUnit || ''),
+              purchaseUnit: novaUnidade,
+              unitReviewRequired: true
+            };
+          };
+          if (kind === 'supply') setSupplyPurchases((prev) => prev.map(atualizar));
+          else setResalePurchases((prev) => prev.map(atualizar));
+        };
 
-          // Equivalência só existe quando unidade e fator formam um par. A
-          // tabela pode manter a digitação parcial na tela, mas não substitui
-          // no banco uma equivalência válida por metade de uma informação.
+        const handleUpdateSupply = (updated, immediate = false) => {
+          const anterior = supplies.find((s) => s.id === updated.id);
+          const unidadeAnterior = anterior?.purchaseUnit || unidadeCompraPadraoDaBase(anterior?.unit);
+          const unidadeNova = updated.purchaseUnit || unidadeCompraPadraoDaBase(updated.unit);
+          const mudouUnidadeCompra = !!anterior && unidadeAnterior !== unidadeNova;
+
+          setSupplies((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+          if (mudouUnidadeCompra) {
+            aplicarMudancaUnidadeHistoricoLocal('supply', updated.id, unidadeNova);
+          }
+
           const temVariationUnit = !!String(updated.variationUnit || '').trim();
           const temVariationFactor = Number(updated.variationFactor) > 0;
 
           const campos = {
             unit: updated.unit || unidadeTecnicaDaCompra(updated.purchaseUnit),
-            purchase_unit: updated.purchaseUnit || unidadeCompraPadraoDaBase(updated.unit),
+            purchase_unit: unidadeNova,
             supply_class: updated.supplyClass,
             package_type: updated.packageType || null,
             package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
@@ -24296,15 +24319,28 @@ ${BARRA_ACOES_HTML}
             campos.variation_unit = temVariationUnit ? String(updated.variationUnit).trim() : null;
             campos.variation_factor = temVariationFactor ? Number(updated.variationFactor) : null;
           }
-          // Nome vazio é passagem da digitação: não vai para o banco
           const nome = (updated.name || '').trim();
           if (nome) campos.name = nome;
 
           const key = `insumo:${updated.id}`;
-          const salvar = () => run('supplies', sb.from('supplies').update(campos).eq('id', updated.id));
-          if (immediate) {
+          const salvar = async () => {
+            await run('supplies', sb.from('supplies').update(campos).eq('id', updated.id));
+            if (mudouUnidadeCompra) {
+              await run(
+                'Atualizar unidade no histórico de compras',
+                sb.rpc('cascade_purchase_unit_change', {
+                  p_kind: 'supply',
+                  p_item_id: updated.id,
+                  p_new_unit: unidadeNova
+                })
+              );
+            }
+          };
+
+          // Troca de unidade é estrutural: salva na hora e já percorre o histórico.
+          if (immediate || mudouUnidadeCompra) {
             cancelScheduledWrite(key);
-            return write('Atualizar insumo', salvar);
+            return write(mudouUnidadeCompra ? 'Atualizar unidade e histórico do insumo' : 'Atualizar insumo', salvar);
           }
           writeSoon(key, 'Atualizar insumo', salvar);
           return Promise.resolve(null);
@@ -24356,13 +24392,16 @@ ${BARRA_ACOES_HTML}
         };
 
         const handleUpdateSupplyPurchase = (updated) => {
-          setSupplyPurchases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          const revisada = { ...updated, unitReviewRequired: false, previousPurchaseUnit: '' };
+          setSupplyPurchases((prev) => prev.map((c) => (c.id === updated.id ? revisada : c)));
           writeSoon(`compra-insumo:${updated.id}`, 'Atualizar compra de insumo', () =>
             run('supply_purchases', sb.from('supply_purchases').update({
               supplier: updated.supplier || '',
               purchase_date: updated.purchaseDate || null,
               qty: updated.qty || 0,
               purchase_unit: updated.purchaseUnit || '',
+              previous_purchase_unit: null,
+              unit_review_required: false,
               cost: updated.cost || 0
             }).eq('id', updated.id))
           );
@@ -24611,22 +24650,43 @@ ${BARRA_ACOES_HTML}
         // a tela do CMV precisa mexer neles. A quantidade em estoque continua
         // sendo assunto do handleUpdateSeparatedQty.
         const handleUpdateSeparatedProduct = (updated, immediate = false) => {
+          const anterior = separatedProducts.find((i) => i.id === updated.id);
+          const unidadeAnterior = anterior?.purchaseUnit || anterior?.priceUnit || 'un';
+          const unidadeNova = updated.purchaseUnit || 'un';
+          const mudouUnidadeCompra = !!anterior && unidadeAnterior !== unidadeNova;
+
           setSeparatedProducts((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+          if (mudouUnidadeCompra) {
+            aplicarMudancaUnidadeHistoricoLocal('resale', updated.id, unidadeNova);
+          }
+
           const key = `sep-cmv:${updated.id}`;
-          const salvar = () => run('separated_products', sb.from('separated_products').update({
+          const salvar = async () => {
+            await run('separated_products', sb.from('separated_products').update({
               name: String(updated.productName || '').trim() || undefined,
               category: updated.category || 'revenda',
               unit_of_measure: updated.unitOfMeasure || updated.priceUnit || 'un',
               price: Number(updated.price) || 0,
               price_unit: updated.priceUnit || 'un',
-              purchase_unit: updated.purchaseUnit || 'un',
+              purchase_unit: unidadeNova,
               cost: Number(updated.cost) || 0,
               package_type: updated.packageType || null,
               package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
             }).eq('id', updated.id));
-          if (immediate) {
+            if (mudouUnidadeCompra) {
+              await run(
+                'Atualizar unidade no histórico de revenda',
+                sb.rpc('cascade_purchase_unit_change', {
+                  p_kind: 'resale',
+                  p_item_id: updated.id,
+                  p_new_unit: unidadeNova
+                })
+              );
+            }
+          };
+          if (immediate || mudouUnidadeCompra) {
             cancelScheduledWrite(key);
-            return write('Atualizar item de revenda', salvar);
+            return write(mudouUnidadeCompra ? 'Atualizar unidade e histórico da revenda' : 'Atualizar item de revenda', salvar);
           }
           writeSoon(key, 'Atualizar item de revenda', salvar);
           return Promise.resolve(null);
@@ -24660,13 +24720,16 @@ ${BARRA_ACOES_HTML}
         };
 
         const handleUpdateResalePurchase = (updated) => {
-          setResalePurchases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          const revisada = { ...updated, unitReviewRequired: false, previousPurchaseUnit: '' };
+          setResalePurchases((prev) => prev.map((c) => (c.id === updated.id ? revisada : c)));
           writeSoon(`compra-revenda:${updated.id}`, 'Atualizar compra de revenda', () =>
             run('resale_purchases', sb.from('resale_purchases').update({
               supplier: updated.supplier || '',
               purchase_date: updated.purchaseDate || null,
               qty: updated.qty || 0,
               purchase_unit: updated.purchaseUnit || 'un',
+              previous_purchase_unit: null,
+              unit_review_required: false,
               cost: updated.cost || 0
             }).eq('id', updated.id))
           );
