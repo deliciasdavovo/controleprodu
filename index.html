@@ -19927,20 +19927,27 @@ const resumoFornecedoresPeriodo = useMemo(() => {
                 fornecedores[nome] = grupo;
               });
 
-              const fornecedoresTexto = Object.values(fornecedores)
-                .sort((a, b) => b.total - a.total)
+              const listaFornecedores = Object.values(fornecedores)
+                .sort((a, b) => b.total - a.total);
+              const fornecedoresTexto = listaFornecedores
                 .map((f) =>
-                  '<span class="fornecedor-dia"><b>' + escaparHtml(f.nome) + '</b>'
-                  + '<small>' + f.itens + (f.itens === 1 ? ' item' : ' itens')
-                  + ' · ' + formatCurrencyBR(f.total) + '</small></span>'
+                  '<div class="fornecedor-dia">'
+                  + '<b>' + escaparHtml(f.nome) + '</b>'
+                  + '<div class="fornecedor-meta">'
+                  + '<span>' + f.itens + (f.itens === 1 ? ' item' : ' itens') + '</span>'
+                  + '<strong>' + formatCurrencyBR(f.total) + '</strong>'
+                  + '</div></div>'
                 ).join('');
 
-              return '<div class="linha-dia">'
+              return '<section class="card-dia">'
+                + '<div class="card-dia-cabecalho">'
                 + '<div class="linha-data"><b>' + escaparHtml(formatDateBR(dia.data)) + '</b>'
-                + '<span>' + dia.lancamentos + (dia.lancamentos === 1 ? ' item' : ' itens') + '</span></div>'
+                + '<span>' + dia.lancamentos + (dia.lancamentos === 1 ? ' item' : ' itens')
+                + ' · ' + listaFornecedores.length + (listaFornecedores.length === 1 ? ' fornecedor' : ' fornecedores') + '</span></div>'
+                + '<div class="linha-total"><span>Total do dia</span><b>' + formatCurrencyBR(dia.total) + '</b></div>'
+                + '</div>'
                 + '<div class="linha-fornecedores">' + fornecedoresTexto + '</div>'
-                + '<div class="linha-total">' + formatCurrencyBR(dia.total) + '</div>'
-              + '</div>';
+              + '</section>';
             }).join('');
 
           const categoriaTexto = tipoFiltro === 'todos' ? 'Todas as categorias' : tipoFiltro;
@@ -19967,10 +19974,16 @@ const resumoFornecedoresPeriodo = useMemo(() => {
             + '.dia{min-height:72px;border:1px solid #e2e2de;border-radius:7px;background:white;padding:6px;display:flex;flex-direction:column;justify-content:space-between;}'
             + '.dia.vazio{border-color:transparent;background:transparent;}.numero-dia{font-size:8pt;font-weight:800;}.dia-conteudo{text-align:left;}.dia-total{display:block;font-size:11pt;line-height:1.05;font-variant-numeric:tabular-nums;}.dia-conteudo span{display:block;font-size:6.7pt;color:#666;margin-top:3px;}'
             + '.nivel-1{background:#f3f2f7}.nivel-2{background:#dedbe9}.nivel-3{background:#0E0937;color:white;border-color:#0E0937}.nivel-3 .dia-conteudo span{color:rgba(255,255,255,.75)}'
-            + 'h2{font-size:12pt;margin:18px 0 7px;padding-bottom:5px;border-bottom:1px solid #bbb;}'
-            + '.linha-dia{display:grid;grid-template-columns:82px 1fr 88px;gap:10px;align-items:start;padding:7px 0;border-bottom:1px solid #dedede;page-break-inside:avoid;}'
-            + '.linha-data b{display:block;font-size:8pt;}.linha-data span{display:block;color:#777;font-size:7pt;margin-top:2px;}.linha-fornecedores{display:flex;flex-wrap:wrap;gap:4px 10px;}.fornecedor-dia{display:inline-block;}.fornecedor-dia b{font-size:8pt;}.fornecedor-dia small{display:block;color:#666;font-size:7pt;}.linha-total{text-align:right;font-weight:800;font-size:9pt;font-variant-numeric:tabular-nums;}'
-            + '@media screen and (max-width:700px){body{padding:0 12px 28px}.acoes{position:static}.metricas{grid-template-columns:1fr 1fr 1fr}.dia{min-height:54px;padding:4px}.dia-total{font-size:9px}.dia-conteudo span{font-size:7px}.linha-dia{grid-template-columns:70px 1fr}.linha-total{grid-column:2;text-align:left}.fornecedor-dia{display:block;width:100%;}}'
+            + 'h2{font-size:12pt;margin:20px 0 9px;padding-bottom:6px;border-bottom:1px solid #cfcfca;}'
+            + '.card-dia{border:1px solid #d9d9d4;border-radius:10px;background:#fff;margin:0 0 9px;padding:10px;page-break-inside:avoid;box-shadow:0 1px 2px rgba(0,0,0,.025);}'
+            + '.card-dia-cabecalho{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #ecece8;}'
+            + '.linha-data b{display:block;font-size:10pt;line-height:1.15;}.linha-data span{display:block;color:#777;font-size:7.2pt;margin-top:3px;}'
+            + '.linha-total{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.linha-total span{display:block;color:#777;font-size:6.7pt;text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px;}.linha-total b{display:block;font-size:13pt;line-height:1.1;}'
+            + '.linha-fornecedores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}'
+            + '.fornecedor-dia{display:block;border:1px solid #e5e5e0;border-radius:7px;background:#f8f8f6;padding:7px 8px;min-width:0;}.fornecedor-dia>b{display:block;font-size:8pt;line-height:1.2;overflow-wrap:anywhere;}'
+            + '.fornecedor-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px;}.fornecedor-meta span{color:#6b6b6f;font-size:7pt;}.fornecedor-meta strong{font-size:8pt;font-variant-numeric:tabular-nums;white-space:nowrap;}'
+            + '@media print{.card-dia{box-shadow:none;}}'
+            + '@media screen and (max-width:700px){body{padding:0 12px 28px}.acoes{position:static}.metricas{grid-template-columns:1fr 1fr 1fr}.dia{min-height:54px;padding:4px}.dia-total{font-size:9px}.dia-conteudo span{font-size:7px}.card-dia{padding:9px}.card-dia-cabecalho{gap:10px}.linha-fornecedores{grid-template-columns:1fr}.linha-total b{font-size:12pt;}}'
             + '</style></head><body>'
             + BARRA_ACOES_HTML
             + '<header><h1>Calendário de compras</h1>'
