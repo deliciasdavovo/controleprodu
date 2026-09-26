@@ -14924,36 +14924,25 @@
                               <td className="py-2.5 px-3">
                                 <div className="w-16">
                                   {ehSupply ? (
-                                    linha.pacoteCompra ? (
-                                      <span className="t-callout font-semibold capitalize">
-                                        {linha.unidadeCompra === 'outro' ? 'volume' : linha.unidadeCompra}
-                                      </span>
-                                    ) : (
-                                      <PickerField
-                                        value={x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)}
-                                        options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
-                                        onPick={(opt) => onUpdateSupply({
-                                          ...x,
-                                          // A unidade-base (g/ml/un) é estrutural e fica travada.
-                                          // Aqui muda somente a forma em que a compra é feita.
-                                          purchaseUnit: opt.value
-                                        })}
-                                        className="field h-8 pl-2.5 text-[12px]"
-                                      />
-                                    )
+                                    <PickerField
+                                      value={x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)}
+                                      options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
+                                      onPick={(opt) => onUpdateSupply({
+                                        ...x,
+                                        // Unidade-base e volume são independentes.
+                                        // A unidade de compra permanece editável mesmo
+                                        // quando a última compra foi lançada por caixa/pacote.
+                                        purchaseUnit: opt.value
+                                      })}
+                                      className="field h-8 pl-2.5 text-[12px]"
+                                    />
                                   ) : linha.tipo === 'revenda' ? (
-                                    linha.pacoteCompra ? (
-                                      <span className="t-callout font-semibold capitalize">
-                                        {linha.unidadeCompra === 'outro' ? 'volume' : linha.unidadeCompra}
-                                      </span>
-                                    ) : (
-                                      <PickerField
-                                        value={x.purchaseUnit || 'un'}
-                                        options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
-                                        onPick={(opt) => onUpdateSeparatedProduct({...x,purchaseUnit:opt.value})}
-                                        className="field h-8 pl-2.5 text-[12px]"
-                                      />
-                                    )
+                                    <PickerField
+                                      value={x.purchaseUnit || 'un'}
+                                      options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
+                                      onPick={(opt) => onUpdateSeparatedProduct({...x,purchaseUnit:opt.value})}
+                                      className="field h-8 pl-2.5 text-[12px]"
+                                    />
                                   ) : (
                                     <PickerField value={x.priceUnit || 'un'} options={[{value:'un',label:'un'},{value:'kg',label:'kg'}]} onPick={(opt) => onUpdateProduct({...x,priceUnit:opt.value})} className="field h-8 pl-2.5 text-[12px]" />
                                   )}
