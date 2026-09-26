@@ -440,7 +440,17 @@ create index if not exists supply_purchases_supply_idx
 comment on table public.supply_purchases is 'Histórico de compras de cada insumo, com fornecedor e data.';
 comment on column public.supply_purchases.qty is 'Quantidade comprada, na unidade base do insumo.';
 comment on column public.supply_purchases.purchase_unit is
-  'Formato original da compra. Vazio = unidade base; pack:tipo:quantidade preserva caixa, pacote ou fardo daquela nota.';
+  'Formato atual da compra. pack:tipo:quantidade preserva caixa, pacote ou fardo daquela nota.';
+
+alter table public.supply_purchases
+  add column if not exists previous_purchase_unit text;
+alter table public.supply_purchases
+  add column if not exists unit_review_required boolean not null default false;
+
+comment on column public.supply_purchases.previous_purchase_unit is
+  'Unidade anterior, preservada quando o cadastro altera a unidade de compra de todo o histórico.';
+comment on column public.supply_purchases.unit_review_required is
+  'True quando a unidade foi alterada automaticamente pelo cadastro e a quantidade desta compra ainda precisa ser conferida.';
 
 
 -- ---------------------------------------------------------------------
@@ -543,6 +553,71 @@ create index if not exists resale_purchases_product_idx
   on public.resale_purchases (separated_product_id, purchase_date desc);
 
 comment on table public.resale_purchases is 'Histórico de compras dos itens de revenda, com fornecedor e data.';
+
+alter table public.resale_purchases
+  add column if not exists previous_purchase_unit text;
+alter table public.resale_purchases
+  add column if not exists unit_review_required boolean not null default false;
+
+comment on column public.resale_purchases.previous_purchase_unit is
+  'Unidade anterior, preservada quando o cadastro altera a unidade de compra de todo o histórico.';
+comment on column public.resale_purchases.unit_review_required is
+  'True quando a unidade foi alterada automaticamente pelo cadastro e a quantidade desta compra ainda precisa ser conferida.';
+
+-- Quando a unidade de compra é alterada no cadastro, todo lançamento
+-- histórico não-volume recebe a nova unidade. A unidade anterior fica guardada
+-- e a linha é marcada para conferência manual da quantidade.
+create or replace function public.cascade_purchase_unit_change(
+  p_kind text,
+  p_item_id uuid,
+  p_new_unit text
+)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $
+declare
+  changed integer := 0;
+begin
+  if p_new_unit not in ('kg','g','L','ml','un') then
+    raise exception 'Unidade de compra inválida: %', p_new_unit;
+  end if;
+
+  if p_kind = 'supply' then
+    update public.supply_purchases
+       set previous_purchase_unit = case
+             when unit_review_required then coalesce(previous_purchase_unit, purchase_unit)
+             else purchase_unit
+           end,
+           purchase_unit = p_new_unit,
+           unit_review_required = true
+     where supply_id = p_item_id
+       and purchase_unit not like 'pack:%'
+       and purchase_unit is distinct from p_new_unit;
+    get diagnostics changed = row_count;
+  elsif p_kind = 'resale' then
+    update public.resale_purchases
+       set previous_purchase_unit = case
+             when unit_review_required then coalesce(previous_purchase_unit, purchase_unit)
+             else purchase_unit
+           end,
+           purchase_unit = p_new_unit,
+           unit_review_required = true
+     where separated_product_id = p_item_id
+       and purchase_unit not like 'pack:%'
+       and purchase_unit is distinct from p_new_unit;
+    get diagnostics changed = row_count;
+  else
+    raise exception 'Tipo inválido: %', p_kind;
+  end if;
+
+  return changed;
+end;
+$;
+
+grant execute on function public.cascade_purchase_unit_change(text, uuid, text) to anon, authenticated;
+
 
 -- Mantém o custo mestre da revenda igual ao custo unitário da compra mais
 -- recente. O histórico continua sendo a fonte completa; esta coluna é o
