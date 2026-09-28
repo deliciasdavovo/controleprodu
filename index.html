@@ -3217,13 +3217,6 @@
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
       const rotuloVariacao = (supply) => {
         if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
-        // Na tabela de cadastros a equivalência parte da unidade de compra.
-        // Ex.: Un. compra = un e equivalência = 500 g -> 1 un = 500 g.
-        if (supply.purchaseUnit) {
-          return `1 ${supply.purchaseUnit} = ${supply.variationFactor} ${supply.variationUnit}`;
-        }
-        // Mantém compatibilidade com usos antigos do formulário que ainda
-        // passam apenas unidade-base + variação.
         return supply.unit === 'un'
           ? `1 un = ${supply.variationFactor} ${supply.variationUnit}`
           : `1 ${supply.variationUnit} = ${supply.variationFactor} ${supply.unit}`;
@@ -12429,10 +12422,10 @@
           const valor = Number(String(ultimo[1] || '').replace(',', '.')) || 0;
           const unidade = String(ultimo[2] || '').toLowerCase();
           if (!(valor > 0)) return null;
-          if (unidade === 'kg') return { unit: 'g', variationUnit: 'g', variationFactor: valor * 1000 };
-          if (unidade === 'g' || unidade === 'gr') return { unit: 'g', variationUnit: 'g', variationFactor: valor };
-          if (unidade === 'l' || unidade === 'lt') return { unit: 'ml', variationUnit: 'ml', variationFactor: valor * 1000 };
-          if (unidade === 'ml') return { unit: 'ml', variationUnit: 'ml', variationFactor: valor };
+          if (unidade === 'kg') return { unit: 'g', variationUnit: 'un', variationFactor: valor * 1000 };
+          if (unidade === 'g' || unidade === 'gr') return { unit: 'g', variationUnit: 'un', variationFactor: valor };
+          if (unidade === 'l' || unidade === 'lt') return { unit: 'ml', variationUnit: 'un', variationFactor: valor * 1000 };
+          if (unidade === 'ml') return { unit: 'ml', variationUnit: 'un', variationFactor: valor };
           return null;
         };
 
@@ -13924,12 +13917,12 @@
           if (qty > 0 && cost > 0) {
             const fornecedorCompra = String(draft.supplier || '').trim();
             const dataCompra = draft.purchaseDate || dataSugerida;
+            const unidadeDuplicata = unidadeCompraEfetiva(unidadeCompraSalva);
+            const baseDuplicata = supplyExistente?.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra);
             const qtyInsumoDuplicata = supplyExistente
-              ? qtdCompraNaBase(
-                  qty,
-                  unidadeCompraEfetiva(unidadeCompraSalva),
-                  supplyExistente.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra)
-                )
+              ? (baseDuplicata !== 'un' && unidadeDuplicata === 'un'
+                  ? qtdUnidadesNaBaseDoInsumo(qty, supplyExistente, unidadeDuplicata)
+                  : qtdCompraNaBase(qty, unidadeDuplicata, baseDuplicata))
               : qty;
             const podeLancar = await confirmarPossivelDuplicataCompra({
               supplier: fornecedorCompra,
@@ -14117,12 +14110,24 @@
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
             if (!item.duplicateAccepted) {
+              const unidadeItemEfetivaDuplicata = unidadeCompraEfetiva(item.purchaseUnit || item.unit || 'un');
+              const qtySupplyDuplicata = temFaceInsumo && insumo
+                ? (unidadesPorVolume > 0
+                    ? qtdUnidadesNaBaseDoInsumo(qty, insumo, item.purchaseUnit || 'un')
+                    : ((insumo.unit || 'un') !== 'un' && unidadeItemEfetivaDuplicata === 'un'
+                        ? qtdUnidadesNaBaseDoInsumo(volumes, insumo, unidadeItemEfetivaDuplicata)
+                        : converterQuantidadeUnidade(
+                            volumes,
+                            item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(insumo.unit || 'un'),
+                            insumo.unit || 'un'
+                          )))
+                : qty;
               const podeLancar = await confirmarPossivelDuplicataCompra({
                 supplier: fornecedor,
                 purchaseDate: data || dataSugerida,
                 supplyId: temFaceInsumo ? insumo?.id : null,
                 resaleId: temFaceRevenda ? revenda?.id : null,
-                supplyQty: qty,
+                supplyQty: qtySupplyDuplicata > 0 ? qtySupplyDuplicata : qty,
                 resaleQty: qty,
                 displayQty: volumes,
                 itemName: nome
@@ -14156,17 +14161,16 @@
 
               if (insumo?.id) {
                 const baseInsumo = insumo.unit || 'un';
+                const unidadeItemEfetiva = unidadeCompraEfetiva(item.purchaseUnit || item.unit || 'un');
                 const qtyBaseInsumo = unidadesPorVolume > 0
-                  ? qtdUnidadesNaBaseDoInsumo(
-                      qty,
-                      insumo,
-                      item.purchaseUnit || 'un'
-                    )
-                  : converterQuantidadeUnidade(
-                      volumes,
-                      item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(baseInsumo),
-                      baseInsumo
-                    );
+                  ? qtdUnidadesNaBaseDoInsumo(qty, insumo, item.purchaseUnit || 'un')
+                  : (baseInsumo !== 'un' && unidadeItemEfetiva === 'un'
+                      ? qtdUnidadesNaBaseDoInsumo(volumes, insumo, unidadeItemEfetiva)
+                      : converterQuantidadeUnidade(
+                          volumes,
+                          item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(baseInsumo),
+                          baseInsumo
+                        ));
 
                 if (!(qtyBaseInsumo > 0)) {
                   window.alert(
@@ -15415,38 +15419,74 @@
                               </td>
                               <td className="py-2.5 px-3">
                                 {ehSupply ? (
-                                  <div className="min-w-[225px]">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="t-micro whitespace-nowrap">1 {x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)} =</span>
-                                      <NumeroBRField
-                                        value={x.variationFactor || ''}
-                                        decimals={3}
-                                        onValueChange={(variationFactor) => onUpdateSupply({
-                                          ...x,
-                                          variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
-                                        })}
-                                        placeholder="qtd."
-                                        className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
-                                      />
-                                      <PickerField
-                                        value={x.variationUnit || ''}
-                                        options={UNIDADES_EQUIVALENCIA}
-                                        onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
-                                        placeholder="un."
-                                        className="field h-8 pl-2 text-[12px] w-20"
-                                        panelMinWidth={120}
-                                      />
-                                      {(x.variationUnit || Number(x.variationFactor) > 0) && (
-                                        <button
-                                          type="button"
-                                          title="Remover equivalência"
-                                          onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
-                                          className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
-                                        >
-                                          <Icons.X className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
+                                  <div className="min-w-[230px]">
+                                    {x.unit === 'un' ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="t-micro whitespace-nowrap">1 un =</span>
+                                        <NumeroBRField
+                                          value={x.variationFactor || ''}
+                                          decimals={3}
+                                          onValueChange={(variationFactor) => onUpdateSupply({
+                                            ...x,
+                                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
+                                          })}
+                                          placeholder="qtd."
+                                          className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                        />
+                                        <PickerField
+                                          value={x.variationUnit || ''}
+                                          options={UNIDADES_EQUIVALENCIA}
+                                          onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
+                                          placeholder="g"
+                                          className="field h-8 pl-2 text-[12px] w-20"
+                                          panelMinWidth={120}
+                                        />
+                                        {(x.variationUnit || Number(x.variationFactor) > 0) && (
+                                          <button
+                                            type="button"
+                                            title="Remover equivalência"
+                                            onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
+                                            className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
+                                          >
+                                            <Icons.X className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="t-micro whitespace-nowrap">1</span>
+                                        <PickerField
+                                          value={x.variationUnit || ''}
+                                          options={UNIDADES_EQUIVALENCIA}
+                                          onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
+                                          placeholder="un"
+                                          className="field h-8 pl-2 text-[12px] w-20"
+                                          panelMinWidth={120}
+                                        />
+                                        <span className="t-micro">=</span>
+                                        <NumeroBRField
+                                          value={x.variationFactor || ''}
+                                          decimals={3}
+                                          onValueChange={(variationFactor) => onUpdateSupply({
+                                            ...x,
+                                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
+                                          })}
+                                          placeholder="qtd."
+                                          className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
+                                        />
+                                        <span className="t-micro whitespace-nowrap">{x.unit}</span>
+                                        {(x.variationUnit || Number(x.variationFactor) > 0) && (
+                                          <button
+                                            type="button"
+                                            title="Remover equivalência"
+                                            onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
+                                            className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
+                                          >
+                                            <Icons.X className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                     {x.variationUnit && Number(x.variationFactor) > 0 && (
                                       <span className="t-nano block mt-1">{rotuloVariacao(x)}</span>
                                     )}
