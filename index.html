@@ -2749,14 +2749,63 @@
       // insumo. Sem isso, "2 latas" entraria na conta como 2 gramas.
       const qtdNaUnidadeBase = (item, supply) => {
         const qtd = Number(item?.qty) || 0;
-        const uso = item?.usageUnit || '';
-        if (!supply || !uso || uso === supply.unit) return qtd;
+        const uso = item?.usageUnit || supply?.unit || '';
+        const base = supply?.unit || '';
+        if (!supply || !uso || !base || uso === base) return qtd;
+
+        // Conversões diretas entre unidades métricas equivalentes.
+        // Antes 1 kg numa ficha de um insumo-base g podia ser tratado como 1 g.
+        if ((uso === 'kg' && base === 'g') || (uso === 'g' && base === 'kg')
+          || (uso === 'L' && base === 'ml') || (uso === 'ml' && base === 'L')) {
+          return converterQuantidadeUnidade(qtd, uso, base);
+        }
+
+        const variacao = String(supply.variationUnit || '');
         const fator = Number(supply.variationFactor) || 0;
-        if (!fator) return qtd;
-        // Base un: 1 un = fator variações, então N variações = N / fator un
-        if (supply.unit === 'un') return qtd / fator;
-        // Base g/ml: 1 variação = fator base, então N variações = N * fator
-        return qtd * fator;
+        if (!variacao || !(fator > 0)) return 0;
+
+        // Base un: ex. Nutella 3 kg -> 1 un = 3000 g.
+        // A ficha pode usar g OU kg; primeiro convertemos para a unidade
+        // alternativa cadastrada e só depois para unidades-base.
+        if (base === 'un') {
+          let qtdNaVariacao = qtd;
+          if (uso !== variacao) {
+            const conversaoMetrica =
+              (uso === 'kg' && variacao === 'g') || (uso === 'g' && variacao === 'kg')
+              || (uso === 'L' && variacao === 'ml') || (uso === 'ml' && variacao === 'L');
+            if (!conversaoMetrica) return 0;
+            qtdNaVariacao = converterQuantidadeUnidade(qtd, uso, variacao);
+          }
+          return qtdNaVariacao / fator;
+        }
+
+        // Base g/ml/unidade técnica: 1 variação = fator unidades-base.
+        if (uso === variacao) return qtd * fator;
+
+        return 0;
+      };
+
+      const unidadesDaFichaParaInsumo = (supply) => {
+        if (!supply) return [];
+        const unidades = [supply.unit || 'un'];
+        const adicionar = (u) => { if (u && !unidades.includes(u)) unidades.push(u); };
+
+        if (supply.unit === 'g') adicionar('kg');
+        if (supply.unit === 'kg') adicionar('g');
+        if (supply.unit === 'ml') adicionar('L');
+        if (supply.unit === 'L') adicionar('ml');
+
+        const variacao = String(supply.variationUnit || '');
+        const fator = Number(supply.variationFactor) || 0;
+        if (variacao && fator > 0) {
+          adicionar(variacao);
+          if (variacao === 'g') adicionar('kg');
+          if (variacao === 'kg') adicionar('g');
+          if (variacao === 'ml') adicionar('L');
+          if (variacao === 'L') adicionar('ml');
+        }
+
+        return unidades;
       };
 
       // Produto fabricado pela própria casa também pode ser ingrediente de outra
@@ -15316,14 +15365,14 @@
           }
         };
 
-                          const atualizarVolumeCadastroLinha = (campos) => {
+                          const atualizarVolumeCadastroLinha = (campos, immediate = false) => {
                             if (ehSupply) {
-                              onUpdateSupply({ ...x, ...campos });
+                              onUpdateSupply({ ...x, ...campos }, immediate);
                               if (linha.tipo === 'insumo_revenda' && linha.resaleSource) {
-                                onUpdateSeparatedProduct({ ...linha.resaleSource, ...campos });
+                                onUpdateSeparatedProduct({ ...linha.resaleSource, ...campos }, immediate);
                               }
                             } else if (linha.tipo === 'revenda') {
-                              onUpdateSeparatedProduct({ ...x, ...campos });
+                              onUpdateSeparatedProduct({ ...x, ...campos }, immediate);
                             }
                           };
                           return (
@@ -15404,7 +15453,7 @@
                               </td>
                               <td className="py-2.5 px-3">
                                 {volumeEditavelNaTabela ? (
-                                  <div className="flex items-center gap-1.5 min-w-[220px]">
+                                  <div className="flex items-center gap-1.5 min-w-[250px]">
                                     <select
                                       value={cadastroVolumeLinha.packageType || 'caixa'}
                                       onChange={(e) => atualizarVolumeCadastroLinha({ packageType: e.target.value })}
@@ -15421,6 +15470,16 @@
                                       className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
                                     />
                                     <span className="t-micro">un</span>
+                                    {(cadastroVolumeLinha.packageType || Number(cadastroVolumeLinha.packageUnits) > 0) && (
+                                      <button
+                                        type="button"
+                                        title="Desativar volume padrão"
+                                        onClick={() => atualizarVolumeCadastroLinha({ packageType: '', packageUnits: null }, true)}
+                                        className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
+                                      >
+                                        <Icons.X className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </div>
                                 ) : <span className="t-empty">—</span>}
                               </td>
@@ -16565,7 +16624,7 @@
                     const peso = custoTotal > 0 ? (custoLinha / custoTotal) * 100 : 0;
                     const unidadeBase = supply?.unit || componentFicha?.yieldUnit || 'un';
                     const unidades = supply
-                      ? [supply.unit, ...(supply.variationUnit && Number(supply.variationFactor) > 0 ? [supply.variationUnit] : [])]
+                      ? unidadesDaFichaParaInsumo(supply)
                       : unidadesDeComponente(unidadeBase, componentFicha?.weightPerUnit);
                     const seletorValue = item.componentProductId
                       ? `produto:${item.componentProductId}`
