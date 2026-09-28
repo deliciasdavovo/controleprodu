@@ -12421,6 +12421,21 @@
           .replace(/\s+/g, ' ')
           .trim();
 
+        const inferirMedidaDoNomeXml = (nome) => {
+          const texto = String(nome || '');
+          const matches = Array.from(texto.matchAll(/(\d+(?:[.,]\d+)?)\s*(kg|g|gr|ml|l|lt)\b/gi));
+          if (!matches.length) return null;
+          const ultimo = matches[matches.length - 1];
+          const valor = Number(String(ultimo[1] || '').replace(',', '.')) || 0;
+          const unidade = String(ultimo[2] || '').toLowerCase();
+          if (!(valor > 0)) return null;
+          if (unidade === 'kg') return { unit: 'g', variationUnit: 'g', variationFactor: valor * 1000 };
+          if (unidade === 'g' || unidade === 'gr') return { unit: 'g', variationUnit: 'g', variationFactor: valor };
+          if (unidade === 'l' || unidade === 'lt') return { unit: 'ml', variationUnit: 'ml', variationFactor: valor * 1000 };
+          if (unidade === 'ml') return { unit: 'ml', variationUnit: 'ml', variationFactor: valor };
+          return null;
+        };
+
         const rankingOpcoes = (nome) => {
           const origem = limparNomeXml(nome);
           const palavrasOrigem = origem.split(' ').filter((p) => p.length > 2);
@@ -12499,10 +12514,15 @@
               const baseXml = unidadeDoXml(uCom);
               const match = melhorOpcao(descricao, fornecedorResolvido.nome || fornecedorXml, codigo);
               const opcao = match.opt;
+              const medidaInferida = !opcao && baseXml.unit === 'un'
+                ? inferirMedidaDoNomeXml(descricao)
+                : null;
               const unidadesSalvas = Number(opcao?.packageUnits) > 0 ? Number(opcao.packageUnits) : 0;
               const pacoteSalvo = opcao?.packageType || '';
               // Cadastro existente manda na estrutura. O XML informa como a nota
-              // veio, mas nunca troca unidade-base nem inventa volume no cadastro.
+              // veio, mas nunca troca unidade-base. Para item realmente novo,
+              // "500 g", "1 kg", "900 ml" no nome ajuda a nascer com uma
+              // equivalência técnica coerente sem transformar caixa em grama.
               const compraPorPacote = opcao ? unidadesSalvas > 0 : (baseXml.isPackage || unidadesSalvas > 0);
               const tipo = opcao?.purchaseKind
                 || (String(opcao?.value || '').startsWith('revenda:') ? 'revenda' : 'insumo');
@@ -12515,11 +12535,13 @@
                 name: opcao?.label || descricao,
                 catalogValue: opcao?.value || '',
                 purchaseKind: tipo,
-                unit: opcao?.unit || baseXml.unit,
-                purchaseUnit: opcao?.purchaseUnit || baseXml.purchaseUnit,
+                unit: opcao?.unit || medidaInferida?.unit || baseXml.unit,
+                purchaseUnit: opcao?.purchaseUnit || (medidaInferida ? 'un' : baseXml.purchaseUnit),
                 packageType: opcao ? (pacoteSalvo || '') : (baseXml.packageType || 'caixa'),
                 volumes: qCom,
                 unitsPerPackage: opcao ? unidadesSalvas : (compraPorPacote ? (unidadesSalvas || 1) : 0),
+                variationUnit: opcao?.variationUnit || medidaInferida?.variationUnit || '',
+                variationFactor: Number(opcao?.variationFactor) || Number(medidaInferida?.variationFactor) || 0,
                 cost: custoLinha,
                 xmlUnit: uCom,
                 confidence: match.confidence,
@@ -12809,7 +12831,9 @@
                                         unit: opt.unit || item.unit,
                                         purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
                                         packageType: opt.packageType || '',
-                                        unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : 0
+                                        unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : 0,
+                                        variationUnit: opt.variationUnit || '',
+                                        variationFactor: Number(opt.variationFactor) || 0
                                       });
                                     }}
                                     placeholder="Vincular ao cadastro"
@@ -12845,7 +12869,9 @@
                                                   unit: opt.unit || item.unit,
                                                   purchaseUnit: opt.purchaseUnit || item.purchaseUnit,
                                                   packageType: opt.packageType || item.packageType,
-                                                  unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage
+                                                  unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : item.unitsPerPackage,
+                                                  variationUnit: opt.variationUnit || '',
+                                                  variationFactor: Number(opt.variationFactor) || 0
                                                 });
                                               }}
                                             >
@@ -13518,6 +13544,27 @@
         const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) =>
           converterQuantidadeUnidade(qtd, unidadeCompra, unidadeBase);
 
+        const qtdUnidadesNaBaseDoInsumo = (qtdUnidades, insumo, unidadeConteudo = 'un') => {
+          const total = Number(qtdUnidades) || 0;
+          const base = String(insumo?.unit || 'un');
+          if (!(total > 0)) return 0;
+          if (base === 'un') return total;
+
+          const unidadeCompra = unidadeCompraEfetiva(unidadeConteudo || 'un');
+          if (unidadeTecnicaDaCompra(unidadeCompra) === base && unidadeCompra !== 'un') {
+            return converterQuantidadeUnidade(total, unidadeCompra, base);
+          }
+
+          const fator = Number(insumo?.variationFactor) || 0;
+          const alternativa = String(insumo?.variationUnit || '');
+          if (fator > 0 && (alternativa === base || alternativa === 'un')) {
+            return total * fator;
+          }
+
+          // Nunca trate 1 unidade/caixa como 1 g ou 1 ml por falta de equivalência.
+          return 0;
+        };
+
         // ------------------------------------------
         // A SUGESTÃO DO VALOR PAGO
         //
@@ -13587,7 +13634,9 @@
               unit: x.unit || 'un',
               purchaseUnit: x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit),
               packageType: x.packageType || '',
-              packageUnits: Number(x.packageUnits) || 0
+              packageUnits: Number(x.packageUnits) || 0,
+              variationUnit: x.variationUnit || '',
+              variationFactor: Number(x.variationFactor) || 0
             });
           });
           revendaDaUnidade.forEach((x) => {
@@ -13940,20 +13989,25 @@
                 || packageType !== (insumo.packageType || null)
                 || packageUnits !== (Number(insumo.packageUnits) || null)
                 || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
-                const unit = unidadeCompraFoiEditada
-                  ? unidadeTecnicaDaCompra(purchaseUnit)
-                  : (supplyExistente ? insumo.unit : unidadeTecnicaDaCompra(purchaseUnit));
+                const unit = supplyExistente
+                  ? insumo.unit
+                  : unidadeTecnicaDaCompra(purchaseUnit);
                 await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits }, true);
                 insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits };
               }
             }
 
             if (insumo?.id && qty > 0 && cost > 0) {
-              const qtdBase = qtdCompraNaBase(
-                qty,
-                unidadeCompraEfetiva(unidadeCompraSalva),
-                insumo.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra)
-              );
+              const unidadeCompraEfetivaAtual = unidadeCompraEfetiva(unidadeCompraSalva);
+              const baseInsumo = insumo.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra);
+              const qtdBaseDireta = qtdCompraNaBase(qty, unidadeCompraEfetivaAtual, baseInsumo);
+              const qtdBase = (baseInsumo !== 'un' && unidadeCompraEfetivaAtual === 'un')
+                ? qtdUnidadesNaBaseDoInsumo(qty, insumo, unidadeCompraEfetivaAtual)
+                : qtdBaseDireta;
+              if (!(qtdBase > 0)) {
+                window.alert('Não foi possível converter esta compra para a unidade-base do cadastro. Defina a equivalência técnica (ex.: 1 un = 500 g) e tente novamente.');
+                return;
+              }
               await onAddSupplyPurchase(insumo.id, {
                 supplier: String(draft.supplier || '').trim(),
                 purchaseDate: draft.purchaseDate || dataSugerida,
@@ -14084,6 +14138,8 @@
                   unit: item.unit || 'un',
                   purchaseUnit: item.purchaseUnit || item.unit || 'un',
                   supplyClass: classe,
+                  variationUnit: item.variationUnit || null,
+                  variationFactor: Number(item.variationFactor) > 0 ? Number(item.variationFactor) : null,
                   packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
                   packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
@@ -14099,13 +14155,28 @@
               }
 
               if (insumo?.id) {
+                const baseInsumo = insumo.unit || 'un';
                 const qtyBaseInsumo = unidadesPorVolume > 0
-                  ? qty
+                  ? qtdUnidadesNaBaseDoInsumo(
+                      qty,
+                      insumo,
+                      item.purchaseUnit || 'un'
+                    )
                   : converterQuantidadeUnidade(
                       volumes,
-                      item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(insumo.unit || 'un'),
-                      insumo.unit || 'un'
+                      item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(baseInsumo),
+                      baseInsumo
                     );
+
+                if (!(qtyBaseInsumo > 0)) {
+                  window.alert(
+                    'O item “' + nome + '” está cadastrado em ' + baseInsumo
+                    + ', mas a nota veio em ' + (item.xmlUnit || item.packageType || item.purchaseUnit || 'un')
+                    + '. Defina a equivalência técnica no cadastro (ex.: 1 un = 500 g) e importe novamente. A unidade-base não será alterada.'
+                  );
+                  continue;
+                }
+
                 await onAddSupplyPurchase(insumo.id, {
                   supplier: fornecedor,
                   purchaseDate: data || dataSugerida,
@@ -14794,7 +14865,11 @@
                                     setDraft((d) => ({
                                       ...d,
                                       purchaseUnit,
-                                      unit: unidadeTecnicaDaCompra(purchaseUnit)
+                                      // Cadastro existente: a unidade-base é estrutural e não muda
+                                      // quando a pessoa só altera a forma de compra.
+                                      unit: cadastroExistente
+                                        ? (d.unit || supplyExistente?.unit || unidadeTecnicaDaCompra(purchaseUnit))
+                                        : unidadeTecnicaDaCompra(purchaseUnit)
                                     }));
                                     setEditarUnidadePadrao(false);
                                   }}
@@ -15295,12 +15370,15 @@
                               <td className="py-2.5 px-3">
                                 <div className="w-16">
                                   {ehSupply ? (
-                                    <PickerField
-                                      value={x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)}
-                                      options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
-                                      onPick={(opt) => alterarUnidadeCompraDaTabela(linha, opt.value)}
-                                      className="field h-8 pl-2.5 text-[12px]"
-                                    />
+                                    <div>
+                                      <PickerField
+                                        value={x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit)}
+                                        options={PURCHASE_UNITS.map((u) => ({value:u,label:u}))}
+                                        onPick={(opt) => alterarUnidadeCompraDaTabela(linha, opt.value)}
+                                        className="field h-8 pl-2.5 text-[12px]"
+                                      />
+                                      <span className="t-nano block mt-0.5 whitespace-nowrap">base {x.unit || 'un'} · travada</span>
+                                    </div>
                                   ) : linha.tipo === 'revenda' ? (
                                     <PickerField
                                       value={x.purchaseUnit || 'un'}
