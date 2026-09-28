@@ -20457,6 +20457,10 @@
             const melhorGeral = x.melhor
               ? formatCurrencyBR(x.melhor.preco) + '/' + (x.unidade || '') + ' · ' + x.melhor.fornecedor
               : '—';
+            const temReferencia = !!(x.atual?.precoComparavel > 0 && x.precoComparavel > 0);
+            const valeCotacao = temReferencia
+              ? x.precoComparavel <= x.atual.precoComparavel + 0.000001
+              : null;
             const base = x.quantidade > 0 && x.unidade
               ? numeroCurtoBR(x.quantidade) + ' ' + x.unidade
               : '—';
@@ -20471,7 +20475,13 @@
               + (x.atual ? '<small>' + escaparHtml(x.atual.fornecedor) + '</small>' : '') + '</td>'
               + '<td class="num ' + (x.diferencaPct < 0 ? 'economia' : x.diferencaPct > 0 ? 'alta' : '') + '"><b>' + escaparHtml(diferenca) + '</b></td>'
               + '<td><b>' + escaparHtml(menor) + '</b></td>'
-              + '<td>' + escaparHtml(melhorGeral) + '</td>'
+              + '<td class="decisao ' + (valeCotacao === true ? 'decisao-sim' : valeCotacao === false ? 'decisao-nao' : 'decisao-sem') + '">'
+              + (valeCotacao === true
+                ? '<b class="decisao-icone">✓</b><span>VALE A PENA</span>'
+                : valeCotacao === false
+                  ? '<b class="decisao-icone">✕</b><span>NÃO VALE</span>'
+                  : '<b class="decisao-icone">—</b><span>SEM REFERÊNCIA</span>')
+              + '<small>' + escaparHtml(melhorGeral) + '</small></td>'
               + '</tr>';
           }).join('');
 
@@ -20497,7 +20507,7 @@
             + 'header{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:10px}h1{font-size:18pt;line-height:1.1;margin:0}.sub{color:#666;margin-top:4px}'
             + '.placar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}.metrica{border:1px solid #ccc;border-radius:5px;padding:8px}.metrica span{display:block;color:#666;font-size:7pt;text-transform:uppercase}.metrica b{display:block;font-size:13pt;margin-top:2px}'
             + '.nota{color:#666;margin:0 0 8px}.tabela-wrap{border:1px solid #aaa;border-radius:4px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:6px 5px;border-right:1px solid #cfcfcb;border-bottom:1px solid #cfcfcb;vertical-align:top;overflow-wrap:anywhere}th:last-child,td:last-child{border-right:0}tbody tr:last-child td{border-bottom:0}'
-            + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.025em;background:#ececea;text-align:left}.num{text-align:right;font-variant-numeric:tabular-nums}.num small,td small{display:block;color:#666;font-size:6.8pt;margin-top:2px}.menor-cotacao{background:#E8F2EB;color:#1E6B44;font-weight:800}.selo-menor{color:#1E6B44!important;font-weight:800;letter-spacing:.04em}.economia{color:#1E6B44}.alta{color:#7D2027}'
+            + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.025em;background:#ececea;text-align:left}.num{text-align:right;font-variant-numeric:tabular-nums}.num small,td small{display:block;color:#666;font-size:6.8pt;margin-top:2px}.menor-cotacao{background:#E8F2EB;color:#1E6B44;font-weight:800}.selo-menor{color:#1E6B44!important;font-weight:800;letter-spacing:.04em}.economia{color:#1E6B44}.alta{color:#7D2027}.decisao{text-align:center;font-weight:800}.decisao-icone{display:block;font-size:17pt;line-height:1;margin-bottom:3px}.decisao span{display:block;font-size:6.5pt;letter-spacing:.035em}.decisao small{font-weight:500;line-height:1.25}.decisao-sim{background:#E8F2EB;color:#1E6B44}.decisao-nao{background:#F8E9E9;color:#8A2530}.decisao-sem{background:#f2f2f2;color:#777}'
             + 'footer{margin-top:14px;padding-top:7px;border-top:1px solid #bbb;color:#666;font-size:7.5pt}'
             + '</style></head><body>'
             + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG</button></div>'
@@ -20508,10 +20518,10 @@
             + '<div class="metrica"><span>Itens vinculados</span><b>' + vinculados + '</b></div>'
             + '<div class="metrica"><span>Menores cotações</span><b>' + menores + '</b></div>'
             + '</div>'
-            + '<p class="nota">A célula verde só aparece quando a proposta é a menor entre as cotações e também empata ou vence o melhor preço comparável do histórico. O preço atual vem do histórico de compras.</p>'
+            + '<p class="nota">Na última coluna, ✓ indica que a cotação está igual ou mais barata que seu preço atual comparável; ✕ indica que está mais cara. Sem preço atual comparável, aparece sem referência.</p>'
             + '<div class="tabela-wrap"><table><colgroup>'
-            + '<col style="width:19%"><col style="width:16%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:13%"><col style="width:12%">'
-            + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor cotação</th><th>Melhor geral</th></tr></thead><tbody>'
+            + '<col style="width:19%"><col style="width:16%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:12%"><col style="width:13%">'
+            + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor cotação</th><th style="text-align:center">Vale a pena?</th></tr></thead><tbody>'
             + linhas
             + '</tbody></table></div>'
             + '<footer>Relatório gerado a partir das cotações exibidas na tela. Ajustes de item, quantidade e base feitos no comparativo são refletidos aqui.</footer>'
