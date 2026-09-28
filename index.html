@@ -20116,6 +20116,9 @@
         const [fornecedorOrigemUniao, setFornecedorOrigemUniao] = useState('');
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
+        const ITEM_COTACAO_NAO_EXISTE = '__nao_existe__';
+        const [cotacaoNome, setCotacaoNome] = useState('');
+        const [cotacaoData, setCotacaoData] = useState(getTodayDateString());
         const [cotacaoFornecedor, setCotacaoFornecedor] = useState('');
         const [cotacaoTexto, setCotacaoTexto] = useState('');
         const [cotacoesComparacao, setCotacoesComparacao] = useState([]);
@@ -20425,7 +20428,7 @@
             cotacoesAnalisadas.map((x) => [
               x.descricao,
               x.fornecedor,
-              x.item?.nome || '',
+              x.item?.nome || (x.itemId === ITEM_COTACAO_NAO_EXISTE ? 'Não existe no cadastro' : ''),
               x.quantidade > 0 && x.unidade ? numeroCurtoBR(x.quantidade) + ' ' + x.unidade : '',
               csvNumero(x.total),
               x.precoComparavel > 0 ? csvNumero(x.precoComparavel) : '',
@@ -20467,7 +20470,7 @@
 
             return '<tr>'
               + '<td><b>' + escaparHtml(x.descricao) + '</b><small>' + escaparHtml(x.fornecedor) + '</small></td>'
-              + '<td>' + escaparHtml(x.item?.nome || 'Não vinculado') + '</td>'
+              + '<td>' + escaparHtml(x.item?.nome || (x.itemId === ITEM_COTACAO_NAO_EXISTE ? 'Não existe no cadastro' : 'Não vinculado')) + '</td>'
               + '<td class="num">' + escaparHtml(base) + '</td>'
               + '<td class="num cotacao-valor' + classeMenor + '"><b>' + escaparHtml(cotado) + '</b>'
               + (x.ehMenorCotacao ? '<small class="selo-menor">MENOR COTAÇÃO</small>' : '') + '</td>'
@@ -20489,10 +20492,12 @@
           const vinculados = cotacoesAnalisadas.filter((x) => x.item).length;
           const menores = cotacoesAnalisadas.filter((x) => x.ehMenorCotacao).length;
           const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+          const tituloCotacao = String(cotacaoNome || '').trim() || 'Comparativo de cotações';
+          const dataCotacaoTexto = cotacaoData ? formatDateBR(cotacaoData) : '';
 
           return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
             + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-            + '<title>Comparativo de cotações — ' + escaparHtml(unitName) + '</title>'
+            + '<title>' + escaparHtml(tituloCotacao) + (dataCotacaoTexto ? ' — ' + escaparHtml(dataCotacaoTexto) : '') + ' — ' + escaparHtml(unitName) + '</title>'
             + '<link rel="preconnect" href="https://fonts.googleapis.com">'
             + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             + '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
@@ -20511,7 +20516,7 @@
             + 'footer{margin-top:14px;padding-top:7px;border-top:1px solid #bbb;color:#666;font-size:7.5pt}'
             + '</style></head><body>'
             + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG</button></div>'
-            + '<header><h1>Comparativo de cotações</h1><div class="sub">' + escaparHtml(unitName) + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
+            + '<header><h1>' + escaparHtml(tituloCotacao) + '</h1><div class="sub">' + escaparHtml(unitName) + (dataCotacaoTexto ? ' · cotação de ' + escaparHtml(dataCotacaoTexto) : '') + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
             + '<div class="placar">'
             + '<div class="metrica"><span>Itens cotados</span><b>' + cotacoesAnalisadas.length + '</b></div>'
             + '<div class="metrica"><span>Fornecedores</span><b>' + fornecedores.length + '</b></div>'
@@ -22234,6 +22239,28 @@ ${BARRA_ACOES_HTML}
               </div>
 
               <div className="card p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3 mb-5 pb-5 border-b hairline">
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Nome da cotação</label>
+                    <input
+                      type="text"
+                      value={cotacaoNome}
+                      onChange={(e) => setCotacaoNome(e.target.value)}
+                      placeholder="Ex.: Cotação Embalagens Setembro"
+                      className="field field-md"
+                    />
+                    <p className="t-nano mt-1.5">Este nome vira o título do PDF e do JPEG.</p>
+                  </div>
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Data da cotação</label>
+                    <input
+                      type="date"
+                      value={cotacaoData}
+                      onChange={(e) => setCotacaoData(e.target.value)}
+                      className="field field-md"
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
                   <div>
                     <label className="t-overline-sm block mb-1.5">Fornecedor</label>
@@ -22330,7 +22357,10 @@ ${BARRA_ACOES_HTML}
                           <div className="min-w-0">
                             <PickerField
                               value={linha.itemId || ''}
-                              options={catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                              options={[
+                                { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
+                                ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
+                              ]}
                               onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
                               placeholder="Vincular item"
                               emptyLabel="Nenhum item"
@@ -22380,7 +22410,13 @@ ${BARRA_ACOES_HTML}
                                 <div className="t-nano truncate" title={linha.atual.fornecedor}>{linha.atual.fornecedor}</div>
                               </>
                             ) : (
-                              <div className="t-nano ink-quiet">{linha.item ? 'sem preço comparável' : 'vincule o item'}</div>
+                              <div className="t-nano ink-quiet">
+                                {linha.itemId === ITEM_COTACAO_NAO_EXISTE
+                                  ? 'não existe no cadastro'
+                                  : linha.item
+                                    ? 'sem preço comparável'
+                                    : 'vincule o item'}
+                              </div>
                             )}
                           </div>
 
@@ -22448,7 +22484,10 @@ ${BARRA_ACOES_HTML}
                           <div className="mt-3">
                             <PickerField
                               value={linha.itemId || ''}
-                              options={catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                              options={[
+                                { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
+                                ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
+                              ]}
                               onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
                               placeholder="Vincular ao item do sistema"
                               emptyLabel="Nenhum item"
