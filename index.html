@@ -16819,13 +16819,14 @@
         // Produção e revenda saem separadas porque são decisões diferentes:
         // uma mexe em receita e processo, a outra em fornecedor e margem.
         const precosParaRever = useMemo(() => {
-          const montar = (nome, unidadePreco, preco, custo, calculavel, cmv, natureza) => {
+          const montar = (nome, categoria, unidadePreco, preco, custo, calculavel, cmv, natureza) => {
             if (!calculavel) return null;
             const meta = CMV_METAS[natureza];
             if (cmv <= meta.bom) return null;
             const sugerido = precoSugerido(custo, natureza);
             return {
               nome,
+              categoria: categoria || 'outro',
               unidadePreco,
               preco,
               custo,
@@ -16841,17 +16842,30 @@
 
           return {
             producao: linhasProducao
-              .map((l) => montar(l.produto.name, l.produto.priceUnit || 'un',
+              .map((l) => montar(l.produto.name, l.produto.category, l.produto.priceUnit || 'un',
                 l.preco, l.custoUn, l.calculavel, l.cmv, 'fabricacao'))
               .filter(Boolean).sort(piorPrimeiro),
             revenda: linhasRevenda
-              .map((l) => montar(l.item.productName, l.item.priceUnit || 'un',
+              .map((l) => montar(l.item.productName, l.item.category, l.item.priceUnit || 'un',
                 l.preco, l.custo, l.calculavel, l.cmv, 'revenda'))
               .filter(Boolean).sort(piorPrimeiro)
           };
         }, [linhasProducao, linhasRevenda]);
 
-        const totalParaRever = precosParaRever.producao.length + precosParaRever.revenda.length;
+        const precosParaReverFiltrados = useMemo(() => {
+          const base = painel === 'revenda' ? precosParaRever.revenda : precosParaRever.producao;
+          const filtrados = base
+            .filter((x) => casaComBusca(x.nome, busca))
+            .filter((x) => categoriaFiltro === 'todos' || x.categoria === categoriaFiltro);
+
+          return [...filtrados].sort((a, b) => {
+            if (ordem === 'preco') return b.preco - a.preco;
+            if (ordem === 'nome') return a.nome.localeCompare(b.nome, 'pt-BR');
+            return b.cmv - a.cmv;
+          });
+        }, [precosParaRever, painel, busca, categoriaFiltro, ordem]);
+
+        const totalParaRever = precosParaReverFiltrados.length;
 
         const COLUNAS_PRECOS = ['Produto', 'Vendido por', 'Preço atual', 'Custo',
           'CMV %', 'Situação', 'Preço sugerido', 'Diferença R$', 'Diferença %'];
@@ -16869,11 +16883,13 @@
         ];
 
         const exportarPrecos = () => {
-          baixarCSVSecoes(nomeComData(`precos-a-rever-${currentUnit}`), [
-            { titulo: `PRODUÇÃO (${precosParaRever.producao.length})`, colunas: COLUNAS_PRECOS,
-              linhas: precosParaRever.producao.map(linhaPreco) },
-            { titulo: `REVENDA (${precosParaRever.revenda.length})`, colunas: COLUNAS_PRECOS,
-              linhas: precosParaRever.revenda.map(linhaPreco) }
+          const tituloSecao = painel === 'revenda' ? 'REVENDA' : 'PRODUÇÃO';
+          baixarCSVSecoes(nomeComData(`precos-a-rever-${currentUnit}-${painel}`), [
+            {
+              titulo: `${tituloSecao} — filtros da tela (${precosParaReverFiltrados.length})`,
+              colunas: COLUNAS_PRECOS,
+              linhas: precosParaReverFiltrados.map(linhaPreco)
+            }
           ]);
         };
 
@@ -16959,11 +16975,14 @@
               <h1>Preços a rever</h1>
               <div class="sub">${escaparHtml(unitName)} · ${formatDateBR(getTodayDateString())} · ${totalParaRever} ${totalParaRever === 1 ? 'item' : 'itens'} fora da meta</div>
             </header>
-            ${secao(`Produção (${precosParaRever.producao.length})`, precosParaRever.producao)}
-            ${secao(`Revenda (${precosParaRever.revenda.length})`, precosParaRever.revenda)}
+            ${secao(
+              `${painel === 'revenda' ? 'Revenda' : 'Produção'} — filtros da tela (${precosParaReverFiltrados.length})`,
+              precosParaReverFiltrados
+            )}
             <footer>
-              Meta de produção: bom até ${CMV_METAS.fabricacao.bom}%, atenção até ${CMV_METAS.fabricacao.atencao}%.
-              Meta de revenda: bom até ${CMV_METAS.revenda.bom}%, atenção até ${CMV_METAS.revenda.atencao}%.
+              ${painel === 'revenda'
+                ? `Meta de revenda: bom até ${CMV_METAS.revenda.bom}%, atenção até ${CMV_METAS.revenda.atencao}%.`
+                : `Meta de produção: bom até ${CMV_METAS.fabricacao.bom}%, atenção até ${CMV_METAS.fabricacao.atencao}%.`}
               O preço sugerido é o que levaria o item de volta à meta.
               <span class="dica">Para guardar em PDF em vez de imprimir: na janela que abriu, em Destino, escolha "Salvar como PDF".</span>
             </footer>
