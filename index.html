@@ -1573,6 +1573,38 @@
          lote embaixo da data, continua na linha de baixo. */
       .tabela-larga th, .tabela-larga td { white-space: nowrap; }
 
+      /* Planilha de cotações: grade real, como uma planilha, sem precisar
+         depender de espaço em branco para separar as colunas. */
+      .cotacao-planilha-grid {
+        display: grid;
+        align-items: stretch;
+      }
+      .cotacao-planilha-grid > div {
+        min-width: 0;
+        padding: 10px 8px;
+        border-right: 1px solid var(--hairline);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .cotacao-planilha-grid > div:last-child { border-right: 0; }
+      .cotacao-planilha-cabecalho {
+        background: rgba(0,0,0,0.035);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .cotacao-planilha-linha {
+        border-bottom: 1px solid var(--hairline);
+      }
+      .cotacao-planilha-linha:last-child { border-bottom: 0; }
+      .cotacao-menor {
+        background: var(--fresh-soft);
+        color: var(--fresh-ink);
+      }
+      .cotacao-menor .valor-cotacao {
+        font-weight: 800 !important;
+        color: var(--fresh-ink);
+      }
+
       /* A coluna que AGE fica presa na direita, como o nome do item já fica
          preso na esquerda. Numa tabela de onze colunas dentro de um telefone
          de 390 px, o botão da ficha técnica nascia setecentos pixels fora da
@@ -19873,91 +19905,130 @@
         const removerLinhaCotacao = (id) =>
           setCotacoesComparacao((atual) => atual.filter((x) => x.id !== id));
 
-        const cotacoesAnalisadas = useMemo(() => cotacoesComparacao.map((linha) => {
-          const item = catalogoCotacao.find((x) => x.id === linha.itemId) || null;
-          const ultimos = {};
-          if (item) {
-            todas
-              .filter((compra) => compra.itemId === item.id && compra.custoUnit > 0 && compra.fornecedor !== 'Sem fornecedor')
-              .forEach((compra) => {
-                const chave = normalizeName(compra.fornecedor);
-                const existente = ultimos[chave];
-                const assinatura = (compra.data || '') + '|' + (compra.criadoEm || '');
-                const anterior = existente ? (existente.data || '') + '|' + (existente.criadoEm || '') : '';
-                if (!existente || assinatura >= anterior) ultimos[chave] = compra;
-              });
-          }
+        const cotacoesAnalisadas = useMemo(() => {
+          const menorCotacaoPorChave = {};
+          cotacoesComparacao.forEach((linha) => {
+            if (!linha.itemId || !linha.unidade || !(linha.precoComparavel > 0)) return;
+            const chave = linha.itemId + '|' + linha.unidade;
+            const atual = menorCotacaoPorChave[chave];
+            if (!atual || linha.precoComparavel < atual.preco) {
+              menorCotacaoPorChave[chave] = {
+                preco: linha.precoComparavel,
+                fornecedor: linha.fornecedor,
+                id: linha.id
+              };
+            }
+          });
 
-          const historicos = Object.values(ultimos)
-            .map((compra) => {
-              const normal = precoNaUnidadeGrande(compra.custoUnit, compra.unidade);
-              const fatorVolume = Number(compra.unidadesPorVolume) > 0
-                ? Number(compra.unidadesPorVolume)
-                : Number(compra.volumeCadastroUnidades) || 0;
-              const tipoVolume = compra.volumeTipo || compra.volumeCadastroTipo || '';
-              const precoVolume = fatorVolume > 0 && compra.unidade === 'un'
-                ? compra.custoUnit * fatorVolume
-                : 0;
+          return cotacoesComparacao.map((linha) => {
+            const item = catalogoCotacao.find((x) => x.id === linha.itemId) || null;
+            const ultimos = {};
+            if (item) {
+              todas
+                .filter((compra) => compra.itemId === item.id && compra.custoUnit > 0 && compra.fornecedor !== 'Sem fornecedor')
+                .forEach((compra) => {
+                  const chave = normalizeName(compra.fornecedor);
+                  const existente = ultimos[chave];
+                  const assinatura = (compra.data || '') + '|' + (compra.criadoEm || '');
+                  const anterior = existente ? (existente.data || '') + '|' + (existente.criadoEm || '') : '';
+                  if (!existente || assinatura >= anterior) ultimos[chave] = compra;
+                });
+            }
 
-              // Primeiro tentamos a mesma base da cotação. Se a cotação foi
-              // informada em unidades e a embalagem tem fardo cadastrado,
-              // continua comparando por unidade, que é matematicamente igual
-              // e evita falso "sem comparação".
-              let precoComparavel = 0;
-              let unidadeComparacao = '';
-              let detalheBase = '';
-              if (linha.unidade && normal.label === linha.unidade) {
-                precoComparavel = normal.valor;
-                unidadeComparacao = normal.label;
-                detalheBase = formatPrecoCompraComercial(compra);
-              } else if (linha.unidade === 'volume' && precoVolume > 0) {
-                precoComparavel = precoVolume;
-                unidadeComparacao = 'volume';
-                detalheBase = (tipoVolume || 'volume') + ' · ' + numeroCurtoBR(fatorVolume) + ' un';
-              }
+            const historicos = Object.values(ultimos)
+              .map((compra) => {
+                const normal = precoNaUnidadeGrande(compra.custoUnit, compra.unidade);
+                const fatorVolume = Number(compra.unidadesPorVolume) > 0
+                  ? Number(compra.unidadesPorVolume)
+                  : Number(compra.volumeCadastroUnidades) || 0;
+                const tipoVolume = compra.volumeTipo || compra.volumeCadastroTipo || '';
+                const precoVolume = fatorVolume > 0 && compra.unidade === 'un'
+                  ? compra.custoUnit * fatorVolume
+                  : 0;
 
-              return { ...compra, precoComparavel, unidadeComparacao, detalheBase, fatorVolume, tipoVolume };
-            })
-            .filter((compra) => compra.precoComparavel > 0 && compra.unidadeComparacao === linha.unidade);
+                let precoComparavel = 0;
+                let unidadeComparacao = '';
+                let detalheBase = '';
 
-          const atual = [...historicos].sort((a, b) =>
-            ((b.data || '') + '|' + (b.criadoEm || '')).localeCompare((a.data || '') + '|' + (a.criadoEm || ''))
-          )[0] || null;
+                if (linha.unidade && normal.label === linha.unidade) {
+                  precoComparavel = normal.valor;
+                  unidadeComparacao = normal.label;
+                  detalheBase = formatPrecoCompraComercial(compra);
+                } else if (linha.unidade === 'volume' && precoVolume > 0) {
+                  precoComparavel = precoVolume;
+                  unidadeComparacao = 'volume';
+                  detalheBase = (tipoVolume || 'volume') + ' · ' + numeroCurtoBR(fatorVolume) + ' un';
+                }
 
-          const candidatos = [
-            ...historicos.map((compra) => ({
-              fornecedor: compra.fornecedor,
-              preco: compra.precoComparavel,
-              origem: 'historico',
-              data: compra.data
-            })),
-            ...(linha.precoComparavel > 0
-              ? [{ fornecedor: linha.fornecedor, preco: linha.precoComparavel, origem: 'cotacao', data: '' }]
-              : [])
-          ].sort((a, b) => a.preco - b.preco);
+                return { ...compra, precoComparavel, unidadeComparacao, detalheBase, fatorVolume, tipoVolume };
+              })
+              .filter((compra) => compra.precoComparavel > 0 && compra.unidadeComparacao === linha.unidade);
 
-          const diferencaAtual = atual && linha.precoComparavel > 0
-            ? linha.precoComparavel - atual.precoComparavel
-            : null;
-          const diferencaPct = atual && atual.precoComparavel > 0 && diferencaAtual !== null
-            ? (diferencaAtual / atual.precoComparavel) * 100
-            : null;
+            const atual = [...historicos].sort((a, b) =>
+              ((b.data || '') + '|' + (b.criadoEm || '')).localeCompare((a.data || '') + '|' + (a.criadoEm || ''))
+            )[0] || null;
 
-          const economiaNaCotacao = diferencaAtual !== null && diferencaAtual < 0
-            ? Math.abs(diferencaAtual)
-            : 0;
+            // Inclui todas as propostas do mesmo item/base no ranking, e não
+            // apenas a linha atual. Assim o destaque realmente mostra a
+            // cotação mais em conta entre fornecedores.
+            const cotacoesMesmoItem = cotacoesComparacao
+              .filter((outra) =>
+                outra.itemId
+                && outra.itemId === linha.itemId
+                && outra.unidade === linha.unidade
+                && outra.precoComparavel > 0
+              )
+              .map((outra) => ({
+                fornecedor: outra.fornecedor,
+                preco: outra.precoComparavel,
+                origem: 'cotacao',
+                cotacaoId: outra.id,
+                data: ''
+              }));
 
-          return {
-            ...linha,
-            item,
-            historicos,
-            atual,
-            melhor: candidatos[0] || null,
-            diferencaAtual,
-            diferencaPct,
-            economiaNaCotacao
-          };
-        }), [cotacoesComparacao, catalogoCotacao, todas]);
+            const candidatos = [
+              ...historicos.map((compra) => ({
+                fornecedor: compra.fornecedor,
+                preco: compra.precoComparavel,
+                origem: 'historico',
+                data: compra.data
+              })),
+              ...cotacoesMesmoItem
+            ].sort((a, b) => a.preco - b.preco);
+
+            const diferencaAtual = atual && linha.precoComparavel > 0
+              ? linha.precoComparavel - atual.precoComparavel
+              : null;
+            const diferencaPct = atual && atual.precoComparavel > 0 && diferencaAtual !== null
+              ? (diferencaAtual / atual.precoComparavel) * 100
+              : null;
+
+            const chaveCotacao = linha.itemId && linha.unidade
+              ? linha.itemId + '|' + linha.unidade
+              : '';
+            const menorCotacao = chaveCotacao ? menorCotacaoPorChave[chaveCotacao] : null;
+            const ehMenorCotacao = !!(
+              menorCotacao
+              && linha.precoComparavel > 0
+              && Math.abs(linha.precoComparavel - menorCotacao.preco) < 0.000001
+            );
+
+            return {
+              ...linha,
+              item,
+              historicos,
+              atual,
+              melhor: candidatos[0] || null,
+              menorCotacao,
+              ehMenorCotacao,
+              diferencaAtual,
+              diferencaPct,
+              economiaNaCotacao: diferencaAtual !== null && diferencaAtual < 0
+                ? Math.abs(diferencaAtual)
+                : 0
+            };
+          });
+        }, [cotacoesComparacao, catalogoCotacao, todas]);
 
         const exportarCotacaoComparada = () => {
           if (!cotacoesAnalisadas.length) return;
@@ -19978,6 +20049,129 @@
               x.melhor?.fornecedor || ''
             ])
           );
+        };
+
+
+        const htmlRelatorioCotacoes = () => {
+          const linhas = cotacoesAnalisadas.map((x) => {
+            const classeMenor = x.ehMenorCotacao ? ' menor-cotacao' : '';
+            const cotado = x.precoComparavel > 0
+              ? formatCurrencyBR(x.precoComparavel) + '/' + (x.unidade || '')
+              : '—';
+            const atual = x.atual?.precoComparavel > 0
+              ? formatCurrencyBR(x.atual.precoComparavel) + '/' + (x.unidade || '')
+              : '—';
+            const diferenca = x.diferencaPct !== null
+              ? (x.diferencaPct > 0 ? '+' : '') + x.diferencaPct.toFixed(1).replace('.', ',') + '%'
+              : '—';
+            const menor = x.menorCotacao
+              ? formatCurrencyBR(x.menorCotacao.preco) + '/' + (x.unidade || '') + ' · ' + x.menorCotacao.fornecedor
+              : '—';
+            const melhorGeral = x.melhor
+              ? formatCurrencyBR(x.melhor.preco) + '/' + (x.unidade || '') + ' · ' + x.melhor.fornecedor
+              : '—';
+            const base = x.quantidade > 0 && x.unidade
+              ? numeroCurtoBR(x.quantidade) + ' ' + x.unidade
+              : '—';
+
+            return '<tr>'
+              + '<td><b>' + escaparHtml(x.descricao) + '</b><small>' + escaparHtml(x.fornecedor) + '</small></td>'
+              + '<td>' + escaparHtml(x.item?.nome || 'Não vinculado') + '</td>'
+              + '<td class="num">' + escaparHtml(base) + '</td>'
+              + '<td class="num' + classeMenor + '"><b>' + escaparHtml(cotado) + '</b>'
+              + (x.ehMenorCotacao ? '<small class="selo-menor">MENOR COTAÇÃO</small>' : '') + '</td>'
+              + '<td class="num"><b>' + escaparHtml(atual) + '</b>'
+              + (x.atual ? '<small>' + escaparHtml(x.atual.fornecedor) + '</small>' : '') + '</td>'
+              + '<td class="num ' + (x.diferencaPct < 0 ? 'economia' : x.diferencaPct > 0 ? 'alta' : '') + '"><b>' + escaparHtml(diferenca) + '</b></td>'
+              + '<td><b>' + escaparHtml(menor) + '</b></td>'
+              + '<td>' + escaparHtml(melhorGeral) + '</td>'
+              + '</tr>';
+          }).join('');
+
+          const fornecedores = [...new Set(cotacoesAnalisadas.map((x) => x.fornecedor).filter(Boolean))];
+          const vinculados = cotacoesAnalisadas.filter((x) => x.item).length;
+          const menores = cotacoesAnalisadas.filter((x) => x.ehMenorCotacao).length;
+          const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+          return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+            + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            + '<title>Comparativo de cotações — ' + escaparHtml(unitName) + '</title>'
+            + '<link rel="preconnect" href="https://fonts.googleapis.com">'
+            + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            + '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+            + '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\\/script>'
+            + '<style>'
+            + '@page{size:A4 portrait;margin:10mm 9mm;}*{box-sizing:border-box;}'
+            + 'body{font-family:Manrope,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#171717;margin:0 auto;padding:0 3vw 40px;max-width:900px;font-size:8.5pt;background:#fff;}'
+            + '@media print{body{padding:0;max-width:none}.acoes{display:none!important;}}'
+            + '.acoes{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;padding:10px 0 12px;margin-bottom:8px;background:#fff;border-bottom:1px solid #ddd;}'
+            + '.acoes button{font:inherit;font-size:10pt;font-weight:700;border-radius:8px;padding:10px 16px;min-height:42px;cursor:pointer;}'
+            + '.pdf{color:#fff;background:#0E0937;border:1px solid #0E0937}.jpeg{color:#0E0937;background:#fff;border:1px solid #0E0937}'
+            + 'header{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:10px}h1{font-size:18pt;line-height:1.1;margin:0}.sub{color:#666;margin-top:4px}'
+            + '.placar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}.metrica{border:1px solid #ccc;border-radius:5px;padding:8px}.metrica span{display:block;color:#666;font-size:7pt;text-transform:uppercase}.metrica b{display:block;font-size:13pt;margin-top:2px}'
+            + '.nota{color:#666;margin:0 0 8px}.tabela-wrap{border:1px solid #aaa;border-radius:4px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:6px 5px;border-right:1px solid #cfcfcb;border-bottom:1px solid #cfcfcb;vertical-align:top;overflow-wrap:anywhere}th:last-child,td:last-child{border-right:0}tbody tr:last-child td{border-bottom:0}'
+            + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.025em;background:#ececea;text-align:left}.num{text-align:right;font-variant-numeric:tabular-nums}.num small,td small{display:block;color:#666;font-size:6.8pt;margin-top:2px}.menor-cotacao{background:#E8F2EB;color:#1E6B44;font-weight:800}.selo-menor{color:#1E6B44!important;font-weight:800;letter-spacing:.04em}.economia{color:#1E6B44}.alta{color:#7D2027}'
+            + 'footer{margin-top:14px;padding-top:7px;border-top:1px solid #bbb;color:#666;font-size:7.5pt}'
+            + '</style></head><body>'
+            + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG</button></div>'
+            + '<header><h1>Comparativo de cotações</h1><div class="sub">' + escaparHtml(unitName) + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
+            + '<div class="placar">'
+            + '<div class="metrica"><span>Itens cotados</span><b>' + cotacoesAnalisadas.length + '</b></div>'
+            + '<div class="metrica"><span>Fornecedores</span><b>' + fornecedores.length + '</b></div>'
+            + '<div class="metrica"><span>Itens vinculados</span><b>' + vinculados + '</b></div>'
+            + '<div class="metrica"><span>Menores cotações</span><b>' + menores + '</b></div>'
+            + '</div>'
+            + '<p class="nota">A célula verde marca o menor preço entre as cotações vinculadas ao mesmo item e à mesma base de comparação. O preço atual vem do histórico de compras.</p>'
+            + '<div class="tabela-wrap"><table><colgroup>'
+            + '<col style="width:19%"><col style="width:16%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:13%"><col style="width:12%">'
+            + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor cotação</th><th>Melhor geral</th></tr></thead><tbody>'
+            + linhas
+            + '</tbody></table></div>'
+            + '<footer>Relatório gerado a partir das cotações exibidas na tela. Ajustes de item, quantidade e base feitos no comparativo são refletidos aqui.</footer>'
+            + '<script>'
+            + 'async function baixarJPEG(botao){'
+            + 'if(!window.html2canvas){alert("A ferramenta de imagem ainda está carregando. Tente novamente em um instante.");return;}'
+            + 'var barra=document.querySelector(".acoes");var antigo=barra.style.display;var txt=botao.textContent;'
+            + 'try{botao.disabled=true;botao.textContent="Gerando JPEG…";if(document.fonts&&document.fonts.ready)await document.fonts.ready;barra.style.display="none";'
+            + 'await new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})});'
+            + 'var largura=Math.max(document.documentElement.scrollWidth,document.body.scrollWidth);var altura=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight);'
+            + 'var canvas=await html2canvas(document.body,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false,width:largura,height:altura,windowWidth:largura,windowHeight:altura});'
+            + 'var alturaPagina=Math.floor(canvas.width*(297/210));var total=Math.max(1,Math.ceil(canvas.height/alturaPagina));'
+            + 'for(var p=0;p<total;p++){var y=p*alturaPagina;var h=Math.min(alturaPagina,canvas.height-y);var parte=document.createElement("canvas");parte.width=canvas.width;parte.height=h;var ctx=parte.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,parte.width,parte.height);ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);'
+            + 'await new Promise(function(resolve,reject){parte.toBlob(function(blob){if(!blob){reject(new Error("Falha ao gerar JPEG"));return;}var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download="comparativo-cotacoes-' + getTodayDateString() + '"+(total>1?"-"+(p+1):"")+".jpg";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);resolve()},180)},"image/jpeg",0.94)});}'
+            + '}catch(e){console.error(e);alert("Não consegui gerar o JPEG deste relatório.");}finally{barra.style.display=antigo;botao.disabled=false;botao.textContent=txt;}}'
+            + '<\\/script>'
+            + '</body></html>';
+        };
+
+        const abrirRelatorioCotacoes = (acao = 'visualizar') => {
+          if (!cotacoesAnalisadas.length) return;
+          const janela = window.open('', '_blank');
+          if (!janela) {
+            window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
+            return;
+          }
+          janela.document.write(htmlRelatorioCotacoes());
+          janela.document.close();
+
+          const disparar = () => {
+            if (acao === 'pdf') {
+              try { janela.focus(); janela.print(); } catch (e) {}
+            } else if (acao === 'jpeg') {
+              let tentativas = 0;
+              const timer = setInterval(() => {
+                tentativas += 1;
+                if (typeof janela.baixarJPEG === 'function' && janela.html2canvas) {
+                  clearInterval(timer);
+                  janela.baixarJPEG(null);
+                } else if (tentativas > 30) {
+                  clearInterval(timer);
+                }
+              }, 180);
+            }
+          };
+          if (janela.document.readyState === 'complete') setTimeout(disparar, 350);
+          else janela.onload = () => setTimeout(disparar, 350);
         };
 
         // Tipo + período alimentam também o placar; a busca só estreita a lista.
@@ -21672,6 +21866,8 @@ ${BARRA_ACOES_HTML}
                       {cotacoesComparacao.length > 0 && (
                         <>
                           <button type="button" onClick={exportarCotacaoComparada} className="btn btn-secondary btn-md">Baixar planilha</button>
+                          <button type="button" onClick={() => abrirRelatorioCotacoes('pdf')} className="btn btn-secondary btn-md">Relatório PDF</button>
+                          <button type="button" onClick={() => abrirRelatorioCotacoes('jpeg')} className="btn btn-secondary btn-md">Relatório JPEG</button>
                           <button type="button" onClick={() => setCotacoesComparacao([])} className="btn btn-secondary btn-md">Limpar</button>
                         </>
                       )}
@@ -21698,8 +21894,8 @@ ${BARRA_ACOES_HTML}
                   {/* Desktop: planilha inteira cabe na largura da página, sem rolagem lateral. */}
                   <div className="hidden lg:block card overflow-visible">
                     <div
-                      className="grid items-center px-3 py-2.5 border-b hairline bg-black/[0.025] t-overline-sm"
-                      style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px', columnGap: '8px' }}
+                      className="cotacao-planilha-grid cotacao-planilha-cabecalho t-overline-sm"
+                      style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px' }}
                     >
                       <div>Item cotado</div>
                       <div>Item no sistema</div>
@@ -21725,8 +21921,8 @@ ${BARRA_ACOES_HTML}
                       return (
                         <div
                           key={linha.id}
-                          className="grid items-center px-3 py-3 border-b last:border-b-0 hairline"
-                          style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px', columnGap: '8px' }}
+                          className="cotacao-planilha-grid cotacao-planilha-linha"
+                          style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px' }}
                         >
                           <div className="min-w-0">
                             <div className="t-callout font-semibold leading-snug">{linha.descricao}</div>
@@ -21771,11 +21967,12 @@ ${BARRA_ACOES_HTML}
                             />
                           </div>
 
-                          <div className="text-right min-w-0">
-                            <div className="t-callout font-bold tnum">
+                          <div className={`text-right min-w-0 ${linha.ehMenorCotacao ? 'cotacao-menor' : ''}`}>
+                            <div className="t-callout font-bold tnum valor-cotacao">
                               {linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}
                             </div>
                             <div className="t-nano">{linha.unidade ? '/' + linha.unidade : 'sem base'}</div>
+                            {linha.ehMenorCotacao && <div className="t-nano font-bold mt-0.5">menor cotação</div>}
                           </div>
 
                           <div className="text-right min-w-0">
@@ -21885,9 +22082,10 @@ ${BARRA_ACOES_HTML}
                           </div>
 
                           <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-                            <div className="rounded-xl bg-black/[0.035] p-2.5">
+                            <div className={`rounded-xl p-2.5 ${linha.ehMenorCotacao ? 'bg-[var(--fresh-soft)] ink-fresh' : 'bg-black/[0.035]'}`}>
                               <div className="t-overline-sm">Cotado</div>
-                              <div className="t-callout font-bold tnum mt-1">{linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}</div>
+                              <div className="t-callout font-extrabold tnum mt-1">{linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}</div>
+                              {linha.ehMenorCotacao && <div className="t-nano font-bold mt-1">menor cotação</div>}
                             </div>
                             <div className="rounded-xl bg-black/[0.035] p-2.5">
                               <div className="t-overline-sm">Atual</div>
