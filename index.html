@@ -20454,8 +20454,8 @@
             const diferenca = x.diferencaPct !== null
               ? (x.diferencaPct > 0 ? '+' : '') + x.diferencaPct.toFixed(1).replace('.', ',') + '%'
               : '—';
-            const menor = x.menorCotacao
-              ? formatCurrencyBR(x.menorCotacao.preco) + '/' + (x.unidade || '') + ' · ' + x.menorCotacao.fornecedor
+            const menor = x.melhor
+              ? formatCurrencyBR(x.melhor.preco) + '/' + (x.unidade || '') + ' · ' + x.melhor.fornecedor
               : '—';
             const melhorGeral = x.melhor
               ? formatCurrencyBR(x.melhor.preco) + '/' + (x.unidade || '') + ' · ' + x.melhor.fornecedor
@@ -20526,7 +20526,7 @@
             + '<p class="nota">Na última coluna, ✓ indica que a cotação está igual ou mais barata que seu preço atual comparável; ✕ indica que está mais cara. Sem preço atual comparável, aparece sem referência.</p>'
             + '<div class="tabela-wrap"><table><colgroup>'
             + '<col style="width:17%"><col style="width:15%"><col style="width:7%"><col style="width:15%"><col style="width:12%"><col style="width:8%"><col style="width:12%"><col style="width:14%">'
-            + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor cotação</th><th style="text-align:center">Vale a pena?</th></tr></thead><tbody>'
+            + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor preço</th><th style="text-align:center">Vale a pena?</th></tr></thead><tbody>'
             + linhas
             + '</tbody></table></div>'
             + '<footer>Relatório gerado a partir das cotações exibidas na tela. Ajustes de item, quantidade e base feitos no comparativo são refletidos aqui.</footer>'
