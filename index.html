@@ -20067,6 +20067,9 @@
         supplyPurchases,
         separatedProducts,
         resalePurchases,
+        products,
+        recipes,
+        recipeItems,
         currentUnit,
         unitName,
         onUnifySupplier,
@@ -20101,6 +20104,7 @@
         const [cotacaoFornecedor, setCotacaoFornecedor] = useState('');
         const [cotacaoTexto, setCotacaoTexto] = useState('');
         const [cotacoesComparacao, setCotacoesComparacao] = useState([]);
+        const [cotacaoCategoria, setCotacaoCategoria] = useState('todos');
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const identificarCadastroDoItem = (itemId) => {
@@ -20126,6 +20130,36 @@
             .filter((nome) => nome && nome !== 'Sem fornecedor')
         )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [todas]);
 
+        const categoriasCotacaoDoItem = (itemId) => {
+          const chave = String(itemId || '');
+
+          if (chave.startsWith('s')) {
+            const supplyId = chave.slice(1);
+            const productIds = new Set();
+            recipeItems
+              .filter((ri) => String(ri.supplyId || '') === supplyId)
+              .forEach((ri) => {
+                const receita = recipes.find((r) => String(r.id) === String(ri.recipeId));
+                if (receita?.productId) productIds.add(String(receita.productId));
+              });
+
+            return [...new Set(
+              products
+                .filter((p) => productIds.has(String(p.id)))
+                .map((p) => p.category)
+                .filter(Boolean)
+            )];
+          }
+
+          if (chave.startsWith('r')) {
+            const resaleId = chave.slice(1);
+            const produto = separatedProducts.find((p) => String(p.id) === resaleId);
+            return produto?.category ? [produto.category] : [];
+          }
+
+          return [];
+        };
+
         const catalogoCotacao = useMemo(() => {
           const mapa = {};
           todas.forEach((compra) => {
@@ -20134,12 +20168,13 @@
                 id: compra.itemId,
                 nome: compra.item,
                 tipo: compra.tipo,
-                unidade: compra.unidade
+                unidade: compra.unidade,
+                categorias: categoriasCotacaoDoItem(compra.itemId)
               };
             }
           });
           return Object.values(mapa).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-        }, [todas]);
+        }, [todas, products, recipes, recipeItems, separatedProducts]);
 
         const numeroCotacao = (texto) => {
           const limpo = String(texto || '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
@@ -20393,12 +20428,21 @@
           });
         }, [cotacoesComparacao, catalogoCotacao, todas]);
 
+        const cotacoesFiltradas = useMemo(() => {
+          if (cotacaoCategoria === 'todos') return cotacoesAnalisadas;
+          return cotacoesAnalisadas.filter((linha) => {
+            const categorias = linha.item?.categorias || [];
+            if (cotacaoCategoria === 'sem_categoria') return categorias.length === 0;
+            return categorias.includes(cotacaoCategoria);
+          });
+        }, [cotacoesAnalisadas, cotacaoCategoria]);
+
         const exportarCotacaoComparada = () => {
-          if (!cotacoesAnalisadas.length) return;
+          if (!cotacoesFiltradas.length) return;
           baixarCSV(
             nomeComData('comparativo-cotacoes'),
             ['Item cotado','Fornecedor cotação','Vinculado a','Base','Total cotado','Preço cotado','Fornecedor atual','Preço atual','Diferença R$','Diferença %','Mais barato'],
-            cotacoesAnalisadas.map((x) => [
+            cotacoesFiltradas.map((x) => [
               x.descricao,
               x.fornecedor,
               x.item?.nome || '',
@@ -20416,7 +20460,7 @@
 
 
         const htmlRelatorioCotacoes = () => {
-          const linhas = cotacoesAnalisadas.map((x) => {
+          const linhas = cotacoesFiltradas.map((x) => {
             const classeMenor = x.ehMenorCotacao ? ' menor-cotacao' : '';
             const cotado = x.precoComparavel > 0
               ? formatCurrencyBR(x.precoComparavel) + '/' + (x.unidade || '')
@@ -20451,9 +20495,9 @@
               + '</tr>';
           }).join('');
 
-          const fornecedores = [...new Set(cotacoesAnalisadas.map((x) => x.fornecedor).filter(Boolean))];
-          const vinculados = cotacoesAnalisadas.filter((x) => x.item).length;
-          const menores = cotacoesAnalisadas.filter((x) => x.ehMenorCotacao).length;
+          const fornecedores = [...new Set(cotacoesFiltradas.map((x) => x.fornecedor).filter(Boolean))];
+          const vinculados = cotacoesFiltradas.filter((x) => x.item).length;
+          const menores = cotacoesFiltradas.filter((x) => x.ehMenorCotacao).length;
           const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
           return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
@@ -20479,7 +20523,7 @@
             + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG</button></div>'
             + '<header><h1>Comparativo de cotações</h1><div class="sub">' + escaparHtml(unitName) + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
             + '<div class="placar">'
-            + '<div class="metrica"><span>Itens cotados</span><b>' + cotacoesAnalisadas.length + '</b></div>'
+            + '<div class="metrica"><span>Itens cotados</span><b>' + cotacoesFiltradas.length + '</b></div>'
             + '<div class="metrica"><span>Fornecedores</span><b>' + fornecedores.length + '</b></div>'
             + '<div class="metrica"><span>Itens vinculados</span><b>' + vinculados + '</b></div>'
             + '<div class="metrica"><span>Menores cotações</span><b>' + menores + '</b></div>'
@@ -20508,7 +20552,7 @@
         };
 
         const abrirRelatorioCotacoes = (acao = 'visualizar') => {
-          if (!cotacoesAnalisadas.length) return;
+          if (!cotacoesFiltradas.length) return;
           const janela = window.open('', '_blank');
           if (!janela) {
             window.alert('O navegador bloqueou a janela do relatório. Libere as janelas para este site e tente de novo.');
@@ -22245,14 +22289,34 @@ ${BARRA_ACOES_HTML}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 px-1">
                     <div>
                       <div className="t-overline">Comparativo em planilha</div>
                       <p className="t-micro mt-1">
                         Ajuste a quantidade e a base direto na linha até a cotação ficar comparável com o seu cadastro.
                       </p>
                     </div>
+                    <div className="w-full sm:w-56">
+                      <label className="t-overline-sm block mb-1.5">Categoria</label>
+                      <PickerField
+                        value={cotacaoCategoria}
+                        options={[
+                          { value: 'todos', label: 'Todas as categorias' },
+                          ...PRODUCT_CATEGORIES.map((x) => ({ value: x.value, label: x.label })),
+                          { value: 'sem_categoria', label: 'Sem categoria / uso' }
+                        ]}
+                        onPick={(opt) => setCotacaoCategoria(opt.value)}
+                        className="field field-sm"
+                        panelMinWidth={230}
+                      />
+                    </div>
                   </div>
+
+                  {cotacoesFiltradas.length === 0 && (
+                    <div className="card p-5">
+                      <p className="t-body ink-quiet">Nenhum item desta cotação está ligado à categoria selecionada.</p>
+                    </div>
+                  )}
 
                   {/* Desktop: planilha inteira cabe na largura da página, sem rolagem lateral. */}
                   <div className="hidden lg:block card overflow-visible">
@@ -22271,7 +22335,7 @@ ${BARRA_ACOES_HTML}
                       <div></div>
                     </div>
 
-                    {cotacoesAnalisadas.map((linha) => {
+                    {cotacoesFiltradas.map((linha) => {
                       const status = linha.diferencaPct === null
                         ? 'sem-comparacao'
                         : linha.diferencaPct < -0.05
@@ -22390,7 +22454,7 @@ ${BARRA_ACOES_HTML}
 
                   {/* Celular/tablet: a mesma planilha vira linhas empilhadas, sem scroll horizontal. */}
                   <div className="lg:hidden space-y-3">
-                    {cotacoesAnalisadas.map((linha) => {
+                    {cotacoesFiltradas.map((linha) => {
                       const status = linha.diferencaPct === null
                         ? 'sem-comparacao'
                         : linha.diferencaPct < -0.05
@@ -26746,6 +26810,9 @@ ${BARRA_ACOES_HTML}
                     supplyPurchases={supplyPurchases}
                     separatedProducts={separatedProducts}
                     resalePurchases={resalePurchases}
+                    products={products}
+                    recipes={recipes}
+                    recipeItems={recipeItems}
                     currentUnit={currentUnit}
                     unitName={getUnitName(units, currentUnit)}
                     onUnifySupplier={handleUnifySupplier}
