@@ -2016,6 +2016,234 @@
         font-size: 11px;
       }
 
+      /* ==========================================
+         MOBILE — O APP INTEIRO
+         Uma camada responsiva comum para todas as abas. A ideia é que o
+         iPhone nunca precise "lutar" com a interface: página não vaza para
+         os lados, campos não dão zoom, alvos de toque são grandes e a
+         navegação principal fica em duas linhas previsíveis.
+         ========================================== */
+      @media (max-width: 1023px) {
+        html, body, #root {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        body { overscroll-behavior-x: none; }
+
+        .app-main {
+          width: 100%;
+          min-width: 0;
+          padding: 16px 12px 28px !important;
+        }
+        .app-main > * { min-width: 0; max-width: 100%; }
+
+        .app-navbar {
+          padding-top: env(safe-area-inset-top);
+          background: rgba(248, 248, 250, 0.94);
+          backdrop-filter: saturate(190%) blur(20px);
+          -webkit-backdrop-filter: saturate(190%) blur(20px);
+        }
+        .app-navbar-top {
+          min-height: 52px;
+          height: auto !important;
+          padding-top: 7px;
+          padding-bottom: 7px;
+          gap: 8px !important;
+        }
+        .app-navbar-mainrow {
+          min-width: 0;
+          width: 100%;
+          gap: 8px !important;
+        }
+        .app-brand { flex: 0 0 auto; }
+        .app-brand-mark { width: 34px !important; height: 34px !important; }
+        .nav-home-mobile {
+          width: 38px;
+          height: 38px !important;
+          padding: 0 !important;
+          flex: 0 0 38px;
+        }
+        .nav-unit-switch {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .nav-unit-switch > button {
+          min-width: 0;
+          flex: 1 1 0;
+          padding-left: 10px;
+          padding-right: 10px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mobile-nav-shell {
+          border-top: 1px solid var(--hairline);
+          padding: 7px 10px 8px;
+          background: rgba(248, 248, 250, 0.88);
+        }
+        .mobile-nav-groups .segmented {
+          width: 100%;
+          display: flex;
+        }
+        .mobile-nav-groups .segmented > button {
+          flex: 1 1 0;
+          min-height: 34px;
+          padding: 5px 10px;
+        }
+        .mobile-nav-tabs {
+          display: flex;
+          gap: 7px;
+          margin-top: 7px;
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          scroll-snap-type: x proximity;
+          scroll-padding-inline: 4px;
+        }
+        .mobile-nav-tabs::-webkit-scrollbar { display: none; }
+        .mobile-nav-tab {
+          min-height: 38px;
+          padding: 0 13px;
+          border-radius: 999px;
+          scroll-snap-align: start;
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12.5px;
+          font-weight: 700;
+          white-space: nowrap;
+          touch-action: manipulation;
+        }
+
+        .card, .card-flat, .card-quiet, .cadastro-shell {
+          max-width: 100%;
+          min-width: 0;
+        }
+        .rola-x {
+          width: 100%;
+          max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabela-larga { max-width: none; }
+
+        .picker-panel {
+          max-width: calc(100vw - 20px) !important;
+        }
+
+        /* Filtros e botões segmentados não empurram mais a página. */
+        .segmented {
+          max-width: 100%;
+          min-width: 0;
+        }
+        .segmented > button {
+          min-height: 34px;
+          touch-action: manipulation;
+        }
+
+        .bottom-sheet {
+          max-height: min(94dvh, 94vh);
+          padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        }
+      }
+
+      @media (max-width: 639px) {
+        :root {
+          --radius-lg: 17px;
+          --radius-md: 14px;
+          --radius-sm: 11px;
+        }
+
+        .app-navbar > .max-w-7xl { padding-left: 10px !important; padding-right: 10px !important; }
+        .app-brand-copy { display: none; }
+
+        .t-display { font-size: 27px; line-height: 1.08; }
+        .t-title { font-size: 20px; }
+        .t-headline { font-size: 16px; }
+        .t-body { font-size: 14px; line-height: 1.45; }
+        .t-callout { font-size: 13px; }
+        .t-metric-lg { font-size: 30px; }
+        .t-metric { font-size: 27px; }
+
+        .card {
+          border-radius: 17px;
+          box-shadow: 0 1px 2px rgba(0,0,0,.02), 0 6px 18px rgba(0,0,0,.035);
+        }
+
+        /* iOS amplia a página quando um campo focado tem menos de 16px. */
+        input.field,
+        select.field,
+        textarea.field,
+        .field input,
+        .field-select {
+          font-size: 16px !important;
+        }
+        .field-sm,
+        .field-md {
+          min-height: 44px;
+          height: 44px;
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+        textarea.field {
+          height: auto !important;
+          min-height: 110px;
+          padding: 12px !important;
+          line-height: 1.45;
+        }
+
+        /* Botão pequeno no desktop continua pequeno visualmente, mas no dedo
+           ganha uma área segura de toque. */
+        .btn-sm, .btn-md {
+          min-height: 40px;
+          height: 40px;
+          padding-left: 14px;
+          padding-right: 14px;
+          font-size: 13px;
+        }
+        .btn-lg { min-height: 46px; }
+
+        .item-action { min-height: 42px; height: 42px; }
+        .chip { min-height: 38px; height: 38px; }
+
+        /* Diálogos viram folhas de baixo no telefone. Evita cartão minúsculo
+           flutuando no meio e deixa o botão de fechar sempre alcançável. */
+        [role="dialog"].fixed {
+          align-items: flex-end !important;
+          justify-content: center !important;
+          padding: 0 !important;
+        }
+        [role="dialog"].fixed > div,
+        [role="dialog"].fixed > form {
+          width: 100% !important;
+          max-width: none !important;
+          max-height: 94dvh;
+          margin: 0 !important;
+          border-radius: 24px 24px 0 0 !important;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+
+        /* Tabelas ainda podem rolar quando o dado realmente é tabular, mas
+           ficam mais densas e dentro do viewport. */
+        .tabela-larga { min-width: 540px; }
+        .tabela-larga th, .tabela-larga td { font-size: 12px; }
+
+        .briefing-cell { padding: 13px 14px 14px; }
+        .briefing-answer { font-size: 27px; }
+
+        .fab-add {
+          right: 12px;
+          bottom: calc(14px + env(safe-area-inset-bottom));
+          height: 50px;
+          padding-left: 16px;
+          padding-right: 18px;
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
       }
@@ -4164,13 +4392,13 @@
         return (
           <header className="app-navbar glass sticky top-0 z-40 border-b hairline">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between h-14 gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-[10px] bg-[#0E0937] flex items-center justify-center text-white text-[13px] font-extrabold tracking-tight">
+              <div className="app-navbar-top flex items-center justify-between h-14 gap-4">
+                <div className="app-navbar-mainrow flex items-center gap-4 min-w-0">
+                  <div className="app-brand flex items-center gap-2.5">
+                    <div className="app-brand-mark w-8 h-8 rounded-[10px] bg-[#0E0937] flex items-center justify-center text-white text-[13px] font-extrabold tracking-tight">
                       DV
                     </div>
-                    <div className="leading-none">
+                    <div className="app-brand-copy leading-none">
                       <h1 className="t-headline text-[#1d1d1f]">Delícias da Vovó</h1>
                       <p className="t-caption mt-0.5">Gestão de vitrine</p>
                     </div>
@@ -4180,7 +4408,8 @@
                     type="button"
                     onClick={onHome}
                     title="Voltar à tela inicial"
-                    className="btn btn-secondary btn-sm shrink-0"
+                    aria-label="Voltar ao início"
+                    className="nav-home-mobile btn btn-secondary btn-sm shrink-0"
                   >
                     <Icons.ChevronLeft className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Início</span>
@@ -4188,8 +4417,7 @@
 
                   <div className="h-5 w-px bg-black/10 hidden sm:block" />
 
-                  {/* As unidades vêm da tabela units do Supabase */}
-                  <div className="segmented">
+                  <div className="nav-unit-switch segmented">
                     {units.map((u) => (
                       <button key={u.code} onClick={() => onUnitChange(u.code)} data-active={currentUnit === u.code}>
                         {u.name}
@@ -4197,11 +4425,6 @@
                     ))}
                   </div>
 
-                  {/* Os dois assuntos da casa. Trocar de grupo troca a fileira
-                      de abas inteira: são sete de cada lado, nunca dez de uma
-                      vez — que é o que faria a fileira estourar no celular.
-                      No celular ele desce para a fileira das abas, senão
-                      disputaria espaço com a marca e o nome da unidade. */}
                   <div className="hidden lg:flex items-center gap-4">
                     <div className="h-5 w-px bg-black/10" />
                     <div className="segmented">
@@ -4248,45 +4471,51 @@
               </div>
             </div>
 
-            {/* Navegação em scroll horizontal no mobile */}
-            <div className="lg:hidden flex items-center px-4 py-2 border-t hairline gap-2">
-              <div className="segmented shrink-0">
-                {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
-                  <button
-                    key={id}
-                    onClick={() => onTabChange(grupo.tabs[0].id)}
-                    data-active={groupOfTab(activeTab) === id}
-                    title={grupo.title}
-                    className="h-7 px-3 text-[12px]"
-                  >
-                    {grupo.label}
-                  </button>
-                ))}
+            {/* No celular: primeiro escolhe o grupo, depois a aba. Não há duas
+                barras disputando a mesma linha nem rótulos gigantes. */}
+            <div className="mobile-nav-shell lg:hidden">
+              <div className="mobile-nav-groups">
+                <div className="segmented">
+                  {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
+                    <button
+                      key={id}
+                      onClick={() => onTabChange(grupo.tabs[0].id)}
+                      data-active={groupOfTab(activeTab) === id}
+                      title={grupo.title}
+                    >
+                      {grupo.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="h-5 w-px bg-black/10 shrink-0" />
-              <div className="flex overflow-x-auto gap-1.5 scrollbar-none">
-              {navItems.map((tab) => {
-                const IconComp = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => onTabChange(tab.id)}
-                    className={`px-3 h-8 rounded-full text-[12px] font-semibold whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors ${
-                      isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
-                    }`}
-                  >
-                    <IconComp className="w-3.5 h-3.5 shrink-0" />
-                    <span>{tab.fullLabel}</span>
-                    {tab.id === 'vitrine' && totalAlerts > 0 && (
-                      <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${isActive ? 'bg-white/25 text-white' : 'badge-expired'}`}>
-                        {totalAlerts}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              </div>
+
+              <nav className="mobile-nav-tabs">
+                {navItems.map((tab) => {
+                  const IconComp = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => onTabChange(tab.id)}
+                      title={tab.fullLabel}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`mobile-nav-tab ${
+                        isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
+                      }`}
+                    >
+                      <IconComp className="w-3.5 h-3.5 shrink-0" />
+                      <span>{tab.label}</span>
+                      {tab.id === 'vitrine' && totalAlerts > 0 && (
+                        <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${
+                          isActive ? 'bg-white/25 text-white' : 'badge-expired'
+                        }`}>
+                          {totalAlerts}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
           </header>
         );
@@ -26143,7 +26372,7 @@ ${BARRA_ACOES_HTML}
               </div>
             )}
 
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-9">
+            <main className="app-main flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-9">
               {activeTab === 'vitrine' && (
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-end justify-between gap-3">
