@@ -15381,6 +15381,7 @@
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold">Produto</th>
                           <th className="py-3 px-3 text-center font-bold">Insumos</th>
+                          <th className="py-3 px-3 font-bold">Prévia</th>
                           <th className="py-3 px-3 text-right font-bold">Custo da receita</th>
                           <th className="py-3 px-3 text-center font-bold">Rende</th>
                           <th className="py-3 px-3 text-right font-bold">Custo por un</th>
@@ -15389,7 +15390,7 @@
                       </thead>
                       <tbody>
                         {produtosComFicha.length === 0 ? (
-                          <tr><td colSpan={6} className="text-center py-10"><p className="t-body ink-quiet">Cadastre um item de Produção em Cadastros primeiro</p></td></tr>
+                          <tr><td colSpan={7} className="text-center py-10"><p className="t-body ink-quiet">Cadastre um item de Produção em Cadastros primeiro</p></td></tr>
                         ) : produtosComFicha.map(({ produto, ficha, custoUn }) => (
                           <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                             <td className="py-2.5 pr-3">
@@ -15399,6 +15400,45 @@
                               {ficha && ficha.itens.length > 0
                                 ? <span className="t-body tnum">{ficha.itens.length}</span>
                                 : <span className="pill tone-quiet">sem ficha</span>}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {ficha && ficha.itens.length > 0 ? (
+                                <div
+                                  className="t-micro ink-muted leading-[1.45] min-w-[220px] max-w-[340px]"
+                                  title={ficha.itens.map((item) => {
+                                    const supply = item.supplyId ? supplies.find((s) => s.id === item.supplyId) : null;
+                                    const componente = item.componentProductId ? products.find((p) => p.id === item.componentProductId) : null;
+                                    const componenteFicha = componente
+                                      ? fichaDoProduto(componente.id, recipes, recipeItems, supplies, supplyPurchases, products, new Set([produto.id]))
+                                      : null;
+                                    const nome = supply?.name || componente?.name || 'Item';
+                                    const unidade = item.usageUnit || supply?.unit || componenteFicha?.yieldUnit || 'un';
+                                    return `${nome} ${numeroCurtoBR(item.qty)} ${unidade}`;
+                                  }).join(' · ')}
+                                >
+                                  {ficha.itens.slice(0, 4).map((item, idx) => {
+                                    const supply = item.supplyId ? supplies.find((s) => s.id === item.supplyId) : null;
+                                    const componente = item.componentProductId ? products.find((p) => p.id === item.componentProductId) : null;
+                                    const componenteFicha = componente
+                                      ? fichaDoProduto(componente.id, recipes, recipeItems, supplies, supplyPurchases, products, new Set([produto.id]))
+                                      : null;
+                                    const nome = supply?.name || componente?.name || 'Item';
+                                    const unidade = item.usageUnit || supply?.unit || componenteFicha?.yieldUnit || 'un';
+                                    return (
+                                      <span key={item.id || idx}>
+                                        {idx > 0 && <span className="ink-quiet"> · </span>}
+                                        <span>{nome}</span>{' '}
+                                        <strong className="font-semibold tnum">{numeroCurtoBR(item.qty)} {unidade}</strong>
+                                      </span>
+                                    );
+                                  })}
+                                  {ficha.itens.length > 4 && (
+                                    <span className="ink-quiet"> · +{ficha.itens.length - 4}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="t-micro ink-quiet">—</span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-right t-body tnum">
                               {ficha && ficha.custo > 0 ? formatCurrencyBR(ficha.custo) : '—'}
