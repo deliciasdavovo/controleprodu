@@ -20388,10 +20388,16 @@
               ? linha.itemId + '|' + linha.unidade
               : '';
             const menorCotacao = chaveCotacao ? menorCotacaoPorChave[chaveCotacao] : null;
+            const melhorGeral = candidatos[0] || null;
+            // O verde não significa apenas "a menor das propostas novas".
+            // Para ser destaque, a cotação também precisa empatar ou vencer
+            // o melhor preço comparável que já existe no histórico.
             const ehMenorCotacao = !!(
               menorCotacao
+              && melhorGeral
               && linha.precoComparavel > 0
               && Math.abs(linha.precoComparavel - menorCotacao.preco) < 0.000001
+              && linha.precoComparavel <= melhorGeral.preco + 0.000001
             );
 
             return {
@@ -20399,7 +20405,7 @@
               item,
               historicos,
               atual,
-              melhor: candidatos[0] || null,
+              melhor: melhorGeral,
               menorCotacao,
               ehMenorCotacao,
               diferencaAtual,
@@ -20502,7 +20508,7 @@
             + '<div class="metrica"><span>Itens vinculados</span><b>' + vinculados + '</b></div>'
             + '<div class="metrica"><span>Menores cotações</span><b>' + menores + '</b></div>'
             + '</div>'
-            + '<p class="nota">A célula verde marca o menor preço entre as cotações vinculadas ao mesmo item e à mesma base de comparação. O preço atual vem do histórico de compras.</p>'
+            + '<p class="nota">A célula verde só aparece quando a proposta é a menor entre as cotações e também empata ou vence o melhor preço comparável do histórico. O preço atual vem do histórico de compras.</p>'
             + '<div class="tabela-wrap"><table><colgroup>'
             + '<col style="width:19%"><col style="width:16%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:13%"><col style="width:12%">'
             + '</colgroup><thead><tr><th>Item cotado</th><th>Item no sistema</th><th class="num">Base</th><th class="num">Cotação</th><th class="num">Seu atual</th><th class="num">Dif.</th><th>Menor cotação</th><th>Melhor geral</th></tr></thead><tbody>'
