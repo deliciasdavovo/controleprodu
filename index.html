@@ -19676,6 +19676,9 @@
         const [fornecedorOrigemUniao, setFornecedorOrigemUniao] = useState('');
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
+        const [cotacaoFornecedor, setCotacaoFornecedor] = useState('');
+        const [cotacaoTexto, setCotacaoTexto] = useState('');
+        const [cotacoesComparacao, setCotacoesComparacao] = useState([]);
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const identificarCadastroDoItem = (itemId) => {
@@ -19700,6 +19703,193 @@
           todas.map((compra) => String(compra.fornecedor || '').trim())
             .filter((nome) => nome && nome !== 'Sem fornecedor')
         )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [todas]);
+
+        const catalogoCotacao = useMemo(() => {
+          const mapa = {};
+          todas.forEach((compra) => {
+            if (!mapa[compra.itemId]) {
+              mapa[compra.itemId] = {
+                id: compra.itemId,
+                nome: compra.item,
+                tipo: compra.tipo,
+                unidade: compra.unidade
+              };
+            }
+          });
+          return Object.values(mapa).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        }, [todas]);
+
+        const numeroCotacao = (texto) => {
+          const limpo = String(texto || '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+          const numero = Number(limpo);
+          return Number.isFinite(numero) ? numero : 0;
+        };
+
+        const normalizarMedidaCotacao = (quantidade, unidade) => {
+          const qtd = Number(quantidade) || 0;
+          const u = String(unidade || '').toLowerCase();
+          if (u === 'kg') return { quantidade: qtd, unidade: 'kg' };
+          if (u === 'g') return { quantidade: qtd / 1000, unidade: 'kg' };
+          if (u === 'l') return { quantidade: qtd, unidade: 'L' };
+          if (u === 'ml') return { quantidade: qtd / 1000, unidade: 'L' };
+          if (['un','unidade','unidades','saco','sacos','rolo','rolos','rl','rls'].includes(u)) {
+            return { quantidade: qtd, unidade: 'un' };
+          }
+          return { quantidade: qtd, unidade: '' };
+        };
+
+        const extrairMedidaCotacao = (descricao) => {
+          const txt = String(descricao || '');
+          const totaisEntreParenteses = [...txt.matchAll(/\((?:\+\-?\s*)?(\d+(?:[.,]\d+)?)\s*(UN|UNIDADES?|SACOS?|ROLOS?|RLS?)\s*\)/gi)];
+          if (totaisEntreParenteses.length) {
+            const m = totaisEntreParenteses[totaisEntreParenteses.length - 1];
+            return normalizarMedidaCotacao(numeroCotacao(m[1]), m[2]);
+          }
+
+          const multiplicacao = txt.match(/(\d+(?:[.,]\d+)?)\s*(?:RLS?|ROLOS?)?\s*[xX]\s*(\d+(?:[.,]\d+)?)\s*(UN|UNIDADES?)\b/i);
+          if (multiplicacao) {
+            return normalizarMedidaCotacao(
+              numeroCotacao(multiplicacao[1]) * numeroCotacao(multiplicacao[2]),
+              'un'
+            );
+          }
+
+          const medidas = [...txt.matchAll(/(\d+(?:[.,]\d+)?)\s*(KG|G|ML|L)\b/gi)];
+          if (medidas.length) {
+            const m = medidas[medidas.length - 1];
+            return normalizarMedidaCotacao(numeroCotacao(m[1]), m[2]);
+          }
+          return { quantidade: 0, unidade: '' };
+        };
+
+        const tokensCotacao = (texto) => chaveDeBusca(texto)
+          .split(' ')
+          .filter((x) => x.length >= 3 && !/^\d+$/.test(x))
+          .filter((x) => !['saco','sacos','plast','plastico','embal','embalagem','reforcado'].includes(x));
+
+        const sugerirItemCotacao = (descricao) => {
+          const termos = tokensCotacao(descricao);
+          if (!termos.length) return '';
+          let melhor = null;
+          catalogoCotacao.forEach((item) => {
+            const alvo = tokensCotacao(item.nome);
+            const comuns = termos.filter((termo) => alvo.some((a) => a.includes(termo) || termo.includes(a))).length;
+            const score = comuns / Math.max(1, Math.min(termos.length, alvo.length));
+            if (!melhor || score > melhor.score) melhor = { id: item.id, score, comuns };
+          });
+          return melhor && melhor.comuns >= 1 && melhor.score >= 0.5 ? melhor.id : '';
+        };
+
+        const lerLinhasCotacao = (texto, fornecedor) => String(texto || '')
+          .split(/\r?\n/)
+          .map((linha) => linha.trim())
+          .filter(Boolean)
+          .map((linha, indice) => {
+            const precoMatch = linha.match(/(?:R\$\s*)?([\d.]+,\d{2})\s*$/i);
+            if (!precoMatch) return null;
+            const total = numeroCotacao(precoMatch[1]);
+            if (!(total > 0)) return null;
+            const descricao = linha.slice(0, precoMatch.index).replace(/\s*=\s*$/, '').trim();
+            const medida = extrairMedidaCotacao(descricao);
+            return {
+              id: 'cot-' + Date.now() + '-' + indice + '-' + Math.random().toString(36).slice(2, 7),
+              fornecedor: fornecedor.trim() || 'Cotação',
+              descricao,
+              total,
+              quantidade: medida.quantidade,
+              unidade: medida.unidade,
+              precoComparavel: medida.quantidade > 0 && medida.unidade ? total / medida.quantidade : 0,
+              itemId: sugerirItemCotacao(descricao)
+            };
+          })
+          .filter(Boolean);
+
+        const adicionarCotacaoComparacao = () => {
+          const linhas = lerLinhasCotacao(cotacaoTexto, cotacaoFornecedor);
+          if (!linhas.length) {
+            window.alert('Não encontrei linhas com preço. Cole uma linha por item terminando em R$ 00,00.');
+            return;
+          }
+          setCotacoesComparacao((atual) => [...atual, ...linhas]);
+          setCotacaoTexto('');
+          setCotacaoFornecedor('');
+        };
+
+        const atualizarLinhaCotacao = (id, campos) =>
+          setCotacoesComparacao((atual) => atual.map((x) => x.id === id ? { ...x, ...campos } : x));
+
+        const removerLinhaCotacao = (id) =>
+          setCotacoesComparacao((atual) => atual.filter((x) => x.id !== id));
+
+        const cotacoesAnalisadas = useMemo(() => cotacoesComparacao.map((linha) => {
+          const item = catalogoCotacao.find((x) => x.id === linha.itemId) || null;
+          const ultimos = {};
+          if (item) {
+            todas
+              .filter((c) => c.itemId === item.id && c.custoUnit > 0 && c.fornecedor !== 'Sem fornecedor')
+              .forEach((c) => {
+                const chave = normalizeName(c.fornecedor);
+                const existente = ultimos[chave];
+                const assinatura = (c.data || '') + '|' + (c.criadoEm || '');
+                const anterior = existente ? (existente.data || '') + '|' + (existente.criadoEm || '') : '';
+                if (!existente || assinatura >= anterior) ultimos[chave] = c;
+              });
+          }
+
+          const historicos = Object.values(ultimos)
+            .map((c) => {
+              const normal = precoNaUnidadeGrande(c.custoUnit, c.unidade);
+              return { ...c, precoComparavel: normal.valor, unidadeComparacao: normal.label };
+            })
+            .filter((c) => linha.unidade && c.unidadeComparacao === linha.unidade && c.precoComparavel > 0);
+
+          const atual = [...historicos].sort((a, b) =>
+            ((b.data || '') + '|' + (b.criadoEm || '')).localeCompare((a.data || '') + '|' + (a.criadoEm || ''))
+          )[0] || null;
+
+          const candidatos = [
+            ...historicos.map((c) => ({ fornecedor: c.fornecedor, preco: c.precoComparavel, origem: 'historico' })),
+            ...(linha.precoComparavel > 0
+              ? [{ fornecedor: linha.fornecedor, preco: linha.precoComparavel, origem: 'cotacao' }]
+              : [])
+          ].sort((a, b) => a.preco - b.preco);
+
+          const diferencaAtual = atual && linha.precoComparavel > 0
+            ? linha.precoComparavel - atual.precoComparavel
+            : null;
+
+          return {
+            ...linha,
+            item,
+            atual,
+            melhor: candidatos[0] || null,
+            diferencaAtual,
+            diferencaPct: atual && atual.precoComparavel > 0 && diferencaAtual !== null
+              ? (diferencaAtual / atual.precoComparavel) * 100
+              : null
+          };
+        }), [cotacoesComparacao, catalogoCotacao, todas]);
+
+        const exportarCotacaoComparada = () => {
+          if (!cotacoesAnalisadas.length) return;
+          baixarCSV(
+            nomeComData('comparativo-cotacoes'),
+            ['Item cotado','Fornecedor cotação','Vinculado a','Qtd. comparada','Unidade','Total cotado','Preço cotado','Fornecedor atual','Preço atual','Diferença %','Mais barato'],
+            cotacoesAnalisadas.map((x) => [
+              x.descricao,
+              x.fornecedor,
+              x.item?.nome || '',
+              x.quantidade || '',
+              x.unidade || '',
+              csvNumero(x.total),
+              x.precoComparavel > 0 ? csvNumero(x.precoComparavel) : '',
+              x.atual?.fornecedor || '',
+              x.atual?.precoComparavel > 0 ? csvNumero(x.atual.precoComparavel) : '',
+              x.diferencaPct !== null ? csvNumero(x.diferencaPct, 1) : '',
+              x.melhor?.fornecedor || ''
+            ])
+          );
+        };
 
         // Tipo + período alimentam também o placar; a busca só estreita a lista.
         const porTipo = tipoFiltro === 'todos' ? todas : todas.filter((c) => c.tipo === tipoFiltro);
@@ -21348,6 +21538,160 @@ ${BARRA_ACOES_HTML}
           );
         }
 
+        if (modoFornecedores === 'cotacao') {
+          return (
+            <div className="space-y-4 sm:space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
+                <div>
+                  <h2 className="t-display">Cotações</h2>
+                  <p className="t-body mt-1">{unitName} · propostas novas contra os preços que você já paga.</p>
+                </div>
+                <div className="segmented w-full sm:w-auto sm:inline-flex">
+                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-5">Análise</button>
+                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-5">Guia de compra</button>
+                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={true} className="flex-1 sm:flex-none h-9 px-5">Cotações</button>
+                </div>
+              </div>
+
+              <div className="card p-4 sm:p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Fornecedor da cotação</label>
+                    <input
+                      type="text"
+                      value={cotacaoFornecedor}
+                      onChange={(e) => setCotacaoFornecedor(e.target.value)}
+                      placeholder="Ex.: Capital Embalagens"
+                      className="field field-md"
+                    />
+                    <p className="t-nano mt-2">Adicione uma proposta por vez. Depois você pode colar outra de outro fornecedor e comparar tudo junto.</p>
+                  </div>
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Cole a cotação</label>
+                    <textarea
+                      value={cotacaoTexto}
+                      onChange={(e) => setCotacaoTexto(e.target.value)}
+                      rows={8}
+                      placeholder={'SACO PLAST 60X80 0,06 5KG = R$182,51\nSACO PP 30X40 0,06 5KG = R$143,60\nSACO PARA LIXO 100L (50UN) R$72,45'}
+                      className="field p-3 leading-relaxed resize-y"
+                    />
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <button type="button" onClick={adicionarCotacaoComparacao} className="btn btn-primary btn-md">
+                        <Icons.Plus className="w-4 h-4" />
+                        Adicionar à comparação
+                      </button>
+                      {cotacoesComparacao.length > 0 && (
+                        <>
+                          <button type="button" onClick={exportarCotacaoComparada} className="btn btn-secondary btn-md">Baixar planilha</button>
+                          <button type="button" onClick={() => setCotacoesComparacao([])} className="btn btn-secondary btn-md">Limpar</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl bg-black/[0.035] p-3.5">
+                  <p className="t-micro">
+                    <strong>Comparação justa:</strong> o sistema transforma 5 kg por R$ 182,51 em R$ 36,50/kg e 50 unidades por R$ 72,45 em R$ 1,45/un.
+                    A cotação não entra no histórico de compras.
+                  </p>
+                </div>
+              </div>
+
+              {cotacoesAnalisadas.length === 0 ? (
+                <div className="card p-6"><p className="t-body ink-quiet">Cole a primeira cotação acima para começar.</p></div>
+              ) : (
+                <div className="card overflow-hidden">
+                  <div className="px-4 sm:px-5 py-4 border-b hairline">
+                    <div className="t-overline">Comparativo</div>
+                    <p className="t-micro mt-1">{cotacoesAnalisadas.length} itens · o preço atual vem da compra mais recente do item vinculado.</p>
+                  </div>
+                  <div className="rola-x">
+                    <table className="w-full text-left tabela-larga">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline">
+                          <th className="py-3 px-3 font-bold">Item da cotação</th>
+                          <th className="py-3 px-3 font-bold">Item no sistema</th>
+                          <th className="py-3 px-3 text-right font-bold">Cotação</th>
+                          <th className="py-3 px-3 text-right font-bold">Preço atual</th>
+                          <th className="py-3 px-3 text-right font-bold">Diferença</th>
+                          <th className="py-3 px-3 font-bold">Mais barato</th>
+                          <th className="py-3 px-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cotacoesAnalisadas.map((linha) => (
+                          <tr key={linha.id} className="border-t hairline align-top">
+                            <td className="py-3 px-3 min-w-[250px]">
+                              <div className="t-callout font-semibold">{linha.descricao}</div>
+                              <div className="t-nano mt-1">{linha.fornecedor} · {formatCurrencyBR(linha.total)} no volume</div>
+                              {linha.quantidade > 0 && linha.unidade
+                                ? <div className="t-nano mt-1">{numeroCurtoBR(linha.quantidade)} {linha.unidade}</div>
+                                : <span className="pill tone-last mt-2">quantidade não identificada</span>}
+                            </td>
+                            <td className="py-3 px-3 min-w-[260px]">
+                              <PickerField
+                                value={linha.itemId || ''}
+                                options={catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                                onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
+                                placeholder="Escolha o item equivalente"
+                                emptyLabel="Nenhum item encontrado"
+                                className="field field-sm"
+                                panelMinWidth={420}
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-right min-w-[155px]">
+                              {linha.precoComparavel > 0
+                                ? <>
+                                    <div className="t-body tnum font-semibold">{formatCurrencyBR(linha.precoComparavel)}/{linha.unidade}</div>
+                                    <div className="t-nano">total {formatCurrencyBR(linha.total)}</div>
+                                  </>
+                                : <span className="t-micro ink-quiet">Sem base comparável</span>}
+                            </td>
+                            <td className="py-3 px-3 text-right min-w-[170px]">
+                              {linha.atual
+                                ? <>
+                                    <div className="t-body tnum">{formatCurrencyBR(linha.atual.precoComparavel)}/{linha.unidade}</div>
+                                    <div className="t-nano">{linha.atual.fornecedor} · {formatDateBR(linha.atual.data)}</div>
+                                  </>
+                                : <span className="t-micro ink-quiet">{linha.item ? 'Sem preço atual na mesma unidade' : 'Vincule um item'}</span>}
+                            </td>
+                            <td className="py-3 px-3 text-right min-w-[110px]">
+                              {linha.diferencaPct !== null
+                                ? <>
+                                    <div className={`t-body tnum font-bold ${linha.diferencaPct < 0 ? 'ink-fresh' : linha.diferencaPct > 0 ? 'ink-expired' : ''}`}>
+                                      {linha.diferencaPct > 0 ? '+' : ''}{linha.diferencaPct.toFixed(1)}%
+                                    </div>
+                                    <div className="t-nano tnum">
+                                      {linha.diferencaAtual > 0 ? '+' : ''}{formatCurrencyBR(linha.diferencaAtual)}/{linha.unidade}
+                                    </div>
+                                  </>
+                                : <span className="t-body ink-quiet">—</span>}
+                            </td>
+                            <td className="py-3 px-3 min-w-[180px]">
+                              {linha.melhor
+                                ? <>
+                                    <div className="t-callout font-semibold ink-fresh">{linha.melhor.fornecedor}</div>
+                                    <div className="t-nano tnum">{formatCurrencyBR(linha.melhor.preco)}/{linha.unidade}</div>
+                                    {linha.melhor.origem === 'cotacao' && <span className="pill tone-fresh mt-1">cotação mais barata</span>}
+                                  </>
+                                : <span className="t-micro ink-quiet">Sem comparação</span>}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <button type="button" onClick={() => removerLinhaCotacao(linha.id)} className="w-7 h-7 rounded-full icon-danger inline-flex items-center justify-center" title="Tirar da comparação">
+                                <Icons.X className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         if (modoFornecedores === 'guia') {
           return (
             <div className="space-y-4 sm:space-y-5">
@@ -21373,6 +21717,14 @@ ${BARRA_ACOES_HTML}
                   >
                     Guia de compra
                   </button>
+<button
+  type="button"
+  onClick={() => setModoFornecedores('cotacao')}
+  data-active={modoFornecedores === 'cotacao'}
+  className="flex-1 sm:flex-none h-9 px-5"
+>
+  Cotações
+</button>
                 </div>
               </div>
 
@@ -21923,6 +22275,14 @@ ${BARRA_ACOES_HTML}
               >
                 Guia de compra
               </button>
+<button
+  type="button"
+  onClick={() => setModoFornecedores('cotacao')}
+  data-active={modoFornecedores === 'cotacao'}
+  className="flex-1 sm:flex-none h-9 px-5"
+>
+  Cotações
+</button>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
