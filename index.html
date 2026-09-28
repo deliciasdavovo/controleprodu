@@ -4388,6 +4388,22 @@
       // ==========================================
       const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts, onHome }) => {
         const navItems = NAV_GROUPS[groupOfTab(activeTab)].tabs;
+        const mobileTabsRef = useRef(null);
+
+        const abrirAba = (tabId) => {
+          onTabChange(tabId);
+          if (window.innerWidth < 1024) {
+            requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+          }
+        };
+
+        useEffect(() => {
+          if (window.innerWidth >= 1024) return;
+          const ativo = mobileTabsRef.current?.querySelector('[aria-current="page"]');
+          if (ativo) {
+            ativo.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }, [activeTab]);
 
         return (
           <header className="app-navbar glass sticky top-0 z-40 border-b hairline">
@@ -4431,7 +4447,7 @@
                       {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
                         <button
                           key={id}
-                          onClick={() => onTabChange(grupo.tabs[0].id)}
+                          onClick={() => abrirAba(grupo.tabs[0].id)}
                           data-active={groupOfTab(activeTab) === id}
                           title={grupo.title}
                         >
@@ -4449,7 +4465,7 @@
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => onTabChange(tab.id)}
+                        onClick={() => abrirAba(tab.id)}
                         title={tab.fullLabel}
                         className={`px-2.5 h-8 rounded-lg text-[12px] flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all tracking-tight ${
                           isActive
@@ -4479,7 +4495,7 @@
                   {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
                     <button
                       key={id}
-                      onClick={() => onTabChange(grupo.tabs[0].id)}
+                      onClick={() => abrirAba(grupo.tabs[0].id)}
                       data-active={groupOfTab(activeTab) === id}
                       title={grupo.title}
                     >
@@ -4489,14 +4505,14 @@
                 </div>
               </div>
 
-              <nav className="mobile-nav-tabs">
+              <nav ref={mobileTabsRef} className="mobile-nav-tabs">
                 {navItems.map((tab) => {
                   const IconComp = tab.icon;
                   const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => onTabChange(tab.id)}
+                      onClick={() => abrirAba(tab.id)}
                       title={tab.fullLabel}
                       aria-current={isActive ? 'page' : undefined}
                       className={`mobile-nav-tab ${
