@@ -2934,15 +2934,24 @@
       // Mostra explicitamente quantas unidades vêm em cada volume e o custo
       // por unidade, para uma caixa de 500 não parecer igual a uma de 1.000.
       const rotuloConteudoVolume = (compra) => {
-        const fator = Number(compra?.unidadesPorVolume) || 0;
-        const tipo = String(compra?.volumeTipo || '').toLowerCase();
-        const volumeComercial = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipo);
-        if (!volumeComercial || !(fator > 0)) return '';
+        const fatorCompra = Number(compra?.unidadesPorVolume) || 0;
+        const tipoCompra = String(compra?.volumeTipo || '').toLowerCase();
+        const temVolumeCompra = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipoCompra) && fatorCompra > 0;
+
+        const fatorCadastro = Number(compra?.volumeCadastroUnidades) || 0;
+        const tipoCadastro = String(compra?.volumeCadastroTipo || '').toLowerCase();
+        const temVolumeCadastro = ['caixa', 'pacote', 'fardo', 'display', 'bandeja', 'outro'].includes(tipoCadastro) && fatorCadastro > 0;
+
+        const fator = temVolumeCompra ? fatorCompra : (temVolumeCadastro ? fatorCadastro : 0);
+        const tipo = temVolumeCompra ? tipoCompra : (temVolumeCadastro ? tipoCadastro : '');
+        if (!(fator > 0) || !tipo) return '';
+
         const nome = tipo === 'outro' ? 'volume' : tipo;
         const custoUn = compra?.custoUnit > 0
           ? ` · ${formatPrecoInsumo(compra.custoUnit, compra.unidade)}`
           : '';
-        return `1 ${nome} = ${numeroCurtoBR(fator)} un${custoUn}`;
+        const origem = !temVolumeCompra && temVolumeCadastro ? ' · equiv. do cadastro' : '';
+        return `1 ${nome} = ${numeroCurtoBR(fator)} un${custoUn}${origem}`;
       };
 
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
@@ -16893,6 +16902,7 @@
             // Se esta linha não foi gravada como pack:..., ela foi comprada
             // por unidade e não pode aparecer como fração de caixa no relatório.
             const volumeEfetivo = volumeCompra;
+            const volumeCadastro = volumeFixoDoCadastro(s);
             const unidadeOficial = s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit);
             const unidadeCompra = volumeEfetivo?.tipo || c.purchaseUnit || unidadeOficial;
             const precisaRevisaoUnidade = !volumeEfetivo && !!c.unitReviewRequired;
@@ -16917,7 +16927,12 @@
               qtyCompra,
               cost: Number(c.cost) || 0,
               volumeTipo: volumeEfetivo?.tipo || '',
-              unidadesPorVolume: Number(volumeEfetivo?.unidades) || 0
+              unidadesPorVolume: Number(volumeEfetivo?.unidades) || 0,
+              // Mantém também o volume padrão do cadastro. Ele serve para
+              // exibir o equivalente por fardo/caixa em compras antigas que
+              // foram gravadas apenas em unidades.
+              volumeCadastroTipo: volumeCadastro?.tipo || '',
+              volumeCadastroUnidades: Number(volumeCadastro?.unidades) || 0
             });
           });
         });
@@ -17020,6 +17035,18 @@
         if (Number(compra?.unidadesPorVolume) > 0 && qtdCompra > 0 && Number(compra?.cost) > 0) {
           return `${formatCurrencyBR(Number(compra.cost) / qtdCompra)}/${unidadeCompra === 'outro' ? 'volume' : unidadeCompra}`;
         }
+
+        // Compras antigas de embalagem podem ter sido salvas só em unidades,
+        // mesmo quando o cadastro já define "1 fardo = 400 un". Nesses casos,
+        // mostra o equivalente comercial do cadastro em vez de esconder o
+        // valor do fardo.
+        const fatorCadastro = Number(compra?.volumeCadastroUnidades) || 0;
+        const tipoCadastro = String(compra?.volumeCadastroTipo || '').toLowerCase();
+        if (compra?.unidade === 'un' && fatorCadastro > 0 && compra?.custoUnit > 0) {
+          const nome = tipoCadastro === 'outro' ? 'volume' : (tipoCadastro || 'volume');
+          return `${formatCurrencyBR(compra.custoUnit * fatorCadastro)}/${nome}`;
+        }
+
         return compra?.custoUnit > 0
           ? formatPrecoInsumo(compra.custoUnit, compra.unidade)
           : '—';
