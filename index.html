@@ -13189,6 +13189,7 @@
         const [painel, setPainel] = useState('entradas');
         const [busca, setBusca] = useState('');
         const [classeFiltro, setClasseFiltro] = useState('todos');
+        const [categoriaFichaFiltro, setCategoriaFichaFiltro] = useState('todos');
         const [paginaCadastros, setPaginaCadastros] = useState(1);
         // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
         const [historico, setHistorico] = useState(null);
@@ -14239,6 +14240,12 @@
           const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
         }), [products, recipes, recipeItems, supplies, supplyPurchases, separatedProducts]);
+
+        const fichasFiltradas = useMemo(() => (
+          categoriaFichaFiltro === 'todos'
+            ? produtosComFicha
+            : produtosComFicha.filter(({ produto }) => (produto.category || 'outro') === categoriaFichaFiltro)
+        ), [produtosComFicha, categoriaFichaFiltro]);
 
         const fichaAberta = produtosComFicha.find((x) => String(x.produto.id) === String(fichaProdutoId)) || null;
 
@@ -15779,11 +15786,31 @@
             {painel === 'fichas' && (
               <div className="space-y-5">
                 <div className="card p-5 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+                    <div>
+                      <div className="t-overline mb-1">Fichas técnicas</div>
+                      <p className="t-micro">Filtre e ajuste a categoria sem sair desta tela.</p>
+                    </div>
+                    <div className="w-full sm:w-56">
+                      <label className="t-overline-sm block mb-1.5">Categoria</label>
+                      <select
+                        value={categoriaFichaFiltro}
+                        onChange={(e) => setCategoriaFichaFiltro(e.target.value)}
+                        className="field field-sm field-select w-full"
+                      >
+                        <option value="todos">Todas as categorias</option>
+                        {PRODUCT_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="rola-x">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left min-w-[1120px]">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold">Produto</th>
+                          <th className="py-3 px-3 font-bold">Categoria</th>
                           <th className="py-3 px-3 text-center font-bold">Insumos</th>
                           <th className="py-3 px-3 font-bold">Prévia</th>
                           <th className="py-3 px-3 text-right font-bold">Custo da receita</th>
@@ -15794,11 +15821,27 @@
                       </thead>
                       <tbody>
                         {produtosComFicha.length === 0 ? (
-                          <tr><td colSpan={7} className="text-center py-10"><p className="t-body ink-quiet">Cadastre um item de Produção em Cadastros primeiro</p></td></tr>
-                        ) : produtosComFicha.map(({ produto, ficha, custoUn }) => (
+                          <tr><td colSpan={8} className="text-center py-10"><p className="t-body ink-quiet">Cadastre um item de Produção em Cadastros primeiro</p></td></tr>
+                        ) : fichasFiltradas.length === 0 ? (
+                          <tr><td colSpan={8} className="text-center py-10"><p className="t-body ink-quiet">Nenhum produto nesta categoria</p></td></tr>
+                        ) : fichasFiltradas.map(({ produto, ficha, custoUn }) => (
                           <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                             <td className="py-2.5 pr-3">
                               <span className="t-callout font-semibold">{produto.name}</span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="w-32">
+                                <select
+                                  value={produto.category || 'outro'}
+                                  onChange={(e) => onUpdateProduct({ ...produto, category: e.target.value })}
+                                  className="field field-sm field-select w-full text-[12px]"
+                                  title="Categoria do produto"
+                                >
+                                  {PRODUCT_CATEGORIES.map((c) => (
+                                    <option key={c.value} value={c.value}>{c.label}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               {ficha && ficha.itens.length > 0
@@ -15808,7 +15851,7 @@
                             <td className="py-2.5 px-3">
                               {ficha && ficha.itens.length > 0 ? (
                                 <div
-                                  className="t-micro ink-muted leading-[1.45] min-w-[220px] max-w-[340px]"
+                                  className="text-[12px] leading-5 text-[var(--ink-2)] min-w-[250px] max-w-[390px]"
                                   title={ficha.itens.map((item) => {
                                     const supply = item.supplyId ? supplies.find((s) => s.id === item.supplyId) : null;
                                     const componente = item.componentProductId ? products.find((p) => p.id === item.componentProductId) : null;
@@ -15817,7 +15860,7 @@
                                       : null;
                                     const nome = supply?.name || componente?.name || 'Item';
                                     const unidade = item.usageUnit || supply?.unit || componenteFicha?.yieldUnit || 'un';
-                                    return `${nome} ${numeroCurtoBR(item.qty)} ${unidade}`;
+                                    return `${numeroCurtoBR(item.qty)} ${unidade} - ${nome}`;
                                   }).join(' · ')}
                                 >
                                   {ficha.itens.slice(0, 4).map((item, idx) => {
@@ -15830,14 +15873,14 @@
                                     const unidade = item.usageUnit || supply?.unit || componenteFicha?.yieldUnit || 'un';
                                     return (
                                       <span key={item.id || idx}>
-                                        {idx > 0 && <span className="ink-quiet"> · </span>}
-                                        <span>{nome}</span>{' '}
+                                        {idx > 0 && <span className="text-black/35"> · </span>}
                                         <strong className="font-semibold tnum">{numeroCurtoBR(item.qty)} {unidade}</strong>
+                                        <span>{' - '}{nome}</span>
                                       </span>
                                     );
                                   })}
                                   {ficha.itens.length > 4 && (
-                                    <span className="ink-quiet"> · +{ficha.itens.length - 4}</span>
+                                    <span className="text-black/45"> · +{ficha.itens.length - 4}</span>
                                   )}
                                 </div>
                               ) : (
