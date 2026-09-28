@@ -21688,14 +21688,149 @@ ${BARRA_ACOES_HTML}
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                     <div>
-                      <div className="t-overline">Comparativo</div>
-                      <p className="t-micro mt-1">{cotacoesAnalisadas.length} itens · tudo visível sem arrastar a tela para o lado.</p>
+                      <div className="t-overline">Comparativo em planilha</div>
+                      <p className="t-micro mt-1">
+                        Ajuste a quantidade e a base direto na linha até a cotação ficar comparável com o seu cadastro.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
+                  {/* Desktop: planilha inteira cabe na largura da página, sem rolagem lateral. */}
+                  <div className="hidden lg:block card overflow-visible">
+                    <div
+                      className="grid items-center px-3 py-2.5 border-b hairline bg-black/[0.025] t-overline-sm"
+                      style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px', columnGap: '8px' }}
+                    >
+                      <div>Item cotado</div>
+                      <div>Item no sistema</div>
+                      <div className="text-right">Qtd.</div>
+                      <div>Base</div>
+                      <div className="text-right">Cotado</div>
+                      <div className="text-right">Seu atual</div>
+                      <div className="text-right">Diferença</div>
+                      <div>Melhor preço</div>
+                      <div></div>
+                    </div>
+
                     {cotacoesAnalisadas.map((linha) => {
+                      const status = linha.diferencaPct === null
+                        ? 'sem-comparacao'
+                        : linha.diferencaPct < -0.05
+                          ? 'melhor'
+                          : linha.diferencaPct > 0.05
+                            ? 'pior'
+                            : 'igual';
                       const melhorEhCotacao = linha.melhor?.origem === 'cotacao';
+
+                      return (
+                        <div
+                          key={linha.id}
+                          className="grid items-center px-3 py-3 border-b last:border-b-0 hairline"
+                          style={{ gridTemplateColumns: 'minmax(150px,1.55fr) minmax(165px,1.65fr) 82px 88px 108px 118px 100px minmax(120px,1.2fr) 30px', columnGap: '8px' }}
+                        >
+                          <div className="min-w-0">
+                            <div className="t-callout font-semibold leading-snug">{linha.descricao}</div>
+                            <div className="t-nano mt-1">{linha.fornecedor}</div>
+                            <div className="t-nano tnum mt-0.5">Total: {formatCurrencyBR(linha.total)}</div>
+                          </div>
+
+                          <div className="min-w-0">
+                            <PickerField
+                              value={linha.itemId || ''}
+                              options={catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
+                              placeholder="Vincular item"
+                              emptyLabel="Nenhum item"
+                              className="field field-sm"
+                              panelMinWidth={420}
+                            />
+                          </div>
+
+                          <div>
+                            <NumeroBRField
+                              value={linha.quantidade || ''}
+                              decimals={3}
+                              onValueChange={(valor) => atualizarBaseCotacao(linha.id, valor, linha.unidade)}
+                              placeholder="Qtd."
+                              className="field field-sm px-2 text-right tnum"
+                            />
+                          </div>
+
+                          <div>
+                            <PickerField
+                              value={linha.unidade || ''}
+                              options={[
+                                { value: 'kg', label: 'kg' },
+                                { value: 'L', label: 'L' },
+                                { value: 'un', label: 'un' },
+                                { value: 'volume', label: 'fardo/caixa' }
+                              ]}
+                              onPick={(opt) => atualizarBaseCotacao(linha.id, linha.quantidade, opt.value)}
+                              placeholder="Base"
+                              className="field field-sm"
+                            />
+                          </div>
+
+                          <div className="text-right min-w-0">
+                            <div className="t-callout font-bold tnum">
+                              {linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}
+                            </div>
+                            <div className="t-nano">{linha.unidade ? '/' + linha.unidade : 'sem base'}</div>
+                          </div>
+
+                          <div className="text-right min-w-0">
+                            {linha.atual ? (
+                              <>
+                                <div className="t-callout font-semibold tnum">{formatCurrencyBR(linha.atual.precoComparavel)}</div>
+                                <div className="t-nano">/{linha.unidade}</div>
+                                <div className="t-nano truncate" title={linha.atual.fornecedor}>{linha.atual.fornecedor}</div>
+                              </>
+                            ) : (
+                              <div className="t-nano ink-quiet">{linha.item ? 'sem preço comparável' : 'vincule o item'}</div>
+                            )}
+                          </div>
+
+                          <div className="text-right">
+                            {linha.diferencaPct !== null ? (
+                              <>
+                                <div className={`t-callout font-bold tnum ${status === 'melhor' ? 'ink-fresh' : status === 'pior' ? 'ink-expired' : ''}`}>
+                                  {linha.diferencaPct > 0 ? '+' : ''}{linha.diferencaPct.toFixed(1)}%
+                                </div>
+                                <div className="t-nano tnum">
+                                  {linha.diferencaAtual > 0 ? '+' : ''}{formatCurrencyBR(linha.diferencaAtual)}
+                                </div>
+                              </>
+                            ) : <span className="t-empty">—</span>}
+                          </div>
+
+                          <div className="min-w-0">
+                            {linha.melhor ? (
+                              <>
+                                <div className="t-callout font-semibold truncate" title={linha.melhor.fornecedor}>{linha.melhor.fornecedor}</div>
+                                <div className="t-nano tnum">{formatCurrencyBR(linha.melhor.preco)}/{linha.unidade}</div>
+                                {melhorEhCotacao && <span className="pill tone-fresh mt-1">cotação</span>}
+                              </>
+                            ) : <span className="t-nano ink-quiet">—</span>}
+                          </div>
+
+                          <div className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => removerLinhaCotacao(linha.id)}
+                              className="w-7 h-7 rounded-full icon-danger inline-flex items-center justify-center"
+                              title="Tirar da comparação"
+                            >
+                              <Icons.X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Celular/tablet: a mesma planilha vira linhas empilhadas, sem scroll horizontal. */}
+                  <div className="lg:hidden space-y-3">
+                    {cotacoesAnalisadas.map((linha) => {
                       const status = linha.diferencaPct === null
                         ? 'sem-comparacao'
                         : linha.diferencaPct < -0.05
@@ -21705,117 +21840,65 @@ ${BARRA_ACOES_HTML}
                             : 'igual';
 
                       return (
-                        <div key={linha.id} className="card p-4 sm:p-5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span className="pill tone-quiet">{linha.fornecedor}</span>
-                                {status === 'melhor' && <span className="pill tone-fresh">cotação mais barata que seu preço atual</span>}
-                                {status === 'pior' && <span className="pill tone-expired">cotação mais cara</span>}
-                                {status === 'igual' && <span className="pill tone-quiet">mesmo preço</span>}
-                              </div>
-                              <h3 className="t-headline">{linha.descricao}</h3>
-                              <p className="t-micro mt-1">Valor informado: <strong>{formatCurrencyBR(linha.total)}</strong></p>
+                        <div key={linha.id} className="card p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="t-callout font-semibold">{linha.descricao}</div>
+                              <div className="t-nano mt-1">{linha.fornecedor} · total {formatCurrencyBR(linha.total)}</div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removerLinhaCotacao(linha.id)}
-                              className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center shrink-0"
-                              title="Tirar da comparação"
-                            >
-                              <Icons.X className="w-4 h-4" />
+                            <button type="button" onClick={() => removerLinhaCotacao(linha.id)} className="w-7 h-7 rounded-full icon-danger inline-flex items-center justify-center">
+                              <Icons.X className="w-3.5 h-3.5" />
                             </button>
                           </div>
 
-                          <div className="mt-4">
-                            <label className="t-overline-sm block mb-1.5">Qual item é este no seu cadastro?</label>
+                          <div className="mt-3">
                             <PickerField
                               value={linha.itemId || ''}
                               options={catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
                               onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
-                              placeholder="Escolha o item equivalente"
-                              emptyLabel="Nenhum item encontrado"
+                              placeholder="Vincular ao item do sistema"
+                              emptyLabel="Nenhum item"
                               className="field field-md"
-                              panelMinWidth={420}
                             />
                           </div>
 
-                          <div className="mt-3 rounded-xl bg-black/[0.03] p-3">
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <span className="t-overline-sm">Base da comparação</span>
-                              {!linha.quantidade || !linha.unidade ? <span className="t-nano ink-expired">confira esta medida</span> : null}
-                            </div>
-                            <div className="grid grid-cols-[1fr_110px] gap-2">
-                              <NumeroBRField
-                                value={linha.quantidade || ''}
-                                decimals={3}
-                                onValueChange={(valor) => atualizarBaseCotacao(linha.id, valor, linha.unidade)}
-                                placeholder="Quantidade"
-                                className="field field-sm px-3 tnum"
-                              />
-                              <PickerField
-                                value={linha.unidade || ''}
-                                options={[
-                                  { value: 'kg', label: 'kg' },
-                                  { value: 'L', label: 'L' },
-                                  { value: 'un', label: 'un' },
-                                  { value: 'volume', label: 'fardo/caixa' }
-                                ]}
-                                onPick={(opt) => atualizarBaseCotacao(linha.id, linha.quantidade, opt.value)}
-                                placeholder="Unidade"
-                                className="field field-sm"
-                              />
-                            </div>
-                            <p className="t-nano mt-2">
-                              Ex.: 5 kg, 50 un ou 1 fardo/caixa. Você pode corrigir se a cotação foi interpretada diferente.
-                            </p>
+                          <div className="grid grid-cols-[1fr_110px] gap-2 mt-2">
+                            <NumeroBRField
+                              value={linha.quantidade || ''}
+                              decimals={3}
+                              onValueChange={(valor) => atualizarBaseCotacao(linha.id, valor, linha.unidade)}
+                              placeholder="Quantidade"
+                              className="field field-md px-3 tnum"
+                            />
+                            <PickerField
+                              value={linha.unidade || ''}
+                              options={[
+                                { value: 'kg', label: 'kg' },
+                                { value: 'L', label: 'L' },
+                                { value: 'un', label: 'un' },
+                                { value: 'volume', label: 'fardo/caixa' }
+                              ]}
+                              onPick={(opt) => atualizarBaseCotacao(linha.id, linha.quantidade, opt.value)}
+                              placeholder="Base"
+                              className="field field-md"
+                            />
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
-                            <div className="rounded-xl border hairline p-3 bg-white">
-                              <div className="t-overline-sm">Cotação</div>
-                              <div className="t-metric-xs tnum mt-1">
-                                {linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}
-                              </div>
-                              <div className="t-nano mt-1">por {linha.unidade || 'base não definida'}</div>
+                          <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                            <div className="rounded-xl bg-black/[0.035] p-2.5">
+                              <div className="t-overline-sm">Cotado</div>
+                              <div className="t-callout font-bold tnum mt-1">{linha.precoComparavel > 0 ? formatCurrencyBR(linha.precoComparavel) : '—'}</div>
                             </div>
-
-                            <div className="rounded-xl border hairline p-3 bg-white">
-                              <div className="t-overline-sm">Seu preço atual</div>
-                              <div className="t-metric-xs tnum mt-1">
-                                {linha.atual ? formatCurrencyBR(linha.atual.precoComparavel) : '—'}
-                              </div>
-                              <div className="t-nano mt-1">
-                                {linha.atual ? linha.atual.fornecedor + (linha.atual.data ? ' · ' + formatDateBR(linha.atual.data) : '') : (linha.item ? 'sem histórico nesta base' : 'vincule o item')}
-                              </div>
+                            <div className="rounded-xl bg-black/[0.035] p-2.5">
+                              <div className="t-overline-sm">Atual</div>
+                              <div className="t-callout font-bold tnum mt-1">{linha.atual ? formatCurrencyBR(linha.atual.precoComparavel) : '—'}</div>
                             </div>
-
-                            <div className={`rounded-xl border p-3 ${status === 'melhor' ? 'border-[var(--fresh-line)] bg-[var(--fresh-soft)]' : status === 'pior' ? 'border-[var(--expired-line)] bg-[var(--expired-soft)]' : 'hairline bg-white'}`}>
-                              <div className="t-overline-sm">Diferença</div>
-                              <div className={`t-metric-xs tnum mt-1 ${status === 'melhor' ? 'ink-fresh' : status === 'pior' ? 'ink-expired' : ''}`}>
+                            <div className={`rounded-xl p-2.5 ${status === 'melhor' ? 'bg-[var(--fresh-soft)]' : status === 'pior' ? 'bg-[var(--expired-soft)]' : 'bg-black/[0.035]'}`}>
+                              <div className="t-overline-sm">Dif.</div>
+                              <div className={`t-callout font-bold tnum mt-1 ${status === 'melhor' ? 'ink-fresh' : status === 'pior' ? 'ink-expired' : ''}`}>
                                 {linha.diferencaPct !== null ? (linha.diferencaPct > 0 ? '+' : '') + linha.diferencaPct.toFixed(1) + '%' : '—'}
                               </div>
-                              <div className="t-nano mt-1">
-                                {linha.diferencaAtual !== null
-                                  ? (linha.diferencaAtual < 0 ? 'economiza ' : linha.diferencaAtual > 0 ? 'custa a mais ' : '') + formatCurrencyBR(Math.abs(linha.diferencaAtual)) + '/' + (linha.unidade || '')
-                                  : 'aguardando comparação'}
-                              </div>
                             </div>
-                          </div>
-
-                          <div className="mt-3 rounded-xl bg-[#F4F1EA] px-3.5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                            <div>
-                              <div className="t-overline-sm">Menor preço encontrado</div>
-                              <div className="t-callout font-semibold mt-1">
-                                {linha.melhor ? linha.melhor.fornecedor : 'Ainda sem comparação'}
-                              </div>
-                            </div>
-                            {linha.melhor && (
-                              <div className="sm:text-right">
-                                <div className="t-body tnum font-bold">{formatCurrencyBR(linha.melhor.preco)}/{linha.unidade}</div>
-                                <div className="t-nano">{melhorEhCotacao ? 'nesta cotação' : 'no seu histórico'}</div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
