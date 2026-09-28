@@ -20131,15 +20131,15 @@
             + '<script>'
             + 'async function baixarJPEG(botao){'
             + 'if(!window.html2canvas){alert("A ferramenta de imagem ainda está carregando. Tente novamente em um instante.");return;}'
-            + 'var barra=document.querySelector(".acoes");var antigo=barra.style.display;var txt=botao.textContent;'
-            + 'try{botao.disabled=true;botao.textContent="Gerando JPEG…";if(document.fonts&&document.fonts.ready)await document.fonts.ready;barra.style.display="none";'
+            + 'var barra=document.querySelector(".acoes");var antigo=barra.style.display;var txt=botao?botao.textContent:"";'
+            + 'try{if(botao){botao.disabled=true;botao.textContent="Gerando JPEG…";}if(document.fonts&&document.fonts.ready)await document.fonts.ready;barra.style.display="none";'
             + 'await new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})});'
             + 'var largura=Math.max(document.documentElement.scrollWidth,document.body.scrollWidth);var altura=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight);'
             + 'var canvas=await html2canvas(document.body,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false,width:largura,height:altura,windowWidth:largura,windowHeight:altura});'
             + 'var alturaPagina=Math.floor(canvas.width*(297/210));var total=Math.max(1,Math.ceil(canvas.height/alturaPagina));'
             + 'for(var p=0;p<total;p++){var y=p*alturaPagina;var h=Math.min(alturaPagina,canvas.height-y);var parte=document.createElement("canvas");parte.width=canvas.width;parte.height=h;var ctx=parte.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,parte.width,parte.height);ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);'
             + 'await new Promise(function(resolve,reject){parte.toBlob(function(blob){if(!blob){reject(new Error("Falha ao gerar JPEG"));return;}var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download="comparativo-cotacoes-' + getTodayDateString() + '"+(total>1?"-"+(p+1):"")+".jpg";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);resolve()},180)},"image/jpeg",0.94)});}'
-            + '}catch(e){console.error(e);alert("Não consegui gerar o JPEG deste relatório.");}finally{barra.style.display=antigo;botao.disabled=false;botao.textContent=txt;}}'
+            + '}catch(e){console.error(e);alert("Não consegui gerar o JPEG deste relatório.");}finally{barra.style.display=antigo;if(botao){botao.disabled=false;botao.textContent=txt||"Baixar JPEG";}}}'
             + '<\\/script>'
             + '</body></html>';
         };
