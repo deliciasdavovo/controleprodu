@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-cache-recovery-1" />
+    <meta name="app-version" content="2026-09-29-apoio-compras-simples-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -22149,12 +22149,14 @@ ${BARRA_ACOES_HTML}
           });
 
           const fornecedores = {};
+          const historicoPorItem = {};
           base.forEach((c) => {
             const nome = c.fornecedor;
             const atual = fornecedores[nome] || { nome, compras: [], itens: {} };
             atual.compras.push(c);
             (atual.itens[c.itemId] = atual.itens[c.itemId] || []).push(c);
             fornecedores[nome] = atual;
+            (historicoPorItem[c.itemId] = historicoPorItem[c.itemId] || []).push(c);
           });
 
           const mediana = (valores) => {
@@ -22208,6 +22210,76 @@ ${BARRA_ACOES_HTML}
                 ? ((Number(atual.custoUnit) - Number(alternativa.custoUnit)) / Number(atual.custoUnit)) * 100
                 : 0;
 
+              const mesesJanela = Math.max(1, Number(periodoGuiaCompra) || 3);
+              const historicoItem = [...(historicoPorItem[atual.itemId] || [])].sort((a, b) => {
+                const d = (b.data || '').localeCompare(a.data || '');
+                return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+              });
+              const ultimaGlobal = historicoItem[0] || atual;
+              const recentesGlobais = historicoItem.slice(0, 3);
+              const quantidadeMediaMensal = historicoItem.reduce(
+                (soma, compra) => soma + (Number(compra.qty) || 0),
+                0
+              ) / mesesJanela;
+              const gastoMedioMensal = historicoItem.reduce(
+                (soma, compra) => soma + (Number(compra.cost) || 0),
+                0
+              ) / mesesJanela;
+              const precoReferencia = mediana(
+                recentesGlobais.map((compra) => Number(compra.custoUnit) || 0)
+              );
+              const precosFornecedor = Object.values(ultimoPorItemFornecedor[atual.itemId] || {})
+                .filter((compra) => Number(compra.custoUnit) > 0)
+                .sort((a, b) => Number(a.custoUnit) - Number(b.custoUnit));
+              const melhorFornecedor = precosFornecedor[0] || null;
+              const ultimoPreco = Number(ultimaGlobal.custoUnit) || 0;
+              const melhorPreco = Number(melhorFornecedor?.custoUnit) || 0;
+              const acimaReferenciaPct = precoReferencia > 0 && ultimoPreco > precoReferencia
+                ? ((ultimoPreco - precoReferencia) / precoReferencia) * 100
+                : 0;
+              const economiaMelhorPct = melhorFornecedor
+                && ultimoPreco > 0
+                && normalizeName(melhorFornecedor.fornecedor) !== normalizeName(ultimaGlobal.fornecedor)
+                && melhorPreco < ultimoPreco
+                ? ((ultimoPreco - melhorPreco) / ultimoPreco) * 100
+                : 0;
+              const fornecedoresComparados = precosFornecedor.length;
+              const comprasMes = historicoItem.length / mesesJanela;
+              let orientacaoCompra = 'Preço dentro do histórico';
+              let orientacaoTone = 'tone-fresh';
+              const motivosOrientacao = [];
+
+              if (historicoItem.length < 2) {
+                orientacaoCompra = 'Histórico insuficiente';
+                orientacaoTone = 'tone-neutral';
+                motivosOrientacao.push('só há 1 compra registrada no período');
+              } else if (acimaReferenciaPct >= 8 || economiaMelhorPct >= 5) {
+                orientacaoCompra = 'Cotar antes';
+                orientacaoTone = 'tone-expired';
+                if (acimaReferenciaPct >= 8) {
+                  motivosOrientacao.push(
+                    'último preço ' + acimaReferenciaPct.toFixed(1).replace('.', ',') + '% acima da referência'
+                  );
+                }
+                if (economiaMelhorPct >= 5 && melhorFornecedor) {
+                  motivosOrientacao.push(
+                    melhorFornecedor.fornecedor + ' apareceu '
+                    + economiaMelhorPct.toFixed(1).replace('.', ',') + '% mais barato'
+                  );
+                }
+              } else if (comprasMes >= 1 && fornecedoresComparados <= 1) {
+                orientacaoCompra = 'Comparar fornecedor';
+                orientacaoTone = 'tone-last';
+                motivosOrientacao.push('item recorrente comprado de um único fornecedor no período');
+              } else {
+                motivosOrientacao.push('último preço está próximo da referência recente');
+              }
+
+              const economiaPotencialMensal = melhorFornecedor
+                && economiaMelhorPct > 0
+                ? quantidadeMediaMensal * Math.max(0, ultimoPreco - melhorPreco)
+                : 0;
+
               return {
                 itemId: atual.itemId,
                 item: atual.item,
@@ -22219,7 +22291,19 @@ ${BARRA_ACOES_HTML}
                 quantidadeHabitual,
                 frequencia: rotuloFrequencia(datas),
                 alternativa,
-                economiaPct
+                economiaPct,
+                historicoGlobalCount: historicoItem.length,
+                ultimaGlobal,
+                quantidadeMediaMensal,
+                gastoMedioMensal,
+                precoReferencia,
+                melhorFornecedor,
+                acimaReferenciaPct,
+                economiaMelhorPct,
+                orientacaoCompra,
+                orientacaoTone,
+                motivosOrientacao,
+                economiaPotencialMensal
               };
             }).sort((a, b) => {
               const alerta = Number(Boolean(b.alternativa)) - Number(Boolean(a.alternativa));
@@ -22246,6 +22330,39 @@ ${BARRA_ACOES_HTML}
           !termoGuia
           || normalizeName(guia.nome).includes(termoGuia)
           || guia.itens.some((i) => normalizeName(i.item).includes(termoGuia))
+        );
+
+        const apoioComprasPorItem = {};
+        guiasCompraVisiveis.forEach((guia) => {
+          guia.itens.forEach((item) => {
+            const salvo = apoioComprasPorItem[item.itemId];
+            if (!salvo || (item.ultimaGlobal?.data || '') > (salvo.ultimaGlobal?.data || '')) {
+              apoioComprasPorItem[item.itemId] = item;
+            }
+          });
+        });
+        const apoioComprasItens = Object.values(apoioComprasPorItem).sort((a, b) => {
+          const prioridade = (item) => item.orientacaoCompra === 'Cotar antes'
+            ? 0
+            : item.orientacaoCompra === 'Comparar fornecedor'
+              ? 1
+              : item.orientacaoCompra === 'Preço dentro do histórico'
+                ? 2
+                : 3;
+          return prioridade(a) - prioridade(b)
+            || b.gastoMedioMensal - a.gastoMedioMensal
+            || a.item.localeCompare(b.item, 'pt-BR');
+        });
+        const apoioCotar = apoioComprasItens.filter((item) => item.orientacaoCompra === 'Cotar antes');
+        const apoioAcimaReferencia = apoioComprasItens.filter((item) => item.acimaReferenciaPct >= 8);
+        const apoioRecorrentes = apoioComprasItens.filter((item) => item.historicoGlobalCount >= 2);
+        const apoioGastoMensal = apoioComprasItens.reduce(
+          (soma, item) => soma + (Number(item.gastoMedioMensal) || 0),
+          0
+        );
+        const apoioEconomiaPotencial = apoioComprasItens.reduce(
+          (soma, item) => soma + (Number(item.economiaPotencialMensal) || 0),
+          0
         );
 
         const gerarGuiaCompra = (nomeFornecedor = null) => {
@@ -22803,13 +22920,111 @@ ${BARRA_ACOES_HTML}
                 </div>
 
                 <div className="mt-4 rounded-2xl bg-[#F4F1EA] px-4 py-3 border border-black/[0.05]">
-                  <p className="t-callout font-semibold">Importante sobre o atraso das notas</p>
+                  <p className="t-callout font-semibold">Apoio para decidir as compras</p>
                   <p className="t-micro mt-1">
-                    O documento é uma referência do histórico registrado, não uma lista automática do que está faltando comprar.
-                    A data do último lançamento de cada fornecedor aparece no próprio relatório.
+                    Usa apenas o histórico registrado. Não representa estoque nem necessidade exata de compra.
                   </p>
                 </div>
               </div>
+
+              {apoioComprasItens.length > 0 && (
+                <div className="card overflow-hidden">
+                  <div className="p-4 sm:p-5 border-b border-black/[0.07]">
+                    <div className="t-overline">Apoio às compras</div>
+                    <h3 className="t-title mt-1">O que olhar antes de comprar</h3>
+                    <p className="t-micro ink-quiet mt-1">
+                      Quantidade histórica, preço de referência e fornecedor para você decidir sem comprar no escuro.
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 lg:grid-cols-5 gap-2">
+                      <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                        <div className="t-overline-sm">Gasto médio/mês</div>
+                        <div className="t-callout font-semibold tnum mt-1">{formatCurrencyBR(apoioGastoMensal)}</div>
+                      </div>
+                      <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                        <div className="t-overline-sm">Itens recorrentes</div>
+                        <div className="t-callout font-semibold tnum mt-1">{apoioRecorrentes.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-[#7D2027]/[0.035] px-3 py-2.5">
+                        <div className="t-overline-sm ink-expired">Cotar antes</div>
+                        <div className="t-callout font-semibold tnum ink-expired mt-1">{apoioCotar.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                        <div className="t-overline-sm">Acima da referência</div>
+                        <div className="t-callout font-semibold tnum mt-1">{apoioAcimaReferencia.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-[#274133]/[0.035] px-3 py-2.5 col-span-2 lg:col-span-1">
+                        <div className="t-overline-sm ink-fresh">Economia identificada</div>
+                        <div className="t-callout font-semibold tnum ink-fresh mt-1">{formatCurrencyBR(apoioEconomiaPotencial)}</div>
+                        <div className="t-nano ink-quiet mt-1">aprox./mês</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-black/[0.06]">
+                    {apoioComprasItens.map((item) => (
+                      <div key={item.itemId} className="p-4 sm:p-5">
+                        <div className="flex flex-col xl:flex-row gap-3 xl:items-center">
+                          <div className="min-w-0 xl:w-[24%]">
+                            <strong className="t-callout block truncate" title={item.item}>{item.item}</strong>
+                            <div className="t-nano ink-quiet mt-1">
+                              {item.tipo} · {item.frequencia.replace(/^≈\s*/, '')}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 flex-1">
+                            <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                              <div className="t-overline-sm">Média comprada/mês</div>
+                              <div className="t-micro font-semibold mt-1">
+                                {formatQuantidadeAcumulada(item.quantidadeMediaMensal, item.unidade)}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                              <div className="t-overline-sm">Último preço</div>
+                              <div className="t-micro font-semibold mt-1">
+                                {formatPrecoCompraComercial(item.ultimaGlobal)}
+                              </div>
+                              <div className="t-nano ink-quiet mt-1">
+                                {item.ultimaGlobal?.fornecedor || '—'}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                              <div className="t-overline-sm">Preço de referência</div>
+                              <div className="t-micro font-semibold mt-1">
+                                {item.precoReferencia > 0 ? formatPrecoInsumo(item.precoReferencia, item.unidade) : '—'}
+                              </div>
+                              <div className="t-nano ink-quiet mt-1">mediana das últimas compras</div>
+                            </div>
+
+                            <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                              <div className="t-overline-sm">Melhor fornecedor recente</div>
+                              <div className="t-micro font-semibold mt-1">
+                                {item.melhorFornecedor?.fornecedor || 'Sem comparação'}
+                              </div>
+                              <div className="t-nano ink-quiet mt-1">
+                                {item.melhorFornecedor ? formatPrecoCompraComercial(item.melhorFornecedor) : '—'}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-black/[0.025] px-3 py-2.5 col-span-2 md:col-span-1">
+                              <div className="t-overline-sm">Orientação</div>
+                              <span className={'pill ' + item.orientacaoTone + ' mt-1'}>
+                                {item.orientacaoCompra}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="t-nano ink-quiet mt-2">
+                          {item.motivosOrientacao.join(' · ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {guiasCompraVisiveis.length === 0 ? (
                 <div className="card p-6">
