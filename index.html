@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-apoio-compras-simples-1" />
+    <meta name="app-version" content="2026-09-29-planilha-compras-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -20261,6 +20261,10 @@
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
         const [buscaGuiaCompra, setBuscaGuiaCompra] = useState('');
+        const [agruparPlanilhaCompras, setAgruparPlanilhaCompras] = useState('tipo');
+        const [filtroPlanilhaCompras, setFiltroPlanilhaCompras] = useState('todos');
+        const [ordemPlanilhaCompras, setOrdemPlanilhaCompras] = useState({ coluna: 'item', direcao: 'asc' });
+        const [gruposFechadosPlanilha, setGruposFechadosPlanilha] = useState({});
         const [visao, setVisao] = useState('item');
         const [diaCalendarioSelecionado, setDiaCalendarioSelecionado] = useState('');
         const [modoValorComprado, setModoValorComprado] = useState('agrupado');
@@ -22365,6 +22369,117 @@ ${BARRA_ACOES_HTML}
           0
         );
 
+        const linhasPlanilhaCompras = apoioComprasItens.filter((item) => {
+          if (filtroPlanilhaCompras === 'todos') return true;
+          if (filtroPlanilhaCompras === 'cotar') return item.orientacaoCompra === 'Cotar antes';
+          if (filtroPlanilhaCompras === 'comparar') return item.orientacaoCompra === 'Comparar fornecedor';
+          if (filtroPlanilhaCompras === 'ok') return item.orientacaoCompra === 'Preço dentro do histórico';
+          if (filtroPlanilhaCompras === 'insuficiente') return item.orientacaoCompra === 'Histórico insuficiente';
+          return true;
+        });
+
+        const valorOrdenacaoPlanilha = (item, coluna) => {
+          if (coluna === 'tipo') return item.tipo || '';
+          if (coluna === 'fornecedor') return item.ultimaGlobal?.fornecedor || '';
+          if (coluna === 'ultimaData') return item.ultimaGlobal?.data || '';
+          if (coluna === 'quantidade') return Number(item.quantidadeMediaMensal) || 0;
+          if (coluna === 'ultimoPreco') return Number(item.ultimaGlobal?.custoUnit) || 0;
+          if (coluna === 'referencia') return Number(item.precoReferencia) || 0;
+          if (coluna === 'melhorPreco') return Number(item.melhorFornecedor?.custoUnit) || 0;
+          if (coluna === 'variacao') return Number(item.acimaReferenciaPct) || 0;
+          if (coluna === 'gasto') return Number(item.gastoMedioMensal) || 0;
+          if (coluna === 'orientacao') return item.orientacaoCompra || '';
+          return item.item || '';
+        };
+
+        const linhasPlanilhaOrdenadas = [...linhasPlanilhaCompras].sort((a, b) => {
+          const va = valorOrdenacaoPlanilha(a, ordemPlanilhaCompras.coluna);
+          const vb = valorOrdenacaoPlanilha(b, ordemPlanilhaCompras.coluna);
+          let resultado = 0;
+          if (typeof va === 'number' && typeof vb === 'number') resultado = va - vb;
+          else resultado = String(va).localeCompare(String(vb), 'pt-BR', { numeric: true });
+          return ordemPlanilhaCompras.direcao === 'desc' ? -resultado : resultado;
+        });
+
+        const ordenarPlanilhaCompras = (coluna) => {
+          setOrdemPlanilhaCompras((atual) => ({
+            coluna,
+            direcao: atual.coluna === coluna && atual.direcao === 'asc' ? 'desc' : 'asc'
+          }));
+        };
+
+        const setaOrdenacaoPlanilha = (coluna) =>
+          ordemPlanilhaCompras.coluna === coluna
+            ? (ordemPlanilhaCompras.direcao === 'asc' ? ' ↑' : ' ↓')
+            : '';
+
+        const nomeGrupoPlanilha = (item) => {
+          if (agruparPlanilhaCompras === 'fornecedor') return item.ultimaGlobal?.fornecedor || 'Sem fornecedor';
+          if (agruparPlanilhaCompras === 'orientacao') return item.orientacaoCompra || 'Sem orientação';
+          if (agruparPlanilhaCompras === 'nenhum') return 'Todos os itens';
+          return item.tipo || 'Outros';
+        };
+
+        const gruposPlanilhaMapa = {};
+        linhasPlanilhaOrdenadas.forEach((item) => {
+          const nome = nomeGrupoPlanilha(item);
+          (gruposPlanilhaMapa[nome] = gruposPlanilhaMapa[nome] || []).push(item);
+        });
+        const gruposPlanilhaCompras = Object.entries(gruposPlanilhaMapa)
+          .map(([nome, itens]) => ({
+            nome,
+            itens,
+            gasto: itens.reduce((soma, item) => soma + (Number(item.gastoMedioMensal) || 0), 0)
+          }))
+          .sort((a, b) => {
+            if (agruparPlanilhaCompras === 'nenhum') return 0;
+            return a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true });
+          });
+
+        const recolherTudoPlanilha = () => {
+          const fechado = {};
+          gruposPlanilhaCompras.forEach((grupo) => { fechado[grupo.nome] = true; });
+          setGruposFechadosPlanilha(fechado);
+        };
+
+        const expandirTudoPlanilha = () => setGruposFechadosPlanilha({});
+
+        const exportarPlanilhaComprasCsv = () => {
+          const cabecalho = [
+            'Produto','Categoria','Fornecedor atual','Última compra','Média comprada/mês',
+            'Unidade','Último preço base','Preço referência','Melhor preço base',
+            'Melhor fornecedor','Variação vs referência %','Gasto médio/mês','Orientação'
+          ];
+          const linhas = linhasPlanilhaOrdenadas.map((item) => [
+            item.item,
+            item.tipo,
+            item.ultimaGlobal?.fornecedor || '',
+            item.ultimaGlobal?.data ? formatDateBR(item.ultimaGlobal.data) : '',
+            numeroCurtoBR(item.quantidadeMediaMensal),
+            item.unidade,
+            (Number(item.ultimaGlobal?.custoUnit) || 0).toFixed(4).replace('.', ','),
+            (Number(item.precoReferencia) || 0).toFixed(4).replace('.', ','),
+            (Number(item.melhorFornecedor?.custoUnit) || 0).toFixed(4).replace('.', ','),
+            item.melhorFornecedor?.fornecedor || '',
+            (Number(item.acimaReferenciaPct) || 0).toFixed(1).replace('.', ','),
+            (Number(item.gastoMedioMensal) || 0).toFixed(2).replace('.', ','),
+            item.orientacaoCompra
+          ]);
+          const escaparCsv = (valor) => '"' + String(valor ?? '').replace(/"/g, '""') + '"';
+          const csv = '\ufeff' + [cabecalho, ...linhas]
+            .map((linha) => linha.map(escaparCsv).join(';'))
+            .join('\n');
+          const blobCsv = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blobCsv);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'planilha-compras-' + getTodayDateString() + '.csv';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+        };
+
         const gerarGuiaCompra = (nomeFornecedor = null) => {
           const selecionados = nomeFornecedor
             ? guiasCompra.filter((g) => g.nome === nomeFornecedor)
@@ -22510,6 +22625,251 @@ ${BARRA_ACOES_HTML}
           );
         }
 
+        if (modoFornecedores === 'planilha') {
+          return (
+            <div className="space-y-4 sm:space-y-5">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
+                <div>
+                  <h2 className="t-display">Planilha de compras</h2>
+                  <p className="t-body mt-1">{unitName} · visão navegável do histórico para apoiar as compras.</p>
+                </div>
+                <div className="segmented w-full sm:w-auto sm:inline-flex">
+                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Análise</button>
+                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Guia</button>
+                  <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={true} className="flex-1 sm:flex-none h-9 px-4">Planilha</button>
+                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Cotações</button>
+                </div>
+              </div>
+
+              <div className="card p-3 sm:p-4">
+                <div className="flex flex-col xl:flex-row xl:items-end gap-3">
+                  <div className="flex-1 min-w-0">
+                    <label className="t-overline-sm block mb-1.5">Buscar na planilha</label>
+                    <div className="relative">
+                      <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                      <input
+                        type="text"
+                        placeholder="Produto ou fornecedor…"
+                        value={buscaGuiaCompra}
+                        onChange={(e) => setBuscaGuiaCompra(e.target.value)}
+                        className="field field-sm field-search"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="min-w-[180px]">
+                    <label className="t-overline-sm block mb-1.5">Período</label>
+                    <select
+                      value={periodoGuiaCompra}
+                      onChange={(e) => setPeriodoGuiaCompra(e.target.value)}
+                      className="field field-sm"
+                    >
+                      <option value="3">Últimos 3 meses</option>
+                      <option value="6">Últimos 6 meses</option>
+                      <option value="9">Últimos 9 meses</option>
+                      <option value="12">Último 1 ano</option>
+                    </select>
+                  </div>
+
+                  <div className="min-w-[190px]">
+                    <label className="t-overline-sm block mb-1.5">Agrupar por</label>
+                    <select
+                      value={agruparPlanilhaCompras}
+                      onChange={(e) => {
+                        setAgruparPlanilhaCompras(e.target.value);
+                        setGruposFechadosPlanilha({});
+                      }}
+                      className="field field-sm"
+                    >
+                      <option value="tipo">Categoria</option>
+                      <option value="fornecedor">Fornecedor atual</option>
+                      <option value="orientacao">Orientação</option>
+                      <option value="nenhum">Sem agrupamento</option>
+                    </select>
+                  </div>
+
+                  <div className="min-w-[190px]">
+                    <label className="t-overline-sm block mb-1.5">Mostrar</label>
+                    <select
+                      value={filtroPlanilhaCompras}
+                      onChange={(e) => setFiltroPlanilhaCompras(e.target.value)}
+                      className="field field-sm"
+                    >
+                      <option value="todos">Todos os itens</option>
+                      <option value="cotar">Cotar antes</option>
+                      <option value="comparar">Comparar fornecedor</option>
+                      <option value="ok">Preço dentro do histórico</option>
+                      <option value="insuficiente">Histórico insuficiente</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={expandirTudoPlanilha} className="btn btn-secondary btn-sm">Expandir</button>
+                    <button type="button" onClick={recolherTudoPlanilha} className="btn btn-secondary btn-sm">Recolher</button>
+                    <button type="button" onClick={exportarPlanilhaComprasCsv} className="btn btn-secondary btn-sm">Baixar CSV</button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 t-nano ink-quiet">
+                  <span><strong className="tnum">{linhasPlanilhaOrdenadas.length}</strong> itens visíveis</span>
+                  <span>·</span>
+                  <span>duplo clique no produto para abrir o cadastro</span>
+                  <span>·</span>
+                  <span>clique no título da coluna para ordenar</span>
+                </div>
+              </div>
+
+              <div className="card overflow-hidden">
+                <div className="overflow-auto max-h-[72vh]">
+                  <table className="min-w-[1680px] w-full border-collapse text-[12px]">
+                    <thead className="sticky top-0 z-30 bg-[#f7f7f8] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                      <tr className="text-left">
+                        <th className="sticky left-0 z-40 bg-[#f7f7f8] min-w-[260px] px-3 py-2.5 border-r border-black/[0.08]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('item')} className="font-semibold">Produto{setaOrdenacaoPlanilha('item')}</button>
+                        </th>
+                        <th className="min-w-[140px] px-3 py-2.5 border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('tipo')} className="font-semibold">Categoria{setaOrdenacaoPlanilha('tipo')}</button>
+                        </th>
+                        <th className="min-w-[190px] px-3 py-2.5 border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('fornecedor')} className="font-semibold">Fornecedor atual{setaOrdenacaoPlanilha('fornecedor')}</button>
+                        </th>
+                        <th className="min-w-[110px] px-3 py-2.5 border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('ultimaData')} className="font-semibold">Última compra{setaOrdenacaoPlanilha('ultimaData')}</button>
+                        </th>
+                        <th className="min-w-[130px] px-3 py-2.5 text-right border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('quantidade')} className="font-semibold">Média/mês{setaOrdenacaoPlanilha('quantidade')}</button>
+                        </th>
+                        <th className="min-w-[150px] px-3 py-2.5 text-right border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('ultimoPreco')} className="font-semibold">Último preço{setaOrdenacaoPlanilha('ultimoPreco')}</button>
+                        </th>
+                        <th className="min-w-[145px] px-3 py-2.5 text-right border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('referencia')} className="font-semibold">Preço referência{setaOrdenacaoPlanilha('referencia')}</button>
+                        </th>
+                        <th className="min-w-[200px] px-3 py-2.5 border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('melhorPreco')} className="font-semibold">Melhor recente{setaOrdenacaoPlanilha('melhorPreco')}</button>
+                        </th>
+                        <th className="min-w-[125px] px-3 py-2.5 text-right border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('variacao')} className="font-semibold">Vs. referência{setaOrdenacaoPlanilha('variacao')}</button>
+                        </th>
+                        <th className="min-w-[145px] px-3 py-2.5 text-right border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('gasto')} className="font-semibold">Gasto/mês{setaOrdenacaoPlanilha('gasto')}</button>
+                        </th>
+                        <th className="min-w-[190px] px-3 py-2.5 border-r border-black/[0.06]">
+                          <button type="button" onClick={() => ordenarPlanilhaCompras('orientacao')} className="font-semibold">Orientação{setaOrdenacaoPlanilha('orientacao')}</button>
+                        </th>
+                        <th className="min-w-[96px] px-3 py-2.5 text-center">Histórico</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gruposPlanilhaCompras.length === 0 ? (
+                        <tr>
+                          <td colSpan="12" className="px-4 py-10 text-center t-body ink-quiet">
+                            Nenhum item encontrado com estes filtros.
+                          </td>
+                        </tr>
+                      ) : gruposPlanilhaCompras.map((grupo) => {
+                        const fechado = Boolean(gruposFechadosPlanilha[grupo.nome]);
+                        return (
+                          <React.Fragment key={grupo.nome}>
+                            <tr className="bg-[#ececf0] border-y border-black/[0.08]">
+                              <td colSpan="12" className="px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setGruposFechadosPlanilha((atual) => ({
+                                    ...atual,
+                                    [grupo.nome]: !atual[grupo.nome]
+                                  }))}
+                                  className="w-full flex items-center justify-between gap-4 text-left"
+                                >
+                                  <span className="font-semibold">
+                                    <span className="inline-block w-5">{fechado ? '▸' : '▾'}</span>
+                                    {grupo.nome}
+                                    <span className="ml-2 t-nano ink-quiet">{grupo.itens.length} itens</span>
+                                  </span>
+                                  <span className="t-nano ink-quiet">gasto médio {formatCurrencyBR(grupo.gasto)}/mês</span>
+                                </button>
+                              </td>
+                            </tr>
+                            {!fechado && grupo.itens.map((item, indice) => {
+                              const variacao = Number(item.acimaReferenciaPct) || 0;
+                              const melhorOutro = item.melhorFornecedor
+                                && normalizeName(item.melhorFornecedor.fornecedor) !== normalizeName(item.ultimaGlobal?.fornecedor);
+                              return (
+                                <tr
+                                  key={item.itemId}
+                                  className={(indice % 2 ? 'bg-black/[0.012] ' : '') + 'hover:bg-[#f2f2f7] border-b border-black/[0.045]'}
+                                >
+                                  <td
+                                    className="sticky left-0 z-10 bg-white min-w-[260px] px-3 py-2 border-r border-black/[0.08]"
+                                    onDoubleClick={() => identificarCadastroDoItem(item.itemId)}
+                                    title="Duplo clique para abrir o cadastro"
+                                  >
+                                    <div className="font-semibold truncate max-w-[235px]" title={item.item}>{item.item}</div>
+                                    <div className="t-nano ink-quiet mt-0.5">{item.frequencia.replace(/^≈\s*/, '')}</div>
+                                  </td>
+                                  <td className="px-3 py-2 border-r border-black/[0.045]">{item.tipo}</td>
+                                  <td className="px-3 py-2 border-r border-black/[0.045]">
+                                    <div className="font-medium">{item.ultimaGlobal?.fornecedor || '—'}</div>
+                                  </td>
+                                  <td className="px-3 py-2 tnum border-r border-black/[0.045]">
+                                    {item.ultimaGlobal?.data ? formatDateBR(item.ultimaGlobal.data) : '—'}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tnum border-r border-black/[0.045]">
+                                    {formatQuantidadeAcumulada(item.quantidadeMediaMensal, item.unidade)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tnum font-semibold border-r border-black/[0.045]">
+                                    {formatPrecoCompraComercial(item.ultimaGlobal)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tnum border-r border-black/[0.045]">
+                                    {item.precoReferencia > 0 ? formatPrecoInsumo(item.precoReferencia, item.unidade) : '—'}
+                                  </td>
+                                  <td className="px-3 py-2 border-r border-black/[0.045]">
+                                    {item.melhorFornecedor ? (
+                                      <>
+                                        <div className={melhorOutro ? 'font-semibold ink-fresh' : 'font-medium'}>
+                                          {formatPrecoCompraComercial(item.melhorFornecedor)}
+                                        </div>
+                                        <div className="t-nano ink-quiet mt-0.5">{item.melhorFornecedor.fornecedor}</div>
+                                      </>
+                                    ) : '—'}
+                                  </td>
+                                  <td className={'px-3 py-2 text-right tnum font-semibold border-r border-black/[0.045] ' + (variacao >= 8 ? 'ink-expired' : variacao > 0 ? 'ink-last' : '')}>
+                                    {item.precoReferencia > 0 ? (variacao > 0 ? '+' : '') + variacao.toFixed(1).replace('.', ',') + '%' : '—'}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tnum font-semibold border-r border-black/[0.045]">
+                                    {formatCurrencyBR(item.gastoMedioMensal)}
+                                  </td>
+                                  <td className="px-3 py-2 border-r border-black/[0.045]">
+                                    <span className={'pill ' + item.orientacaoTone}>{item.orientacaoCompra}</span>
+                                    <div className="t-nano ink-quiet mt-1 max-w-[180px]">{item.motivosOrientacao[0] || ''}</div>
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setGraficoHistoricoAberto(false);
+                                        setHistoricoItem({ itemId: item.itemId, item: item.item });
+                                      }}
+                                      className="btn btn-secondary btn-sm mx-auto"
+                                      title={'Abrir histórico de ' + item.item}
+                                    >
+                                      <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         if (modoFornecedores === 'cotacao') {
           return (
             <div className="space-y-4 sm:space-y-5">
@@ -22519,9 +22879,10 @@ ${BARRA_ACOES_HTML}
                   <p className="t-body mt-1">{unitName} · compare propostas novas com o seu histórico de compras.</p>
                 </div>
                 <div className="segmented w-full sm:w-auto sm:inline-flex">
-                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-5">Análise</button>
-                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-5">Guia de compra</button>
-                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={true} className="flex-1 sm:flex-none h-9 px-5">Cotações</button>
+                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Análise</button>
+                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Guia</button>
+                  <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Planilha</button>
+                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={true} className="flex-1 sm:flex-none h-9 px-4">Cotações</button>
                 </div>
               </div>
 
@@ -22844,7 +23205,7 @@ ${BARRA_ACOES_HTML}
                     type="button"
                     onClick={() => setModoFornecedores('analise')}
                     data-active={modoFornecedores === 'analise'}
-                    className="flex-1 sm:flex-none h-9 px-5"
+                    className="flex-1 sm:flex-none h-9 px-4"
                   >
                     Análise
                   </button>
@@ -22852,15 +23213,23 @@ ${BARRA_ACOES_HTML}
                     type="button"
                     onClick={() => setModoFornecedores('guia')}
                     data-active={modoFornecedores === 'guia'}
-                    className="flex-1 sm:flex-none h-9 px-5"
+                    className="flex-1 sm:flex-none h-9 px-4"
                   >
-                    Guia de compra
+                    Guia
                   </button>
+<button
+  type="button"
+  onClick={() => setModoFornecedores('planilha')}
+  data-active={modoFornecedores === 'planilha'}
+  className="flex-1 sm:flex-none h-9 px-4"
+>
+  Planilha
+</button>
 <button
   type="button"
   onClick={() => setModoFornecedores('cotacao')}
   data-active={modoFornecedores === 'cotacao'}
-  className="flex-1 sm:flex-none h-9 px-5"
+  className="flex-1 sm:flex-none h-9 px-4"
 >
   Cotações
 </button>
@@ -23514,9 +23883,17 @@ ${BARRA_ACOES_HTML}
               </button>
 <button
   type="button"
+  onClick={() => setModoFornecedores('planilha')}
+  data-active={modoFornecedores === 'planilha'}
+  className="flex-1 sm:flex-none h-9 px-4"
+>
+  Planilha
+</button>
+<button
+  type="button"
   onClick={() => setModoFornecedores('cotacao')}
   data-active={modoFornecedores === 'cotacao'}
-  className="flex-1 sm:flex-none h-9 px-5"
+  className="flex-1 sm:flex-none h-9 px-4"
 >
   Cotações
 </button>
