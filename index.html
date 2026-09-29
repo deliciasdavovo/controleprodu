@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-guia-compras-planejamento-2" />
+    <meta name="app-version" content="2026-09-29-guia-compras-precos-3" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -22237,6 +22237,7 @@ ${BARRA_ACOES_HTML}
               const ultimaGlobal = historicoItem[0] || atual;
               const quantidadeMensal = historicoItem.reduce((soma, compra) => soma + (Number(compra.qty) || 0), 0) / mesesJanela;
               const valorMensal = historicoItem.reduce((soma, compra) => soma + (Number(compra.cost) || 0), 0) / mesesJanela;
+              const valorEstimadoProximoMes = quantidadeMensal * (Number(ultimaGlobal.custoUnit) || 0);
               const fornecedorHabitual = fornecedorHabitualDoItem(historicoItem);
               const fornecedoresRecentes = Object.values(ultimoPorItemFornecedor[atual.itemId] || {})
                 .filter((compra) => Number(compra.custoUnit) > 0)
@@ -22296,6 +22297,7 @@ ${BARRA_ACOES_HTML}
                 comprasGlobais: historicoItem.length,
                 quantidadeMensal,
                 valorMensal,
+                valorEstimadoProximoMes,
                 fornecedorHabitual,
                 ultimaGlobal,
                 intervaloDias,
@@ -22352,9 +22354,17 @@ ${BARRA_ACOES_HTML}
             return urgente || comparar || a.diasAteProxima - b.diasAteProxima || b.valorMensal - a.valorMensal;
           });
         const itensCotarGuia = planejamentoGuiaCompra.filter((item) => item.acaoCompra === 'Cotar antes');
-        const itensCompararGuia = planejamentoGuiaCompra.filter((item) => item.acaoCompra === 'Comparar preço');
+        const itensMelhorPrecoGuia = planejamentoGuiaCompra.filter(
+          (item) => item.melhorFornecedorRecente
+            && normalizeName(item.melhorFornecedorRecente.fornecedor) !== normalizeName(item.ultimaGlobal.fornecedor)
+            && item.economiaVsUltimaPct > 0
+        );
         const referenciaMensalGuia = itensGuiaResumo.reduce(
           (soma, item) => soma + (Number(item.valorMensal) || 0),
+          0
+        );
+        const estimativaProximoMesGuia = planejamentoGuiaCompra.reduce(
+          (soma, item) => soma + (Number(item.valorEstimadoProximoMes) || 0),
           0
         );
 
@@ -22922,73 +22932,102 @@ ${BARRA_ACOES_HTML}
 
                 {planejamentoGuiaCompra.length > 0 && (
                   <div className="mt-4">
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                       <div className="rounded-2xl border border-black/[0.07] px-3 py-3">
-                        <div className="t-overline-sm">Referência mensal</div>
-                        <div className="t-title tnum mt-1">{formatCurrencyBR(referenciaMensalGuia)}</div>
+                        <div className="t-overline-sm">Estimativa próximo mês</div>
+                        <div className="t-title tnum mt-1">{formatCurrencyBR(estimativaProximoMesGuia)}</div>
+                        <div className="t-nano ink-quiet mt-1">média de quantidade × último preço</div>
                       </div>
-                      <div className="rounded-2xl border border-[#7D2027]/15 bg-[#7D2027]/[0.025] px-3 py-3">
+                      <div className="rounded-2xl border border-black/[0.07] px-3 py-3">
+                        <div className="t-overline-sm">Preço melhor encontrado</div>
+                        <div className="t-title tnum mt-1">{itensMelhorPrecoGuia.length}</div>
+                        <div className="t-nano ink-quiet mt-1">itens com outro fornecedor mais barato</div>
+                      </div>
+                      <div className="rounded-2xl border border-[#7D2027]/15 bg-[#7D2027]/[0.025] px-3 py-3 col-span-2 sm:col-span-1">
                         <div className="t-overline-sm ink-expired">Cotar antes</div>
                         <div className="t-title tnum ink-expired mt-1">{itensCotarGuia.length}</div>
-                      </div>
-                      <div className="rounded-2xl border border-black/[0.07] px-3 py-3">
-                        <div className="t-overline-sm">Comparar preço</div>
-                        <div className="t-title tnum mt-1">{itensCompararGuia.length}</div>
+                        <div className="t-nano ink-quiet mt-1">preço subiu ou há diferença relevante</div>
                       </div>
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-black/[0.07] overflow-hidden">
                       <div className="px-4 py-3 border-b border-black/[0.07] bg-black/[0.02]">
-                        <div className="t-overline">Planejamento do próximo mês</div>
-                        <h4 className="t-callout font-semibold mt-1">Referência para montar os pedidos</h4>
+                        <div className="t-overline">Lista de compra com preços</div>
+                        <h4 className="t-callout font-semibold mt-1">Quanto costuma comprar e quanto está custando</h4>
+                        <p className="t-nano ink-quiet mt-1">
+                          O valor estimado usa a quantidade média mensal e o último preço lançado.
+                        </p>
                       </div>
                       <div className="divide-y divide-black/[0.06]">
                         {planejamentoGuiaCompra.map((item) => (
-                          <div key={item.itemId} className="px-4 py-3.5">
-                            <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-                              <div className="min-w-0 lg:w-[28%]">
-                                <strong className="t-callout block truncate" title={item.item}>{item.item}</strong>
-                                <div className="t-nano ink-quiet mt-1">
-                                  {item.fornecedorHabitual} · {item.frequencia.replace(/^≈\s*/, '')}
+                          <div key={item.itemId} className="px-4 py-4">
+                            <div className="flex flex-col gap-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <strong className="t-callout block truncate" title={item.item}>{item.item}</strong>
+                                  <div className="t-nano ink-quiet mt-1">
+                                    {item.tipo} · {item.frequencia.replace(/^≈\s*/, '')}
+                                  </div>
                                 </div>
+                                {item.acaoCompra === 'Cotar antes' && (
+                                  <span className="pill tone-expired shrink-0">Cotar antes</span>
+                                )}
                               </div>
 
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-                                <div>
-                                  <div className="t-overline-sm">Média/mês</div>
+                              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+                                <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                  <div className="t-overline-sm">Qtd. referência/mês</div>
                                   <div className="t-micro font-semibold mt-1">
                                     {formatQuantidadeAcumulada(item.quantidadeMensal, item.unidade)}
                                   </div>
                                 </div>
-                                <div>
-                                  <div className="t-overline-sm">Próxima janela</div>
-                                  <div className="t-micro font-semibold mt-1">{item.proximaJanela}</div>
-                                </div>
-                                <div>
+                                <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
                                   <div className="t-overline-sm">Último preço</div>
-                                  <div className="t-micro font-semibold mt-1">{formatPrecoCompraComercial(item.ultimaGlobal)}</div>
+                                  <div className="t-micro font-semibold mt-1">
+                                    {formatPrecoCompraComercial(item.ultimaGlobal)}
+                                  </div>
+                                  <div className="t-nano ink-quiet mt-1">
+                                    {item.ultimaGlobal.fornecedor} · {item.ultimaGlobal.data ? formatDateBR(item.ultimaGlobal.data) : 'sem data'}
+                                  </div>
                                 </div>
-                                <div>
-                                  <div className="t-overline-sm">Ação</div>
-                                  <span className={'pill ' + item.acaoTone + ' mt-1'}>{item.acaoCompra}</span>
+                                <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                  <div className="t-overline-sm">Melhor preço recente</div>
+                                  <div className="t-micro font-semibold mt-1">
+                                    {item.melhorFornecedorRecente
+                                      ? formatPrecoCompraComercial(item.melhorFornecedorRecente)
+                                      : '—'}
+                                  </div>
+                                  <div className="t-nano ink-quiet mt-1">
+                                    {item.melhorFornecedorRecente?.fornecedor || 'sem comparação'}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                  <div className="t-overline-sm">Fornecedor habitual</div>
+                                  <div className="t-micro font-semibold mt-1">{item.fornecedorHabitual}</div>
+                                </div>
+                                <div className="rounded-xl bg-black/[0.025] px-3 py-2.5 col-span-2 lg:col-span-1">
+                                  <div className="t-overline-sm">Estimado/mês</div>
+                                  <div className="t-callout font-semibold tnum mt-1">
+                                    {formatCurrencyBR(item.valorEstimadoProximoMes)}
+                                  </div>
                                 </div>
                               </div>
+
+                              {item.economiaVsUltimaPct >= 1
+                                && item.melhorFornecedorRecente
+                                && normalizeName(item.melhorFornecedorRecente.fornecedor) !== normalizeName(item.ultimaGlobal.fornecedor) && (
+                                <div className="t-nano ink-fresh">
+                                  <strong>{item.melhorFornecedorRecente.fornecedor}</strong> está
+                                  {' '}{item.economiaVsUltimaPct.toFixed(1).replace('.', ',')}% mais barato que a última compra.
+                                </div>
+                              )}
+
+                              {item.motivosCotar.length > 0 && item.acaoCompra === 'Cotar antes' && (
+                                <div className="t-nano ink-expired">
+                                  Motivo para cotar: {item.motivosCotar.join(' · ')}
+                                </div>
+                              )}
                             </div>
-
-                            {item.motivosCotar.length > 0 && item.acaoCompra !== 'Sem alerta' && (
-                              <div className="t-nano mt-2 ink-quiet">
-                                {item.motivosCotar.join(' · ')}
-                              </div>
-                            )}
-
-                            {item.melhorFornecedorRecente
-                              && normalizeName(item.melhorFornecedorRecente.fornecedor) !== normalizeName(item.ultimaGlobal.fornecedor)
-                              && item.economiaVsUltimaPct > 0 && (
-                              <div className="t-nano ink-fresh mt-1">
-                                Melhor preço recente: <strong>{item.melhorFornecedorRecente.fornecedor}</strong>
-                                {' · '}{formatPrecoCompraComercial(item.melhorFornecedorRecente)}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
