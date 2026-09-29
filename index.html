@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-cache-recovery-1" />
+    <meta name="app-version" content="2026-09-29-guia-compras-pedido-4" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -20261,6 +20261,7 @@
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
         const [buscaGuiaCompra, setBuscaGuiaCompra] = useState('');
+        const [quantidadesPedidoGuia, setQuantidadesPedidoGuia] = useState({});
         const [visao, setVisao] = useState('item');
         const [diaCalendarioSelecionado, setDiaCalendarioSelecionado] = useState('');
         const [modoValorComprado, setModoValorComprado] = useState('agrupado');
@@ -22149,12 +22150,14 @@ ${BARRA_ACOES_HTML}
           });
 
           const fornecedores = {};
+          const historicoPorItem = {};
           base.forEach((c) => {
             const nome = c.fornecedor;
             const atual = fornecedores[nome] || { nome, compras: [], itens: {} };
             atual.compras.push(c);
             (atual.itens[c.itemId] = atual.itens[c.itemId] || []).push(c);
             fornecedores[nome] = atual;
+            (historicoPorItem[c.itemId] = historicoPorItem[c.itemId] || []).push(c);
           });
 
           const mediana = (valores) => {
@@ -22208,6 +22211,29 @@ ${BARRA_ACOES_HTML}
                 ? ((Number(atual.custoUnit) - Number(alternativa.custoUnit)) / Number(atual.custoUnit)) * 100
                 : 0;
 
+              const historicoItem = [...(historicoPorItem[atual.itemId] || [])].sort((a, b) => {
+                const d = (b.data || '').localeCompare(a.data || '');
+                return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
+              });
+              const ultimaGlobal = historicoItem[0] || atual;
+              const unidadeCompraReferencia = ultimaGlobal.unidadeCompra || ultimaGlobal.unidade || 'un';
+              const comprasMesmaUnidade = historicoItem
+                .filter((compra) => (compra.unidadeCompra || compra.unidade || 'un') === unidadeCompraReferencia)
+                .slice(0, 5);
+              const quantidadeReferenciaPedido = mediana(
+                comprasMesmaUnidade.map((compra) => Number(compra.qtyCompra) || Number(compra.qty) || 0)
+              );
+              const fornecedoresRecentes = Object.values(ultimoPorItemFornecedor[atual.itemId] || {})
+                .filter((compra) => Number(compra.custoUnit) > 0)
+                .sort((a, b) => Number(a.custoUnit) - Number(b.custoUnit));
+              const melhorCompraRecente = fornecedoresRecentes[0] || ultimaGlobal;
+              const economiaMelhorPct = Number(ultimaGlobal.custoUnit) > 0
+                && normalizeName(melhorCompraRecente.fornecedor) !== normalizeName(ultimaGlobal.fornecedor)
+                ? ((Number(ultimaGlobal.custoUnit) - Number(melhorCompraRecente.custoUnit)) / Number(ultimaGlobal.custoUnit)) * 100
+                : 0;
+              const aumentoUltimoPct = Math.max(0, Number(ultimaGlobal.variacaoPct) || 0);
+              const precisaCotar = aumentoUltimoPct >= 8 || economiaMelhorPct >= 5;
+
               return {
                 itemId: atual.itemId,
                 item: atual.item,
@@ -22219,7 +22245,14 @@ ${BARRA_ACOES_HTML}
                 quantidadeHabitual,
                 frequencia: rotuloFrequencia(datas),
                 alternativa,
-                economiaPct
+                economiaPct,
+                ultimaGlobal,
+                unidadeCompraReferencia,
+                quantidadeReferenciaPedido,
+                melhorCompraRecente,
+                economiaMelhorPct,
+                aumentoUltimoPct,
+                precisaCotar
               };
             }).sort((a, b) => {
               const alerta = Number(Boolean(b.alternativa)) - Number(Boolean(a.alternativa));
@@ -22247,6 +22280,89 @@ ${BARRA_ACOES_HTML}
           || normalizeName(guia.nome).includes(termoGuia)
           || guia.itens.some((i) => normalizeName(i.item).includes(termoGuia))
         );
+
+        const precoComercialNumeroGuia = (compra) => {
+          if (!compra) return 0;
+          const qtdCompra = Number(compra.qtyCompra) || 0;
+          const custo = Number(compra.cost) || 0;
+          if (Number(compra.unidadesPorVolume) > 0 && qtdCompra > 0 && custo > 0) {
+            return custo / qtdCompra;
+          }
+          const fatorCadastro = Number(compra.volumeCadastroUnidades) || 0;
+          if (compra.unidade === 'un' && fatorCadastro > 0 && Number(compra.custoUnit) > 0) {
+            return Number(compra.custoUnit) * fatorCadastro;
+          }
+          return Number(compra.custoUnit) || 0;
+        };
+
+        const itensPedidoGuiaPorId = {};
+        guiasCompraVisiveis.forEach((guia) => {
+          guia.itens.forEach((item) => {
+            const salvo = itensPedidoGuiaPorId[item.itemId];
+            if (!salvo || (item.ultimaGlobal?.data || '') > (salvo.ultimaGlobal?.data || '')) {
+              itensPedidoGuiaPorId[item.itemId] = item;
+            }
+          });
+        });
+        const itensPedidoGuia = Object.values(itensPedidoGuiaPorId).sort((a, b) => {
+          const fornecedorA = a.ultimaGlobal?.fornecedor || '';
+          const fornecedorB = b.ultimaGlobal?.fornecedor || '';
+          return fornecedorA.localeCompare(fornecedorB, 'pt-BR')
+            || a.item.localeCompare(b.item, 'pt-BR');
+        });
+
+        const totalPedidoGuia = itensPedidoGuia.reduce((soma, item) => {
+          const qtd = Number(quantidadesPedidoGuia[item.itemId]) || 0;
+          return soma + (qtd * precoComercialNumeroGuia(item.ultimaGlobal));
+        }, 0);
+        const itensPreenchidosPedidoGuia = itensPedidoGuia.filter(
+          (item) => (Number(quantidadesPedidoGuia[item.itemId]) || 0) > 0
+        );
+
+        const usarReferenciasPedidoGuia = () => {
+          const proximas = {};
+          itensPedidoGuia.forEach((item) => {
+            if (Number(item.quantidadeReferenciaPedido) > 0) {
+              proximas[item.itemId] = String(Number(item.quantidadeReferenciaPedido));
+            }
+          });
+          setQuantidadesPedidoGuia(proximas);
+        };
+
+        const copiarPedidoGuia = async () => {
+          if (!itensPreenchidosPedidoGuia.length) {
+            window.alert('Digite a quantidade dos itens que deseja comprar.');
+            return;
+          }
+          const porFornecedor = {};
+          itensPreenchidosPedidoGuia.forEach((item) => {
+            const fornecedor = item.ultimaGlobal?.fornecedor || 'Sem fornecedor';
+            (porFornecedor[fornecedor] = porFornecedor[fornecedor] || []).push(item);
+          });
+          const linhas = ['PEDIDO DE COMPRAS — ' + unitName, ''];
+          Object.entries(porFornecedor).forEach(([fornecedor, itens]) => {
+            linhas.push(fornecedor.toUpperCase());
+            itens.forEach((item) => {
+              const qtd = Number(quantidadesPedidoGuia[item.itemId]) || 0;
+              const preco = precoComercialNumeroGuia(item.ultimaGlobal);
+              linhas.push(
+                '• ' + item.item
+                + ' — ' + numeroCurtoBR(qtd) + ' ' + item.unidadeCompraReferencia
+                + ' — ' + formatCurrencyBR(preco) + '/' + item.unidadeCompraReferencia
+                + ' — ' + formatCurrencyBR(qtd * preco)
+              );
+            });
+            linhas.push('');
+          });
+          linhas.push('TOTAL ESTIMADO: ' + formatCurrencyBR(totalPedidoGuia));
+          const texto = linhas.join('\n');
+          try {
+            await navigator.clipboard.writeText(texto);
+            window.alert('Pedido copiado.');
+          } catch (e) {
+            window.prompt('Copie o pedido:', texto);
+          }
+        };
 
         const gerarGuiaCompra = (nomeFornecedor = null) => {
           const selecionados = nomeFornecedor
@@ -22803,13 +22919,167 @@ ${BARRA_ACOES_HTML}
                 </div>
 
                 <div className="mt-4 rounded-2xl bg-[#F4F1EA] px-4 py-3 border border-black/[0.05]">
-                  <p className="t-callout font-semibold">Importante sobre o atraso das notas</p>
+                  <p className="t-callout font-semibold">Monte a compra aqui</p>
                   <p className="t-micro mt-1">
-                    O documento é uma referência do histórico registrado, não uma lista automática do que está faltando comprar.
-                    A data do último lançamento de cada fornecedor aparece no próprio relatório.
+                    O preço mostrado é o último lançado. A quantidade de referência é baseada nas compras recentes e pode ser alterada.
                   </p>
                 </div>
               </div>
+
+              {itensPedidoGuia.length > 0 && (
+                <div className="card overflow-hidden">
+                  <div className="p-4 sm:p-5 border-b border-black/[0.07] bg-black/[0.015]">
+                    <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                      <div>
+                        <div className="t-overline">Montar pedido</div>
+                        <h3 className="t-title mt-1">Lista de compra com preços</h3>
+                        <p className="t-micro ink-quiet mt-1">
+                          Digite a quantidade que pretende pedir. O total é calculado com o último preço registrado.
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={usarReferenciasPedidoGuia}
+                          className="btn btn-secondary btn-md"
+                        >
+                          Usar quantidades de referência
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuantidadesPedidoGuia({})}
+                          className="btn btn-secondary btn-md"
+                        >
+                          Limpar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={copiarPedidoGuia}
+                          className="btn btn-primary btn-md"
+                        >
+                          Copiar pedido
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <div className="rounded-xl bg-white border border-black/[0.07] px-3 py-2.5">
+                        <div className="t-overline-sm">Itens no pedido</div>
+                        <div className="t-title tnum mt-1">{itensPreenchidosPedidoGuia.length}</div>
+                      </div>
+                      <div className="rounded-xl bg-white border border-black/[0.07] px-3 py-2.5">
+                        <div className="t-overline-sm">Total estimado</div>
+                        <div className="t-title tnum mt-1">{formatCurrencyBR(totalPedidoGuia)}</div>
+                      </div>
+                      <div className="rounded-xl bg-white border border-black/[0.07] px-3 py-2.5 col-span-2 sm:col-span-1">
+                        <div className="t-overline-sm">Itens com atenção</div>
+                        <div className="t-title tnum mt-1">{itensPedidoGuia.filter((item) => item.precisaCotar).length}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-black/[0.06]">
+                    {itensPedidoGuia.map((item) => {
+                      const precoAtual = precoComercialNumeroGuia(item.ultimaGlobal);
+                      const qtdPedido = quantidadesPedidoGuia[item.itemId] ?? '';
+                      const subtotal = (Number(qtdPedido) || 0) * precoAtual;
+                      const melhorEhOutro = item.melhorCompraRecente
+                        && normalizeName(item.melhorCompraRecente.fornecedor) !== normalizeName(item.ultimaGlobal?.fornecedor);
+                      return (
+                        <div key={item.itemId} className="p-4 sm:p-5">
+                          <div className="flex flex-col xl:flex-row xl:items-center gap-4">
+                            <div className="min-w-0 xl:w-[24%]">
+                              <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <strong className="t-callout block truncate" title={item.item}>{item.item}</strong>
+                                  <div className="t-nano ink-quiet mt-1">{item.tipo}</div>
+                                </div>
+                                {item.precisaCotar && (
+                                  <span className="pill tone-last shrink-0">Conferir preço</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 flex-1">
+                              <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                <div className="t-overline-sm">Último preço</div>
+                                <div className="t-micro font-semibold mt-1">{formatPrecoCompraComercial(item.ultimaGlobal)}</div>
+                                <div className="t-nano ink-quiet mt-1">
+                                  {item.ultimaGlobal?.fornecedor || '—'}
+                                  {item.ultimaGlobal?.data ? ' · ' + formatDateBR(item.ultimaGlobal.data) : ''}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                <div className="t-overline-sm">Melhor recente</div>
+                                <div className="t-micro font-semibold mt-1">
+                                  {item.melhorCompraRecente ? formatPrecoCompraComercial(item.melhorCompraRecente) : '—'}
+                                </div>
+                                <div className="t-nano ink-quiet mt-1">
+                                  {item.melhorCompraRecente?.fornecedor || 'sem comparação'}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                <div className="t-overline-sm">Qtd. referência</div>
+                                <div className="t-micro font-semibold mt-1">
+                                  {numeroCurtoBR(item.quantidadeReferenciaPedido)} {item.unidadeCompraReferencia}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setQuantidadesPedidoGuia((anterior) => ({
+                                    ...anterior,
+                                    [item.itemId]: String(Number(item.quantidadeReferenciaPedido) || '')
+                                  }))}
+                                  className="t-nano underline underline-offset-2 mt-1 ink-quiet"
+                                >
+                                  usar esta quantidade
+                                </button>
+                              </div>
+
+                              <div className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                                <label className="t-overline-sm block">Qtd. do pedido</label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={qtdPedido}
+                                    onChange={(e) => setQuantidadesPedidoGuia((anterior) => ({
+                                      ...anterior,
+                                      [item.itemId]: e.target.value
+                                    }))}
+                                    className="field field-sm w-full tnum"
+                                    placeholder="0"
+                                  />
+                                  <span className="t-nano ink-quiet shrink-0">{item.unidadeCompraReferencia}</span>
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl bg-black/[0.025] px-3 py-2.5 col-span-2 md:col-span-1">
+                                <div className="t-overline-sm">Subtotal</div>
+                                <div className="t-callout font-semibold tnum mt-1">{formatCurrencyBR(subtotal)}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {melhorEhOutro && item.economiaMelhorPct > 0.5 && (
+                            <div className="t-nano ink-fresh mt-2">
+                              <strong>{item.melhorCompraRecente.fornecedor}</strong> apareceu
+                              {' '}{item.economiaMelhorPct.toFixed(1).replace('.', ',')}% mais barato que a última compra.
+                            </div>
+                          )}
+                          {item.aumentoUltimoPct >= 8 && (
+                            <div className="t-nano ink-expired mt-1">
+                              Atenção: o último preço subiu {item.aumentoUltimoPct.toFixed(1).replace('.', ',')}%.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {guiasCompraVisiveis.length === 0 ? (
                 <div className="card p-6">
