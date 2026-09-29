@@ -2034,7 +2034,7 @@
         .app-main {
           width: 100%;
           min-width: 0;
-          padding: 16px 12px 28px !important;
+          padding: 14px 12px calc(92px + env(safe-area-inset-bottom)) !important;
         }
         .app-main > * { min-width: 0; max-width: 100%; }
 
@@ -2088,34 +2088,64 @@
         }
         .mobile-nav-groups .segmented > button {
           flex: 1 1 0;
-          min-height: 34px;
-          padding: 5px 10px;
+          min-height: 36px;
+          padding: 6px 10px;
         }
+
+        /* No celular as telas principais viram uma barra de app fixa embaixo.
+           Nada de procurar aba arrastando chips para o lado. */
         .mobile-nav-tabs {
-          display: flex;
-          gap: 7px;
-          margin-top: 7px;
-          overflow-x: auto;
-          overscroll-behavior-x: contain;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-          scroll-snap-type: x proximity;
-          scroll-padding-inline: 4px;
+          position: fixed;
+          left: 8px;
+          right: 8px;
+          bottom: calc(8px + env(safe-area-inset-bottom));
+          z-index: 90;
+          display: grid;
+          gap: 3px;
+          margin: 0;
+          padding: 6px;
+          overflow: visible;
+          border: 1px solid rgba(60, 60, 67, 0.13);
+          border-radius: 20px;
+          background: rgba(249, 249, 251, 0.94);
+          box-shadow: 0 12px 36px rgba(14, 9, 55, 0.16), 0 2px 8px rgba(0,0,0,.06);
+          backdrop-filter: saturate(190%) blur(20px);
+          -webkit-backdrop-filter: saturate(190%) blur(20px);
         }
-        .mobile-nav-tabs::-webkit-scrollbar { display: none; }
         .mobile-nav-tab {
-          min-height: 38px;
-          padding: 0 13px;
-          border-radius: 999px;
-          scroll-snap-align: start;
-          flex: 0 0 auto;
-          display: inline-flex;
+          min-width: 0;
+          height: 54px;
+          padding: 5px 2px;
+          border-radius: 14px;
+          display: flex;
+          flex-direction: column;
           align-items: center;
-          gap: 6px;
-          font-size: 12.5px;
+          justify-content: center;
+          gap: 3px;
+          font-size: 10px;
+          line-height: 1.05;
           font-weight: 700;
+          letter-spacing: -0.015em;
           white-space: nowrap;
+          overflow: hidden;
           touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .mobile-nav-tab > span:not(.mobile-nav-badge) {
+          display: block;
+          width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: center;
+        }
+        .mobile-nav-tab svg {
+          width: 18px !important;
+          height: 18px !important;
+        }
+        .mobile-nav-badge {
+          position: absolute;
+          top: 4px;
+          right: 7px;
         }
 
         .card, .card-flat, .card-quiet, .cadastro-shell {
@@ -2158,6 +2188,13 @@
 
         .app-navbar > .max-w-7xl { padding-left: 10px !important; padding-right: 10px !important; }
         .app-brand-copy { display: none; }
+        .mobile-nav-shell { padding-top: 6px; padding-bottom: 7px; }
+        .mobile-nav-groups { max-width: 280px; margin: 0 auto; }
+        .mobile-nav-groups .segmented > button { font-size: 12px; }
+        .mobile-nav-tabs { left: 6px; right: 6px; bottom: calc(6px + env(safe-area-inset-bottom)); }
+        .mobile-nav-tab { height: 52px; font-size: 9.5px; }
+        .fab-add { bottom: calc(78px + env(safe-area-inset-bottom)) !important; }
+        .fixed.inset-x-0.bottom-4 { bottom: calc(78px + env(safe-area-inset-bottom)) !important; }
 
         .t-display { font-size: 27px; line-height: 1.08; }
         .t-title { font-size: 20px; }
@@ -4529,8 +4566,8 @@
               </div>
             </div>
 
-            {/* No celular: primeiro escolhe o grupo, depois a aba. Não há duas
-                barras disputando a mesma linha nem rótulos gigantes. */}
+            {/* No celular o topo escolhe só o grupo; as telas desse grupo
+                ficam na barra fixa de baixo, alcançável com o polegar. */}
             <div className="mobile-nav-shell lg:hidden">
               <div className="mobile-nav-groups">
                 <div className="segmented">
@@ -4547,7 +4584,12 @@
                 </div>
               </div>
 
-              <nav ref={mobileTabsRef} className="mobile-nav-tabs">
+              <nav
+                ref={mobileTabsRef}
+                className="mobile-nav-tabs"
+                style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+                aria-label={NAV_GROUPS[groupOfTab(activeTab)].title}
+              >
                 {navItems.map((tab) => {
                   const IconComp = tab.icon;
                   const isActive = activeTab === tab.id;
@@ -4556,15 +4598,16 @@
                       key={tab.id}
                       onClick={() => abrirAba(tab.id)}
                       title={tab.fullLabel}
+                      aria-label={tab.fullLabel}
                       aria-current={isActive ? 'page' : undefined}
-                      className={`mobile-nav-tab ${
-                        isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-black/[0.05]'
+                      className={`mobile-nav-tab relative ${
+                        isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-transparent'
                       }`}
                     >
-                      <IconComp className="w-3.5 h-3.5 shrink-0" />
+                      <IconComp className="shrink-0" />
                       <span>{tab.label}</span>
                       {tab.id === 'vitrine' && totalAlerts > 0 && (
-                        <span className={`min-w-4 h-4 px-1 text-[10px] font-bold rounded-full flex items-center justify-center tnum ${
+                        <span className={`mobile-nav-badge min-w-4 h-4 px-1 text-[9px] font-bold rounded-full flex items-center justify-center tnum ${
                           isActive ? 'bg-white/25 text-white' : 'badge-expired'
                         }`}>
                           {totalAlerts}
