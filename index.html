@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-cache-recovery-1" />
+    <meta name="app-version" content="2026-09-29-guia-compras-prioridade-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -22149,13 +22149,31 @@ ${BARRA_ACOES_HTML}
           });
 
           const fornecedores = {};
+          const historicoPorItem = {};
+          const gastoPorItem = {};
           base.forEach((c) => {
             const nome = c.fornecedor;
             const atual = fornecedores[nome] || { nome, compras: [], itens: {} };
             atual.compras.push(c);
             (atual.itens[c.itemId] = atual.itens[c.itemId] || []).push(c);
             fornecedores[nome] = atual;
+
+            (historicoPorItem[c.itemId] = historicoPorItem[c.itemId] || []).push(c);
+            gastoPorItem[c.itemId] = (gastoPorItem[c.itemId] || 0) + (Number(c.cost) || 0);
           });
+
+          const mesesJanela = Math.max(1, Number(periodoGuiaCompra) || 3);
+          const gastosMensais = Object.values(gastoPorItem)
+            .map((valor) => (Number(valor) || 0) / mesesJanela)
+            .filter((valor) => valor > 0)
+            .sort((a, b) => a - b);
+          const pontosImpacto = (itemId) => {
+            const gastoMensal = (Number(gastoPorItem[itemId]) || 0) / mesesJanela;
+            if (!(gastoMensal > 0) || !gastosMensais.length) return 0;
+            const posicao = gastosMensais.filter((valor) => valor <= gastoMensal + 0.000001).length;
+            return Math.round(40 * (posicao / gastosMensais.length));
+          };
+          const limitar = (valor, maximo) => Math.max(0, Math.min(maximo, Math.round(valor || 0)));
 
           const mediana = (valores) => {
             const lista = valores.filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
@@ -22208,6 +22226,40 @@ ${BARRA_ACOES_HTML}
                 ? ((Number(atual.custoUnit) - Number(alternativa.custoUnit)) / Number(atual.custoUnit)) * 100
                 : 0;
 
+              const historicoItem = historicoPorItem[atual.itemId] || [];
+              const gastoMensal = (Number(gastoPorItem[atual.itemId]) || 0) / mesesJanela;
+              const comprasMes = historicoItem.length / mesesJanela;
+              const aumentoPct = Math.max(0, Number(atual.variacaoPct) || 0);
+              const fornecedoresComparados = Object.keys(ultimoPorItemFornecedor[atual.itemId] || {}).length;
+              const notaImpacto = pontosImpacto(atual.itemId);
+              const notaAumento = limitar(aumentoPct * (25 / 15), 25);
+              const notaFornecedor = limitar(Math.max(0, economiaPct) * (20 / 12), 20);
+              const notaFrequencia = comprasMes >= 4 ? 10 : comprasMes >= 2 ? 8 : comprasMes >= 1 ? 6 : comprasMes >= 0.5 ? 4 : 2;
+              const notaComparacao = fornecedoresComparados <= 1 && comprasMes >= 1 ? 5 : 0;
+              const prioridadeCotacao = Math.min(100, notaImpacto + notaAumento + notaFornecedor + notaFrequencia + notaComparacao);
+              const prioridadeRotulo = prioridadeCotacao >= 65
+                ? 'Cotar agora'
+                : prioridadeCotacao >= 40
+                  ? 'Vale cotar'
+                  : 'Manter compra atual';
+              const prioridadeTone = prioridadeCotacao >= 65
+                ? 'tone-expired'
+                : prioridadeCotacao >= 40
+                  ? 'tone-last'
+                  : 'tone-fresh';
+              const motivosCotacao = [];
+              if (notaImpacto >= 30) motivosCotacao.push('alto impacto: ' + formatCurrencyBR(gastoMensal) + '/mês');
+              if (aumentoPct >= 3) motivosCotacao.push('preço subiu ' + aumentoPct.toFixed(1).replace('.', ',') + '%');
+              if (alternativa && economiaPct >= 1) motivosCotacao.push(economiaPct.toFixed(1).replace('.', ',') + '% mais barato em ' + alternativa.fornecedor);
+              if (comprasMes >= 1) motivosCotacao.push('compra recorrente');
+              if (fornecedoresComparados <= 1 && comprasMes >= 1) motivosCotacao.push('sem comparação recente com outro fornecedor');
+              if (!motivosCotacao.length) motivosCotacao.push('sem sinal forte para nova cotação');
+
+              const gastoFornecedorMensal = ordenadas.reduce((soma, compra) => soma + (Number(compra.cost) || 0), 0) / mesesJanela;
+              const economiaMensalPotencial = alternativa
+                ? gastoFornecedorMensal * (Math.max(0, economiaPct) / 100)
+                : 0;
+
               return {
                 itemId: atual.itemId,
                 item: atual.item,
@@ -22219,11 +22271,18 @@ ${BARRA_ACOES_HTML}
                 quantidadeHabitual,
                 frequencia: rotuloFrequencia(datas),
                 alternativa,
-                economiaPct
+                economiaPct,
+                gastoMensal,
+                prioridadeCotacao,
+                prioridadeRotulo,
+                prioridadeTone,
+                motivosCotacao,
+                economiaMensalPotencial
               };
             }).sort((a, b) => {
+              const prioridade = b.prioridadeCotacao - a.prioridadeCotacao;
               const alerta = Number(Boolean(b.alternativa)) - Number(Boolean(a.alternativa));
-              return alerta || a.item.localeCompare(b.item, 'pt-BR');
+              return prioridade || alerta || a.item.localeCompare(b.item, 'pt-BR');
             });
 
             const ultimaData = fornecedor.compras.reduce(
@@ -22247,6 +22306,27 @@ ${BARRA_ACOES_HTML}
           || normalizeName(guia.nome).includes(termoGuia)
           || guia.itens.some((i) => normalizeName(i.item).includes(termoGuia))
         );
+
+        const itensGuiaPorId = {};
+        guiasCompraVisiveis.forEach((guia) => {
+          guia.itens.forEach((item) => {
+            const atual = itensGuiaPorId[item.itemId];
+            if (!atual || item.prioridadeCotacao > atual.prioridadeCotacao) {
+              itensGuiaPorId[item.itemId] = item;
+            }
+          });
+        });
+        const itensGuiaResumo = Object.values(itensGuiaPorId);
+        const resumoGuiaCompra = {
+          gastoMensal: itensGuiaResumo.reduce((soma, item) => soma + (Number(item.gastoMensal) || 0), 0),
+          recorrentes: itensGuiaResumo.filter((item) => item.compras >= 2).length,
+          cotarAgora: itensGuiaResumo.filter((item) => item.prioridadeCotacao >= 65).length,
+          valeCotar: itensGuiaResumo.filter((item) => item.prioridadeCotacao >= 40 && item.prioridadeCotacao < 65).length,
+          economiaPotencial: itensGuiaResumo.reduce((soma, item) => soma + (Number(item.economiaMensalPotencial) || 0), 0),
+          topCotacao: [...itensGuiaResumo]
+            .sort((a, b) => b.prioridadeCotacao - a.prioridadeCotacao || b.gastoMensal - a.gastoMensal)
+            .slice(0, 6)
+        };
 
         const gerarGuiaCompra = (nomeFornecedor = null) => {
           const selecionados = nomeFornecedor
@@ -22809,6 +22889,58 @@ ${BARRA_ACOES_HTML}
                     A data do último lançamento de cada fornecedor aparece no próprio relatório.
                   </p>
                 </div>
+
+                {itensGuiaResumo.length > 0 && (
+                  <>
+                    <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3">
+                      <div className="rounded-2xl border border-black/[0.07] px-3 py-3">
+                        <div className="t-overline-sm">Referência mensal</div>
+                        <div className="t-title tnum mt-1">{formatCurrencyBR(resumoGuiaCompra.gastoMensal)}</div>
+                        <div className="t-nano ink-quiet mt-1">média histórica do período</div>
+                      </div>
+                      <div className="rounded-2xl border border-black/[0.07] px-3 py-3">
+                        <div className="t-overline-sm">Recorrentes</div>
+                        <div className="t-title tnum mt-1">{resumoGuiaCompra.recorrentes}</div>
+                        <div className="t-nano ink-quiet mt-1">produtos com repetição</div>
+                      </div>
+                      <div className="rounded-2xl border border-[#7D2027]/15 bg-[#7D2027]/[0.025] px-3 py-3">
+                        <div className="t-overline-sm ink-expired">Cotar agora</div>
+                        <div className="t-title tnum ink-expired mt-1">{resumoGuiaCompra.cotarAgora}</div>
+                        <div className="t-nano ink-quiet mt-1">{resumoGuiaCompra.valeCotar} também valem cotação</div>
+                      </div>
+                      <div className="rounded-2xl border border-[#274133]/15 bg-[#274133]/[0.025] px-3 py-3">
+                        <div className="t-overline-sm ink-fresh">Economia potencial</div>
+                        <div className="t-title tnum ink-fresh mt-1">{formatCurrencyBR(resumoGuiaCompra.economiaPotencial)}</div>
+                        <div className="t-nano ink-quiet mt-1">estimativa mensal</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-black/[0.07] p-3.5 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                        <div>
+                          <div className="t-overline">Prioridade de cotação</div>
+                          <h4 className="t-callout font-semibold mt-1">Onde vale cotar primeiro</h4>
+                        </div>
+                        <div className="t-nano ink-quiet">65–100: cotar agora · 40–64: vale cotar</div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {resumoGuiaCompra.topCotacao.map((item) => (
+                          <div key={item.itemId} className="rounded-xl bg-black/[0.025] px-3 py-2.5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <strong className="t-micro block truncate" title={item.item}>{item.item}</strong>
+                                <div className="t-nano ink-quiet mt-1">{item.motivosCotacao.slice(0, 3).join(' · ')}</div>
+                              </div>
+                              <span className={'pill ' + item.prioridadeTone + ' shrink-0'}>
+                                {item.prioridadeCotacao}/100 · {item.prioridadeRotulo}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {guiasCompraVisiveis.length === 0 ? (
