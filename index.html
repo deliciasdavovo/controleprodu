@@ -22179,36 +22179,6 @@ ${BARRA_ACOES_HTML}
             return '≈ a cada ' + media + ' dias';
           };
 
-          const mesesJanelaGuia = Math.max(1, Number(periodoGuiaCompra) || 3);
-          const historicoGlobalPorItem = {};
-          const gastoMensalPorItem = {};
-          base.forEach((compra) => {
-            (historicoGlobalPorItem[compra.itemId] = historicoGlobalPorItem[compra.itemId] || []).push(compra);
-            gastoMensalPorItem[compra.itemId] = (gastoMensalPorItem[compra.itemId] || 0)
-              + ((Number(compra.cost) || 0) / mesesJanelaGuia);
-          });
-          Object.values(historicoGlobalPorItem).forEach((lista) => lista.sort((a, b) => {
-            const d = (b.data || '').localeCompare(a.data || '');
-            return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
-          }));
-          const gastosMensaisOrdenados = Object.values(gastoMensalPorItem)
-            .filter((valor) => Number.isFinite(valor) && valor > 0)
-            .sort((a, b) => a - b);
-          const pontosImpactoFinanceiro = (itemId) => {
-            const gasto = Number(gastoMensalPorItem[itemId]) || 0;
-            if (!(gasto > 0) || !gastosMensaisOrdenados.length) return 0;
-            const ateAqui = gastosMensaisOrdenados.filter((valor) => valor <= gasto + 0.000001).length;
-            return Math.round(40 * (ateAqui / gastosMensaisOrdenados.length));
-          };
-          const limitarPontos = (valor, maximo) =>
-            Math.max(0, Math.min(maximo, Math.round(Number(valor) || 0)));
-          const diasDesdeData = (data) => {
-            if (!data) return Number.POSITIVE_INFINITY;
-            const a = new Date(data + 'T12:00:00');
-            const b = new Date(getTodayDateString() + 'T12:00:00');
-            return Math.max(0, Math.round((b - a) / 86400000));
-          };
-
           return Object.values(fornecedores).map((fornecedor) => {
             const itens = Object.values(fornecedor.itens).map((lista) => {
               const ordenadas = [...lista].sort((a, b) => {
@@ -22235,73 +22205,6 @@ ${BARRA_ACOES_HTML}
                 ? ((Number(atual.custoUnit) - Number(alternativa.custoUnit)) / Number(atual.custoUnit)) * 100
                 : 0;
 
-              const historicoGlobal = historicoGlobalPorItem[atual.itemId] || [];
-              const gastoMensal = Number(gastoMensalPorItem[atual.itemId]) || 0;
-              const gastoMensalFornecedor = ordenadas.reduce((soma, compra) => soma + (Number(compra.cost) || 0), 0)
-                / mesesJanelaGuia;
-              const precosAnteriores = recentes.slice(1)
-                .map((compra) => Number(compra.custoUnit) || 0)
-                .filter((valor) => valor > 0);
-              const precoReferencia = mediana(precosAnteriores);
-              const aumentoPrecoPct = precoReferencia > 0 && Number(atual.custoUnit) > 0
-                ? ((Number(atual.custoUnit) - precoReferencia) / precoReferencia) * 100
-                : 0;
-              const comprasMes = historicoGlobal.length / mesesJanelaGuia;
-              const outrosFornecedores = historicoGlobal.filter(
-                (compra) => normalizeName(compra.fornecedor) !== normalizeName(fornecedor.nome)
-              );
-              const ultimaComparacaoData = outrosFornecedores.reduce(
-                (maior, compra) => (compra.data || '') > maior ? (compra.data || '') : maior,
-                ''
-              );
-              const diasSemComparar = diasDesdeData(ultimaComparacaoData);
-
-              const pontosImpacto = pontosImpactoFinanceiro(atual.itemId);
-              const pontosAumento = limitarPontos(Math.max(0, aumentoPrecoPct) * (25 / 15), 25);
-              const pontosFornecedor = limitarPontos(Math.max(0, economiaPct) * (20 / 12), 20);
-              const pontosFrequencia = comprasMes >= 4 ? 10 : comprasMes >= 2 ? 8 : comprasMes >= 1 ? 6 : comprasMes >= 0.5 ? 4 : 2;
-              const pontosTempo = !outrosFornecedores.length
-                ? (comprasMes >= 1 ? 5 : 2)
-                : diasSemComparar > 90 ? 5 : diasSemComparar > 60 ? 4 : diasSemComparar > 30 ? 2 : 0;
-              const prioridadeCotacao = Math.min(
-                100,
-                pontosImpacto + pontosAumento + pontosFornecedor + pontosFrequencia + pontosTempo
-              );
-              const prioridadeRotulo = prioridadeCotacao >= 65
-                ? 'Cotar agora'
-                : prioridadeCotacao >= 40
-                  ? 'Vale cotar'
-                  : 'Manter compra atual';
-              const prioridadeTone = prioridadeCotacao >= 65
-                ? 'tone-expired'
-                : prioridadeCotacao >= 40
-                  ? 'tone-last'
-                  : 'tone-fresh';
-              const motivosCotacao = [];
-              if (pontosImpacto >= 30) {
-                motivosCotacao.push('alto impacto: ' + formatCurrencyBR(gastoMensal) + '/mês no histórico');
-              }
-              if (aumentoPrecoPct >= 3) {
-                motivosCotacao.push('preço +' + aumentoPrecoPct.toFixed(1).replace('.', ',') + '% vs. compras anteriores');
-              }
-              if (alternativa && economiaPct >= 1) {
-                motivosCotacao.push(economiaPct.toFixed(1).replace('.', ',') + '% mais barato em ' + alternativa.fornecedor);
-              }
-              if (comprasMes >= 1) {
-                motivosCotacao.push('compra recorrente: ' + rotuloFrequencia(historicoGlobal.map((compra) => compra.data)).replace(/^≈\s*/, ''));
-              }
-              if (!outrosFornecedores.length && comprasMes >= 1) {
-                motivosCotacao.push('sem comparação com outro fornecedor neste período');
-              } else if (diasSemComparar > 60) {
-                motivosCotacao.push('última comparação com outro fornecedor há mais de 60 dias');
-              }
-              if (!motivosCotacao.length) {
-                motivosCotacao.push('preço e frequência sem sinais fortes para nova cotação');
-              }
-              const economiaMensalPotencial = alternativa
-                ? gastoMensalFornecedor * (Math.max(0, economiaPct) / 100)
-                : 0;
-
               return {
                 itemId: atual.itemId,
                 item: atual.item,
@@ -22313,24 +22216,11 @@ ${BARRA_ACOES_HTML}
                 quantidadeHabitual,
                 frequencia: rotuloFrequencia(datas),
                 alternativa,
-                economiaPct,
-                gastoMensal,
-                gastoMensalFornecedor,
-                aumentoPrecoPct,
-                comprasMes,
-                comprasGlobais: historicoGlobal.length,
-                ultimaComparacaoData,
-                diasSemComparar,
-                prioridadeCotacao,
-                prioridadeRotulo,
-                prioridadeTone,
-                motivosCotacao,
-                economiaMensalPotencial
+                economiaPct
               };
             }).sort((a, b) => {
-              const prioridade = b.prioridadeCotacao - a.prioridadeCotacao;
               const alerta = Number(Boolean(b.alternativa)) - Number(Boolean(a.alternativa));
-              return prioridade || alerta || a.item.localeCompare(b.item, 'pt-BR');
+              return alerta || a.item.localeCompare(b.item, 'pt-BR');
             });
 
             const ultimaData = fornecedor.compras.reduce(
@@ -22343,10 +22233,6 @@ ${BARRA_ACOES_HTML}
               itens,
               recorrentes: itens.filter((i) => i.compras >= 2).length,
               alertas: itens.filter((i) => i.alternativa).length,
-              cotarAgora: itens.filter((i) => i.prioridadeCotacao >= 65).length,
-              valeCotar: itens.filter((i) => i.prioridadeCotacao >= 40 && i.prioridadeCotacao < 65).length,
-              economiaMensalPotencial: itens.reduce((soma, i) => soma + (Number(i.economiaMensalPotencial) || 0), 0),
-              gastoMensal: fornecedor.compras.reduce((soma, compra) => soma + (Number(compra.cost) || 0), 0) / mesesJanelaGuia,
               ultimaData
             };
           }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -22358,33 +22244,6 @@ ${BARRA_ACOES_HTML}
           || normalizeName(guia.nome).includes(termoGuia)
           || guia.itens.some((i) => normalizeName(i.item).includes(termoGuia))
         );
-
-        const resumoGuiaCompra = (() => {
-          const porItem = {};
-          guiasCompraVisiveis.forEach((guia) => {
-            const fornecedorCasa = termoGuia && normalizeName(guia.nome).includes(termoGuia);
-            guia.itens.forEach((item) => {
-              if (termoGuia && !fornecedorCasa && !normalizeName(item.item).includes(termoGuia)) return;
-              const salvo = porItem[item.itemId];
-              if (!salvo || item.prioridadeCotacao > salvo.prioridadeCotacao) {
-                porItem[item.itemId] = item;
-              }
-            });
-          });
-          const itens = Object.values(porItem);
-          const topCotacao = [...itens]
-            .sort((a, b) => b.prioridadeCotacao - a.prioridadeCotacao || b.gastoMensal - a.gastoMensal)
-            .slice(0, 6);
-          return {
-            itens,
-            gastoMensal: itens.reduce((soma, item) => soma + (Number(item.gastoMensal) || 0), 0),
-            recorrentes: itens.filter((item) => item.comprasGlobais >= 2).length,
-            cotarAgora: itens.filter((item) => item.prioridadeCotacao >= 65).length,
-            valeCotar: itens.filter((item) => item.prioridadeCotacao >= 40 && item.prioridadeCotacao < 65).length,
-            economiaPotencial: itens.reduce((soma, item) => soma + (Number(item.economiaMensalPotencial) || 0), 0),
-            topCotacao
-          };
-        })();
 
         const gerarGuiaCompra = (nomeFornecedor = null) => {
           const selecionados = nomeFornecedor
@@ -22399,24 +22258,6 @@ ${BARRA_ACOES_HTML}
           const periodoTexto = periodoGuiaCompra === '12'
             ? 'último 1 ano'
             : 'últimos ' + periodoGuiaCompra + ' meses';
-
-          const itensResumoRelatorio = (() => {
-            const mapa = {};
-            selecionados.forEach((guia) => guia.itens.forEach((item) => {
-              const salvo = mapa[item.itemId];
-              if (!salvo || item.prioridadeCotacao > salvo.prioridadeCotacao) mapa[item.itemId] = item;
-            }));
-            return Object.values(mapa);
-          })();
-          const resumoRelatorio = {
-            itens: itensResumoRelatorio.length,
-            cotarAgora: itensResumoRelatorio.filter((item) => item.prioridadeCotacao >= 65).length,
-            valeCotar: itensResumoRelatorio.filter((item) => item.prioridadeCotacao >= 40 && item.prioridadeCotacao < 65).length,
-            economiaPotencial: itensResumoRelatorio.reduce(
-              (soma, item) => soma + (Number(item.economiaMensalPotencial) || 0),
-              0
-            )
-          };
 
           const secaoFornecedor = (guia) => {
             const linhas = guia.itens.map((i) => {
@@ -22437,21 +22278,18 @@ ${BARRA_ACOES_HTML}
               const habitual = i.quantidadeHabitual > 0
                 ? formatQuantidadeAcumulada(i.quantidadeHabitual, i.unidade)
                 : '—';
-              const prioridade = '<div class="prioridade">'
-                + '<b>' + escaparHtml(i.prioridadeRotulo) + ' · ' + i.prioridadeCotacao + '/100</b>'
-                + '<span>' + escaparHtml(i.motivosCotacao.slice(0, 3).join(' · ')) + '</span>'
-                + (i.alternativa
-                  ? '<small>Melhor preço recente: ' + escaparHtml(i.alternativa.fornecedor)
-                    + ' · ' + escaparHtml(formatPrecoCompraComercial(i.alternativa)) + '</small>'
-                  : '')
-                + '</div>';
+              const alerta = i.alternativa
+                ? '<div class="alerta"><b>Mais barato em ' + escaparHtml(i.alternativa.fornecedor) + '</b>'
+                  + '<span>' + escaparHtml(formatPrecoCompraComercial(i.alternativa))
+                  + '<br>' + i.economiaPct.toFixed(1).replace('.', ',') + '% abaixo</span></div>'
+                : '<span class="quieto">Sem alerta</span>';
 
               return '<tr>'
                 + '<td class="produto" data-rot="Produto"><b>' + escaparHtml(i.item) + '</b><small>' + escaparHtml(i.tipo) + '</small></td>'
                 + '<td class="num forte" data-rot="Compra habitual">' + escaparHtml(habitual) + '</td>'
                 + '<td class="historico-compras" data-rot="Histórico recente">' + historicoRecente + '</td>'
                 + '<td data-rot="Frequência">' + escaparHtml(i.frequencia.replace(/^≈\s*/, '')) + '</td>'
-                + '<td class="prioridade-celula" data-rot="Prioridade de cotação">' + prioridade + '</td>'
+                + '<td class="' + (i.alternativa ? 'tem-alerta' : 'sem-alerta') + '" data-rot="Atenção">' + alerta + '</td>'
                 + '</tr>';
             }).join('');
 
@@ -22459,11 +22297,11 @@ ${BARRA_ACOES_HTML}
               + '<div class="fornecedor-cabecalho">'
               + '<div><span class="rotulo">Fornecedor</span><h2>' + escaparHtml(guia.nome) + '</h2></div>'
               + '<div><span class="rotulo">Itens no guia</span><b>' + guia.itens.length + '</b></div>'
-              + '<div><span class="rotulo">Cotar agora</span><b>' + guia.cotarAgora + '</b></div>'
+              + '<div><span class="rotulo">Alertas de preço</span><b>' + guia.alertas + '</b></div>'
               + '<div><span class="rotulo">Último lançamento registrado</span><b>' + (guia.ultimaData ? formatDateBR(guia.ultimaData) : '—') + '</b></div>'
               + '</div>'
-              + '<table><colgroup><col style="width:20%"><col style="width:12%"><col style="width:31%"><col style="width:12%"><col style="width:25%"></colgroup>'
-              + '<thead><tr><th>Produto</th><th class="num">Compra habitual</th><th>Histórico recente</th><th>Frequência</th><th>Prioridade de cotação</th></tr></thead>'
+              + '<table><colgroup><col style="width:22%"><col style="width:13%"><col style="width:35%"><col style="width:13%"><col style="width:17%"></colgroup>'
+              + '<thead><tr><th>Produto</th><th class="num">Compra habitual</th><th>Histórico recente</th><th>Frequência</th><th>Atenção</th></tr></thead>'
               + '<tbody>' + linhas + '</tbody></table>'
               + '</section>';
           };
@@ -22493,9 +22331,8 @@ ${BARRA_ACOES_HTML}
             + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.03em;border-bottom:1.5px solid #111;}td small{display:block;color:#666;font-size:6.7pt;margin-top:1px;}'
             + '.num{text-align:right;font-variant-numeric:tabular-nums;}.forte{font-weight:700;}.quieto{color:#777;}'
             + '.historico-compras{font-variant-numeric:tabular-nums;}.compra-recente{display:grid;grid-template-columns:18px minmax(50px,.8fr) minmax(88px,1.2fr);gap:5px 7px;align-items:baseline;padding:2px 0;border-bottom:1px solid #ededed;}.compra-recente:last-child{border-bottom:0;}.compra-posicao{font-size:6.5pt;color:#777;font-weight:700;}.compra-qtd{font-size:7.3pt;}.compra-preco{font-size:7.5pt;text-align:right;}.compra-recente small{grid-column:2/-1;color:#777;font-size:6.2pt;text-align:right;margin:0;}'
-            + '.prioridade{font-size:7.1pt;line-height:1.35;}.prioridade b,.prioridade span,.prioridade small{display:block;}.prioridade b{font-size:7.5pt;}.prioridade span{margin-top:2px;color:#4d4d4d;}.prioridade small{margin-top:3px;color:#166534;font-weight:700;}'
-            + '.resumo-guia{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0 12px;}.resumo-guia>div{border:1px solid #dddcd7;border-radius:7px;padding:7px 8px;}.resumo-guia span{display:block;color:#666;font-size:6.5pt;text-transform:uppercase;letter-spacing:.04em;}.resumo-guia b{display:block;margin-top:2px;font-size:10pt;}'
-            + '@media screen and (max-width:960px){
+            + '.alerta{color:#7d2027;font-size:7.3pt;line-height:1.35;}.alerta b,.alerta span{display:block;}.alerta span{margin-top:1px;font-weight:600;}'
+            + '@media screen and (max-width:960px){'
             + 'body{padding:0 14px 28px;max-width:none;font-size:14px;}'
             + '.acoes{position:static;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;margin-bottom:10px;}'
             + '.acao-imprimir,.acao-imagem{min-height:44px;padding:10px 8px;font-size:12px;border-radius:12px;}'
@@ -22511,18 +22348,12 @@ ${BARRA_ACOES_HTML}
             + 'td.produto{display:block;text-align:left!important;padding:2px 0 10px;margin-bottom:3px;border-bottom:1px solid #ecece8;}'
             + 'td.produto::before{display:none;}td.produto b{display:block;font-size:16px;line-height:1.25;}td.produto small{font-size:11px;margin-top:3px;}'
             + '.historico-compras{font-size:12px;}.compra-recente{grid-template-columns:28px minmax(70px,.8fr) minmax(0,1.2fr);gap:4px 8px;padding:7px 0;border-bottom:1px solid #efefeb;}.compra-posicao{font-size:10px;text-align:left;color:#86868b;}.compra-qtd{font-size:13px;text-align:left;}.compra-preco{font-size:13px;text-align:right;white-space:normal;}.compra-recente small{grid-column:2/-1;font-size:10px;text-align:right;color:#86868b;}'
-            + '.prioridade{font-size:12px;line-height:1.45;text-align:left;}.prioridade b{font-size:13px;}.prioridade span{margin-top:4px;}.prioridade small{font-size:11px;margin-top:5px;}.resumo-guia{grid-template-columns:1fr 1fr;gap:8px;}.resumo-guia>div{padding:10px;border-radius:12px;}.resumo-guia span{font-size:9px;}.resumo-guia b{font-size:16px;}'
+            + 'td.sem-alerta{display:none;}.alerta{font-size:12px;line-height:1.4;}.quieto{font-size:12px;}'
             + '}'
             + '</style></head><body>'
             + BARRA_ACOES_HTML
             + '<header><h1>' + escaparHtml(titulo) + '</h1>'
             + '<div class="sub">' + escaparHtml(unitName) + ' · base histórica: ' + escaparHtml(periodoTexto) + ' · gerado em ' + formatDateBR(getTodayDateString()) + '</div></header>'
-            + '<div class="resumo-guia">'
-            + '<div><span>Itens analisados</span><b>' + resumoRelatorio.itens + '</b></div>'
-            + '<div><span>Cotar agora</span><b>' + resumoRelatorio.cotarAgora + '</b></div>'
-            + '<div><span>Vale cotar</span><b>' + resumoRelatorio.valeCotar + '</b></div>'
-            + '<div><span>Economia potencial/mês</span><b>' + formatCurrencyBR(resumoRelatorio.economiaPotencial) + '</b></div>'
-            + '</div>'
             + '<div class="aviso"><b>Referência histórica para compra.</b> Este guia não representa estoque nem pedido pendente. '
             + 'Como as notas podem ser lançadas com alguns dias de atraso, use as quantidades, preços e frequência como referência e confirme a necessidade atual antes do pedido.</div>'
             + selecionados.map(secaoFornecedor).join('')
@@ -22975,75 +22806,7 @@ ${BARRA_ACOES_HTML}
                     A data do último lançamento de cada fornecedor aparece no próprio relatório.
                   </p>
                 </div>
-
-                {resumoGuiaCompra.itens.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-3">
-                    <div className="rounded-2xl border border-black/[0.07] px-3.5 py-3 bg-white">
-                      <div className="t-overline-sm">Referência mensal</div>
-                      <div className="t-title tnum mt-1">{formatCurrencyBR(resumoGuiaCompra.gastoMensal)}</div>
-                      <div className="t-nano ink-quiet mt-1">média das compras no período</div>
-                    </div>
-                    <div className="rounded-2xl border border-black/[0.07] px-3.5 py-3 bg-white">
-                      <div className="t-overline-sm">Produtos recorrentes</div>
-                      <div className="t-title tnum mt-1">{resumoGuiaCompra.recorrentes}</div>
-                      <div className="t-nano ink-quiet mt-1">com repetição no histórico</div>
-                    </div>
-                    <div className="rounded-2xl border border-[#7D2027]/15 px-3.5 py-3 bg-[#7D2027]/[0.025]">
-                      <div className="t-overline-sm ink-expired">Cotar agora</div>
-                      <div className="t-title tnum mt-1 ink-expired">{resumoGuiaCompra.cotarAgora}</div>
-                      <div className="t-nano ink-quiet mt-1">{resumoGuiaCompra.valeCotar} também valem cotação</div>
-                    </div>
-                    <div className="rounded-2xl border border-[#1C6B47]/15 px-3.5 py-3 bg-[#1C6B47]/[0.025]">
-                      <div className="t-overline-sm ink-fresh">Economia potencial/mês</div>
-                      <div className="t-title tnum mt-1 ink-fresh">{formatCurrencyBR(resumoGuiaCompra.economiaPotencial)}</div>
-                      <div className="t-nano ink-quiet mt-1">estimativa com preços recentes</div>
-                    </div>
-                  </div>
-                )}
               </div>
-
-              {resumoGuiaCompra.topCotacao.length > 0 && (
-                <div className="card p-4 sm:p-6">
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                    <div>
-                      <div className="t-overline">Prioridade de cotação</div>
-                      <h3 className="t-title mt-1">Onde vale gastar tempo cotando primeiro</h3>
-                      <p className="t-micro ink-quiet mt-2 max-w-3xl leading-relaxed">
-                        A nota vai de 0 a 100: impacto financeiro 40%, aumento de preço 25%, diferença entre fornecedores 20%,
-                        frequência 10% e tempo sem comparar fornecedor 5%.
-                      </p>
-                    </div>
-                    <div className="t-micro ink-quiet lg:text-right">
-                      <strong className="ink-expired">65–100</strong> cotar agora<br />
-                      <strong>40–64</strong> vale cotar
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-2.5 sm:gap-3">
-                    {resumoGuiaCompra.topCotacao.map((item) => (
-                      <div key={item.itemId} className="rounded-2xl border border-black/[0.07] px-3.5 sm:px-4 py-3.5 bg-white">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="t-callout font-semibold truncate" title={item.item}>{item.item}</div>
-                            <div className="t-nano ink-quiet mt-0.5">{item.tipo} · {item.frequencia.replace(/^≈\s*/, '')}</div>
-                          </div>
-                          <span className={`pill ${item.prioridadeTone} shrink-0`}>
-                            <strong className="tnum">{item.prioridadeCotacao}</strong>/100 · {item.prioridadeRotulo}
-                          </span>
-                        </div>
-                        <div className="t-micro mt-2 leading-relaxed">
-                          {item.motivosCotacao.slice(0, 3).join(' · ')}
-                        </div>
-                        {item.alternativa && (
-                          <div className="t-nano ink-fresh mt-2">
-                            Melhor preço recente: <strong>{item.alternativa.fornecedor}</strong> · {formatPrecoCompraComercial(item.alternativa)}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {guiasCompraVisiveis.length === 0 ? (
                 <div className="card p-6">
@@ -23061,52 +22824,38 @@ ${BARRA_ACOES_HTML}
                             Último lançamento registrado: <strong>{guia.ultimaData ? formatDateBR(guia.ultimaData) : '—'}</strong>
                           </p>
                         </div>
-                        {guia.cotarAgora > 0 ? (
+                        {guia.alertas > 0 && (
                           <span className="pill tone-expired shrink-0">
-                            {guia.cotarAgora} {guia.cotarAgora === 1 ? 'cotar agora' : 'para cotar agora'}
-                          </span>
-                        ) : guia.alertas > 0 ? (
-                          <span className="pill tone-last shrink-0">
                             {guia.alertas} {guia.alertas === 1 ? 'preço melhor fora' : 'preços melhores fora'}
                           </span>
-                        ) : null}
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-black/[0.035] px-3.5 py-2.5">
                         <span className="t-micro"><strong className="tnum">{guia.itens.length}</strong> itens</span>
                         <span className="ink-quiet">·</span>
                         <span className="t-micro"><strong className="tnum">{guia.recorrentes}</strong> recorrentes</span>
-                        {guia.cotarAgora > 0 && (
+                        {guia.alertas > 0 && (
                           <>
                             <span className="ink-quiet">·</span>
-                            <span className="t-micro ink-expired"><strong className="tnum">{guia.cotarAgora}</strong> cotar agora</span>
-                          </>
-                        )}
-                        {guia.valeCotar > 0 && (
-                          <>
-                            <span className="ink-quiet">·</span>
-                            <span className="t-micro"><strong className="tnum">{guia.valeCotar}</strong> vale cotar</span>
+                            <span className="t-micro ink-expired"><strong className="tnum">{guia.alertas}</strong> {guia.alertas === 1 ? 'alerta' : 'alertas'}</span>
                           </>
                         )}
                       </div>
 
-                      {(guia.cotarAgora + guia.valeCotar) > 0 && (
+                      {guia.alertas > 0 && (
                         <div className="rounded-xl border border-[#7D2027]/15 bg-[#7D2027]/[0.035] px-3.5 py-3">
-                          <div className="t-overline-sm ink-expired">Prioridades antes de comprar</div>
-                          <div className="mt-2 space-y-2">
-                            {guia.itens.filter((i) => i.prioridadeCotacao >= 40).slice(0, 3).map((i) => (
+                          <div className="t-overline-sm ink-expired">Atenção antes de comprar</div>
+                          <div className="mt-2 space-y-1.5">
+                            {guia.itens.filter((i) => i.alternativa).slice(0, 3).map((i) => (
                               <div key={i.itemId} className="t-micro leading-relaxed">
-                                <div className="flex items-start justify-between gap-2">
-                                  <strong>{i.item}</strong>
-                                  <span className={`pill ${i.prioridadeTone} shrink-0`}>{i.prioridadeCotacao}/100</span>
-                                </div>
-                                <div className="t-nano ink-quiet mt-1">{i.motivosCotacao.slice(0, 2).join(' · ')}</div>
+                                <strong className="block sm:inline">{i.item}</strong>
+                                <span className="sm:ml-1"> {i.economiaPct.toFixed(1).replace('.', ',')}% mais barato em </span>
+                                <strong className="ink-fresh">{i.alternativa.fornecedor}</strong>
                               </div>
                             ))}
-                            {(guia.cotarAgora + guia.valeCotar) > 3 && (
-                              <div className="t-nano ink-quiet">
-                                + {(guia.cotarAgora + guia.valeCotar) - 3} prioridades no relatório completo
-                              </div>
+                            {guia.alertas > 3 && (
+                              <div className="t-nano ink-quiet">+ {guia.alertas - 3} alertas no relatório completo</div>
                             )}
                           </div>
                         </div>
