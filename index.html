@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-29-planilha-compras-1" />
+    <meta name="app-version" content="2026-09-30-planilha-unificada-edicao-rapida-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -1575,6 +1575,51 @@
          a planilha do pedido já fazia. O que é bloco dentro da célula, como o
          lote embaixo da data, continua na linha de baixo. */
       .tabela-larga th, .tabela-larga td { white-space: nowrap; }
+
+      /* Compras/Fornecedores: todas as leituras tabulares usam a mesma
+         linguagem da Planilha, para não reaprender a tela a cada visão. */
+      .compras-planilha-ui .rola-x {
+        border: 1px solid rgba(0,0,0,.10);
+        border-radius: 14px;
+        background: #fff;
+        overflow: auto;
+      }
+      .compras-planilha-ui .rola-x > table {
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fff;
+      }
+      .compras-planilha-ui .rola-x > table th,
+      .compras-planilha-ui .rola-x > table td {
+        border-right: 1px solid rgba(0,0,0,.065);
+        border-bottom: 1px solid rgba(0,0,0,.065);
+      }
+      .compras-planilha-ui .rola-x > table th:last-child,
+      .compras-planilha-ui .rola-x > table td:last-child { border-right: 0; }
+      .compras-planilha-ui .rola-x > table tbody tr:last-child > td { border-bottom: 0; }
+      .compras-planilha-ui .rola-x > table thead th {
+        background: #f5f5f7;
+        box-shadow: inset 0 -1px rgba(0,0,0,.05);
+      }
+      .compras-planilha-ui .rola-x > table tbody tr:hover > td {
+        background-color: rgba(14,9,55,.025);
+      }
+      .compras-planilha-ui .rola-x > table th.sticky,
+      .compras-planilha-ui .rola-x > table td.sticky {
+        box-shadow: 1px 0 rgba(0,0,0,.075);
+      }
+      @media (max-width: 640px) {
+        .compras-planilha-ui .rola-x {
+          border-radius: 10px;
+          margin-left: -4px;
+          margin-right: -4px;
+        }
+        .compras-planilha-ui .rola-x > table th,
+        .compras-planilha-ui .rola-x > table td {
+          padding-top: 9px;
+          padding-bottom: 9px;
+        }
+      }
 
       /* Planilha de cotações: grade real, como uma planilha, sem precisar
          depender de espaço em branco para separar as colunas. */
@@ -22610,7 +22655,7 @@ ${BARRA_ACOES_HTML}
 
         if (todas.length === 0) {
           return (
-            <div className="space-y-5">
+            <div className="space-y-5 compras-planilha-ui">
               <div>
                 <h2 className="t-display">Fornecedores</h2>
                 <p className="t-body mt-1">{unitName}</p>
@@ -22627,7 +22672,7 @@ ${BARRA_ACOES_HTML}
 
         if (modoFornecedores === 'planilha') {
           return (
-            <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
                   <h2 className="t-display">Planilha de compras</h2>
@@ -22802,7 +22847,7 @@ ${BARRA_ACOES_HTML}
                                   <td
                                     className="sticky left-0 z-10 bg-white min-w-[260px] px-3 py-2 border-r border-black/[0.08]"
                                     onDoubleClick={() => identificarCadastroDoItem(item.itemId)}
-                                    title="Duplo clique para abrir o cadastro"
+                                    title="Duplo clique para editar este item sem sair desta tela"
                                   >
                                     <div className="font-semibold truncate max-w-[235px]" title={item.item}>{item.item}</div>
                                     <div className="t-nano ink-quiet mt-0.5">{item.frequencia.replace(/^≈\s*/, '')}</div>
@@ -22872,7 +22917,7 @@ ${BARRA_ACOES_HTML}
 
         if (modoFornecedores === 'cotacao') {
           return (
-            <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
                   <h2 className="t-display">Cotações</h2>
@@ -23194,7 +23239,7 @@ ${BARRA_ACOES_HTML}
 
         if (modoFornecedores === 'guia') {
           return (
-            <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
                   <h2 className="t-display">Fornecedores</h2>
@@ -23465,7 +23510,7 @@ ${BARRA_ACOES_HTML}
         }
 
         return (
-          <div className="space-y-5">
+          <div className="space-y-5 compras-planilha-ui">
             {resumoPeriodoAberto && (
               <div className="fixed inset-0 z-[190] flex items-end sm:items-center justify-center p-0 sm:p-6">
                 <button
@@ -24220,7 +24265,7 @@ ${BARRA_ACOES_HTML}
                                   <div
                                     key={item.id}
                                     onDoubleClick={() => identificarCadastroDoItem(item.itemId)}
-                                    title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                    title="Dê dois cliques para editar este item sem sair desta tela"
                                     className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
                                   >
                                     <div className="min-w-0">
@@ -24331,7 +24376,7 @@ ${BARRA_ACOES_HTML}
                                 <tr
                                   key={i.itemId}
                                   onDoubleClick={() => identificarCadastroDoItem(i.itemId)}
-                                  title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                  title="Dê dois cliques para editar este item sem sair desta tela"
                                   className="border-t hairline hover:bg-black/[0.015] transition-colors align-top cursor-pointer"
                                 >
                                   <td className="py-3 pr-3 sticky left-0 bg-white z-10">
@@ -24423,7 +24468,7 @@ ${BARRA_ACOES_HTML}
                               if (e.target.closest('button,select,input,a,[role="button"]')) return;
                               identificarCadastroDoItem(i.itemId);
                             }}
-                            title="Dê dois cliques para localizar este item na tabela de cadastros"
+                            title="Dê dois cliques para editar este item sem sair desta tela"
                             className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                           >
                             <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
@@ -24559,7 +24604,7 @@ ${BARRA_ACOES_HTML}
                               <tr
                                 key={`${compra.id}-${compra.itemId}`}
                                 onDoubleClick={() => identificarCadastroDoItem(compra.itemId)}
-                                title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                title="Dê dois cliques para editar este item sem sair desta tela"
                                 className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                               >
                                 <td className="py-3 pr-3 t-callout whitespace-nowrap">
@@ -24601,7 +24646,7 @@ ${BARRA_ACOES_HTML}
                               <tr
                                 key={i.itemId}
                                 onDoubleClick={() => identificarCadastroDoItem(i.itemId)}
-                                title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                title="Dê dois cliques para editar este item sem sair desta tela"
                                 className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                               >
                                 <td className="py-3 pr-3 sticky left-0 bg-white z-10">
@@ -24846,7 +24891,7 @@ ${BARRA_ACOES_HTML}
                                   <div
                                     key={c.id}
                                     onDoubleClick={() => identificarCadastroDoItem(c.itemId)}
-                                    title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                    title="Dê dois cliques para editar este item sem sair desta tela"
                                     className="grid grid-cols-[minmax(150px,1fr)_90px_120px_110px] gap-3 items-center py-2 first:pt-1 last:pb-1 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
                                   >
                                     <div className="min-w-0">
@@ -24895,6 +24940,176 @@ ${BARRA_ACOES_HTML}
                 )}
               </div>
             )}
+          </div>
+        );
+      };
+
+
+      // Edição rápida do cadastro aberta por cima de Compras/Fornecedores.
+      // Fechar devolve a pessoa exatamente ao ponto da análise em que estava.
+      const QuickCatalogEditModal = ({
+        target,
+        supplies,
+        separatedProducts,
+        supplyPurchases,
+        resalePurchases,
+        onUpdateSupply,
+        onUpdateSeparatedProduct,
+        onClose
+      }) => {
+        if (!target?.value) return null;
+        const [tipo, id] = String(target.value).split(':');
+        const supply = tipo === 'insumo'
+          ? supplies.find((x) => String(x.id) === String(id))
+          : null;
+        const resale = tipo === 'revenda'
+          ? separatedProducts.find((x) => String(x.id) === String(id))
+          : null;
+        const item = supply || resale;
+        if (!item) return null;
+
+        const comprasItem = (tipo === 'insumo'
+          ? supplyPurchases.filter((c) => String(c.supplyId) === String(id))
+          : resalePurchases.filter((c) => String(c.productId) === String(id)))
+          .slice()
+          .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+        const ultima = comprasItem[0] || null;
+
+        const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
+        const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
+        const atualizar = (campos) => {
+          if (tipo === 'insumo') onUpdateSupply({ ...supply, ...campos });
+          else onUpdateSeparatedProduct({ ...resale, ...campos });
+        };
+
+        return (
+          <div className="fixed inset-0 z-[240] flex items-end sm:items-center justify-center p-0 sm:p-6">
+            <button
+              type="button"
+              aria-label="Fechar edição rápida"
+              onClick={onClose}
+              className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
+            />
+            <div className="relative w-full sm:max-w-3xl max-h-[92vh] overflow-hidden bg-white rounded-t-[26px] sm:rounded-[24px] shadow-2xl border hairline">
+              <div className="px-5 sm:px-6 py-4 border-b hairline flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="t-overline">Edição rápida · sem sair da tela</div>
+                  <h3 className="t-title truncate">{nome}</h3>
+                  <p className="t-micro mt-1">
+                    {tipo === 'insumo' ? 'Insumo' : 'Revenda'}
+                    {' · base '}{unidadeBase}
+                    {ultima?.supplier ? ` · última compra com ${ultima.supplier}` : ''}
+                  </p>
+                </div>
+                <button type="button" onClick={onClose} className="btn btn-secondary btn-sm shrink-0">Fechar</button>
+              </div>
+
+              <div className="overflow-auto max-h-[76vh] p-5 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="t-overline-sm block mb-1.5">Item</label>
+                    <input
+                      value={nome}
+                      onChange={(e) => atualizar(tipo === 'insumo' ? { name: e.target.value } : { productName: e.target.value })}
+                      className="field field-md w-full font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="t-overline-sm block mb-1.5">Unidade de compra</label>
+                    <PickerField
+                      value={item.purchaseUnit || (tipo === 'insumo' ? unidadeCompraPadraoDaBase(supply.unit) : 'un')}
+                      options={PURCHASE_UNITS.map((u) => ({ value: u, label: u }))}
+                      onPick={(opt) => atualizar({ purchaseUnit: opt.value })}
+                      className="field field-md w-full"
+                    />
+                    {tipo === 'insumo' && <p className="t-nano mt-1">Unidade base {supply.unit || 'un'} continua travada.</p>}
+                  </div>
+
+                  {tipo === 'revenda' && (
+                    <div>
+                      <label className="t-overline-sm block mb-1.5">Preço de venda</label>
+                      <NumeroBRField
+                        value={resale.price || ''}
+                        decimals={2}
+                        onValueChange={(price) => atualizar({ price: Number(price) || 0 })}
+                        className="field field-md w-full text-right tnum no-spin"
+                      />
+                    </div>
+                  )}
+
+                  <div className="sm:col-span-2">
+                    <label className="t-overline-sm block mb-1.5">Volume padrão</label>
+                    <div className="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 items-center">
+                      <select
+                        value={item.packageType || ''}
+                        onChange={(e) => atualizar({ packageType: e.target.value })}
+                        className="field field-md field-select"
+                      >
+                        <option value="">Sem volume padrão</option>
+                        {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                      </select>
+                      <NumeroBRField
+                        value={item.packageUnits || ''}
+                        decimals={0}
+                        onValueChange={(packageUnits) => atualizar({ packageUnits: Number(packageUnits) || null })}
+                        placeholder="un."
+                        className="field field-md text-right tnum no-spin"
+                      />
+                      <span className="t-micro">un</span>
+                    </div>
+                  </div>
+
+                  {tipo === 'insumo' && (
+                    <div className="sm:col-span-2">
+                      <label className="t-overline-sm block mb-1.5">Equivalência técnica</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="t-micro">1 un =</span>
+                        <NumeroBRField
+                          value={supply.variationFactor || ''}
+                          decimals={3}
+                          onValueChange={(variationFactor) => atualizar({
+                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
+                          })}
+                          placeholder="qtd."
+                          className="field field-md w-28 text-right tnum no-spin"
+                        />
+                        <PickerField
+                          value={supply.variationUnit || ''}
+                          options={UNIDADES_EQUIVALENCIA}
+                          onPick={(opt) => atualizar({ variationUnit: opt.value })}
+                          placeholder="g"
+                          className="field field-md w-28"
+                          panelMinWidth={140}
+                        />
+                        {(supply.variationUnit || Number(supply.variationFactor) > 0) && (
+                          <button
+                            type="button"
+                            onClick={() => atualizar({ variationUnit: '', variationFactor: null })}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Remover equivalência
+                          </button>
+                        )}
+                      </div>
+                      <p className="t-nano mt-1.5">Usada na ficha técnica/CMV; não altera a unidade base do cadastro.</p>
+                    </div>
+                  )}
+
+                  <div className="sm:col-span-2 border-t hairline pt-4 mt-1">
+                    <div className="t-overline-sm mb-2">Última compra</div>
+                    {ultima ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div><span className="t-nano block">Fornecedor</span><strong className="t-callout">{ultima.supplier || '—'}</strong></div>
+                        <div><span className="t-nano block">Data</span><strong className="t-callout tnum">{ultima.date ? formatDateBR(ultima.date) : '—'}</strong></div>
+                        <div><span className="t-nano block">Quantidade</span><strong className="t-callout tnum">{ultima.qty || '—'}</strong></div>
+                        <div><span className="t-nano block">Valor pago</span><strong className="t-callout tnum">{formatCurrencyBR(Number(ultima.cost) || 0)}</strong></div>
+                      </div>
+                    ) : <p className="t-body ink-quiet">Ainda não há compra registrada para este item.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         );
       };
@@ -25014,6 +25229,7 @@ ${BARRA_ACOES_HTML}
         const [entryMode, setEntryMode] = useState(null);
         const [activeTab, setActiveTab] = useState('vitrine');
         const [catalogEditTarget, setCatalogEditTarget] = useState(null);
+        const [catalogQuickEditTarget, setCatalogQuickEditTarget] = useState(null);
         const [selectedDay, setSelectedDay] = useState('segunda');
 
         // O dia do pedido de produção anda por conta própria: a vitrine padrão
@@ -27586,8 +27802,7 @@ ${BARRA_ACOES_HTML}
                     onUnifySupplier={handleUnifySupplier}
                     onDeletePurchaseGroup={handleDeletePurchaseGroup}
                     onRequestEditCatalog={(value) => {
-                      setCatalogEditTarget({ id: Date.now(), value });
-                      setActiveTab('insumos');
+                      setCatalogQuickEditTarget({ id: Date.now(), value });
                     }}
                   />
                 ) : <CmvSetupNotice />
@@ -27605,6 +27820,19 @@ ${BARRA_ACOES_HTML}
                 ) : <CmvSetupNotice />
               )}
             </main>
+
+            {catalogQuickEditTarget && (
+              <QuickCatalogEditModal
+                target={catalogQuickEditTarget}
+                supplies={supplies}
+                separatedProducts={separatedProducts}
+                supplyPurchases={supplyPurchases}
+                resalePurchases={resalePurchases}
+                onUpdateSupply={handleUpdateSupply}
+                onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+                onClose={() => setCatalogQuickEditTarget(null)}
+              />
+            )}
 
             {/* Fechada, a folha não guarda nada: o open corta ela antes dos
                 estados, então produto, quantidade e data começam do zero a
