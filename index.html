@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-30-edicao-rapida-historico-consolidado-1" />
+    <meta name="app-version" content="2026-09-30-tabelas-densas-excel-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -1576,11 +1576,11 @@
          lote embaixo da data, continua na linha de baixo. */
       .tabela-larga th, .tabela-larga td { white-space: nowrap; }
 
-      /* Compras/Fornecedores: todas as leituras tabulares usam a mesma
-         linguagem da Planilha, para não reaprender a tela a cada visão. */
+      /* Compras/Fornecedores — densidade de planilha de verdade.
+         Linha baixa, fonte pequena e grade visível: leitura parecida com Excel. */
       .compras-planilha-ui .rola-x {
-        border: 1px solid rgba(0,0,0,.10);
-        border-radius: 14px;
+        border: 1px solid rgba(0,0,0,.14);
+        border-radius: 8px;
         background: #fff;
         overflow: auto;
       }
@@ -1588,36 +1588,90 @@
         border-collapse: separate;
         border-spacing: 0;
         background: #fff;
+        font-size: 11px;
+        line-height: 1.15;
       }
       .compras-planilha-ui .rola-x > table th,
       .compras-planilha-ui .rola-x > table td {
-        border-right: 1px solid rgba(0,0,0,.065);
-        border-bottom: 1px solid rgba(0,0,0,.065);
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+        border-right: 1px solid rgba(0,0,0,.10);
+        border-bottom: 1px solid rgba(0,0,0,.10);
+        vertical-align: middle;
       }
       .compras-planilha-ui .rola-x > table th:last-child,
       .compras-planilha-ui .rola-x > table td:last-child { border-right: 0; }
       .compras-planilha-ui .rola-x > table tbody tr:last-child > td { border-bottom: 0; }
       .compras-planilha-ui .rola-x > table thead th {
-        background: #f5f5f7;
-        box-shadow: inset 0 -1px rgba(0,0,0,.05);
+        position: sticky;
+        top: 0;
+        z-index: 8;
+        background: #f0f0f2;
+        font-size: 10px !important;
+        line-height: 1.1 !important;
+        letter-spacing: .035em;
+        font-weight: 700;
+        white-space: nowrap;
+        box-shadow: inset 0 -1px rgba(0,0,0,.10);
+      }
+      .compras-planilha-ui .rola-x > table tbody td,
+      .compras-planilha-ui .rola-x > table tbody td .t-body,
+      .compras-planilha-ui .rola-x > table tbody td .t-callout,
+      .compras-planilha-ui .rola-x > table tbody td .t-micro {
+        font-size: 11px !important;
+        line-height: 1.15 !important;
+      }
+      .compras-planilha-ui .rola-x > table tbody td .t-nano {
+        font-size: 9px !important;
+        line-height: 1.1 !important;
+      }
+      .compras-planilha-ui .rola-x > table .pill {
+        min-height: 18px;
+        padding: 2px 5px;
+        font-size: 9px !important;
+        line-height: 1;
+        border-radius: 4px;
+      }
+      .compras-planilha-ui .rola-x > table input,
+      .compras-planilha-ui .rola-x > table select,
+      .compras-planilha-ui .rola-x > table .field {
+        min-height: 27px !important;
+        height: 27px !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+        font-size: 10.5px !important;
+        border-radius: 4px !important;
       }
       .compras-planilha-ui .rola-x > table tbody tr:hover > td {
         background-color: rgba(14,9,55,.025);
       }
       .compras-planilha-ui .rola-x > table th.sticky,
       .compras-planilha-ui .rola-x > table td.sticky {
-        box-shadow: 1px 0 rgba(0,0,0,.075);
+        box-shadow: 1px 0 rgba(0,0,0,.11);
+      }
+      .compras-planilha-ui .rola-x > table .tnum {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.01em;
       }
       @media (max-width: 640px) {
         .compras-planilha-ui .rola-x {
-          border-radius: 10px;
-          margin-left: -4px;
-          margin-right: -4px;
+          border-radius: 6px;
+          margin-left: -6px;
+          margin-right: -6px;
+        }
+        .compras-planilha-ui .rola-x > table {
+          font-size: 10.5px;
         }
         .compras-planilha-ui .rola-x > table th,
         .compras-planilha-ui .rola-x > table td {
-          padding-top: 9px;
-          padding-bottom: 9px;
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
+          padding-left: 6px !important;
+          padding-right: 6px !important;
         }
       }
 
@@ -25221,7 +25275,7 @@ ${BARRA_ACOES_HTML}
                       </div>
                     ) : (
                       <div className="rola-x border hairline rounded-2xl overflow-auto">
-                        <table className="w-full text-left tabela-larga min-w-[850px]">
+                        <table className="w-full text-left tabela-larga min-w-[850px] text-[11px] leading-tight">
                           <thead className="sticky top-0 bg-[#f5f5f7] z-10">
                             <tr className="t-overline-sm">
                               <th className="py-2.5 px-3 font-bold">Data</th>
