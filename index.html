@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-30-planilha-unificada-edicao-rapida-1" />
+    <meta name="app-version" content="2026-09-30-compras-hierarquia-visual-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -24437,18 +24437,16 @@ ${BARRA_ACOES_HTML}
                     <table className="w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
-                          <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
-                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">Última compra</th>
-                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">2ª última</th>
-                          <th className="py-3 px-3 text-right font-bold min-w-[168px]">3ª última</th>
-                          <th className="py-2 px-3 text-right font-bold">
-                            <span className="block mb-1">Variação</span>
+                          <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[210px]">Item</th>
+                          <th className="py-3 px-4 font-bold min-w-[280px]">Compra atual</th>
+                          <th className="py-2 px-4 font-bold min-w-[250px]">
+                            <span className="block mb-1">Comparação</span>
                             <select
                               value={periodoRelatorioPrecos}
                               onChange={(e) => alterarPeriodoVariacao(e.target.value)}
                               onClick={(e) => e.stopPropagation()}
                               title="Escolher o período da variação"
-                              className="field h-7 py-0 pl-2 pr-7 text-[10px] font-semibold ml-auto"
+                              className="field h-7 py-0 pl-2 pr-7 text-[10px] font-semibold"
                             >
                               <option value="3">3 meses</option>
                               <option value="6">6 meses</option>
@@ -24456,91 +24454,135 @@ ${BARRA_ACOES_HTML}
                               <option value="12">1 ano</option>
                             </select>
                           </th>
-                          <th className="py-3 px-3 font-bold">Mais barato</th>
-                          <th className="py-3 pl-3 text-center font-bold">Compras</th>
+                          <th className="py-3 pl-4 font-bold min-w-[280px]">Histórico recente</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {itensOrdenados.map((i) => (
-                          <tr
-                            key={i.itemId}
-                            onDoubleClick={(e) => {
-                              if (e.target.closest('button,select,input,a,[role="button"]')) return;
-                              identificarCadastroDoItem(i.itemId);
-                            }}
-                            title="Dê dois cliques para editar este item sem sair desta tela"
-                            className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
-                          >
-                            <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
-                              <div className="w-36 sm:w-52">
-                                <span className="t-callout font-semibold block truncate" title={i.item}>{i.item}</span>
-                                <span className="t-nano ink-quiet">{i.tipo} · {formatDateBR(i.ultimasCompras[0]?.data) || 'sem data'}</span>
-                              </div>
-                            </td>
-                            {[0, 1, 2].map((posicao) => {
-                              const compra = i.ultimasCompras[posicao];
-                              return (
-                                <td key={posicao} className="py-2.5 px-3 text-right align-top min-w-[168px]">
-                                  {compra ? (
-                                    <div className="leading-tight">
-                                      <span className="t-callout tnum font-semibold block">
-                                        {formatPrecoCompraComercial(compra)}
-                                      </span>
-                                      <span className="t-nano ink-quiet tnum block mt-1">
-                                        {formatCurrencyBR(compra.cost)} · valor da compra
-                                      </span>
-                                      <span className="t-nano ink-quiet block mt-0.5 truncate" title={compra.fornecedor}>
-                                        {compra.data ? formatDateBR(compra.data) : 'sem data'} · {compra.fornecedor}
-                                      </span>
-                                      <span className="t-nano ink-quiet tnum block mt-0.5">
-                                        {formatQuantidadeCompra(compra)}
-                                      </span>
-                                      {rotuloConteudoVolume(compra) && (
-                                        <span className="t-nano tnum font-semibold block mt-0.5">
-                                          {rotuloConteudoVolume(compra)}
-                                        </span>
-                                      )}
+                        {itensOrdenados.map((i) => {
+                          const compraAtual = i.ultimasCompras[0];
+                          const anteriores = i.ultimasCompras.slice(1, 3);
+                          return (
+                            <tr
+                              key={i.itemId}
+                              onDoubleClick={(e) => {
+                                if (e.target.closest('button,select,input,a,[role="button"]')) return;
+                                identificarCadastroDoItem(i.itemId);
+                              }}
+                              title="Dê dois cliques para editar este item sem sair desta tela"
+                              className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer align-top"
+                            >
+                              <td className="py-4 pr-3 sticky left-0 bg-white z-10 align-top">
+                                <div className="w-44 sm:w-56">
+                                  <span className="text-[14px] sm:text-[15px] leading-snug font-bold block whitespace-normal" title={i.item}>
+                                    {i.item}
+                                  </span>
+                                  <span className="t-micro ink-quiet block mt-1">
+                                    {i.tipo}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="py-4 px-4 align-top">
+                                {compraAtual ? (
+                                  <div>
+                                    <div className="text-[20px] sm:text-[22px] leading-none font-bold tnum tracking-[-0.02em]">
+                                      {formatPrecoCompraComercial(compraAtual)}
                                     </div>
-                                  ) : <span className="t-body ink-quiet">—</span>}
-                                </td>
-                              );
-                            })}
-                            <td className="py-2.5 px-3 text-right">
-                              <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
-                            </td>
-                            <td className="py-2.5 px-3">
-                              {i.medias.length > 1 ? (
-                                <div className="leading-tight">
-                                  <span className="t-body font-semibold">{i.maisBarato.nome}</span>
-                                  <div className="t-nano ink-fresh font-bold tnum">
-                                    {formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · −{i.economiaPct.toFixed(0)}%
+                                    <div className="text-[12px] sm:text-[13px] tnum font-semibold mt-2">
+                                      {formatCurrencyBR(compraAtual.cost)}
+                                      <span className="ink-quiet font-normal"> · {formatQuantidadeCompra(compraAtual)}</span>
+                                    </div>
+                                    {rotuloConteudoVolume(compraAtual) && (
+                                      <div className="t-micro tnum font-semibold mt-1">
+                                        {rotuloConteudoVolume(compraAtual)}
+                                      </div>
+                                    )}
+                                    <div className="t-micro mt-2">
+                                      <span className="ink-quiet">Fornecedor · </span>
+                                      <span className="font-semibold">{compraAtual.fornecedor || 'Sem fornecedor'}</span>
+                                    </div>
+                                    <div className="t-micro mt-1">
+                                      <span className="ink-quiet">Última compra → </span>
+                                      <span className="font-semibold tnum">{compraAtual.data ? formatDateBR(compraAtual.data) : 'sem data'}</span>
+                                    </div>
+                                  </div>
+                                ) : <span className="t-body ink-quiet">—</span>}
+                              </td>
+
+                              <td className="py-4 px-4 align-top">
+                                <div className="space-y-3">
+                                  <div>
+                                    <span className="t-overline-sm block mb-1">Variação</span>
+                                    <VariacaoBadge
+                                      variacaoUnit={i.atual.variacaoUnit}
+                                      variacaoPct={i.atual.variacaoPct}
+                                      unidade={i.unidade}
+                                    />
+                                  </div>
+
+                                  <div className="pt-2 border-t hairline">
+                                    <span className="t-overline-sm block mb-1">Fornecedor de referência</span>
+                                    {i.medias.length > 1 ? (
+                                      <>
+                                        <span className="text-[13px] font-bold block">{i.maisBarato.nome}</span>
+                                        <span className="text-[13px] tnum font-bold ink-fresh block mt-0.5">
+                                          {formatPrecoInsumo(i.maisBarato.medio, i.unidade)}
+                                          {' · '}{i.economiaPct.toFixed(0)}% abaixo do mais caro
+                                        </span>
+                                      </>
+                                    ) : i.maisBarato ? (
+                                      <>
+                                        <span className="text-[13px] font-bold block">{i.maisBarato.nome}</span>
+                                        <span className="t-micro tnum block mt-0.5">
+                                          {formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · único fornecedor
+                                        </span>
+                                      </>
+                                    ) : <span className="t-micro ink-quiet">Sem fornecedor</span>}
                                   </div>
                                 </div>
-                              ) : i.maisBarato ? (
-                                <div className="leading-tight">
-                                  <span className="t-body font-semibold">{i.maisBarato.nome}</span>
-                                  <div className="t-nano ink-quiet tnum">
-                                    {formatPrecoInsumo(i.maisBarato.medio, i.unidade)} · único fornecedor
-                                  </div>
+                              </td>
+
+                              <td className="py-4 pl-4 align-top">
+                                <div className="space-y-2.5">
+                                  {anteriores.length > 0 ? anteriores.map((compra, idx) => (
+                                    <div key={compra.id || idx} className="flex items-start justify-between gap-4 pb-2.5 border-b hairline last:border-b-0 last:pb-0">
+                                      <div className="min-w-0">
+                                        <span className="t-micro ink-quiet block">
+                                          {idx === 0 ? 'Compra anterior' : '3ª compra'}
+                                        </span>
+                                        <span className="text-[13px] font-semibold block mt-0.5 truncate" title={compra.fornecedor}>
+                                          {compra.fornecedor || 'Sem fornecedor'}
+                                        </span>
+                                        <span className="t-micro tnum block mt-0.5">
+                                          {compra.data ? formatDateBR(compra.data) : 'sem data'} · {formatQuantidadeCompra(compra)}
+                                        </span>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <span className="text-[14px] tnum font-bold block">{formatPrecoCompraComercial(compra)}</span>
+                                        <span className="t-micro tnum ink-quiet block mt-0.5">{formatCurrencyBR(compra.cost)}</span>
+                                      </div>
+                                    </div>
+                                  )) : (
+                                    <span className="t-micro ink-quiet block">Sem compras anteriores nos filtros atuais.</span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setGraficoHistoricoAberto(false);
+                                      setHistoricoItem({ itemId: i.itemId, item: i.item });
+                                    }}
+                                    title={`Histórico de compras de ${i.item}`}
+                                    className="btn btn-secondary btn-sm mt-1"
+                                  >
+                                    <Icons.ShoppingCart className="w-3.5 h-3.5" />
+                                    Ver histórico · <span className="tnum">{i.compras}</span>
+                                  </button>
                                 </div>
-                              ) : <span className="t-body ink-quiet">Sem fornecedor</span>}
-                            </td>
-                            <td className="py-2.5 pl-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setGraficoHistoricoAberto(false);
-                                  setHistoricoItem({ itemId: i.itemId, item: i.item });
-                                }}
-                                title={`Histórico de compras de ${i.item}`}
-                                className="btn btn-secondary btn-sm mx-auto"
-                              >
-                                <Icons.ShoppingCart className="w-3.5 h-3.5" />
-                                <span className="tnum">{i.compras}</span>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -24590,13 +24632,10 @@ ${BARRA_ACOES_HTML}
                         <table className="w-full text-left tabela-larga">
                           <thead>
                             <tr className="t-overline-sm border-b hairline">
-                              <th className="py-3 pr-3 font-bold">Data</th>
-                              <th className="py-3 px-3 font-bold sticky left-0 bg-white z-10">Item</th>
-                              <th className="py-3 px-3 font-bold">Fornecedor</th>
-                              <th className="py-3 px-3 text-right font-bold">Quantidade</th>
-                              <th className="py-3 px-3 text-right font-bold">Preço</th>
-                              <th className="py-3 px-3 text-right font-bold">Valor da compra</th>
-                              <th className="py-3 pl-3 text-right font-bold">% do total</th>
+                              <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[220px]">Item</th>
+                              <th className="py-3 px-4 font-bold min-w-[260px]">Compra</th>
+                              <th className="py-3 px-4 font-bold min-w-[220px]">Fornecedor</th>
+                              <th className="py-3 pl-4 text-right font-bold min-w-[120px]">% do total</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -24605,23 +24644,36 @@ ${BARRA_ACOES_HTML}
                                 key={`${compra.id}-${compra.itemId}`}
                                 onDoubleClick={() => identificarCadastroDoItem(compra.itemId)}
                                 title="Dê dois cliques para editar este item sem sair desta tela"
-                                className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
+                                className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer align-top"
                               >
-                                <td className="py-3 pr-3 t-callout whitespace-nowrap">
-                                  {compra.data ? formatDateBR(compra.data) : '—'}
+                                <td className="py-4 pr-3 sticky left-0 bg-white z-10">
+                                  <span className="text-[14px] sm:text-[15px] leading-snug font-bold block whitespace-normal">{compra.item}</span>
+                                  <span className="t-micro ink-quiet block mt-1">{compra.tipo}</span>
                                 </td>
-                                <td className="py-3 px-3 sticky left-0 bg-white z-10">
-                                  <span className="t-callout font-semibold block">{compra.item}</span>
-                                  <span className="t-nano ink-quiet block mt-0.5">{compra.tipo}</span>
+                                <td className="py-4 px-4">
+                                  <div className="text-[20px] sm:text-[22px] leading-none font-bold tnum tracking-[-0.02em]">
+                                    {formatPrecoCompraComercial(compra)}
+                                  </div>
+                                  <div className="text-[12px] sm:text-[13px] tnum font-semibold mt-2">
+                                    {formatCurrencyBR(compra.cost)}
+                                    <span className="ink-quiet font-normal"> · {formatQuantidadeCompra(compra)}</span>
+                                  </div>
+                                  {rotuloConteudoVolume(compra) && (
+                                    <div className="t-micro tnum font-semibold mt-1">{rotuloConteudoVolume(compra)}</div>
+                                  )}
+                                  <div className="t-micro mt-2">
+                                    <span className="ink-quiet">Compra → </span>
+                                    <span className="font-semibold tnum">{compra.data ? formatDateBR(compra.data) : 'sem data'}</span>
+                                  </div>
                                 </td>
-                                <td className="py-3 px-3 t-callout">{compra.fornecedor}</td>
-                                <td className="py-3 px-3 text-right t-callout tnum">{formatQuantidadeCompra(compra)}</td>
-                                <td className="py-3 px-3 text-right t-callout tnum">{formatPrecoCompraComercial(compra)}</td>
-                                <td className="py-3 px-3 text-right">
-                                  <strong className="t-body tnum">{formatCurrencyBR(compra.cost)}</strong>
+                                <td className="py-4 px-4">
+                                  <span className="text-[13px] sm:text-[14px] font-bold block">{compra.fornecedor || 'Sem fornecedor'}</span>
+                                  <span className="t-micro ink-quiet block mt-1">Fornecedor desta compra</span>
                                 </td>
-                                <td className="py-3 pl-3 text-right">
-                                  <span className="pill tone-quiet tnum">{compra.participacao.toFixed(1).replace('.', ',')}%</span>
+                                <td className="py-4 pl-4 text-right">
+                                  <span className="text-[14px] font-bold tnum">
+                                    {compra.participacao.toFixed(1).replace('.', ',')}%
+                                  </span>
                                 </td>
                               </tr>
                             ))}
