@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-30-compras-hierarquia-visual-1" />
+    <meta name="app-version" content="2026-09-30-edicao-rapida-historico-compras-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -25007,6 +25007,10 @@ ${BARRA_ACOES_HTML}
         resalePurchases,
         onUpdateSupply,
         onUpdateSeparatedProduct,
+        onUpdateSupplyPurchase,
+        onDeleteSupplyPurchase,
+        onUpdateResalePurchase,
+        onDeleteResalePurchase,
         onClose
       }) => {
         if (!target?.value) return null;
@@ -25022,9 +25026,12 @@ ${BARRA_ACOES_HTML}
 
         const comprasItem = (tipo === 'insumo'
           ? supplyPurchases.filter((c) => String(c.supplyId) === String(id))
-          : resalePurchases.filter((c) => String(c.productId) === String(id)))
+          : resalePurchases.filter((c) => String(c.separatedProductId) === String(id)))
           .slice()
-          .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+          .sort((a, b) => {
+            const porData = String(b.purchaseDate || '').localeCompare(String(a.purchaseDate || ''));
+            return porData || String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''));
+          });
         const ultima = comprasItem[0] || null;
 
         const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
@@ -25032,6 +25039,17 @@ ${BARRA_ACOES_HTML}
         const atualizar = (campos) => {
           if (tipo === 'insumo') onUpdateSupply({ ...supply, ...campos });
           else onUpdateSeparatedProduct({ ...resale, ...campos });
+        };
+        const atualizarCompra = (compra, campos) => {
+          const revisada = { ...compra, ...campos };
+          if (tipo === 'insumo') onUpdateSupplyPurchase(revisada);
+          else onUpdateResalePurchase(revisada);
+        };
+        const excluirCompra = (compra) => {
+          const rotulo = [compra.purchaseDate ? formatDateBR(compra.purchaseDate) : 'sem data', compra.supplier || 'sem fornecedor'].join(' · ');
+          if (!window.confirm(`Apagar esta compra de ${rotulo}?`)) return;
+          if (tipo === 'insumo') onDeleteSupplyPurchase(compra.id);
+          else onDeleteResalePurchase(compra.id);
         };
 
         return (
@@ -25042,7 +25060,7 @@ ${BARRA_ACOES_HTML}
               onClick={onClose}
               className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
             />
-            <div className="relative w-full sm:max-w-3xl max-h-[92vh] overflow-hidden bg-white rounded-t-[26px] sm:rounded-[24px] shadow-2xl border hairline">
+            <div className="relative w-full sm:max-w-5xl max-h-[94vh] overflow-hidden bg-white rounded-t-[26px] sm:rounded-[24px] shadow-2xl border hairline">
               <div className="px-5 sm:px-6 py-4 border-b hairline flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="t-overline">Edição rápida · sem sair da tela</div>
@@ -25050,13 +25068,14 @@ ${BARRA_ACOES_HTML}
                   <p className="t-micro mt-1">
                     {tipo === 'insumo' ? 'Insumo' : 'Revenda'}
                     {' · base '}{unidadeBase}
-                    {ultima?.supplier ? ` · última compra com ${ultima.supplier}` : ''}
+                    {comprasItem.length ? ` · ${comprasItem.length} ${comprasItem.length === 1 ? 'compra' : 'compras'}` : ''}
+                    {ultima?.supplier ? ` · última com ${ultima.supplier}` : ''}
                   </p>
                 </div>
                 <button type="button" onClick={onClose} className="btn btn-secondary btn-sm shrink-0">Fechar</button>
               </div>
 
-              <div className="overflow-auto max-h-[76vh] p-5 sm:p-6">
+              <div className="overflow-auto max-h-[80vh] p-5 sm:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="t-overline-sm block mb-1.5">Item</label>
@@ -25148,16 +25167,114 @@ ${BARRA_ACOES_HTML}
                     </div>
                   )}
 
-                  <div className="sm:col-span-2 border-t hairline pt-4 mt-1">
-                    <div className="t-overline-sm mb-2">Última compra</div>
-                    {ultima ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div><span className="t-nano block">Fornecedor</span><strong className="t-callout">{ultima.supplier || '—'}</strong></div>
-                        <div><span className="t-nano block">Data</span><strong className="t-callout tnum">{ultima.date ? formatDateBR(ultima.date) : '—'}</strong></div>
-                        <div><span className="t-nano block">Quantidade</span><strong className="t-callout tnum">{ultima.qty || '—'}</strong></div>
-                        <div><span className="t-nano block">Valor pago</span><strong className="t-callout tnum">{formatCurrencyBR(Number(ultima.cost) || 0)}</strong></div>
+                  <div className="sm:col-span-2 border-t hairline pt-5 mt-1">
+                    <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
+                      <div>
+                        <div className="t-overline-sm">Histórico de compras</div>
+                        <p className="t-micro mt-1">
+                          Edite direto aqui. As alterações são salvas no mesmo histórico usado nos relatórios.
+                        </p>
                       </div>
-                    ) : <p className="t-body ink-quiet">Ainda não há compra registrada para este item.</p>}
+                      {comprasItem.length > 0 && (
+                        <span className="pill tone-quiet tnum">
+                          {comprasItem.length} {comprasItem.length === 1 ? 'compra' : 'compras'}
+                        </span>
+                      )}
+                    </div>
+
+                    {comprasItem.length === 0 ? (
+                      <div className="rounded-2xl border hairline bg-black/[0.015] px-4 py-5">
+                        <p className="t-body ink-quiet">Ainda não há compra registrada para este item.</p>
+                      </div>
+                    ) : (
+                      <div className="rola-x border hairline rounded-2xl overflow-auto">
+                        <table className="w-full text-left tabela-larga min-w-[850px]">
+                          <thead className="sticky top-0 bg-[#f5f5f7] z-10">
+                            <tr className="t-overline-sm">
+                              <th className="py-2.5 px-3 font-bold">Data</th>
+                              <th className="py-2.5 px-3 font-bold min-w-[190px]">Fornecedor</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Quantidade</th>
+                              <th className="py-2.5 px-3 font-bold min-w-[120px]">Unidade</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Valor pago</th>
+                              <th className="py-2.5 px-3 text-right font-bold">Custo unit.</th>
+                              <th className="py-2.5 px-3 text-center font-bold">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {comprasItem.map((compra) => {
+                              const qtd = Number(compra.qty) || 0;
+                              const custo = Number(compra.cost) || 0;
+                              const custoUnitario = qtd > 0 ? custo / qtd : 0;
+                              return (
+                                <tr key={compra.id} className="border-t hairline align-middle">
+                                  <td className="p-2.5">
+                                    <input
+                                      type="date"
+                                      value={compra.purchaseDate || ''}
+                                      onChange={(e) => atualizarCompra(compra, { purchaseDate: e.target.value })}
+                                      className="field h-9 px-2 text-[12px] min-w-[135px]"
+                                    />
+                                  </td>
+                                  <td className="p-2.5">
+                                    <input
+                                      type="text"
+                                      value={compra.supplier || ''}
+                                      onChange={(e) => atualizarCompra(compra, { supplier: e.target.value })}
+                                      placeholder="Fornecedor"
+                                      className="field h-9 px-2.5 text-[12px] w-full"
+                                    />
+                                  </td>
+                                  <td className="p-2.5">
+                                    <NumeroBRField
+                                      value={compra.qty || ''}
+                                      decimals={3}
+                                      onValueChange={(qty) => atualizarCompra(compra, { qty: Number(qty) || 0 })}
+                                      className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-28"
+                                    />
+                                  </td>
+                                  <td className="p-2.5">
+                                    <select
+                                      value={compra.purchaseUnit || item.purchaseUnit || 'un'}
+                                      onChange={(e) => atualizarCompra(compra, { purchaseUnit: e.target.value })}
+                                      className="field h-9 px-2 text-[12px] field-select w-full"
+                                    >
+                                      {Array.from(new Set([
+                                        compra.purchaseUnit || '',
+                                        item.purchaseUnit || '',
+                                        ...PURCHASE_UNITS
+                                      ].filter(Boolean))).map((u) => <option key={u} value={u}>{u}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <NumeroBRField
+                                      value={compra.cost || ''}
+                                      decimals={2}
+                                      onValueChange={(cost) => atualizarCompra(compra, { cost: Number(cost) || 0 })}
+                                      className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-32"
+                                    />
+                                  </td>
+                                  <td className="p-2.5 text-right">
+                                    <span className="t-callout tnum font-semibold whitespace-nowrap">
+                                      {qtd > 0 ? formatCurrencyBR(custoUnitario) : '—'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => excluirCompra(compra)}
+                                      title="Apagar esta compra"
+                                      className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center"
+                                    >
+                                      <Icons.Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -27882,6 +27999,10 @@ ${BARRA_ACOES_HTML}
                 resalePurchases={resalePurchases}
                 onUpdateSupply={handleUpdateSupply}
                 onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
+                onUpdateSupplyPurchase={handleUpdateSupplyPurchase}
+                onDeleteSupplyPurchase={handleDeleteSupplyPurchase}
+                onUpdateResalePurchase={handleUpdateResalePurchase}
+                onDeleteResalePurchase={handleDeleteResalePurchase}
                 onClose={() => setCatalogQuickEditTarget(null)}
               />
             )}
