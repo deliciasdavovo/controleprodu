@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-30-tabelas-densas-excel-1" />
+    <meta name="app-version" content="2026-09-30-excel-denso-todas-tabelas-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -1672,6 +1672,113 @@
           padding-bottom: 4px !important;
           padding-left: 6px !important;
           padding-right: 6px !important;
+        }
+      }
+
+      /* Densidade Excel aplicada a TODAS as tabelas de Compras/Fornecedores.
+         Antes só .rola-x recebia a regra; a planilha principal usa overflow-auto
+         próprio e por isso não mudava visualmente. */
+      .compras-planilha-ui table {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      .compras-planilha-ui table th,
+      .compras-planilha-ui table td {
+        padding: 4px 6px !important;
+        height: 27px !important;
+        vertical-align: middle !important;
+        border-right: 1px solid rgba(0,0,0,.10) !important;
+        border-bottom: 1px solid rgba(0,0,0,.10) !important;
+      }
+      .compras-planilha-ui table th {
+        font-size: 9.5px !important;
+        line-height: 1.08 !important;
+        font-weight: 700 !important;
+        letter-spacing: .025em !important;
+        background: #f1f1f3 !important;
+        white-space: nowrap !important;
+      }
+      .compras-planilha-ui table td,
+      .compras-planilha-ui table td span,
+      .compras-planilha-ui table td strong,
+      .compras-planilha-ui table td div {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+      }
+      .compras-planilha-ui table td .t-nano {
+        font-size: 8.5px !important;
+        line-height: 1.05 !important;
+      }
+      .compras-planilha-ui table td .t-micro,
+      .compras-planilha-ui table td .t-caption {
+        font-size: 9px !important;
+        line-height: 1.08 !important;
+      }
+      .compras-planilha-ui table td .pill {
+        font-size: 8.5px !important;
+        min-height: 17px !important;
+        padding: 1px 5px !important;
+        border-radius: 3px !important;
+      }
+      .compras-planilha-ui table input,
+      .compras-planilha-ui table select,
+      .compras-planilha-ui table .field {
+        height: 25px !important;
+        min-height: 25px !important;
+        font-size: 10px !important;
+        line-height: 1 !important;
+        padding: 2px 5px !important;
+        border-radius: 3px !important;
+      }
+
+      /* A planilha principal tinha 1680px e colunas largas demais. */
+      .compras-planilha-ui table.excel-densa {
+        min-width: 1180px !important;
+      }
+      .compras-planilha-ui table.excel-densa th,
+      .compras-planilha-ui table.excel-densa td {
+        min-width: 82px !important;
+      }
+      .compras-planilha-ui table.excel-densa th:first-child,
+      .compras-planilha-ui table.excel-densa td:first-child {
+        min-width: 185px !important;
+        max-width: 220px !important;
+      }
+      .compras-planilha-ui table.excel-densa th button {
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+      }
+
+      /* Remove o visual de "card dentro da célula" nas visões analíticas. */
+      .compras-planilha-ui table td .text-\[20px\],
+      .compras-planilha-ui table td .text-\[22px\],
+      .compras-planilha-ui table td .text-\[15px\],
+      .compras-planilha-ui table td .text-\[14px\],
+      .compras-planilha-ui table td .text-\[13px\],
+      .compras-planilha-ui table td .text-\[12px\] {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+      }
+      .compras-planilha-ui table td .mt-2 { margin-top: 2px !important; }
+      .compras-planilha-ui table td .mt-1 { margin-top: 1px !important; }
+      .compras-planilha-ui table td .space-y-2 > :not([hidden]) ~ :not([hidden]),
+      .compras-planilha-ui table td .space-y-2\.5 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 3px !important;
+      }
+
+      @media (max-width: 640px) {
+        .compras-planilha-ui table {
+          font-size: 10px !important;
+        }
+        .compras-planilha-ui table th,
+        .compras-planilha-ui table td {
+          padding: 3px 5px !important;
+          height: 25px !important;
+        }
+        .compras-planilha-ui table.excel-densa {
+          min-width: 1080px !important;
         }
       }
 
@@ -9503,7 +9610,7 @@
               </div>
 
               <div className="rola-x">
-                <table className="w-full text-left tabela-larga">
+                <table className="excel-densa w-full text-left tabela-larga">
                   <thead>
                     <tr className="t-overline-sm">
                       <th className="py-3 pr-3 font-bold">Data</th>
@@ -10374,7 +10481,7 @@
               {/* ---------- TUDO JUNTO ---------- */}
               {activeTab === 'tudo' && (
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -10469,7 +10576,7 @@
                   </div>
 
                   <div className="rola-x">
-                    <table className="w-full text-left tabela-larga">
+                    <table className="excel-densa w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm">
                           <th className="py-3 pr-3 font-bold">{agrupamento === 'lote' ? 'Lote' : 'Produto'}</th>
@@ -10703,7 +10810,7 @@
               {/* ---------- PRODUÇÃO ---------- */}
               {activeTab === 'producao' && (
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Fabricação</th>
@@ -10753,7 +10860,7 @@
               {/* ---------- VENDAS ---------- */}
               {activeTab === 'vendas' && (
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -10796,7 +10903,7 @@
               {/* ---------- PERDAS ---------- */}
               {activeTab === 'perdas' && (
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm">
                         <th className="py-3 pr-3 font-bold">Data</th>
@@ -11356,7 +11463,7 @@
               </div>
 
               <div className="rola-x">
-                <table className="w-full text-left tabela-larga">
+                <table className="excel-densa w-full text-left tabela-larga">
                   <thead>
                     <tr className="t-overline-sm border-b hairline">
                       <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
@@ -15452,7 +15559,7 @@
                   </div>
 
                   <div className="rola-x">
-                    <table className="w-full text-left tabela-larga">
+                    <table className="excel-densa w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
@@ -16185,7 +16292,7 @@
                   Os itens de fora da vitrine desta unidade. Informe a compra e o custo por unidade sai sozinho.
                 </p>
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm border-b hairline">
                         <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
@@ -17330,7 +17437,7 @@
                   O preço sugerido é o que deixaria o produto em {(CMV_METAS.fabricacao.alvo * 100).toFixed(0)}% de CMV.
                 </p>
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm border-b hairline">
                         <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Produto</th>
@@ -17469,7 +17576,7 @@
                   Bom até {CMV_METAS.revenda.bom}%, atenção até {CMV_METAS.revenda.atencao}%.
                 </p>
                 <div className="rola-x">
-                  <table className="w-full text-left tabela-larga">
+                  <table className="excel-densa w-full text-left tabela-larga">
                     <thead>
                       <tr className="t-overline-sm border-b hairline">
                         <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
@@ -22820,7 +22927,7 @@ ${BARRA_ACOES_HTML}
 
               <div className="card overflow-hidden">
                 <div className="overflow-auto max-h-[72vh]">
-                  <table className="min-w-[1680px] w-full border-collapse text-[12px]">
+                  <table className="excel-densa min-w-[1680px] w-full border-collapse text-[12px]">
                     <thead className="sticky top-0 z-30 bg-[#f7f7f8] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                       <tr className="text-left">
                         <th className="sticky left-0 z-40 bg-[#f7f7f8] min-w-[260px] px-3 py-2.5 border-r border-black/[0.08]">
@@ -23635,7 +23742,7 @@ ${BARRA_ACOES_HTML}
                         </div>
                       ) : (
                         <div className="card p-4 sm:p-5 rola-x">
-                          <table className="w-full text-left tabela-larga">
+                          <table className="excel-densa w-full text-left tabela-larga">
                             <thead>
                               <tr className="t-overline-sm border-b hairline">
                                 <th className="py-2 pr-3 font-bold">Produto</th>
@@ -23752,7 +23859,7 @@ ${BARRA_ACOES_HTML}
                     {comprasHistoricoFornecedor.length === 0 ? (
                       <p className="t-body text-center py-10 ink-quiet">Nenhuma compra deste fornecedor no período selecionado.</p>
                     ) : (
-                      <table className="w-full text-left tabela-larga">
+                      <table className="excel-densa w-full text-left tabela-larga">
                         <thead className="sticky top-0 bg-white z-10">
                           <tr className="t-overline-sm border-b hairline">
                             <th className="py-3 pr-3 font-bold">Data</th>
@@ -23837,7 +23944,7 @@ ${BARRA_ACOES_HTML}
                     {comprasHistoricoItem.length === 0 ? (
                       <p className="t-body text-center py-10 ink-quiet">Nenhuma compra deste item no período selecionado.</p>
                     ) : (
-                      <table className="w-full text-left tabela-larga">
+                      <table className="excel-densa w-full text-left tabela-larga">
                         <thead className="sticky top-0 bg-white z-10">
                           <tr className="t-overline-sm border-b hairline">
                             <th className="py-3 pr-3 font-bold">Data</th>
@@ -24413,7 +24520,7 @@ ${BARRA_ACOES_HTML}
                           </div>
                         )}
                         <div className="rola-x">
-                          <table className="w-full text-left tabela-larga">
+                          <table className="excel-densa w-full text-left tabela-larga">
                             <thead>
                               <tr className="t-overline-sm border-b hairline">
                                 <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[220px]">Marca / cadastro</th>
@@ -24488,7 +24595,7 @@ ${BARRA_ACOES_HTML}
                 {/* ---------------- POR ITEM ---------------- */}
                 {visao === 'item' && (
                   <div className="rola-x">
-                    <table className="w-full text-left tabela-larga">
+                    <table className="excel-densa w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[210px]">Item</th>
@@ -24683,7 +24790,7 @@ ${BARRA_ACOES_HTML}
 
                     {modoValorComprado === 'individual' ? (
                       <div className="rola-x">
-                        <table className="w-full text-left tabela-larga">
+                        <table className="excel-densa w-full text-left tabela-larga">
                           <thead>
                             <tr className="t-overline-sm border-b hairline">
                               <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[220px]">Item</th>
@@ -24736,7 +24843,7 @@ ${BARRA_ACOES_HTML}
                       </div>
                     ) : (
                       <div className="rola-x">
-                        <table className="w-full text-left tabela-larga">
+                        <table className="excel-densa w-full text-left tabela-larga">
                           <thead>
                             <tr className="t-overline-sm border-b hairline">
                               <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
@@ -24814,7 +24921,7 @@ ${BARRA_ACOES_HTML}
                           </span>
                         </div>
                         <div className="rola-x">
-                          <table className="w-full text-left tabela-larga cruzada">
+                          <table className="excel-densa w-full text-left tabela-larga cruzada">
                             <thead>
                               <tr className="t-overline-sm border-b hairline">
                                 <th className="py-2 pr-3 font-bold sticky left-0 bg-white z-10">Fornecedor</th>
@@ -24969,7 +25076,7 @@ ${BARRA_ACOES_HTML}
                 {/* ---------------- POR COMPRA ---------------- */}
                 {visao === 'compra' && (
                   <div className="rola-x">
-                    <table className="w-full text-left tabela-larga">
+                    <table className="excel-densa w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Data</th>
@@ -25275,7 +25382,7 @@ ${BARRA_ACOES_HTML}
                       </div>
                     ) : (
                       <div className="rola-x border hairline rounded-2xl overflow-auto">
-                        <table className="w-full text-left tabela-larga min-w-[850px] text-[11px] leading-tight">
+                        <table className="excel-densa w-full text-left tabela-larga min-w-[850px] text-[11px] leading-tight">
                           <thead className="sticky top-0 bg-[#f5f5f7] z-10">
                             <tr className="t-overline-sm">
                               <th className="py-2.5 px-3 font-bold">Data</th>
