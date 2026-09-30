@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-09-30-edicao-rapida-historico-compras-1" />
+    <meta name="app-version" content="2026-09-30-edicao-rapida-historico-consolidado-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -25024,31 +25024,64 @@ ${BARRA_ACOES_HTML}
         const item = supply || resale;
         if (!item) return null;
 
-        const comprasItem = (tipo === 'insumo'
-          ? supplyPurchases.filter((c) => String(c.supplyId) === String(id))
-          : resalePurchases.filter((c) => String(c.separatedProductId) === String(id)))
-          .slice()
+        const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
+        const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
+
+        // O histórico pode existir em um dos dois lados do cadastro. Isso
+        // acontece nos itens híbridos (insumo + revenda) e em dados antigos.
+        // A edição rápida usa o mesmo histórico consolidado da tela de compras.
+        const supplyMesmoNome = supplies.find((x) => normalizeName(x.name) === normalizeName(nome)) || null;
+        const resaleMesmoNome = separatedProducts.find((x) => normalizeName(x.productName) === normalizeName(nome)) || null;
+
+        const comprasSupply = supplyMesmoNome
+          ? supplyPurchases
+              .filter((c) => String(c.supplyId) === String(supplyMesmoNome.id))
+              .map((c) => ({ ...c, __origem: 'insumo' }))
+          : [];
+        const comprasResale = resaleMesmoNome
+          ? resalePurchases
+              .filter((c) => String(c.separatedProductId) === String(resaleMesmoNome.id))
+              .map((c) => ({ ...c, __origem: 'revenda' }))
+          : [];
+
+        // Evita mostrar duas vezes a mesma compra quando o cadastro híbrido
+        // gravou um espelho em supply_purchases e resale_purchases.
+        const assinaturaCompra = (c) => [
+          normalizeName(c.supplier || ''),
+          String(c.purchaseDate || ''),
+          Number(c.qty) || 0,
+          Number(c.cost) || 0
+        ].join('|');
+
+        const vistos = new Set();
+        const comprasItem = [...comprasSupply, ...comprasResale]
+          .filter((c) => {
+            const chave = assinaturaCompra(c);
+            if (vistos.has(chave)) return false;
+            vistos.add(chave);
+            return true;
+          })
           .sort((a, b) => {
             const porData = String(b.purchaseDate || '').localeCompare(String(a.purchaseDate || ''));
             return porData || String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''));
           });
+
         const ultima = comprasItem[0] || null;
 
-        const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
-        const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
         const atualizar = (campos) => {
           if (tipo === 'insumo') onUpdateSupply({ ...supply, ...campos });
           else onUpdateSeparatedProduct({ ...resale, ...campos });
         };
         const atualizarCompra = (compra, campos) => {
-          const revisada = { ...compra, ...campos };
-          if (tipo === 'insumo') onUpdateSupplyPurchase(revisada);
+          const { __origem, ...base } = compra;
+          const revisada = { ...base, ...campos };
+          if (__origem === 'insumo') onUpdateSupplyPurchase(revisada);
           else onUpdateResalePurchase(revisada);
         };
         const excluirCompra = (compra) => {
           const rotulo = [compra.purchaseDate ? formatDateBR(compra.purchaseDate) : 'sem data', compra.supplier || 'sem fornecedor'].join(' · ');
           if (!window.confirm(`Apagar esta compra de ${rotulo}?`)) return;
-          if (tipo === 'insumo') onDeleteSupplyPurchase(compra.id);
+          if (compra.__origem === 'insumo') onDeleteSupplyPurchase(compra.id);
           else onDeleteResalePurchase(compra.id);
         };
 
@@ -25195,6 +25228,7 @@ ${BARRA_ACOES_HTML}
                               <th className="py-2.5 px-3 font-bold min-w-[190px]">Fornecedor</th>
                               <th className="py-2.5 px-3 text-right font-bold">Quantidade</th>
                               <th className="py-2.5 px-3 font-bold min-w-[120px]">Unidade</th>
+                              <th className="py-2.5 px-3 font-bold min-w-[100px]">Origem</th>
                               <th className="py-2.5 px-3 text-right font-bold">Valor pago</th>
                               <th className="py-2.5 px-3 text-right font-bold">Custo unit.</th>
                               <th className="py-2.5 px-3 text-center font-bold">Ação</th>
@@ -25244,6 +25278,9 @@ ${BARRA_ACOES_HTML}
                                         ...PURCHASE_UNITS
                                       ].filter(Boolean))).map((u) => <option key={u} value={u}>{u}</option>)}
                                     </select>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <span className="pill tone-quiet">{compra.__origem === 'insumo' ? 'Insumo' : 'Revenda'}</span>
                                   </td>
                                   <td className="p-2.5">
                                     <NumeroBRField
