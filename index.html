@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-01-fornecedores-excel-v3" />
+    <meta name="app-version" content="2026-10-01-duplo-clique-confiavel-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -12550,7 +12550,7 @@
                     ) : ordenadas.map((c, idx) => (
                       <tr
                                   key={c.id}
-                                  onDoubleClick={() => identificarCadastroDoItem(c.itemId)}
+                                  onDoubleClickCapture={() => identificarCadastroDoItem(c.itemId)}
                                   title="Dê dois cliques para localizar este item na tabela de cadastros"
                                   className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                                 >
@@ -15750,7 +15750,7 @@
                             <tr
                               key={linha.key}
                               data-cadastro-key={linha.key}
-                              onDoubleClick={(e) => {
+                              onDoubleClickCapture={(e) => {
                                 if (e.target.closest('input,button,select,textarea,a,[role="button"]')) return;
                                 setCadastroDestacado(linha.key);
                               }}
@@ -23126,7 +23126,7 @@ ${BARRA_ACOES_HTML}
                                 >
                                   <td
                                     className="sticky left-0 z-10 bg-white min-w-[260px] px-3 py-2 border-r border-black/[0.08]"
-                                    onDoubleClick={() => identificarCadastroDoItem(item.itemId)}
+                                    onDoubleClickCapture={() => identificarCadastroDoItem(item.itemId)}
                                     title="Duplo clique para editar este item sem sair desta tela"
                                   >
                                     <div className="font-semibold truncate max-w-[235px]" title={item.item}>{item.item}</div>
@@ -24544,7 +24544,7 @@ ${BARRA_ACOES_HTML}
                                 {fornecedor.itens.map((item) => (
                                   <div
                                     key={item.id}
-                                    onDoubleClick={() => identificarCadastroDoItem(item.itemId)}
+                                    onDoubleClickCapture={() => identificarCadastroDoItem(item.itemId)}
                                     title="Dê dois cliques para editar este item sem sair desta tela"
                                     className="py-2.5 first:pt-0 last:pb-0 flex items-start justify-between gap-3 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
                                   >
@@ -24655,7 +24655,7 @@ ${BARRA_ACOES_HTML}
                               {comparativoMarcas.map((i) => (
                                 <tr
                                   key={i.itemId}
-                                  onDoubleClick={() => identificarCadastroDoItem(i.itemId)}
+                                  onDoubleClickCapture={() => identificarCadastroDoItem(i.itemId)}
                                   title="Dê dois cliques para editar este item sem sair desta tela"
                                   className="border-t hairline hover:bg-black/[0.015] transition-colors align-top cursor-pointer"
                                 >
@@ -24744,7 +24744,7 @@ ${BARRA_ACOES_HTML}
                           return (
                             <tr
                               key={i.itemId}
-                              onDoubleClick={(e) => {
+                              onDoubleClickCapture={(e) => {
                                 if (e.target.closest('button,select,input,a,[role="button"]')) return;
                                 identificarCadastroDoItem(i.itemId);
                               }}
@@ -24922,7 +24922,7 @@ ${BARRA_ACOES_HTML}
                             {valorCompradoIndividual.map((compra) => (
                               <tr
                                 key={`${compra.id}-${compra.itemId}`}
-                                onDoubleClick={() => identificarCadastroDoItem(compra.itemId)}
+                                onDoubleClickCapture={() => identificarCadastroDoItem(compra.itemId)}
                                 title="Dê dois cliques para editar este item sem sair desta tela"
                                 className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer align-top"
                               >
@@ -24977,7 +24977,7 @@ ${BARRA_ACOES_HTML}
                             {valorCompradoOrdenado.map((i) => (
                               <tr
                                 key={i.itemId}
-                                onDoubleClick={() => identificarCadastroDoItem(i.itemId)}
+                                onDoubleClickCapture={() => identificarCadastroDoItem(i.itemId)}
                                 title="Dê dois cliques para editar este item sem sair desta tela"
                                 className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                               >
@@ -25222,7 +25222,7 @@ ${BARRA_ACOES_HTML}
                                 {compra.itens.map((c) => (
                                   <div
                                     key={c.id}
-                                    onDoubleClick={() => identificarCadastroDoItem(c.itemId)}
+                                    onDoubleClickCapture={() => identificarCadastroDoItem(c.itemId)}
                                     title="Dê dois cliques para editar este item sem sair desta tela"
                                     className="grid grid-cols-[minmax(150px,1fr)_90px_120px_110px] gap-3 items-center py-2 first:pt-1 last:pb-1 cursor-pointer hover:bg-black/[0.02] rounded-lg px-1 -mx-1"
                                   >
