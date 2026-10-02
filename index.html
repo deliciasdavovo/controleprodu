@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-banco-edicao-inline-2" />
+    <meta name="app-version" content="2026-10-02-lark-cadastros-v2-flat" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -2876,6 +2876,300 @@
         .lark-cadastros-ui .cadastro-shell { border-radius:10px; }
         .lark-cadastros-ui .cadastro-bloco { padding:13px; border-radius:8px; }
         .lark-cadastros-ui .lark-cadastros-list { border-radius:8px; }
+      }
+
+
+      /* Cadastros v2 — estrutura realmente plana, sem card dentro de card */
+      .lark-cadastros-ui {
+        gap:14px!important;
+      }
+      .lark-cadastros-ui > div:first-child {
+        margin-bottom:2px;
+      }
+      .lark-cadastros-ui > div:first-child .t-display {
+        font-size:22px!important;
+        line-height:1.15!important;
+        letter-spacing:-.02em!important;
+      }
+      .lark-cadastros-ui > div:first-child .t-body {
+        margin-top:3px!important;
+        font-size:12px!important;
+        color:#646a73!important;
+      }
+
+      .lark-cadastros-ui .cadastro-shell {
+        padding:0!important;
+        border:0!important;
+        border-radius:0!important;
+        background:transparent!important;
+        box-shadow:none!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-hero {
+        align-items:center!important;
+        padding:10px 12px!important;
+        border:1px solid rgba(31,35,41,.10);
+        border-radius:8px;
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-hero-principal {
+        gap:8px!important;
+      }
+      .lark-cadastros-ui .cadastro-hero-icone {
+        display:none!important;
+      }
+      .lark-cadastros-ui .cadastro-hero h3 {
+        font-size:14px!important;
+        line-height:1.2!important;
+        font-weight:700!important;
+      }
+      .lark-cadastros-ui .cadastro-hero p {
+        margin-top:2px!important;
+        font-size:11px!important;
+        line-height:1.35!important;
+      }
+      .lark-cadastros-ui .cadastro-atalho-calculo {
+        margin-top:5px!important;
+        padding:2px 6px!important;
+        font-size:9.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-hero-acao {
+        min-height:30px!important;
+        height:30px!important;
+        padding:0 9px!important;
+        border-radius:5px!important;
+        font-size:11px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-navegacao {
+        display:flex!important;
+        align-items:center!important;
+        gap:0!important;
+        margin:8px 0 0!important;
+        padding:0 4px!important;
+        border:0!important;
+        border-bottom:1px solid rgba(31,35,41,.10)!important;
+        border-radius:0!important;
+        background:transparent!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa {
+        flex:0 0 auto!important;
+        min-height:30px!important;
+        padding:4px 8px!important;
+        border-radius:5px 5px 0 0!important;
+        gap:6px!important;
+        border-bottom:2px solid transparent!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] {
+        background:transparent!important;
+        color:#245bdb!important;
+        border-bottom-color:#3370ff!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="complete"] {
+        color:#4e5969!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-numero {
+        width:18px!important;
+        height:18px!important;
+        border-radius:4px!important;
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-texto strong {
+        font-size:10.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-texto small {
+        display:none!important;
+      }
+
+      .lark-cadastros-ui .cadastro-form {
+        margin-top:0!important;
+      }
+      .lark-cadastros-ui .cadastro-duas-colunas {
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+        gap:0!important;
+        border:1px solid rgba(31,35,41,.10)!important;
+        border-top:0!important;
+        border-radius:0 0 8px 8px!important;
+        background:#fff!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco {
+        padding:13px 14px!important;
+        border:0!important;
+        border-radius:0!important;
+        background:#fff!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco + .cadastro-bloco {
+        border-left:1px solid rgba(31,35,41,.10)!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho {
+        gap:7px!important;
+        margin-bottom:10px!important;
+        padding-bottom:7px!important;
+        border-bottom:1px solid rgba(31,35,41,.08)!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-passo {
+        width:20px!important;
+        height:20px!important;
+        border-radius:4px!important;
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho strong {
+        font-size:12.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho span {
+        font-size:9.5px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-grid {
+        column-gap:9px!important;
+        row-gap:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-form label {
+        min-height:14px!important;
+        margin-bottom:3px!important;
+        font-size:10px!important;
+        color:#646a73!important;
+      }
+      .lark-cadastros-ui .cadastro-form .field-md {
+        height:34px!important;
+        min-height:34px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        min-height:34px!important;
+        height:34px!important;
+        padding:0 9px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao span,
+      .lark-cadastros-ui .cadastro-config-valor span {
+        font-size:11px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao small,
+      .lark-cadastros-ui .cadastro-config-valor small {
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-opcoes {
+        margin-bottom:9px!important;
+        gap:5px!important;
+      }
+      .lark-cadastros-ui .cadastro-opcoes .btn,
+      .lark-cadastros-ui .cadastro-grid .btn {
+        min-height:28px!important;
+        height:28px!important;
+        padding:0 8px!important;
+        border-radius:5px!important;
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado {
+        min-height:36px!important;
+        margin-top:8px!important;
+        padding:6px 8px!important;
+        border-radius:5px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado span {
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado b {
+        font-size:13px!important;
+      }
+      .lark-cadastros-ui .cadastro-equivalencia {
+        margin-top:10px!important;
+        padding-top:9px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-rodape {
+        position:static!important;
+        display:flex!important;
+        align-items:center!important;
+        justify-content:space-between!important;
+        gap:10px!important;
+        margin-top:8px!important;
+        padding:7px 8px!important;
+        border:1px solid rgba(31,35,41,.10)!important;
+        border-radius:7px!important;
+        background:#fff!important;
+        box-shadow:none!important;
+        backdrop-filter:none!important;
+      }
+      .lark-cadastros-ui .cadastro-rodape .cadastro-contexto {
+        min-height:30px!important;
+        padding:3px 5px!important;
+      }
+      .lark-cadastros-ui .cadastro-contexto-texto strong {
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-contexto-texto span {
+        font-size:9.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-rodape .btn {
+        width:auto!important;
+        min-width:180px!important;
+        min-height:32px!important;
+        height:32px!important;
+        border-radius:5px!important;
+        font-size:11px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-lista-cadastros {
+        margin-top:10px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        padding:8px 9px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        padding:5px 9px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th,
+      .lark-cadastros-ui table.lark-cadastros-table td {
+        height:32px!important;
+        padding:4px 7px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        height:30px!important;
+        font-size:10.5px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input,
+      .lark-cadastros-ui table.lark-cadastros-table select,
+      .lark-cadastros-ui table.lark-cadastros-table .field {
+        min-height:26px!important;
+        height:26px!important;
+        font-size:11px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table .btn {
+        min-height:26px!important;
+        height:26px!important;
+        padding:0 7px!important;
+        font-size:10px!important;
+      }
+
+      @media (max-width:899px) {
+        .lark-cadastros-ui .cadastro-duas-colunas {
+          grid-template-columns:1fr!important;
+        }
+        .lark-cadastros-ui .cadastro-bloco + .cadastro-bloco {
+          border-left:0!important;
+          border-top:1px solid rgba(31,35,41,.10)!important;
+        }
+        .lark-cadastros-ui .cadastro-rodape {
+          align-items:stretch!important;
+          flex-direction:column!important;
+        }
+        .lark-cadastros-ui .cadastro-rodape .btn {
+          width:100%!important;
+        }
+      }
+      @media (max-width:639px) {
+        .lark-cadastros-ui .cadastro-hero {
+          padding:9px!important;
+        }
+        .lark-cadastros-ui .cadastro-navegacao {
+          overflow-x:auto!important;
+        }
+        .lark-cadastros-ui .cadastro-etapa {
+          flex:0 0 auto!important;
+        }
       }
 
       /* Banco de dados — visual inspirado no Lark Base */
@@ -15423,7 +15717,7 @@
 
             {/* ---------------- ENTRADAS / COMPRAS ---------------- */}
             {painel === 'entradas' && (
-              <div className="space-y-5">
+              <div className="space-y-3">
                 <div className="cadastro-shell p-5 sm:p-6">
                   <div className="cadastro-hero flex-col sm:flex-row">
                     <div className="cadastro-hero-principal">
@@ -16062,7 +16356,7 @@
                   )}
                 </div>
 
-                <div className="card cadastro-lista-cadastros lark-cadastros-list">
+                <div className="cadastro-lista-cadastros lark-cadastros-list">
                   <div className="lark-cadastros-list-toolbar flex flex-col sm:flex-row sm:items-center gap-2">
                     <div className="relative flex-1 max-w-sm">
                       <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
