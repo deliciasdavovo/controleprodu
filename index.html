@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-relatorio-unidades-historicas-1" />
+    <meta name="app-version" content="2026-10-02-duplo-clique-expandir-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -12328,6 +12328,7 @@
         onAdd,
         onUpdate,
         onDelete,
+        onOpenItem,
         onClose
       }) => {
         const pacoteAnterior = volumePadrao || lerUnidadeCompraVolume(comprasOrdenadas(compras)[0]?.purchaseUnit);
@@ -12552,8 +12553,11 @@
                     ) : ordenadas.map((c, idx) => (
                       <tr
                                   key={c.id}
-                                  onDoubleClickCapture={() => identificarCadastroDoItem(c.itemId)}
-                                  title="Dê dois cliques para localizar este item na tabela de cadastros"
+                                  onDoubleClick={(e) => {
+                                    if (e.target.closest('input,button,select,textarea,a,[role="button"]')) return;
+                                    if (onOpenItem) onOpenItem();
+                                  }}
+                                  title={onOpenItem ? "Dê dois cliques para abrir a visualização ampliada deste item" : undefined}
                                   className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer"
                                 >
                         <td className="py-2 pr-3">
@@ -13605,6 +13609,7 @@
         onChangeCatalogType,
         onDeleteCatalogItem,
         onUnifyCatalogItems,
+        onRequestEditCatalog,
         editTarget,
         onEditTargetHandled
       }) => {
@@ -15794,11 +15799,15 @@
                             <tr
                               key={linha.key}
                               data-cadastro-key={linha.key}
-                              onDoubleClickCapture={(e) => {
+                              onDoubleClick={(e) => {
                                 if (e.target.closest('input,button,select,textarea,a,[role="button"]')) return;
                                 setCadastroDestacado(linha.key);
+                                if (onRequestEditCatalog) {
+                                  if (linha.tipo === 'revenda') onRequestEditCatalog('revenda:' + x.id);
+                                  else if (ehSupply) onRequestEditCatalog('insumo:' + x.id);
+                                }
                               }}
-                              title="Dê dois cliques para identificar esta linha na tabela"
+                              title="Dê dois cliques para abrir a visualização ampliada deste item"
                               className={`border-t hairline transition-all cursor-default ${
                                 cadastroDestacado === linha.key
                                   ? 'bg-[#0E0937]/[0.06] ring-2 ring-inset ring-[#0E0937]/35'
@@ -16723,6 +16732,7 @@
                   onAdd={(c) => onAddSupplyPurchase(s.id, c)}
                   onUpdate={onUpdateSupplyPurchase}
                   onDelete={onDeleteSupplyPurchase}
+                  onOpenItem={() => onRequestEditCatalog && onRequestEditCatalog('insumo:' + s.id)}
                   onClose={() => setHistorico(null)}
                 />
               );
@@ -16745,6 +16755,7 @@
                   onAdd={(c) => onAddResalePurchase(item.id, c)}
                   onUpdate={onUpdateResalePurchase}
                   onDelete={onDeleteResalePurchase}
+                  onOpenItem={() => onRequestEditCatalog && onRequestEditCatalog('revenda:' + item.id)}
                   onClose={() => setHistorico(null)}
                 />
               );
@@ -28752,6 +28763,9 @@ ${BARRA_ACOES_HTML}
                     onChangeCatalogType={handleChangeCatalogType}
                     onDeleteCatalogItem={handleDeleteCatalogItem}
                     onUnifyCatalogItems={handleUnifyCatalogItems}
+                    onRequestEditCatalog={(value) => {
+                      setCatalogQuickEditTarget({ id: Date.now(), value });
+                    }}
                     editTarget={catalogEditTarget}
                     onEditTargetHandled={(id) => setCatalogEditTarget((atual) => atual?.id === id ? null : atual)}
                   />
