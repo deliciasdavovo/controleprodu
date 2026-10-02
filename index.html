@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-banco-categorias-fornecedor-1" />
+    <meta name="app-version" content="2026-10-02-banco-grid-fix-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -2665,7 +2665,9 @@
       }
       .lark-sheet > .overflow-auto { max-height:68vh; }
       .lark-base-ui table.lark-table {
+        width:max(100%, 980px)!important;
         min-width:980px!important;
+        table-layout:fixed!important;
         border-collapse:separate!important;
         border-spacing:0!important;
         font-size:12px!important;
@@ -2676,6 +2678,7 @@
         border-right:1px solid var(--lark-border)!important;
         border-bottom:1px solid var(--lark-border)!important;
         background:#fff; font-size:12px!important; line-height:1.25!important;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       }
       .lark-base-ui table.lark-table th {
         position:sticky; top:0; z-index:8; height:34px!important;
@@ -2688,6 +2691,42 @@
       .lark-base-ui table.lark-table td.sticky {
         left:0; box-shadow:1px 0 0 var(--lark-border-strong);
       }
+      .lark-base-ui table.lark-table td.sticky,
+      .lark-base-ui table.lark-table td.sticky > * {
+        max-width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .lark-base-ui table.lark-items-table th:nth-child(1),
+      .lark-base-ui table.lark-items-table td:nth-child(1) { width:24%; }
+      .lark-base-ui table.lark-items-table th:nth-child(2),
+      .lark-base-ui table.lark-items-table td:nth-child(2) { width:12%; }
+      .lark-base-ui table.lark-items-table th:nth-child(3),
+      .lark-base-ui table.lark-items-table td:nth-child(3) { width:18%; }
+      .lark-base-ui table.lark-items-table th:nth-child(4),
+      .lark-base-ui table.lark-items-table td:nth-child(4) { width:19%; }
+      .lark-base-ui table.lark-items-table th:nth-child(5),
+      .lark-base-ui table.lark-items-table td:nth-child(5) { width:8%; }
+      .lark-base-ui table.lark-items-table th:nth-child(6),
+      .lark-base-ui table.lark-items-table td:nth-child(6) { width:8%; }
+      .lark-base-ui table.lark-items-table th:nth-child(7),
+      .lark-base-ui table.lark-items-table td:nth-child(7) { width:11%; }
+
+      .lark-base-ui table.lark-suppliers-table th:nth-child(1),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(1) { width:24%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(2),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(2) { width:9%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(3),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(3) { width:8%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(4),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(4) { width:13%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(5),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(5) { width:14%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(6),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(6) { width:22%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(7),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(7) { width:10%; }
       .lark-base-ui table.lark-table th.sticky { background:var(--lark-head)!important; z-index:12; }
       .lark-base-ui table.lark-table td.sticky { background:#fff!important; z-index:3; }
       .lark-base-ui table.lark-table tbody tr:hover > td.sticky { background:var(--lark-hover)!important; }
@@ -23438,7 +23477,7 @@ ${BARRA_ACOES_HTML}
               {abaBanco === 'fornecedores' ? (
                 <div className="lark-sheet overflow-hidden">
                   <div className="overflow-auto">
-                    <table className="excel-densa lark-table w-full text-left">
+                    <table className="excel-densa lark-table lark-suppliers-table w-full text-left">
                       <thead>
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[250px]">Fornecedor</th>
@@ -23514,7 +23553,7 @@ ${BARRA_ACOES_HTML}
               ) : (
                 <div className="lark-sheet overflow-hidden">
                   <div className="overflow-auto">
-                    <table className="excel-densa lark-table w-full text-left">
+                    <table className="excel-densa lark-table lark-items-table w-full text-left">
                       <thead>
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[260px]">Item</th>
@@ -23529,7 +23568,7 @@ ${BARRA_ACOES_HTML}
                       <tbody>
                         {itensBanco.map((linha) => (
                           <tr key={linha.key}>
-                            <td className="sticky left-0 z-[2] bg-white font-semibold">{linha.nome}</td>
+                            <td className="sticky left-0 z-[2] bg-white font-semibold" title={linha.nome}>{linha.nome}</td>
                             <td><span className="lark-chip">{linha.tipo}</span></td>
                             <td>
                               {linha.supply ? (
