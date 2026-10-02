@@ -4216,7 +4216,6 @@
         const [open, setOpen] = useState(false);
         const [active, setActive] = useState(-1);
         const [search, setSearch] = useState('');
-        const [chaveConsultaPublica, setChaveConsultaPublica] = useState('');
         const [typed, setTyped] = useState(false);
         const [box, setBox] = useState(null);
 
@@ -19847,6 +19846,7 @@
         const [xmlFile, setXmlFile] = useState(null);
         const [mappingDrafts, setMappingDrafts] = useState({});
         const [search, setSearch] = useState('');
+        const [chaveConsultaPublica, setChaveConsultaPublica] = useState('');
 
         const fiscalCall = async (action, payload = {}) => {
           if (!nfeSb) throw new Error('Supabase não conectado.');
