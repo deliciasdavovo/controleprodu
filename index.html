@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-01-duplo-clique-confiavel-1" />
+    <meta name="app-version" content="2026-10-02-unidade-compra-respeita-base-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -13924,8 +13924,18 @@
         const unidadesPorVolumeCompra = volumeFixoCadastroExistente
           ? unidadesPorVolumeSugeridas
           : (Number(draft.unitsPerPackage) || unidadesPorVolumeSugeridas || 0);
-        const unidadeCompraNestaCompra = volumeFixoCadastroExistente && !usarVolumeNestaCompra
+        // Desligar o volume vale só para esta compra; não muda a unidade-base.
+        // Antes qualquer item com volume caía em "un", mesmo quando o cadastro
+        // estava travado em g/ml (ex.: peito de peru em g). Isso deixava a tela
+        // incoerente e podia exigir uma equivalência que não fazia sentido.
+        const unidadeBaseCadastroAtual = supplyExistente?.unit
+          || draft.unit
+          || unidadeTecnicaDaCompra(unidadeCompraCadastro);
+        const unidadeCompraSemVolume = unidadeBaseCadastroAtual === 'un'
           ? 'un'
+          : (unidadeCompraCadastro || unidadeCompraPadraoDaBase(unidadeBaseCadastroAtual));
+        const unidadeCompraNestaCompra = volumeFixoCadastroExistente && !usarVolumeNestaCompra
+          ? unidadeCompraSemVolume
           : unidadeCompraCadastro;
 
         // A compra de insumo é armazenada internamente na unidade técnica,
@@ -15125,7 +15135,9 @@
                                   >
                                     {usarVolumeNestaCompra
                                       ? `Volume nesta compra · 1 ${tipoVolumeFixo} = ${numeroCurtoBR(unidadesPorVolumeSugeridas)} un`
-                                      : 'Compra unitária nesta compra · volume salvo mantido'}
+                                      : (unidadeBaseCadastroAtual === 'un'
+                                          ? 'Compra unitária nesta compra · volume salvo mantido'
+                                          : `Sem volume nesta compra · lançar em ${unidadeCompraSemVolume} · volume salvo mantido`)}
                                   </button>
                                 ) : compraPorVolumeDisponivel && (
                                   <button
@@ -15445,6 +15457,14 @@
                                 <label className="t-caption">{compraPorVolume
                                   ? `Qtd. ${pluralVolumeRevenda(tipoVolumeCompra || 'volume', 2)}`
                                   : `Qtd. comprada (${unidadeCompraNestaCompra})`}</label>
+                                {!compraPorVolume && temInsumo && (
+                                  <div className="t-nano ink-quiet mt-0.5">
+                                    Base do cadastro: {supplyExistente?.unit || draft.unit || unidadeBaseCadastroAtual}
+                                    {unidadeCompraNestaCompra !== (supplyExistente?.unit || draft.unit || unidadeBaseCadastroAtual)
+                                      ? ` · compra lançada em ${unidadeCompraNestaCompra}`
+                                      : ''}
+                                  </div>
+                                )}
                                 <NumeroBRField
                                   value={draft.qty}
                                   decimals={3}
