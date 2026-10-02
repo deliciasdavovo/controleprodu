@@ -523,6 +523,91 @@ const doSync = async (profileRaw: unknown = "default") => {
   };
 };
 
+
+const fetchByAccessKey = async (profileRaw: unknown, accessKeyRaw: unknown) => {
+  const cfg = await fiscalConfig(profileRaw);
+  const accessKey = digits(accessKeyRaw || "");
+  if (accessKey.length !== 44) throw new Error("A chave de acesso precisa ter 44 dígitos.");
+  if (!cfg.pfxBase64 || !cfg.password || cfg.cnpj.length !== 14 || cfg.ufCode.length !== 2) {
+    throw new Error("Configure primeiro o certificado A1 e o CNPJ desta unidade.");
+  }
+
+  const soapBody =
+    '<?xml version="1.0" encoding="utf-8"?>' +
+    '<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+    'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' +
+    'xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">' +
+    '<soap12:Body>' +
+    '<nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">' +
+    '<nfeDadosMsg>' +
+    '<distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01">' +
+    '<tpAmb>' + cfg.environment + '</tpAmb>' +
+    '<cUFAutor>' + cfg.ufCode + '</cUFAutor>' +
+    '<CNPJ>' + cfg.cnpj + '</CNPJ>' +
+    '<consChNFe><chNFe>' + accessKey + '</chNFe></consChNFe>' +
+    '</distDFeInt>' +
+    '</nfeDadosMsg>' +
+    '</nfeDistDFeInteresse>' +
+    '</soap12:Body></soap12:Envelope>';
+
+  const pem = pfxToPem(cfg.pfxBase64, cfg.password);
+  const client = Deno.createHttpClient({ cert: pem.cert, key: pem.key });
+
+  let response: Response;
+  try {
+    response = await fetch(cfg.distUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": 'application/soap+xml; charset=utf-8; action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse"',
+        "Accept": "application/soap+xml, text/xml",
+      },
+      body: soapBody,
+      client,
+    } as RequestInit & { client: Deno.HttpClient });
+  } finally {
+    client.close();
+  }
+
+  const responseText = await response.text();
+  if (!response.ok) throw new Error("SEFAZ respondeu HTTP " + response.status + ".");
+
+  const parsed = parser.parse(responseText);
+  const ret = findDeep(parsed, "retDistDFeInt");
+  if (!ret) throw new Error("Resposta da SEFAZ sem retDistDFeInt.");
+
+  const cStat = textValue(ret.cStat);
+  const xMotivo = textValue(ret.xMotivo);
+  const processed: any[] = [];
+  const docs = asArray((ret.loteDistDFeInt || {}).docZip);
+
+  for (const docZip of docs) {
+    const base64 = textValue(docZip);
+    if (!base64) continue;
+    const nsu = textValue(docZip["@_NSU"]);
+    const schemaName = textValue(docZip["@_schema"]);
+    const xml = await unzipDoc(base64);
+    processed.push(await processDistributedXml(xml, nsu, schemaName, cfg.profile));
+  }
+
+  const { data: document } = await admin
+    .from("nfe_documents")
+    .select("id,access_key,nsu,source_profile,document_kind,status,issuer_cnpj,issuer_name,issue_date,total_value,nfe_number,series,imported_unit_code,imported_at,last_seen_at")
+    .eq("source_profile", cfg.profile)
+    .eq("access_key", accessKey)
+    .maybeSingle();
+
+  return {
+    profile: cfg.profile,
+    accessKey,
+    cStat,
+    message: xMotivo,
+    received: processed.length,
+    processed,
+    document: document || null,
+    fullXmlReceived: processed.some((item) => item && item.kind === "full"),
+  };
+};
+
 const listDocuments = async (profileRaw: unknown = "default") => {
   const profile = safeProfile(profileRaw);
   const { data: docs, error } = await admin
@@ -786,6 +871,7 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, ...(await clearCertificate(body)) });
     }
     if (action === "sync") return json({ ok: true, ...(await doSync(body.unit_code)) });
+    if (action === "fetch_by_key") return json({ ok: true, ...(await fetchByAccessKey(body.unit_code, body.access_key)) });
     if (action === "list") return json({ ok: true, ...(await listDocuments(body.unit_code)) });
     if (action === "get") return json({ ok: true, ...(await getDocument(String(body.document_id || ""), body.unit_code)) });
     if (action === "save_mapping") return json({ ok: true, ...(await saveMapping(body)) });
