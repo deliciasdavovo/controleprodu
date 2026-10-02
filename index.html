@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-banco-grid-fix-1" />
+    <meta name="app-version" content="2026-10-02-lark-cadastros-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -2620,6 +2620,262 @@
         .compras-planilha-ui table thead th {
           font-size: 9.5px !important;
         }
+      }
+
+
+      /* Cadastros — extensão visual do Lark Base */
+      .lark-cadastros-ui {
+        --lark-border: rgba(31,35,41,.10);
+        --lark-border-strong: rgba(31,35,41,.15);
+        --lark-head: #f7f8fa;
+        --lark-hover: #f8f9fb;
+        --lark-blue-soft: #eef4ff;
+        --lark-blue: #3370ff;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs {
+        display:inline-flex;
+        gap:3px;
+        padding:3px;
+        border:1px solid var(--lark-border);
+        border-radius:9px;
+        background:#f5f6f7;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button {
+        min-height:32px;
+        padding:0 12px;
+        border:0;
+        border-radius:6px;
+        color:#646a73;
+        background:transparent;
+        font-size:12px;
+        font-weight:600;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button:hover {
+        color:#1f2329;
+        background:#fff;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button[data-active="true"] {
+        color:#245bdb;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.08);
+      }
+
+      .lark-cadastros-ui .cadastro-shell {
+        border:1px solid var(--lark-border-strong);
+        border-radius:12px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastros-ui .cadastro-hero-icone {
+        width:36px;
+        height:36px;
+        border-radius:8px;
+        color:#245bdb;
+        background:#eef4ff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-hero h3 {
+        font-size:17px;
+        font-weight:700;
+        letter-spacing:-.015em;
+      }
+      .lark-cadastros-ui .cadastro-atalho-calculo {
+        border-radius:5px;
+        color:#646a73;
+        background:#f5f6f7;
+      }
+      .lark-cadastros-ui .cadastro-navegacao {
+        gap:3px;
+        margin:16px 0 12px;
+        padding:3px;
+        border:1px solid var(--lark-border);
+        border-radius:9px;
+        background:#f7f8fa;
+      }
+      .lark-cadastros-ui .cadastro-etapa {
+        min-height:38px;
+        padding:5px 9px;
+        border-radius:6px;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] {
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.08);
+      }
+      .lark-cadastros-ui .cadastro-etapa-numero {
+        width:22px;
+        height:22px;
+        border-radius:5px;
+        font-size:10px;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] .cadastro-etapa-numero {
+        color:#245bdb;
+        background:#eef4ff;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="complete"] .cadastro-etapa-numero {
+        color:#2f5d45;
+        background:#edf7f0;
+      }
+
+      .lark-cadastros-ui .cadastro-bloco {
+        padding:16px;
+        border:1px solid var(--lark-border);
+        border-radius:10px;
+        background:#fbfbfc;
+      }
+      .lark-cadastros-ui .cadastro-bloco-passo {
+        width:24px;
+        height:24px;
+        border-radius:5px;
+        color:#245bdb;
+        background:#eef4ff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho {
+        margin-bottom:14px;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho strong {
+        font-size:14px;
+        font-weight:700;
+      }
+
+      .lark-cadastros-ui .cadastro-form .field,
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        border-radius:6px;
+        border-color:var(--lark-border);
+        background:#fff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-form .field:hover:not(:disabled),
+      .lark-cadastros-ui .cadastro-config-botao:hover {
+        border-color:rgba(31,35,41,.22);
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-form .field:focus,
+      .lark-cadastros-ui .cadastro-config-botao:focus-visible {
+        border-color:rgba(51,112,255,.55);
+        box-shadow:0 0 0 2px rgba(51,112,255,.10);
+      }
+      .lark-cadastros-ui .cadastro-form .field-md {
+        height:40px;
+      }
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        min-height:40px;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado {
+        border-radius:7px;
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-rodape {
+        bottom:8px;
+        border:1px solid var(--lark-border-strong);
+        border-radius:10px;
+        background:rgba(255,255,255,.94);
+        box-shadow:0 8px 24px rgba(31,35,41,.08);
+      }
+
+      .lark-cadastros-ui .lark-cadastros-list {
+        padding:0!important;
+        overflow:hidden;
+        border:1px solid var(--lark-border-strong);
+        border-radius:10px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        padding:10px 12px 8px;
+        border-bottom:1px solid var(--lark-border);
+        background:#fff;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        padding:7px 12px;
+        border-bottom:1px solid var(--lark-border);
+        background:#fafbfc;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .field {
+        border-radius:6px!important;
+        border-color:var(--lark-border)!important;
+        background:#f7f8fa!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table {
+        border-collapse:separate!important;
+        border-spacing:0!important;
+        font-size:12px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th,
+      .lark-cadastros-ui table.lark-cadastros-table td {
+        height:36px!important;
+        padding:6px 9px!important;
+        border-right:1px solid var(--lark-border)!important;
+        border-bottom:1px solid var(--lark-border)!important;
+        font-size:12px!important;
+        line-height:1.25!important;
+        background:#fff;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        position:sticky;
+        top:0;
+        z-index:8;
+        height:34px!important;
+        color:#646a73;
+        background:var(--lark-head)!important;
+        font-size:11px!important;
+        font-weight:600!important;
+        letter-spacing:0!important;
+        text-transform:none!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table tbody tr:hover > td {
+        background:var(--lark-hover)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th.sticky,
+      .lark-cadastros-ui table.lark-cadastros-table td.sticky {
+        background:#fff!important;
+        box-shadow:1px 0 0 var(--lark-border-strong);
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th.sticky {
+        background:var(--lark-head)!important;
+        z-index:12;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input,
+      .lark-cadastros-ui table.lark-cadastros-table select,
+      .lark-cadastros-ui table.lark-cadastros-table .field {
+        min-height:29px!important;
+        height:29px!important;
+        border-radius:5px!important;
+        border-color:transparent!important;
+        background:transparent!important;
+        font-size:12px!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input:hover,
+      .lark-cadastros-ui table.lark-cadastros-table select:hover,
+      .lark-cadastros-ui table.lark-cadastros-table .field:hover {
+        background:#f2f3f5!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input:focus,
+      .lark-cadastros-ui table.lark-cadastros-table select:focus,
+      .lark-cadastros-ui table.lark-cadastros-table .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table .btn {
+        min-height:28px;
+        border-radius:5px;
+        box-shadow:none;
+      }
+      @media (max-width:639px) {
+        .lark-cadastros-ui .cadastro-shell { border-radius:10px; }
+        .lark-cadastros-ui .cadastro-bloco { padding:13px; border-radius:8px; }
+        .lark-cadastros-ui .lark-cadastros-list { border-radius:8px; }
       }
 
       /* Banco de dados — visual inspirado no Lark Base */
@@ -9872,7 +10128,7 @@
               </div>
 
               <div className="rola-x">
-                <table className="excel-densa w-full text-left tabela-larga">
+                <table className="excel-densa lark-cadastros-table w-full text-left tabela-larga">
                   <thead>
                     <tr className="t-overline-sm">
                       <th className="py-3 pr-3 font-bold">Data</th>
@@ -15149,7 +15405,7 @@
         };
 
         return (
-          <div className="space-y-5">
+          <div className="space-y-5 lark-cadastros-ui">
             <div>
               <h2 className="t-display">Cadastros, compras &amp; fichas</h2>
               <p className="t-body mt-1">
@@ -15157,7 +15413,7 @@
               </p>
             </div>
 
-            <div className="segmented w-full sm:w-auto sm:inline-flex">
+            <div className="lark-cadastros-tabs w-full sm:w-auto sm:inline-flex">
               {PAINEIS.map((p) => (
                 <button key={p.id} onClick={() => setPainel(p.id)} data-active={painel === p.id} className="flex-1 sm:flex-none h-9 px-4">
                   {p.label}
@@ -15806,8 +16062,8 @@
                   )}
                 </div>
 
-                <div className="card p-5 sm:p-6 cadastro-lista-cadastros">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 pb-4">
+                <div className="card cadastro-lista-cadastros lark-cadastros-list">
+                  <div className="lark-cadastros-list-toolbar flex flex-col sm:flex-row sm:items-center gap-2">
                     <div className="relative flex-1 max-w-sm">
                       <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
                       <input
@@ -15834,7 +16090,7 @@
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
+                  <div className="lark-cadastros-list-meta flex flex-wrap items-center justify-between gap-2">
                     <span className="t-micro">
                       {cadastrosFiltrados.length > 0
                         ? `${inicioPaginaCadastros + 1}–${fimPaginaCadastros} de ${cadastrosFiltrados.length} cadastros`
