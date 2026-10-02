@@ -340,8 +340,6 @@ create table if not exists public.separated_products (
   is_active        boolean not null default true,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
-  constraint separated_products_category_check
-    check (category in ('revenda', 'cafeteria', 'encomenda')),
   constraint separated_products_qty_check check (current_qty >= 0),
   constraint separated_products_price_check check (price >= 0),
   constraint separated_products_unit_name_unique unique (unit_code, name)
@@ -394,8 +392,6 @@ create table if not exists public.supplies (
   updated_at        timestamptz not null default now(),
   constraint supplies_name_unique unique (name),
   constraint supplies_unit_check check (unit in ('g', 'ml', 'un')),
-  constraint supplies_class_check
-    check (supply_class in ('insumo', 'embalagem', 'limpeza')),
   constraint supplies_variation_check
     check (variation_factor is null or variation_factor > 0)
 );
