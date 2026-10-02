@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-duplo-clique-expandir-2" />
+    <meta name="app-version" content="2026-10-02-banco-lark-base-ui-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -7801,7 +7801,7 @@
                       placeholder="Pesquisar produto…"
                       value={busca}
                       onChange={(e) => setBusca(e.target.value)}
-                      className="field field-sm field-search"
+                      className="field field-sm field-search lark-search"
                     />
                   </div>
                   {/* O que a grade edita. São duas quantidades por item e por
@@ -23197,7 +23197,163 @@ ${BARRA_ACOES_HTML}
             + '.historico-compras{font-size:12px;}.compra-recente{grid-template-columns:28px minmax(70px,.8fr) minmax(0,1.2fr);gap:4px 8px;padding:7px 0;border-bottom:1px solid #efefeb;}.compra-posicao{font-size:10px;text-align:left;color:#86868b;}.compra-qtd{font-size:13px;text-align:left;}.compra-preco{font-size:13px;text-align:right;white-space:normal;}.compra-recente small{grid-column:2/-1;font-size:10px;text-align:right;color:#86868b;}'
             + 'td.sem-alerta{display:none;}.alerta{font-size:12px;line-height:1.4;}.quieto{font-size:12px;}'
             + '}'
-            + '</style></head><body>'
+            + '
+      /* ==========================================
+         BANCO DE DADOS — visual inspirado no Lark Base
+         Mais banco de dados moderno, menos planilha pesada.
+         ========================================== */
+      .lark-base-ui {
+        --lark-border: rgba(31, 35, 41, .10);
+        --lark-border-strong: rgba(31, 35, 41, .15);
+        --lark-head: #f7f8fa;
+        --lark-hover: #f8f9fb;
+        --lark-blue-soft: #eef4ff;
+        --lark-blue: #3370ff;
+      }
+      .lark-base-ui > .flex:first-child {
+        padding: 2px 2px 0;
+      }
+      .lark-toolbar {
+        background: #fff;
+        border: 1px solid var(--lark-border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        box-shadow: 0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-view-tabs {
+        gap: 3px;
+        background: transparent;
+        padding: 0;
+      }
+      .lark-view-tabs button {
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: #646a73;
+        font-weight: 600;
+        min-height: 32px;
+        padding: 0 11px;
+        transition: background-color .14s ease, color .14s ease;
+      }
+      .lark-view-tabs button:hover { background: #f2f3f5; color: #1f2329; }
+      .lark-view-tabs button[data-active="true"] {
+        background: var(--lark-blue-soft);
+        color: #245bdb;
+        box-shadow: none;
+      }
+      .lark-search {
+        border-color: var(--lark-border) !important;
+        background: #f7f8fa !important;
+        box-shadow: none !important;
+      }
+      .lark-search:focus {
+        background: #fff !important;
+        border-color: rgba(51,112,255,.55) !important;
+        box-shadow: 0 0 0 2px rgba(51,112,255,.10) !important;
+      }
+      .lark-sheet {
+        background: #fff;
+        border: 1px solid var(--lark-border-strong);
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-sheet > .overflow-auto { max-height: 68vh; }
+      .lark-base-ui table.lark-table {
+        min-width: 980px !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        font-size: 12px !important;
+      }
+      .lark-base-ui table.lark-table th,
+      .lark-base-ui table.lark-table td {
+        height: 36px !important;
+        padding: 6px 10px !important;
+        border-right: 1px solid var(--lark-border) !important;
+        border-bottom: 1px solid var(--lark-border) !important;
+        background: #fff;
+        font-size: 12px !important;
+        line-height: 1.25 !important;
+      }
+      .lark-base-ui table.lark-table th {
+        position: sticky;
+        top: 0;
+        z-index: 8;
+        height: 34px !important;
+        background: var(--lark-head) !important;
+        color: #646a73;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0 !important;
+        text-transform: none;
+        box-shadow: inset 0 -1px var(--lark-border);
+      }
+      .lark-base-ui table.lark-table tbody tr:hover > td {
+        background: var(--lark-hover) !important;
+      }
+      .lark-base-ui table.lark-table th.sticky,
+      .lark-base-ui table.lark-table td.sticky {
+        left: 0;
+        box-shadow: 1px 0 0 var(--lark-border-strong);
+      }
+      .lark-base-ui table.lark-table th.sticky { background: var(--lark-head) !important; z-index: 12; }
+      .lark-base-ui table.lark-table td.sticky { background: #fff !important; z-index: 3; }
+      .lark-base-ui table.lark-table tbody tr:hover > td.sticky { background: var(--lark-hover) !important; }
+      .lark-base-ui table.lark-table input,
+      .lark-base-ui table.lark-table select,
+      .lark-base-ui table.lark-table .field {
+        min-height: 29px !important;
+        height: 29px !important;
+        border-radius: 5px !important;
+        border-color: transparent !important;
+        background: transparent !important;
+        font-size: 12px !important;
+        padding: 3px 7px !important;
+      }
+      .lark-base-ui table.lark-table input:hover,
+      .lark-base-ui table.lark-table select:hover,
+      .lark-base-ui table.lark-table .field:hover {
+        background: #f2f3f5 !important;
+      }
+      .lark-base-ui table.lark-table input:focus,
+      .lark-base-ui table.lark-table select:focus,
+      .lark-base-ui table.lark-table .field:focus {
+        background: #fff !important;
+        border-color: rgba(51,112,255,.55) !important;
+        box-shadow: 0 0 0 2px rgba(51,112,255,.10) !important;
+      }
+      .lark-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 2px 8px;
+        border-radius: 5px;
+        background: #eef4ff;
+        color: #245bdb;
+        font-size: 11px !important;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .lark-base-ui table.lark-table .btn.btn-secondary {
+        border-color: var(--lark-border) !important;
+        background: #fff !important;
+        box-shadow: none !important;
+      }
+      .lark-base-ui table.lark-table .btn.btn-secondary:hover {
+        background: #f2f3f5 !important;
+      }
+      @media (max-width: 640px) {
+        .lark-toolbar { border-radius: 8px; padding: 8px; }
+        .lark-base-ui table.lark-table {
+          min-width: 900px !important;
+          font-size: 11.5px !important;
+        }
+        .lark-base-ui table.lark-table th,
+        .lark-base-ui table.lark-table td {
+          height: 34px !important;
+          padding: 5px 8px !important;
+        }
+      }
+</style></head><body>'
             + BARRA_ACOES_HTML
             + '<header><h1>' + escaparHtml(titulo) + '</h1>'
             + '<div class="sub">' + escaparHtml(unitName) + ' · base histórica: ' + escaparHtml(periodoTexto) + ' · gerado em ' + formatDateBR(getTodayDateString()) + '</div></header>'
@@ -23239,7 +23395,7 @@ ${BARRA_ACOES_HTML}
 
         if (modoFornecedores === 'banco') {
           return (
-            <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
+            <div className="space-y-4 sm:space-y-5 compras-planilha-ui lark-base-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
                   <h2 className="t-display">Banco de dados</h2>
@@ -23254,9 +23410,9 @@ ${BARRA_ACOES_HTML}
                 </div>
               </div>
 
-              <div className="card p-3 sm:p-4">
-                <div className="flex flex-col md:flex-row md:items-end gap-3">
-                  <div className="segmented w-full md:w-auto md:inline-flex">
+              <div className="lark-toolbar">
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="lark-view-tabs w-full md:w-auto md:inline-flex">
                     <button type="button" onClick={() => setAbaBanco('fornecedores')} data-active={abaBanco === 'fornecedores'} className="flex-1 md:flex-none h-9 px-4">
                       Fornecedores
                     </button>
@@ -23277,9 +23433,9 @@ ${BARRA_ACOES_HTML}
               </div>
 
               {abaBanco === 'fornecedores' ? (
-                <div className="card overflow-hidden">
+                <div className="lark-sheet overflow-hidden">
                   <div className="overflow-auto">
-                    <table className="excel-densa w-full text-left">
+                    <table className="excel-densa lark-table w-full text-left">
                       <thead>
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[250px]">Fornecedor</th>
@@ -23356,9 +23512,9 @@ ${BARRA_ACOES_HTML}
                   </div>
                 </div>
               ) : (
-                <div className="card overflow-hidden">
+                <div className="lark-sheet overflow-hidden">
                   <div className="overflow-auto">
-                    <table className="excel-densa w-full text-left">
+                    <table className="excel-densa lark-table w-full text-left">
                       <thead>
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[260px]">Item</th>
@@ -23374,7 +23530,7 @@ ${BARRA_ACOES_HTML}
                         {itensBanco.map((linha) => (
                           <tr key={linha.key}>
                             <td className="sticky left-0 z-[2] bg-white font-semibold">{linha.nome}</td>
-                            <td><span className="pill tone-quiet">{linha.tipo}</span></td>
+                            <td><span className="lark-chip">{linha.tipo}</span></td>
                             <td>
                               {linha.supply ? (
                                 <select
