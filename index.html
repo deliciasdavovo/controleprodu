@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-lark-cadastros-v2-flat" />
+    <meta name="app-version" content="2026-10-02-cadastros-table-first-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -3169,6 +3169,120 @@
         }
         .lark-cadastros-ui .cadastro-etapa {
           flex:0 0 auto!important;
+        }
+      }
+
+
+      /* Cadastros v3 — tabela primeiro, compra sob demanda */
+      .lark-cadastros-ui .cadastro-hero,
+      .lark-cadastros-ui .cadastro-navegacao {
+        display:none!important;
+      }
+      .lark-cadastro-commandbar {
+        display:flex;
+        align-items:center;
+        gap:7px;
+        min-height:42px;
+        padding:6px 8px;
+        border:1px solid rgba(31,35,41,.12);
+        border-radius:9px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastro-commandbar .command-search {
+        position:relative;
+        flex:1 1 280px;
+        min-width:180px;
+        max-width:420px;
+      }
+      .lark-cadastro-commandbar .command-filter {
+        flex:0 0 160px;
+      }
+      .lark-cadastro-commandbar .field {
+        height:30px!important;
+        min-height:30px!important;
+        border-radius:5px!important;
+        border-color:rgba(31,35,41,.10)!important;
+        background:#f7f8fa!important;
+        box-shadow:none!important;
+        font-size:11.5px!important;
+      }
+      .lark-cadastro-commandbar .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastro-commandbar .btn {
+        min-height:30px!important;
+        height:30px!important;
+        padding:0 9px!important;
+        border-radius:5px!important;
+        font-size:10.5px!important;
+        white-space:nowrap;
+      }
+      .lark-cadastro-commandbar .command-spacer {
+        flex:1 1 auto;
+      }
+
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] {
+        margin-top:7px!important;
+        padding:0!important;
+        border:1px solid rgba(31,35,41,.12)!important;
+        border-radius:9px!important;
+        background:#fff!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-form {
+        padding:0!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-duas-colunas {
+        border:0!important;
+        border-radius:9px 9px 0 0!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-rodape {
+        margin:0!important;
+        border:0!important;
+        border-top:1px solid rgba(31,35,41,.10)!important;
+        border-radius:0 0 9px 9px!important;
+      }
+
+      .lark-cadastros-ui .lark-cadastros-list {
+        margin-top:0!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        display:none!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        min-height:32px!important;
+        padding:5px 8px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .rola-x {
+        max-height:64vh;
+        overflow:auto;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table {
+        min-width:1540px!important;
+        table-layout:auto!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th:first-child,
+      .lark-cadastros-ui table.lark-cadastros-table td:first-child {
+        min-width:210px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        position:sticky!important;
+        top:0!important;
+      }
+
+      @media(max-width:700px) {
+        .lark-cadastro-commandbar {
+          flex-wrap:wrap;
+        }
+        .lark-cadastro-commandbar .command-search {
+          flex:1 1 100%;
+          max-width:none;
+        }
+        .lark-cadastro-commandbar .command-filter {
+          flex:1 1 150px;
         }
       }
 
@@ -14323,6 +14437,7 @@
         const [unificarDestino, setUnificarDestino] = useState('');
         const [unificandoCadastro, setUnificandoCadastro] = useState(false);
         const [cadastroDestacado, setCadastroDestacado] = useState('');
+        const [novaCompraAberta, setNovaCompraAberta] = useState(false);
 
         // A tabela mestre distingue cadastro, classe e finalidade operacional. No formulário de compra,
         // porém, insumo e revenda são a MESMA entrada: revenda é uma opção do
@@ -15701,9 +15816,9 @@
         return (
           <div className="space-y-5 lark-cadastros-ui">
             <div>
-              <h2 className="t-display">Cadastros, compras &amp; fichas</h2>
+              <h2 className="t-display">Compras &amp; cadastro</h2>
               <p className="t-body mt-1">
-                Um único cadastro para Insumo, Revenda, Outros e Produção. Compras e fichas ficam no mesmo lugar.
+                Encontre um item, confira a última compra ou registre uma nova sem sair da tabela.
               </p>
             </div>
 
@@ -15717,8 +15832,52 @@
 
             {/* ---------------- ENTRADAS / COMPRAS ---------------- */}
             {painel === 'entradas' && (
-              <div className="space-y-3">
-                <div className="cadastro-shell p-5 sm:p-6">
+              <div className="space-y-2">
+                <div className="lark-cadastro-commandbar">
+                  <div className="command-search">
+                    <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[8px] z-[1]" />
+                    <input
+                      type="text"
+                      placeholder="Buscar item, fornecedor, tipo…"
+                      value={busca}
+                      onChange={(e) => {
+                        setBusca(e.target.value);
+                        setPaginaCadastros(1);
+                      }}
+                      className="field field-search w-full"
+                    />
+                  </div>
+                  <div className="command-filter">
+                    <PickerField
+                      value={classeFiltro}
+                      options={[{value:'todos',label:'Todos os tipos'}, ...TIPOS_TABELA]}
+                      onPick={(opt) => {
+                        setClasseFiltro(opt.value);
+                        setPaginaCadastros(1);
+                      }}
+                      className="field"
+                    />
+                  </div>
+                  <div className="command-spacer" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNovaCompraAberta((aberta) => !aberta);
+                      if (!novaCompraAberta) setTimeout(() => nomeRef.current?.focus(), 80);
+                    }}
+                    className={`btn ${novaCompraAberta ? 'btn-secondary' : 'btn-primary'}`}
+                  >
+                    {novaCompraAberta ? 'Fechar compra' : '+ Nova compra'}
+                  </button>
+                  <button type="button" onClick={() => setXmlCompraAberta(true)} className="btn btn-secondary">
+                    XML
+                  </button>
+                  <button type="button" onClick={() => setNotaColadaAberta(true)} className="btn btn-secondary hidden sm:inline-flex">
+                    Colar nota
+                  </button>
+                </div>
+                {novaCompraAberta && (
+                  <div className="cadastro-shell" data-expanded="true">
                   <div className="cadastro-hero flex-col sm:flex-row">
                     <div className="cadastro-hero-principal">
                       <span className="cadastro-hero-icone" aria-hidden="true">
@@ -16354,7 +16513,8 @@
                       )}
                     </div>
                   )}
-                </div>
+                  </div>
+                )}
 
                 <div className="cadastro-lista-cadastros lark-cadastros-list">
                   <div className="lark-cadastros-list-toolbar flex flex-col sm:flex-row sm:items-center gap-2">
@@ -16418,7 +16578,7 @@
                   </div>
 
                   <div className="rola-x">
-                    <table className="excel-densa w-full text-left tabela-larga">
+                    <table className="excel-densa lark-cadastros-table w-full text-left tabela-larga">
                       <thead>
                         <tr className="t-overline-sm border-b hairline">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10">Item</th>
