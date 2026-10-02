@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-security-hardening-1" />
+    <meta name="app-version" content="2026-10-02-relatorio-unidades-historicas-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -17841,6 +17841,46 @@
       };
       const CATEGORIAS_COMPRA = ['Ingrediente', 'Revenda', 'Embalagem', 'Limpeza'];
 
+      // Compras antigas ficaram em dois formatos ao longo da evolução do app:
+      // algumas guardam qty na unidade-base (ex.: 5400 g) e outras guardam a
+      // quantidade digitada na nota (ex.: 5,4 kg). Esta função reconcilia os
+      // dois formatos para que relatórios e comparativos não criem diferenças
+      // de 1000x entre registros equivalentes.
+      const normalizarQuantidadeHistoricaInsumo = (qtyRaw, unidadeBase, unidadeCompraRaw) => {
+        const qty = Number(qtyRaw) || 0;
+        const base = String(unidadeBase || 'un');
+        const compra = unidadeCompraEfetiva(unidadeCompraRaw || base);
+        if (!(qty > 0)) return { qtyBase: 0, qtyCompra: 0, unidadeCompra: compra };
+
+        if (base === 'g') {
+          if (compra === 'kg') {
+            // Quantidades grandes normalmente já estão em gramas (padrão novo);
+            // quantidades pequenas em kg são lançamentos antigos na unidade da nota.
+            const armazenadaNaBase = qty >= 100;
+            return {
+              qtyBase: armazenadaNaBase ? qty : qty * 1000,
+              qtyCompra: armazenadaNaBase ? qty / 1000 : qty,
+              unidadeCompra: 'kg'
+            };
+          }
+          return { qtyBase: qty, qtyCompra: qty, unidadeCompra: compra === 'g' ? 'g' : compra };
+        }
+
+        if (base === 'ml') {
+          if (compra === 'L') {
+            const armazenadaNaBase = qty >= 100;
+            return {
+              qtyBase: armazenadaNaBase ? qty : qty * 1000,
+              qtyCompra: armazenadaNaBase ? qty / 1000 : qty,
+              unidadeCompra: 'L'
+            };
+          }
+          return { qtyBase: qty, qtyCompra: qty, unidadeCompra: compra === 'ml' ? 'ml' : compra };
+        }
+
+        return { qtyBase: qty, qtyCompra: qty, unidadeCompra: compra || 'un' };
+      };
+
       const reunirCompras = (supplies, supplyPurchases, separatedProducts, resalePurchases, currentUnit) => {
         const compras = [];
 
@@ -17853,12 +17893,21 @@
             const volumeEfetivo = volumeCompra;
             const volumeCadastro = volumeFixoDoCadastro(s);
             const unidadeOficial = s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit);
-            const unidadeCompra = volumeEfetivo?.tipo || c.purchaseUnit || unidadeOficial;
             const precisaRevisaoUnidade = !volumeEfetivo && !!c.unitReviewRequired;
             const unidadeOriginal = precisaRevisaoUnidade ? (c.previousPurchaseUnit || '') : '';
+            const unidadeHistorica = precisaRevisaoUnidade && unidadeOriginal
+              ? unidadeOriginal
+              : (c.purchaseUnit || unidadeOficial);
+            const normalizada = volumeEfetivo
+              ? null
+              : normalizarQuantidadeHistoricaInsumo(c.qty, s.unit, unidadeHistorica);
+            const unidadeCompra = volumeEfetivo?.tipo || normalizada?.unidadeCompra || unidadeHistorica || unidadeOficial;
+            const qtyBase = volumeEfetivo
+              ? (Number(c.qty) || 0)
+              : (normalizada?.qtyBase || 0);
             const qtyCompra = volumeEfetivo?.unidades
               ? (Number(c.qty) || 0) / Number(volumeEfetivo.unidades)
-              : converterQuantidadeUnidade(Number(c.qty) || 0, s.unit, unidadeCompra);
+              : (normalizada?.qtyCompra || 0);
             compras.push({
               id: c.id,
               itemId: `s${s.id}`,
@@ -17872,7 +17921,8 @@
               fornecedor: (c.supplier || '').trim() || 'Sem fornecedor',
               data: c.purchaseDate || '',
               criadoEm: c.criadoEm,
-              qty: Number(c.qty) || 0,
+              qty: qtyBase,
+              qtyOriginal: Number(c.qty) || 0,
               qtyCompra,
               cost: Number(c.cost) || 0,
               volumeTipo: volumeEfetivo?.tipo || '',
