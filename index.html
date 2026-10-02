@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-unidade-compra-respeita-base-1" />
+    <meta name="app-version" content="2026-10-02-unidade-hibrida-compativel-base-2" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -13835,8 +13835,20 @@
 
         // A unidade salva tem prioridade até a pessoa abrir explicitamente
         // o editor compacto. Assim um Enter rápido nunca muda essa estrutura.
+        const unidadeCompraCompativelComBase = (unidadeCompra, unidadeBase) => {
+          const compra = String(unidadeCompra || '');
+          const base = String(unidadeBase || 'un');
+          if (base === 'g') return compra === 'g' || compra === 'kg';
+          if (base === 'ml') return compra === 'ml' || compra === 'L';
+          return compra === 'un';
+        };
+
         const unidadeCompraInsumoExistente = supplyExistente
-          ? (supplyExistente.purchaseUnit || unidadeCompraPadraoDaBase(supplyExistente.unit || 'g'))
+          ? (
+              unidadeCompraCompativelComBase(supplyExistente.purchaseUnit, supplyExistente.unit || 'g')
+                ? supplyExistente.purchaseUnit
+                : unidadeCompraPadraoDaBase(supplyExistente.unit || 'g')
+            )
           : '';
         const unidadeCompraRevendaExistente = revendaExistente
           ? (revendaExistente.purchaseUnit || revendaExistente.priceUnit || 'un')
@@ -13933,7 +13945,11 @@
           || unidadeTecnicaDaCompra(unidadeCompraCadastro);
         const unidadeCompraSemVolume = unidadeBaseCadastroAtual === 'un'
           ? 'un'
-          : (unidadeCompraCadastro || unidadeCompraPadraoDaBase(unidadeBaseCadastroAtual));
+          : (
+              unidadeCompraCompativelComBase(unidadeCompraCadastro, unidadeBaseCadastroAtual)
+                ? unidadeCompraCadastro
+                : unidadeCompraPadraoDaBase(unidadeBaseCadastroAtual)
+            );
         const unidadeCompraNestaCompra = volumeFixoCadastroExistente && !usarVolumeNestaCompra
           ? unidadeCompraSemVolume
           : unidadeCompraCadastro;
@@ -14238,9 +14254,15 @@
               resaleAlso: true,
               price: x.price || '',
               priceUnit: x.priceUnit || 'un',
-              purchaseUnit: x.purchaseUnit || (ins?.purchaseUnit || x.priceUnit || 'un'),
-              packageType: x.packageType || volumeRev?.tipo || 'caixa',
-              unitsPerPackage: String(x.packageUnits || volumeRev?.unidades || ''),
+              purchaseUnit: ins
+                ? (
+                    unidadeCompraCompativelComBase(ins.purchaseUnit, ins.unit || 'g')
+                      ? ins.purchaseUnit
+                      : unidadeCompraPadraoDaBase(ins.unit || 'g')
+                  )
+                : (x.purchaseUnit || x.priceUnit || 'un'),
+              packageType: ins?.packageType || x.packageType || volumeRev?.tipo || 'caixa',
+              unitsPerPackage: String(ins?.packageUnits || x.packageUnits || volumeRev?.unidades || ''),
               resaleCategory: x.category || 'revenda'
             }));
           }
@@ -15294,7 +15316,7 @@
                                 </div>
                               ) : volumeFixoCadastroExistente && !usarVolumeNestaCompra ? (
                                 <div className="cadastro-config-valor">
-                                  <span>un</span>
+                                  <span>{unidadeCompraSemVolume}</span>
                                   <small>Só esta compra</small>
                                 </div>
                               ) : editarUnidadePadrao ? (
