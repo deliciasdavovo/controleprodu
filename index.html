@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-cadastros-table-first-1" />
+    <meta name="app-version" content="2026-10-02-cadastros-form-aberto-tabela-curta-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -3283,6 +3283,52 @@
         }
         .lark-cadastro-commandbar .command-filter {
           flex:1 1 150px;
+        }
+      }
+
+
+      /* Cadastros v4 — visão principal curta; configurações ficam no lápis */
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table {
+        width:100%!important;
+        min-width:980px!important;
+        table-layout:fixed!important;
+      }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(3),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(3),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(4),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(4),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(5),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(5),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(12),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(12) {
+        display:none!important;
+      }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(1),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(1) { width:24%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(2),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(2) { width:14%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(6),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(6) { width:16%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(7),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(7) { width:12%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(8),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(8) { width:11%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(9),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(9) { width:11%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(10),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(10) { width:12%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(11),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(11) { width:13%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(13),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(13) { width:15%!important; }
+
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td {
+        overflow:hidden!important;
+        text-overflow:ellipsis!important;
+      }
+      @media(min-width:1180px) {
+        .lark-cadastros-ui .cadastro-lista-cadastros > .rola-x {
+          overflow-x:hidden!important;
         }
       }
 
@@ -14437,7 +14483,7 @@
         const [unificarDestino, setUnificarDestino] = useState('');
         const [unificandoCadastro, setUnificandoCadastro] = useState(false);
         const [cadastroDestacado, setCadastroDestacado] = useState('');
-        const [novaCompraAberta, setNovaCompraAberta] = useState(false);
+        const [novaCompraAberta, setNovaCompraAberta] = useState(true);
 
         // A tabela mestre distingue cadastro, classe e finalidade operacional. No formulário de compra,
         // porém, insumo e revenda são a MESMA entrada: revenda é uma opção do
@@ -15862,12 +15908,18 @@
                   <button
                     type="button"
                     onClick={() => {
-                      setNovaCompraAberta((aberta) => !aberta);
-                      if (!novaCompraAberta) setTimeout(() => nomeRef.current?.focus(), 80);
+                      setNovaCompraAberta(true);
+                      setDraft(BLANK_ENTRY);
+                      fecharOpcoesExtrasCadastro();
+                      setEditarTipoCadastro(false);
+                      setEditarUnidadePadrao(false);
+                      setEditarCategoriaCadastro(false);
+                      setUnidadeCompraFoiEditada(false);
+                      setTimeout(() => nomeRef.current?.focus(), 50);
                     }}
-                    className={`btn ${novaCompraAberta ? 'btn-secondary' : 'btn-primary'}`}
+                    className="btn btn-primary"
                   >
-                    {novaCompraAberta ? 'Fechar compra' : '+ Nova compra'}
+                    + Nova compra
                   </button>
                   <button type="button" onClick={() => setXmlCompraAberta(true)} className="btn btn-secondary">
                     XML
@@ -16975,6 +17027,24 @@
                                       <Icons.ClipboardList className="w-3.5 h-3.5" />
                                     </button>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCadastroDestacado(linha.key);
+                                      if (linha.tipo === 'producao') {
+                                        setNovaCompraAberta(true);
+                                        selecionarCadastro({ value: 'producao:' + x.id });
+                                        setTimeout(() => blocoCadastroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+                                      } else if (onRequestEditCatalog) {
+                                        if (linha.tipo === 'revenda') onRequestEditCatalog('revenda:' + x.id);
+                                        else if (ehSupply) onRequestEditCatalog('insumo:' + x.id);
+                                      }
+                                    }}
+                                    title="Editar cadastro e configurações"
+                                    className="w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center"
+                                  >
+                                    <Icons.Pencil className="w-3.5 h-3.5" />
+                                  </button>
                                   {linha.tipo !== 'producao' && (
                                     <button
                                       type="button"
