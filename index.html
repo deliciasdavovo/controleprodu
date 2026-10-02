@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-unidade-hibrida-compativel-base-2" />
+    <meta name="app-version" content="2026-10-02-banco-dados-fornecedores-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -20623,7 +20623,9 @@
         unitName,
         onUnifySupplier,
         onDeletePurchaseGroup,
-        onRequestEditCatalog
+        onRequestEditCatalog,
+        onUpdateSupply,
+        onUpdateSeparatedProduct
       }) => {
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
@@ -20654,6 +20656,9 @@
         const [fornecedorOrigemUniao, setFornecedorOrigemUniao] = useState('');
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
+        const [buscaBanco, setBuscaBanco] = useState('');
+        const [abaBanco, setAbaBanco] = useState('fornecedores');
+        const [nomeFornecedorEditando, setNomeFornecedorEditando] = useState(null);
         const ITEM_COTACAO_NAO_EXISTE = '__nao_existe__';
         const [cotacaoNome, setCotacaoNome] = useState('');
         const [cotacaoData, setCotacaoData] = useState(getTodayDateString());
@@ -20684,6 +20689,85 @@
           todas.map((compra) => String(compra.fornecedor || '').trim())
             .filter((nome) => nome && nome !== 'Sem fornecedor')
         )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [todas]);
+
+        const fornecedoresBanco = useMemo(() => {
+          const termo = normalizeName(buscaBanco);
+          return nomesFornecedoresUnicos
+            .map((nome) => {
+              const comprasFornecedor = todas.filter((compra) =>
+                normalizeName(String(compra.fornecedor || '').trim()) === normalizeName(nome)
+              );
+              const itens = Array.from(new Set(comprasFornecedor.map((compra) => compra.item).filter(Boolean)));
+              const ultimaData = comprasFornecedor
+                .map((compra) => compra.data || '')
+                .filter(Boolean)
+                .sort((a, b) => String(b).localeCompare(String(a)))[0] || '';
+              const total = comprasFornecedor.reduce((soma, compra) => soma + (Number(compra.cost) || 0), 0);
+              return { nome, compras: comprasFornecedor.length, itens, ultimaData, total };
+            })
+            .filter((linha) => !termo
+              || normalizeName(linha.nome).includes(termo)
+              || linha.itens.some((item) => normalizeName(item).includes(termo)));
+        }, [nomesFornecedoresUnicos, todas, buscaBanco]);
+
+        const itensBanco = useMemo(() => {
+          const termo = normalizeName(buscaBanco);
+          const mapaRevenda = new Map(
+            separatedProducts
+              .filter((item) => item.unit === currentUnit)
+              .map((item) => [normalizeName(item.productName), item])
+          );
+          const usadosRevenda = new Set();
+          const linhas = [];
+
+          supplies.forEach((supply) => {
+            const revenda = mapaRevenda.get(normalizeName(supply.name)) || null;
+            if (revenda) usadosRevenda.add(String(revenda.id));
+            linhas.push({
+              key: 's-' + supply.id,
+              nome: supply.name,
+              tipo: revenda ? 'Insumo + revenda' : 'Insumo',
+              supply,
+              revenda,
+              categoriaInsumo: supply.supplyClass || 'insumo',
+              categoriaRevenda: revenda?.category || '',
+              unidadeBase: supply.unit || 'un',
+              unidadeVenda: revenda?.priceUnit || ''
+            });
+          });
+
+          separatedProducts
+            .filter((item) => item.unit === currentUnit && !usadosRevenda.has(String(item.id)))
+            .forEach((revenda) => linhas.push({
+              key: 'r-' + revenda.id,
+              nome: revenda.productName,
+              tipo: 'Revenda',
+              supply: null,
+              revenda,
+              categoriaInsumo: '',
+              categoriaRevenda: revenda.category || 'revenda',
+              unidadeBase: '',
+              unidadeVenda: revenda.priceUnit || 'un'
+            }));
+
+          return linhas
+            .filter((linha) => !termo
+              || normalizeName(linha.nome).includes(termo)
+              || normalizeName(linha.tipo).includes(termo)
+              || normalizeName(linha.categoriaInsumo).includes(termo)
+              || normalizeName(linha.categoriaRevenda).includes(termo))
+            .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        }, [supplies, separatedProducts, currentUnit, buscaBanco]);
+
+        const renomearFornecedorBanco = async (origem, destino) => {
+          const novo = String(destino || '').trim();
+          if (!novo || normalizeName(origem) === normalizeName(novo)) {
+            setNomeFornecedorEditando(null);
+            return;
+          }
+          await onUnifySupplier(origem, novo);
+          setNomeFornecedorEditando(null);
+        };
 
         const catalogoCotacao = useMemo(() => {
           const mapa = {};
@@ -22992,6 +23076,196 @@ ${BARRA_ACOES_HTML}
           );
         }
 
+        if (modoFornecedores === 'banco') {
+          return (
+            <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
+                <div>
+                  <h2 className="t-display">Banco de dados</h2>
+                  <p className="t-body mt-1">{unitName} · cadastros mestres de fornecedores, insumos e revenda.</p>
+                </div>
+                <div className="segmented w-full sm:w-auto sm:inline-flex overflow-x-auto">
+                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="shrink-0 h-9 px-4">Análise</button>
+                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="shrink-0 h-9 px-4">Guia</button>
+                  <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={false} className="shrink-0 h-9 px-4">Planilha</button>
+                  <button type="button" onClick={() => setModoFornecedores('banco')} data-active={true} className="shrink-0 h-9 px-4">Banco de dados</button>
+                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={false} className="shrink-0 h-9 px-4">Cotações</button>
+                </div>
+              </div>
+
+              <div className="card p-3 sm:p-4">
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  <div className="segmented w-full md:w-auto md:inline-flex">
+                    <button type="button" onClick={() => setAbaBanco('fornecedores')} data-active={abaBanco === 'fornecedores'} className="flex-1 md:flex-none h-9 px-4">
+                      Fornecedores
+                    </button>
+                    <button type="button" onClick={() => setAbaBanco('itens')} data-active={abaBanco === 'itens'} className="flex-1 md:flex-none h-9 px-4">
+                      Insumos e revenda
+                    </button>
+                  </div>
+                  <div className="relative flex-1">
+                    <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
+                    <input
+                      value={buscaBanco}
+                      onChange={(e) => setBuscaBanco(e.target.value)}
+                      placeholder={abaBanco === 'fornecedores' ? 'Buscar fornecedor ou item…' : 'Buscar item, tipo ou categoria…'}
+                      className="field field-sm field-search"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {abaBanco === 'fornecedores' ? (
+                <div className="card overflow-hidden">
+                  <div className="overflow-auto">
+                    <table className="excel-densa w-full text-left">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-10 min-w-[250px]">Fornecedor</th>
+                          <th className="text-right">Compras</th>
+                          <th className="text-right">Itens</th>
+                          <th>Última compra</th>
+                          <th className="text-right">Total histórico</th>
+                          <th className="min-w-[250px]">Principais itens</th>
+                          <th className="text-center">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fornecedoresBanco.map((linha) => (
+                          <tr key={linha.nome}>
+                            <td className="sticky left-0 z-[2] bg-white">
+                              {nomeFornecedorEditando?.origem === linha.nome ? (
+                                <div className="flex items-center gap-1.5 min-w-[230px]">
+                                  <input
+                                    autoFocus
+                                    value={nomeFornecedorEditando.valor}
+                                    onChange={(e) => setNomeFornecedorEditando((atual) => ({ ...atual, valor: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') renomearFornecedorBanco(linha.nome, nomeFornecedorEditando.valor);
+                                      if (e.key === 'Escape') setNomeFornecedorEditando(null);
+                                    }}
+                                    className="field h-7 flex-1"
+                                  />
+                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => renomearFornecedorBanco(linha.nome, nomeFornecedorEditando.valor)}>Salvar</button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="font-semibold text-left hover:underline"
+                                  title="Clique para editar o nome. Se já existir outro fornecedor com esse nome, os históricos serão unidos."
+                                  onClick={() => setNomeFornecedorEditando({ origem: linha.nome, valor: linha.nome })}
+                                >
+                                  {linha.nome}
+                                </button>
+                              )}
+                            </td>
+                            <td className="text-right tnum">{linha.compras}</td>
+                            <td className="text-right tnum">{linha.itens.length}</td>
+                            <td className="tnum">{linha.ultimaData ? formatDateBR(linha.ultimaData) : '—'}</td>
+                            <td className="text-right tnum font-semibold">{formatCurrencyBR(linha.total)}</td>
+                            <td>
+                              <span className="block max-w-[320px] truncate" title={linha.itens.join(' · ')}>
+                                {linha.itens.slice(0, 4).join(' · ') || '—'}
+                                {linha.itens.length > 4 ? ' …' : ''}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  setFornecedorOrigemUniao(linha.nome);
+                                  setFornecedorDestinoUniao('');
+                                  setUnificarFornecedorAberto(true);
+                                }}
+                              >
+                                Juntar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {fornecedoresBanco.length === 0 && (
+                          <tr><td colSpan={7} className="text-center py-8 ink-quiet">Nenhum fornecedor encontrado.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-4 py-3 border-t hairline t-nano ink-quiet">
+                    Editar o nome altera o histórico inteiro. Se o novo nome já existir, os dois fornecedores são unidos.
+                  </div>
+                </div>
+              ) : (
+                <div className="card overflow-hidden">
+                  <div className="overflow-auto">
+                    <table className="excel-densa w-full text-left">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-10 min-w-[260px]">Item</th>
+                          <th>Tipo</th>
+                          <th className="min-w-[170px]">Categoria do insumo</th>
+                          <th className="min-w-[180px]">Categoria da revenda</th>
+                          <th>Base</th>
+                          <th>Venda</th>
+                          <th className="text-center">Editar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itensBanco.map((linha) => (
+                          <tr key={linha.key}>
+                            <td className="sticky left-0 z-[2] bg-white font-semibold">{linha.nome}</td>
+                            <td><span className="pill tone-quiet">{linha.tipo}</span></td>
+                            <td>
+                              {linha.supply ? (
+                                <select
+                                  value={linha.supply.supplyClass || 'insumo'}
+                                  onChange={(e) => onUpdateSupply && onUpdateSupply({ ...linha.supply, supplyClass: e.target.value }, true)}
+                                  className="field h-7 min-w-[150px]"
+                                >
+                                  <option value="insumo">Ingrediente</option>
+                                  <option value="embalagem">Embalagem</option>
+                                  <option value="limpeza">Limpeza</option>
+                                  <option value="outros">Outros</option>
+                                </select>
+                              ) : <span className="ink-quiet">—</span>}
+                            </td>
+                            <td>
+                              {linha.revenda ? (
+                                <input
+                                  value={linha.revenda.category || ''}
+                                  onChange={(e) => onUpdateSeparatedProduct && onUpdateSeparatedProduct({ ...linha.revenda, category: e.target.value }, true)}
+                                  placeholder="Ex.: frios, bebidas…"
+                                  className="field h-7 min-w-[165px]"
+                                />
+                              ) : <span className="ink-quiet">—</span>}
+                            </td>
+                            <td className="tnum">{linha.unidadeBase || '—'}</td>
+                            <td className="tnum">{linha.unidadeVenda || '—'}</td>
+                            <td className="text-center">
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  if (linha.supply) onRequestEditCatalog && onRequestEditCatalog('insumo:' + linha.supply.id);
+                                  else if (linha.revenda) onRequestEditCatalog && onRequestEditCatalog('revenda:' + linha.revenda.id);
+                                }}
+                              >
+                                Abrir
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {itensBanco.length === 0 && (
+                          <tr><td colSpan={7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         if (modoFornecedores === 'planilha') {
           return (
             <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
@@ -23004,6 +23278,7 @@ ${BARRA_ACOES_HTML}
                   <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Análise</button>
                   <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Guia</button>
                   <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={true} className="flex-1 sm:flex-none h-9 px-4">Planilha</button>
+                  <button type="button" onClick={() => setModoFornecedores('banco')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Banco</button>
                   <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Cotações</button>
                 </div>
               </div>
@@ -23249,6 +23524,7 @@ ${BARRA_ACOES_HTML}
                   <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Análise</button>
                   <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Guia</button>
                   <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Planilha</button>
+                  <button type="button" onClick={() => setModoFornecedores('banco')} data-active={false} className="flex-1 sm:flex-none h-9 px-4">Banco</button>
                   <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={true} className="flex-1 sm:flex-none h-9 px-4">Cotações</button>
                 </div>
               </div>
@@ -23591,6 +23867,14 @@ ${BARRA_ACOES_HTML}
   className="flex-1 sm:flex-none h-9 px-4"
 >
   Planilha
+</button>
+<button
+  type="button"
+  onClick={() => setModoFornecedores('banco')}
+  data-active={modoFornecedores === 'banco'}
+  className="flex-1 sm:flex-none h-9 px-4"
+>
+  Banco de dados
 </button>
 <button
   type="button"
@@ -24255,6 +24539,14 @@ ${BARRA_ACOES_HTML}
   className="flex-1 sm:flex-none h-9 px-4"
 >
   Planilha
+</button>
+<button
+  type="button"
+  onClick={() => setModoFornecedores('banco')}
+  data-active={modoFornecedores === 'banco'}
+  className="flex-1 sm:flex-none h-9 px-4"
+>
+  Banco de dados
 </button>
 <button
   type="button"
@@ -26936,21 +27228,41 @@ ${BARRA_ACOES_HTML}
         const handleUnifySupplier = (origem, destino) => {
           const nomeOrigem = String(origem || '').trim();
           const nomeDestino = String(destino || '').trim();
-          if (!nomeOrigem || !nomeDestino || nomeOrigem === nomeDestino) return Promise.resolve();
+          const chaveOrigem = normalizeName(nomeOrigem);
+          const chaveDestino = normalizeName(nomeDestino);
+          if (!nomeOrigem || !nomeDestino || !chaveOrigem || chaveOrigem === chaveDestino) return Promise.resolve();
 
           return write('Unificar fornecedores', async () => {
+            // O fornecedor não é uma tabela própria: ele vive nas compras.
+            // Por isso a união precisa alcançar TODAS as grafias equivalentes
+            // (maiúsculas, espaços extras, acentos), e não só um texto idêntico.
+            const idsInsumo = supplyPurchases
+              .filter((compra) => normalizeName(String(compra.supplier || '').trim()) === chaveOrigem)
+              .map((compra) => compra.id);
+            const idsRevenda = resalePurchases
+              .filter((compra) => normalizeName(String(compra.supplier || '').trim()) === chaveOrigem)
+              .map((compra) => compra.id);
+
             await Promise.all([
-              run('unificar fornecedor nas compras de insumo',
-                sb.from('supply_purchases').update({ supplier: nomeDestino }).eq('supplier', nomeOrigem)),
-              run('unificar fornecedor nas compras de revenda',
-                sb.from('resale_purchases').update({ supplier: nomeDestino }).eq('supplier', nomeOrigem))
+              idsInsumo.length
+                ? run('unificar fornecedor nas compras de insumo',
+                    sb.from('supply_purchases').update({ supplier: nomeDestino }).in('id', idsInsumo))
+                : Promise.resolve(),
+              idsRevenda.length
+                ? run('unificar fornecedor nas compras de revenda',
+                    sb.from('resale_purchases').update({ supplier: nomeDestino }).in('id', idsRevenda))
+                : Promise.resolve()
             ]);
 
             setSupplyPurchases((prev) => prev.map((compra) =>
-              compra.supplier === nomeOrigem ? { ...compra, supplier: nomeDestino } : compra
+              normalizeName(String(compra.supplier || '').trim()) === chaveOrigem
+                ? { ...compra, supplier: nomeDestino }
+                : compra
             ));
             setResalePurchases((prev) => prev.map((compra) =>
-              compra.supplier === nomeOrigem ? { ...compra, supplier: nomeDestino } : compra
+              normalizeName(String(compra.supplier || '').trim()) === chaveOrigem
+                ? { ...compra, supplier: nomeDestino }
+                : compra
             ));
 
             // Atualiza também os vínculos locais aprendidos pelo XML, para que
@@ -28329,6 +28641,8 @@ ${BARRA_ACOES_HTML}
                     unitName={getUnitName(units, currentUnit)}
                     onUnifySupplier={handleUnifySupplier}
                     onDeletePurchaseGroup={handleDeletePurchaseGroup}
+                    onUpdateSupply={handleUpdateSupply}
+                    onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
                     onRequestEditCatalog={(value) => {
                       setCatalogQuickEditTarget({ id: Date.now(), value });
                     }}
