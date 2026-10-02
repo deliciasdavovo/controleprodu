@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-banco-lark-base-ui-2" />
+    <meta name="app-version" content="2026-10-02-banco-categorias-fornecedor-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <meta name="referrer" content="no-referrer" />
@@ -21022,6 +21022,56 @@
             .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
         }, [supplies, separatedProducts, currentUnit, buscaBanco]);
 
+        const categoriasInsumoBanco = useMemo(() => Array.from(new Set(
+          supplies
+            .map((item) => String(item.supplyClass || '').trim())
+            .filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [supplies]);
+
+        const categoriasRevendaBanco = useMemo(() => Array.from(new Set(
+          separatedProducts
+            .filter((item) => item.unit === currentUnit)
+            .map((item) => String(item.category || '').trim())
+            .filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [separatedProducts, currentUnit]);
+
+        const juntarFornecedorBanco = async (origem) => {
+          const destinos = nomesFornecedoresUnicos
+            .filter((nome) => normalizeName(nome) !== normalizeName(origem));
+          if (!destinos.length) {
+            window.alert('Não há outro fornecedor para juntar com este cadastro.');
+            return;
+          }
+
+          const digitado = window.prompt(
+            'Juntar fornecedor "' + origem + '" com qual fornecedor?\n\n'
+            + 'Digite o nome do fornecedor de destino. Exemplos:\n'
+            + destinos.slice(0, 12).join('\n')
+          );
+          if (digitado === null) return;
+
+          const destino = destinos.find((nome) =>
+            normalizeName(nome) === normalizeName(String(digitado || '').trim())
+          );
+          if (!destino) {
+            window.alert('Fornecedor de destino não encontrado. Digite o nome de um fornecedor que já aparece na lista.');
+            return;
+          }
+
+          const confirmar = window.confirm(
+            'Juntar "' + origem + '" em "' + destino + '"?\n\n'
+            + 'Todas as compras antigas de insumos e revenda passarão a usar "' + destino + '".'
+          );
+          if (!confirmar) return;
+
+          setUnificandoFornecedor(true);
+          try {
+            await onUnifySupplier(origem, destino);
+          } finally {
+            setUnificandoFornecedor(false);
+          }
+        };
+
         const renomearFornecedorBanco = async (origem, destino) => {
           const novo = String(destino || '').trim();
           if (!novo || normalizeName(origem) === normalizeName(novo)) {
@@ -23356,6 +23406,13 @@ ${BARRA_ACOES_HTML}
                 </div>
               </div>
 
+              <datalist id="categorias-insumo-banco">
+                {categoriasInsumoBanco.map((categoria) => <option key={categoria} value={categoria} />)}
+              </datalist>
+              <datalist id="categorias-revenda-banco">
+                {categoriasRevendaBanco.map((categoria) => <option key={categoria} value={categoria} />)}
+              </datalist>
+
               <div className="lark-toolbar">
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
                   <div className="lark-view-tabs w-full md:w-auto md:inline-flex">
@@ -23436,13 +23493,10 @@ ${BARRA_ACOES_HTML}
                               <button
                                 type="button"
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setFornecedorOrigemUniao(linha.nome);
-                                  setFornecedorDestinoUniao('');
-                                  setUnificarFornecedorAberto(true);
-                                }}
+                                disabled={unificandoFornecedor}
+                                onClick={() => juntarFornecedorBanco(linha.nome)}
                               >
-                                Juntar
+                                {unificandoFornecedor ? 'Juntando…' : 'Juntar'}
                               </button>
                             </td>
                           </tr>
@@ -23479,25 +23533,61 @@ ${BARRA_ACOES_HTML}
                             <td><span className="lark-chip">{linha.tipo}</span></td>
                             <td>
                               {linha.supply ? (
-                                <select
-                                  value={linha.supply.supplyClass || 'insumo'}
-                                  onChange={(e) => onUpdateSupply && onUpdateSupply({ ...linha.supply, supplyClass: e.target.value }, true)}
-                                  className="field h-7 min-w-[150px]"
-                                >
-                                  <option value="insumo">Ingrediente</option>
-                                  <option value="embalagem">Embalagem</option>
-                                  <option value="limpeza">Limpeza</option>
-                                  <option value="outros">Outros</option>
-                                </select>
+                                <input
+                                  key={'categoria-insumo-' + linha.supply.id + '-' + (linha.supply.supplyClass || '')}
+                                  defaultValue={linha.supply.supplyClass || 'insumo'}
+                                  list="categorias-insumo-banco"
+                                  placeholder="Digite ou crie uma categoria"
+                                  title="Digite uma categoria existente ou crie uma nova. Salva ao sair do campo."
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                    if (e.key === 'Escape') {
+                                      e.currentTarget.value = linha.supply.supplyClass || 'insumo';
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const nova = String(e.target.value || '').trim();
+                                    const atual = String(linha.supply.supplyClass || 'insumo').trim();
+                                    if (!nova) {
+                                      e.target.value = atual;
+                                      return;
+                                    }
+                                    if (normalizeName(nova) !== normalizeName(atual)) {
+                                      onUpdateSupply && onUpdateSupply({ ...linha.supply, supplyClass: nova }, true);
+                                    }
+                                  }}
+                                  className="field h-7 min-w-[170px]"
+                                />
                               ) : <span className="ink-quiet">—</span>}
                             </td>
                             <td>
                               {linha.revenda ? (
                                 <input
-                                  value={linha.revenda.category || ''}
-                                  onChange={(e) => onUpdateSeparatedProduct && onUpdateSeparatedProduct({ ...linha.revenda, category: e.target.value }, true)}
-                                  placeholder="Ex.: frios, bebidas…"
-                                  className="field h-7 min-w-[165px]"
+                                  key={'categoria-revenda-' + linha.revenda.id + '-' + (linha.revenda.category || '')}
+                                  defaultValue={linha.revenda.category || 'revenda'}
+                                  list="categorias-revenda-banco"
+                                  placeholder="Digite ou crie uma categoria"
+                                  title="Digite uma categoria existente ou crie uma nova. Salva ao sair do campo."
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                    if (e.key === 'Escape') {
+                                      e.currentTarget.value = linha.revenda.category || 'revenda';
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const nova = String(e.target.value || '').trim();
+                                    const atual = String(linha.revenda.category || 'revenda').trim();
+                                    if (!nova) {
+                                      e.target.value = atual;
+                                      return;
+                                    }
+                                    if (normalizeName(nova) !== normalizeName(atual)) {
+                                      onUpdateSeparatedProduct && onUpdateSeparatedProduct({ ...linha.revenda, category: nova }, true);
+                                    }
+                                  }}
+                                  className="field h-7 min-w-[180px]"
                                 />
                               ) : <span className="ink-quiet">—</span>}
                             </td>
