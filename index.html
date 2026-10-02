@@ -6,9 +6,11 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-consulta-publica-nfe-chave-1" />
+    <meta name="app-version" content="2026-10-02-security-hardening-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; object-src 'none'; base-uri 'self'; form-action 'self' https://www.nfe.fazenda.gov.br; frame-ancestors 'none'" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
     <!-- Manrope & Tailwind CSS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19830,7 +19832,20 @@
         onImported
       }) => {
         const TOKEN_KEY = 'dv-nfe-fiscal-token';
-        const [fiscalToken, setFiscalToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
+        const [fiscalToken, setFiscalToken] = useState(() => {
+          try {
+            const sessionToken = sessionStorage.getItem(TOKEN_KEY) || '';
+            if (sessionToken) return sessionToken;
+            const legacyToken = localStorage.getItem(TOKEN_KEY) || '';
+            if (legacyToken) {
+              sessionStorage.setItem(TOKEN_KEY, legacyToken);
+              localStorage.removeItem(TOKEN_KEY);
+            }
+            return legacyToken;
+          } catch {
+            return '';
+          }
+        });
         const [tokenDraft, setTokenDraft] = useState('');
         const [status, setStatus] = useState(null);
         const [documents, setDocuments] = useState([]);
@@ -19979,12 +19994,14 @@
         const salvarToken = () => {
           const value = tokenDraft.trim();
           if (!value) return;
-          localStorage.setItem(TOKEN_KEY, value);
+          sessionStorage.setItem(TOKEN_KEY, value);
+          localStorage.removeItem(TOKEN_KEY);
           setFiscalToken(value);
           setTokenDraft('');
         };
 
         const esquecerToken = () => {
+          sessionStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(TOKEN_KEY);
           setFiscalToken('');
           setTokenDraft('');
@@ -20282,6 +20299,7 @@
                     placeholder="Código fiscal"
                     className="field field-md flex-1"
                     autoComplete="off"
+                    spellCheck={false}
                   />
                   <button type="button" onClick={salvarToken} className="btn btn-secondary btn-md">Entrar</button>
                 </div>
