@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="app-version" content="2026-10-02-banco-dados-fornecedores-1" />
+    <meta name="app-version" content="2026-10-02-consulta-publica-nfe-chave-1" />
     <title>Delícias da Vovó - Operacional da Vitrine</title>
     <meta name="theme-color" content="#2f5d45" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f5d45'/%3E%3Cpath d='M12 40c0-13 9-24 20-24s20 11 20 24c0 6-4 10-10 10H22c-6 0-10-4-10-10Z' fill='%23fff4d8'/%3E%3Cpath d='M23 22l-4 10M34 18l-5 14M45 22l-5 10' stroke='%232f5d45' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
@@ -4216,6 +4216,7 @@
         const [open, setOpen] = useState(false);
         const [active, setActive] = useState(-1);
         const [search, setSearch] = useState('');
+        const [chaveConsultaPublica, setChaveConsultaPublica] = useState('');
         const [typed, setTyped] = useState(false);
         const [box, setBox] = useState(null);
 
@@ -19867,6 +19868,70 @@
           return result.data || {};
         };
 
+        const abrirConsultaPublica = async () => {
+          const chave = String(chaveConsultaPublica || '').replace(/\D/g, '');
+          if (chave.length !== 44) {
+            setError('A chave de acesso precisa ter exatamente 44 dígitos.');
+            return;
+          }
+          setError('');
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(chave);
+            }
+          } catch {}
+          const url = 'https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx'
+            + '?nfe=' + encodeURIComponent(chave)
+            + '&tipoConsulta=resumo';
+          const janela = window.open(url, '_blank', 'noopener,noreferrer');
+          if (!janela) {
+            setError('O navegador bloqueou a nova janela. Libere pop-ups para abrir a consulta oficial.');
+            return;
+          }
+          setNotice('Consulta oficial aberta. A chave também foi copiada para facilitar caso o portal peça para colar novamente. Resolva o captcha para visualizar a NF-e.');
+        };
+
+        const ConsultaPublicaNfe = () => (
+          <div className="card p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-black/[0.055] flex items-center justify-center shrink-0">
+                <Icons.Search className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="t-overline">Sem certificado A1</div>
+                <h3 className="t-title mt-1">Consultar pela chave de acesso</h3>
+                <p className="t-micro mt-1.5 ink-quiet">
+                  Cole os 44 dígitos. O sistema abre a consulta pública oficial da NF-e e copia a chave para você.
+                  O portal exige captcha, então esta etapa precisa ser confirmada por você.
+                </p>
+                <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                  <input
+                    inputMode="numeric"
+                    value={chaveConsultaPublica}
+                    onChange={(e) => setChaveConsultaPublica(e.target.value.replace(/\D/g, '').slice(0, 44))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') abrirConsultaPublica(); }}
+                    placeholder="Chave de acesso — 44 dígitos"
+                    className="field field-md flex-1 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={abrirConsultaPublica}
+                    className="btn btn-primary btn-md"
+                    disabled={String(chaveConsultaPublica || '').replace(/\D/g, '').length !== 44}
+                  >
+                    <Icons.Search className="w-4 h-4" />
+                    Consultar NF-e
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="t-nano ink-quiet">{String(chaveConsultaPublica || '').replace(/\D/g, '').length}/44 dígitos</span>
+                  <span className="t-nano ink-quiet">Consulta pública · sem certificado</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
         const fileToBase64 = (file) => new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -20180,16 +20245,33 @@
 
         if (!fiscalToken) {
           return (
-            <div className="max-w-xl mx-auto">
+            <div className="max-w-3xl mx-auto space-y-4">
+              <ConsultaPublicaNfe />
+
+              {error && (
+                <div className="card-quiet p-4 flex items-start gap-2.5 border border-[#7d2027]/20 bg-[#7d2027]/[0.06]">
+                  <Icons.AlertTriangle className="w-4 h-4 ink-expired shrink-0 mt-0.5" />
+                  <div className="t-callout ink-expired flex-1">{error}</div>
+                  <button type="button" onClick={() => setError('')} className="btn btn-secondary btn-sm">Fechar</button>
+                </div>
+              )}
+
+              {notice && (
+                <div className="card-quiet p-4 flex items-start gap-2.5">
+                  <Icons.CheckCircle2 className="w-4 h-4 ink-fresh shrink-0 mt-0.5" />
+                  <div className="t-callout flex-1">{notice}</div>
+                  <button type="button" onClick={() => setNotice('')} className="btn btn-secondary btn-sm">Fechar</button>
+                </div>
+              )}
+
               <div className="card p-6 sm:p-7">
                 <div className="t-overline flex items-center gap-1.5">
                   <Icons.ClipboardList className="w-3.5 h-3.5" />
-                  Notas NF-e
+                  Módulo fiscal automático
                 </div>
-                <h2 className="t-display mt-2">Ativar módulo fiscal neste aparelho</h2>
+                <h2 className="t-title mt-2">Opcional: entrar no módulo fiscal</h2>
                 <p className="t-body mt-2">
-                  Digite o código fiscal uma vez. Ele fica salvo somente neste navegador e protege certificado,
-                  XML e importação de notas.
+                  Esta parte é separada da consulta pública. Use somente se você já tiver o código fiscal deste aparelho.
                 </p>
                 <div className="mt-5 flex flex-col sm:flex-row gap-2">
                   <input
@@ -20201,9 +20283,7 @@
                     className="field field-md flex-1"
                     autoComplete="off"
                   />
-                  <button type="button" onClick={salvarToken} className="btn btn-primary btn-md">
-                    Entrar
-                  </button>
+                  <button type="button" onClick={salvarToken} className="btn btn-secondary btn-md">Entrar</button>
                 </div>
               </div>
             </div>
@@ -20240,6 +20320,8 @@
                 </button>
               </div>
             </div>
+
+            <ConsultaPublicaNfe />
 
             {error && (
               <div className="card-quiet p-4 flex items-start gap-2.5 border border-[#7d2027]/20 bg-[#7d2027]/[0.06]">
