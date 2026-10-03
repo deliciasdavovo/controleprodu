@@ -1784,6 +1784,77 @@
         }
       }
 
+      /* Fornecedores > Por item
+         Esta visão é de leitura e comparação, não de digitação. A grade Excel
+         usada nas outras tabelas criava linhas verticais/horizontais dentro de
+         cada produto e fazia Compra atual, Comparação e Histórico parecerem
+         registros separados. Aqui cada produto volta a ser um único bloco. */
+      .compras-planilha-ui table.fornecedores-por-item-table {
+        min-width: 1040px !important;
+        border-collapse: separate !important;
+        border-spacing: 0 8px !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table thead th {
+        height: auto !important;
+        padding: 7px 14px 9px !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid rgba(0,0,0,.08) !important;
+        background: #fff !important;
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td {
+        height: auto !important;
+        padding: 13px 14px !important;
+        vertical-align: top !important;
+        border: 0 !important;
+        background: #f7f7f8 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td:first-child {
+        border-radius: 10px 0 0 10px !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td:last-child {
+        border-radius: 0 10px 10px 0 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:hover > td {
+        background: #f1f1f3 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table th.sticky,
+      .compras-planilha-ui table.fornecedores-por-item-table td.sticky {
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-nome {
+        font-size: 14px !important;
+        line-height: 1.28 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-atual {
+        font-size: 19px !important;
+        line-height: 1 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-bloco-secundario {
+        margin-top: 9px !important;
+        padding: 8px 9px;
+        border: 0 !important;
+        border-radius: 8px;
+        background: rgba(255,255,255,.72);
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-linha {
+        padding: 7px 9px !important;
+        border: 0 !important;
+        border-radius: 8px;
+        background: rgba(255,255,255,.72);
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-linha + .fornecedor-historico-linha {
+        margin-top: 6px !important;
+      }
+      @media (max-width: 640px) {
+        .compras-planilha-ui table.fornecedores-por-item-table {
+          min-width: 960px !important;
+        }
+        .compras-planilha-ui table.fornecedores-por-item-table tbody td {
+          padding: 10px 11px !important;
+        }
+      }
+
       /* Planilha de cotações: grade real, como uma planilha, sem precisar
          depender de espaço em branco para separar as colunas. */
       .cotacao-planilha-grid {
@@ -26301,9 +26372,9 @@ ${BARRA_ACOES_HTML}
                 {/* ---------------- POR ITEM ---------------- */}
                 {visao === 'item' && (
                   <div className="rola-x">
-                    <table className="excel-densa w-full text-left tabela-larga">
+                    <table className="excel-densa fornecedores-por-item-table w-full text-left tabela-larga">
                       <thead>
-                        <tr className="t-overline-sm border-b hairline">
+                        <tr className="t-overline-sm">
                           <th className="py-3 pr-3 font-bold sticky left-0 bg-white z-10 min-w-[210px]">Item</th>
                           <th className="py-3 px-4 font-bold min-w-[280px]">Compra atual</th>
                           <th className="py-2 px-4 font-bold min-w-[250px]">
@@ -26336,11 +26407,11 @@ ${BARRA_ACOES_HTML}
                                 identificarCadastroDoItem(i.itemId);
                               }}
                               title="Dê dois cliques para editar este item sem sair desta tela"
-                              className="border-t hairline hover:bg-black/[0.015] transition-colors cursor-pointer align-top"
+                              className="fornecedores-por-item-row transition-colors cursor-pointer align-top"
                             >
                               <td className="py-4 pr-3 sticky left-0 bg-white z-10 align-top">
                                 <div className="w-44 sm:w-56">
-                                  <span className="text-[14px] sm:text-[15px] leading-snug font-bold block whitespace-normal" title={i.item}>
+                                  <span className="fornecedor-item-nome font-bold block whitespace-normal" title={i.item}>
                                     {i.item}
                                   </span>
                                   <span className="t-micro ink-quiet block mt-1">
@@ -26352,7 +26423,7 @@ ${BARRA_ACOES_HTML}
                               <td className="py-4 px-4 align-top">
                                 {compraAtual ? (
                                   <div>
-                                    <div className="text-[20px] sm:text-[22px] leading-none font-bold tnum tracking-[-0.02em]">
+                                    <div className="fornecedor-preco-atual font-bold tnum tracking-[-0.02em]">
                                       {formatPrecoCompraComercial(compraAtual)}
                                     </div>
                                     <div className="text-[12px] sm:text-[13px] tnum font-semibold mt-2">
@@ -26387,7 +26458,7 @@ ${BARRA_ACOES_HTML}
                                     />
                                   </div>
 
-                                  <div className="pt-2 border-t hairline">
+                                  <div className="fornecedor-item-bloco-secundario">
                                     <span className="t-overline-sm block mb-1">Fornecedor de referência</span>
                                     {i.medias.length > 1 ? (
                                       <>
@@ -26412,7 +26483,7 @@ ${BARRA_ACOES_HTML}
                               <td className="py-4 pl-4 align-top">
                                 <div className="space-y-2.5">
                                   {anteriores.length > 0 ? anteriores.map((compra, idx) => (
-                                    <div key={compra.id || idx} className="flex items-start justify-between gap-4 pb-2.5 border-b hairline last:border-b-0 last:pb-0">
+                                    <div key={compra.id || idx} className="fornecedor-historico-linha flex items-start justify-between gap-4">
                                       <div className="min-w-0">
                                         <span className="t-micro ink-quiet block">
                                           {idx === 0 ? 'Compra anterior' : '3ª compra'}
