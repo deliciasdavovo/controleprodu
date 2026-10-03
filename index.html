@@ -3815,9 +3815,21 @@
 
       const casaComBusca = (rotulo, termo) => {
         const alvo = chaveDeBusca(rotulo);
-        const partes = chaveDeBusca(termo).split(' ').filter(Boolean);
-        if (!partes.length) return true;
-        return partes.every((parte) => alvo.includes(parte));
+        const consulta = String(termo || '').trim();
+        if (!consulta) return true;
+
+        // O sinal de + funciona como "OU" entre itens específicos.
+        // Ex.: "MP04 + MP23 + 3" mostra tudo que casar com MP04, MP23 ou 3.
+        // Dentro de cada bloco, espaços continuam funcionando como "E":
+        // "leite po + chocolate branco" casa com "leite" E "po", OU com
+        // "chocolate" E "branco".
+        const grupos = consulta
+          .split('+')
+          .map((grupo) => chaveDeBusca(grupo).split(' ').filter(Boolean))
+          .filter((partes) => partes.length);
+
+        if (!grupos.length) return true;
+        return grupos.some((partes) => partes.every((parte) => alvo.includes(parte)));
       };
 
       // Casar não basta: numa lista longa, o que casa por acaso no meio de uma
@@ -15884,7 +15896,7 @@
                     <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[8px] z-[1]" />
                     <input
                       type="text"
-                      placeholder="Buscar item, fornecedor, tipo…"
+                      placeholder="Buscar item… ex.: MP04 + MP23 + 3"
                       value={busca}
                       onChange={(e) => {
                         setBusca(e.target.value);
