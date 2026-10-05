@@ -5000,7 +5000,8 @@
         cost: Number(row.cost) || 0,
         purchaseUnit: row.purchase_unit || 'un',
         packageType: row.package_type || '',
-        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
+        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units),
+        productCode: row.product_code || ''
       });
 
       const fromSupply = (row) => ({
@@ -5012,7 +5013,8 @@
         supplyClass: row.supply_class || 'insumo',
         purchaseUnit: row.purchase_unit || unidadeCompraPadraoDaBase(row.unit || 'g'),
         packageType: row.package_type || '',
-        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units)
+        packageUnits: row.package_units === null || row.package_units === undefined ? null : Number(row.package_units),
+        productCode: row.product_code || ''
       });
 
       const fromSupplyPurchase = (row) => ({
@@ -5163,8 +5165,13 @@
         // A lista só filtra depois que a pessoa digita: abrir um campo já
         // preenchido mostra todas as opções, para poder trocar de uma vez
         const term = typed ? (isFree ? value : search).trim().toLowerCase() : '';
+        const textoBuscaOpcao = (o) => [o.label, o.searchText, o.hint].filter(Boolean).join(' ');
         const visible = term
-          ? ordenarPorBusca(options.filter((o) => casaComBusca(o.label, term)), term, (o) => o.label)
+          ? ordenarPorBusca(
+              options.filter((o) => casaComBusca(textoBuscaOpcao(o), term)),
+              term,
+              (o) => textoBuscaOpcao(o)
+            )
           : options;
 
         // A lista fica presa ao corpo da página: assim ela não é cortada por
@@ -14305,6 +14312,232 @@
         );
       };
 
+
+      const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose }) => {
+        const novaLinha = () => ({
+          id: 'manual-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          selected: true,
+          name: '',
+          productCode: '',
+          catalogValue: '',
+          purchaseKind: 'insumo',
+          unit: 'g',
+          purchaseUnit: 'kg',
+          packageType: '',
+          unitsPerPackage: '',
+          volumes: '',
+          cost: ''
+        });
+        const [itens, setItens] = useState(() => [novaLinha()]);
+        const [fornecedor, setFornecedor] = useState('');
+        const [data, setData] = useState(dataSugerida || getTodayDateString());
+        const [numeroNota, setNumeroNota] = useState('');
+        const [salvando, setSalvando] = useState(false);
+
+        const alterar = (id, campos) => setItens((atuais) =>
+          atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
+        );
+        const remover = (id) => setItens((atuais) => {
+          const proximos = atuais.filter((item) => item.id !== id);
+          return proximos.length ? proximos : [novaLinha()];
+        });
+        const adicionar = () => setItens((atuais) => [...atuais, novaLinha()]);
+
+        const escolherProduto = (item, opt) => alterar(item.id, {
+          name: opt.label,
+          productCode: opt.productCode || '',
+          catalogValue: opt.value,
+          purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
+          unit: opt.unit || 'un',
+          purchaseUnit: opt.purchaseUnit || opt.unit || 'un',
+          packageType: opt.packageType || '',
+          unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : ''
+        });
+
+        const linhasValidas = itens.filter((item) =>
+          String(item.name || '').trim() || String(item.productCode || '').trim()
+        );
+
+        const confirmar = async () => {
+          if (salvando) return;
+          if (!String(fornecedor || '').trim()) {
+            window.alert('Escolha ou digite o fornecedor.');
+            return;
+          }
+          if (!linhasValidas.length) {
+            window.alert('Adicione pelo menos um produto.');
+            return;
+          }
+          const incompleta = linhasValidas.find((item) =>
+            !String(item.name || '').trim()
+            || !(Number(item.volumes) > 0)
+            || !(Number(item.cost) > 0)
+          );
+          if (incompleta) {
+            window.alert('Confira produto, quantidade e valor pago das linhas preenchidas.');
+            return;
+          }
+          setSalvando(true);
+          try {
+            await onConfirm({
+              itens: linhasValidas.map((item) => ({ ...item, selected: true })),
+              fornecedor: fornecedor.trim(),
+              data,
+              numeroNota: String(numeroNota || '').trim()
+            });
+            onClose();
+          } finally {
+            setSalvando(false);
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5">
+            <button type="button" className="absolute inset-0" aria-label="Fechar lançamento" onClick={() => !salvando && onClose()} />
+            <div className="relative bg-white rounded-[22px] w-full max-w-6xl max-h-[96vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col">
+              <div className="px-5 py-4 border-b hairline flex items-start justify-between gap-3">
+                <div>
+                  <div className="t-overline flex items-center gap-1.5 mb-1"><Icons.ClipboardList className="w-3.5 h-3.5" /> Compra manual</div>
+                  <h3 className="t-title">Lançar como nota fiscal</h3>
+                  <p className="t-caption mt-1">Preencha fornecedor e data uma vez; depois lance somente os produtos.</p>
+                </div>
+                <button type="button" disabled={salvando} onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_180px_180px] gap-3 rounded-2xl bg-black/[0.025] p-4">
+                  <div>
+                    <label className="t-caption block mb-1">Fornecedor</label>
+                    <PickerField
+                      value={fornecedor}
+                      options={fornecedores.map((f) => ({ value: f, label: f }))}
+                      onType={setFornecedor}
+                      onPick={(opt) => setFornecedor(opt.value)}
+                      placeholder="Digite ou escolha o fornecedor"
+                      emptyLabel="Fornecedor novo"
+                      className="field field-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="t-caption block mb-1">Data</label>
+                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="field field-md w-full" />
+                  </div>
+                  <div>
+                    <label className="t-caption block mb-1">Nº da nota <span className="ink-quiet">opcional</span></label>
+                    <input value={numeroNota} onChange={(e) => setNumeroNota(e.target.value)} placeholder="Ex.: 12584" className="field field-md w-full tnum" />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border hairline overflow-hidden">
+                  <div className="rola-x">
+                    <table className="w-full text-left min-w-[1040px]">
+                      <thead>
+                        <tr className="t-overline-sm border-b hairline bg-[#f5f5f7]">
+                          <th className="py-2.5 px-3 font-bold w-[150px]">Código</th>
+                          <th className="py-2.5 px-3 font-bold min-w-[280px]">Produto</th>
+                          <th className="py-2.5 px-3 font-bold w-[150px]">Tipo</th>
+                          <th className="py-2.5 px-3 font-bold w-[100px]">Unidade</th>
+                          <th className="py-2.5 px-3 text-right font-bold w-[120px]">Quantidade</th>
+                          <th className="py-2.5 px-3 text-right font-bold w-[140px]">Valor pago</th>
+                          <th className="py-2.5 px-3 w-12"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itens.map((item) => (
+                          <tr key={item.id} className="border-t hairline">
+                            <td className="p-2.5">
+                              <input
+                                value={item.productCode || ''}
+                                onChange={(e) => alterar(item.id, { productCode: e.target.value })}
+                                placeholder="12420221"
+                                className="field h-9 px-2.5 text-[12px] tnum w-full"
+                              />
+                            </td>
+                            <td className="p-2.5">
+                              <PickerField
+                                value={item.name}
+                                options={catalogOptions}
+                                onType={(name) => alterar(item.id, { name, catalogValue: '' })}
+                                onPick={(opt) => escolherProduto(item, opt)}
+                                placeholder="Nome ou código do produto"
+                                emptyLabel="Produto novo — preencha a linha"
+                                className="field h-9 px-2.5 text-[12px] font-semibold w-full"
+                                panelMinWidth={360}
+                              />
+                            </td>
+                            <td className="p-2.5">
+                              <select
+                                value={item.purchaseKind || 'insumo'}
+                                onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })}
+                                className="field h-9 px-2 text-[12px] field-select w-full"
+                              >
+                                <option value="insumo">Insumo</option>
+                                <option value="revenda">Revenda</option>
+                                <option value="insumo_revenda">Insumo + revenda</option>
+                                <option value="embalagem">Embalagem</option>
+                                <option value="limpeza">Limpeza</option>
+                                <option value="outros">Outros</option>
+                              </select>
+                            </td>
+                            <td className="p-2.5">
+                              <select
+                                value={item.purchaseUnit || 'un'}
+                                onChange={(e) => alterar(item.id, {
+                                  purchaseUnit: e.target.value,
+                                  unit: unidadeTecnicaDaCompra(e.target.value)
+                                })}
+                                className="field h-9 px-2 text-[12px] field-select w-full"
+                              >
+                                {PURCHASE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                              </select>
+                            </td>
+                            <td className="p-2.5">
+                              <NumeroBRField
+                                value={item.volumes || ''}
+                                decimals={3}
+                                onValueChange={(volumes) => alterar(item.id, { volumes })}
+                                placeholder="0"
+                                className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full"
+                              />
+                            </td>
+                            <td className="p-2.5">
+                              <NumeroBRField
+                                value={item.cost || ''}
+                                decimals={2}
+                                onValueChange={(cost) => alterar(item.id, { cost })}
+                                placeholder="0,00"
+                                className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full"
+                              />
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <button type="button" onClick={() => remover(item.id)} className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center" title="Remover linha">
+                                <Icons.Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button type="button" onClick={adicionar} className="w-full px-4 py-3 border-t hairline text-left t-callout font-semibold hover:bg-black/[0.025]">
+                    + Adicionar produto
+                  </button>
+                </div>
+
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p className="t-micro ink-quiet">Dica: no campo Produto você pode pesquisar pelo nome ou pelo código cadastrado.</p>
+                  <button type="button" disabled={salvando || !linhasValidas.length} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
+                    {salvando ? 'Salvando…' : `Salvar compra · ${linhasValidas.length} ${linhasValidas.length === 1 ? 'item' : 'itens'}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       const PasteInvoiceModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose }) => {
         const [texto, setTexto] = useState('');
         const [itens, setItens] = useState([]);
@@ -14556,6 +14789,7 @@
         const [historico, setHistorico] = useState(null);
         const [notaColadaAberta, setNotaColadaAberta] = useState(false);
         const [xmlCompraAberta, setXmlCompraAberta] = useState(false);
+        const [compraManualAberta, setCompraManualAberta] = useState(false);
         // Produto cuja ficha está aberta
         const [fichaProdutoId, setFichaProdutoId] = useState(null);
         // Copiar uma ficha pronta para outro produto sem remontar insumo por insumo
@@ -14596,6 +14830,7 @@
           type: 'insumo',
           purchaseKind: 'insumo',
           name: '',
+          productCode: '',
           unit: 'g',
           supplyClass: 'insumo',
           variationUnit: '',
@@ -15009,9 +15244,11 @@
             mapa.set(normalizeName(x.name), {
               value: `insumo:${x.id}`,
               label: x.name,
-              hint: rev
+              productCode: x.productCode || '',
+              searchText: x.productCode || '',
+              hint: [x.productCode ? `Cód. ${x.productCode}` : '', rev
                 ? `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))} · revenda também`
-                : `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))}`,
+                : `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))}`].filter(Boolean).join(' · '),
               purchaseKind: ['embalagem', 'limpeza', 'outros'].includes(x.supplyClass) ? x.supplyClass : (rev ? 'insumo_revenda' : 'insumo'),
               unit: x.unit || 'un',
               purchaseUnit: x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit),
@@ -15027,7 +15264,9 @@
               mapa.set(key, {
                 value: `revenda:${x.id}`,
                 label: x.productName,
-                hint: `Revenda · ${x.priceUnit || 'un'}`,
+                productCode: x.productCode || '',
+                searchText: x.productCode || '',
+                hint: [x.productCode ? `Cód. ${x.productCode}` : '', `Revenda · ${x.priceUnit || 'un'}`].filter(Boolean).join(' · '),
                 purchaseKind: 'revenda',
                 unit: unidadeTecnicaDaCompra(x.purchaseUnit || x.priceUnit || x.unitOfMeasure || 'un'),
                 purchaseUnit: x.purchaseUnit || x.priceUnit || 'un',
@@ -15162,6 +15401,7 @@
               type: 'insumo',
               purchaseKind: usoInterno ? 'insumo' : (rev ? 'insumo_revenda' : 'insumo'),
               name: x.name,
+              productCode: x.productCode || '',
               unit: x.unit || unidadeTecnicaDaCompra(x.purchaseUnit),
               supplyClass: x.supplyClass || 'insumo',
               variationUnit: volumeLegado ? '' : (x.variationUnit || ''),
@@ -15189,6 +15429,7 @@
               type: 'insumo',
               purchaseKind: ins ? 'insumo_revenda' : 'revenda',
               name: x.productName,
+              productCode: x.productCode || ins?.productCode || '',
               unit: ins?.unit || unidadeTecnicaDaCompra(x.purchaseUnit || x.priceUnit || x.unitOfMeasure),
               supplyClass: ins?.supplyClass || 'insumo',
               variationUnit: ins?.variationUnit || '',
@@ -15535,6 +15776,7 @@
               if (!insumo) {
                 insumo = await onAddSupply({
                   name: nome,
+                  productCode: String(item.productCode || '').trim(),
                   unit: item.unit || 'un',
                   purchaseUnit: item.purchaseUnit || item.unit || 'un',
                   supplyClass: classe,
@@ -15543,6 +15785,10 @@
                   packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
                   packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
+              } else if (String(item.productCode || '').trim() && String(insumo.productCode || '') !== String(item.productCode || '').trim()) {
+                const atualizado = { ...insumo, productCode: String(item.productCode || '').trim() };
+                await onUpdateSupply(atualizado, true);
+                insumo = atualizado;
               } else if (unidadesPorVolume > 0
                 && (!insumo.packageType || !(Number(insumo.packageUnits) > 0))) {
                 const atualizado = {
@@ -15594,6 +15840,7 @@
               if (!revenda) {
                 revenda = await onAddSeparatedProduct({
                   productName: nome,
+                  productCode: String(item.productCode || '').trim(),
                   category: 'revenda',
                   currentQty: 0,
                   unitOfMeasure: 'un',
@@ -15604,6 +15851,11 @@
                   packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
                   packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
+              }
+              if (revenda?.id && String(item.productCode || '').trim() && String(revenda.productCode || '') !== String(item.productCode || '').trim()) {
+                const revendaCodigoAtualizado = { ...revenda, productCode: String(item.productCode || '').trim() };
+                await onUpdateSeparatedProduct(revendaCodigoAtualizado, true);
+                revenda = revendaCodigoAtualizado;
               }
               if (revenda?.id && unidadesPorVolume > 0
                 && (!revenda.packageType || !(Number(revenda.packageUnits) > 0))) {
@@ -15646,7 +15898,7 @@
         const cadastrosUnificados = useMemo(() => {
           const producao = produtosComFicha.map(({ produto, ficha, custoUn }) => ({
             key: `producao:${produto.id}`,
-            tipo: 'producao', id: produto.id, name: produto.name, source: produto,
+            tipo: 'producao', id: produto.id, name: produto.name, code: '', source: produto,
             unidade: produto.priceUnit || 'un', compra: null, compraOrigem: null, custo: custoUn,
             ficha
           }));
@@ -15682,7 +15934,7 @@
                 : 0;
               return {
                 key: `${tipoBase}:${x.id}`,
-                tipo: tipoBase, id: x.id, name: x.name, source: x,
+                tipo: tipoBase, id: x.id, name: x.name, code: x.productCode || '', source: x,
                 unidade: x.unit || 'g',
                 unidadeCompra,
                 pacoteCompra: pacote,
@@ -15711,7 +15963,7 @@
             return {
               key: `insumo_revenda:${x.id}:${rev.id}`,
               tipo: 'insumo_revenda', id: x.id, resaleId: rev.id,
-              name: x.name, source: x, resaleSource: rev,
+              name: x.name, code: x.productCode || rev.productCode || '', source: x, resaleSource: rev,
               unidade: custoInsumo > 0 ? (x.unit || 'g') : (rev.priceUnit || 'un'),
               unidadeCompra,
               pacoteCompra: pacote,
@@ -15738,7 +15990,7 @@
                 : 0;
               return {
                 key: `revenda:${x.id}`,
-                tipo: 'revenda', id: x.id, name: x.productName, source: x,
+                tipo: 'revenda', id: x.id, name: x.productName, code: x.productCode || '', source: x,
                 unidade: x.priceUnit || 'un',
                 unidadeCompra,
                 pacoteCompra: pacote,
@@ -15754,7 +16006,7 @@
         }, [produtosComFicha, supplies, supplyPurchases, revendaDaUnidade, resalePurchases]);
 
         const cadastrosFiltrados = useMemo(() => cadastrosUnificados.filter((x) => {
-          const bateTexto = casaComBusca(x.name, busca);
+          const bateTexto = casaComBusca([x.name, x.code].filter(Boolean).join(' '), busca);
           const bateTipo = classeFiltro === 'todos' || x.tipo === classeFiltro;
           return bateTexto && bateTipo;
         }), [cadastrosUnificados, busca, classeFiltro]);
@@ -16029,9 +16281,13 @@
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      <button type="button" onClick={() => setXmlCompraAberta(true)} className="cadastro-hero-acao btn btn-primary btn-md shrink-0">
+                      <button type="button" onClick={() => setCompraManualAberta(true)} className="cadastro-hero-acao btn btn-primary btn-md shrink-0">
+                        <Icons.Plus className="w-4 h-4" />
+                        Lançar compra
+                      </button>
+                      <button type="button" onClick={() => setXmlCompraAberta(true)} className="cadastro-hero-acao btn btn-secondary btn-md shrink-0">
                         <Icons.ClipboardList className="w-4 h-4" />
-                        Cadastrar compra com XML
+                        XML
                       </button>
                       <button type="button" onClick={() => setNotaColadaAberta(true)} className="cadastro-hero-acao btn btn-secondary btn-md shrink-0">
                         Colar nota fiscal
@@ -17693,6 +17949,16 @@
                   </div>
                 </div>
               </div>
+            )}
+
+            {compraManualAberta && (
+              <ManualPurchaseModal
+                catalogOptions={opcoesCompra}
+                fornecedores={fornecedores}
+                dataSugerida={dataSugerida}
+                onConfirm={salvarItensNotaColada}
+                onClose={() => setCompraManualAberta(false)}
+              />
             )}
 
             {xmlCompraAberta && (
@@ -27064,6 +27330,16 @@ ${BARRA_ACOES_HTML}
                   </div>
 
                   <div>
+                    <label className="t-overline-sm block mb-1.5">Código do produto</label>
+                    <input
+                      value={item.productCode || ''}
+                      onChange={(e) => atualizar({ productCode: e.target.value })}
+                      placeholder="Ex.: 12420221"
+                      className="field field-md w-full tnum"
+                    />
+                  </div>
+
+                  <div>
                     <label className="t-overline-sm block mb-1.5">Unidade de compra</label>
                     <PickerField
                       value={item.purchaseUnit || (tipo === 'insumo' ? unidadeCompraPadraoDaBase(supply.unit) : 'un')}
@@ -28532,7 +28808,8 @@ ${BARRA_ACOES_HTML}
               price_unit: prod.priceUnit || 'un',
               purchase_unit: prod.purchaseUnit || 'un',
               package_type: prod.packageType || null,
-              package_units: Number(prod.packageUnits) > 0 ? Number(prod.packageUnits) : null
+              package_units: Number(prod.packageUnits) > 0 ? Number(prod.packageUnits) : null,
+              product_code: String(prod.productCode || '').trim() || null
             }).select());
             const novo = fromSeparated(linhas[0]);
             setSeparatedProducts((prev) => [...prev, novo]);
@@ -28696,7 +28973,8 @@ ${BARRA_ACOES_HTML}
               variation_factor: supply.variationFactor || null,
               supply_class: supply.supplyClass || 'insumo',
               package_type: supply.packageType || null,
-              package_units: Number(supply.packageUnits) > 0 ? Number(supply.packageUnits) : null
+              package_units: Number(supply.packageUnits) > 0 ? Number(supply.packageUnits) : null,
+              product_code: String(supply.productCode || '').trim() || null
             }).select());
             const novo = fromSupply(linhas[0]);
             setSupplies((prev) => [...prev, novo].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
@@ -28744,7 +29022,8 @@ ${BARRA_ACOES_HTML}
             purchase_unit: unidadeNova,
             supply_class: updated.supplyClass,
             package_type: updated.packageType || null,
-            package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
+            package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null,
+            product_code: String(updated.productCode || '').trim() || null
           };
           if (temVariationUnit === temVariationFactor) {
             campos.variation_unit = temVariationUnit ? String(updated.variationUnit).trim() : null;
@@ -29102,7 +29381,8 @@ ${BARRA_ACOES_HTML}
               purchase_unit: unidadeNova,
               cost: Number(updated.cost) || 0,
               package_type: updated.packageType || null,
-              package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null
+              package_units: Number(updated.packageUnits) > 0 ? Number(updated.packageUnits) : null,
+              product_code: String(updated.productCode || '').trim() || null
             }).eq('id', updated.id));
             if (mudouUnidadeCompra) {
               await run(
