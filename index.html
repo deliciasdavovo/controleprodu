@@ -15989,7 +15989,73 @@
         };
 
         const salvarItensNotaColada = async ({ itens, fornecedor, data }) => {
-          for (const item of itens) {
+          // Primeiro revisa TODAS as possíveis duplicatas. Só depois começa a
+          // gravar a nota. Assim o alerta nunca aparece quando parte da nota
+          // já foi lançada.
+          const itensNaoLancados = new Set();
+
+          for (let indice = 0; indice < itens.length; indice += 1) {
+            const item = itens[indice];
+            if (item.duplicateAccepted) continue;
+
+            const nome = String(item.name || '').trim();
+            const tipo = item.purchaseKind || 'revenda';
+            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
+            const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
+            const volumes = Number(item.volumes) || 0;
+            const unidadesPorVolume = Number(item.unitsPerPackage) || 0;
+            const qty = volumes * (unidadesPorVolume > 0 ? unidadesPorVolume : 1);
+
+            const insumo = String(item.catalogValue || '').startsWith('insumo:')
+              ? supplies.find((s) => String(s.id) === String(item.catalogValue).slice(7))
+              : supplies.find((s) => normalizeName(s.name) === normalizeName(nome));
+            const revenda = String(item.catalogValue || '').startsWith('revenda:')
+              ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
+              : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
+
+            const unidadeItemEfetivaDuplicata = unidadeCompraEfetiva(item.purchaseUnit || item.unit || 'un');
+            const qtySupplyDuplicata = temFaceInsumo && insumo
+              ? (unidadesPorVolume > 0
+                  ? qtdUnidadesNaBaseDoInsumo(qty, insumo, item.purchaseUnit || 'un')
+                  : ((insumo.unit || 'un') !== 'un' && unidadeItemEfetivaDuplicata === 'un'
+                      ? qtdUnidadesNaBaseDoInsumo(volumes, insumo, unidadeItemEfetivaDuplicata)
+                      : converterQuantidadeUnidade(
+                          volumes,
+                          item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(insumo.unit || 'un'),
+                          insumo.unit || 'un'
+                        )))
+              : qty;
+
+            const duplicata = detectarPossivelDuplicataCompra({
+              supplier: fornecedor,
+              purchaseDate: data || dataSugerida,
+              supplyId: temFaceInsumo ? insumo?.id : null,
+              resaleId: temFaceRevenda ? revenda?.id : null,
+              supplyQty: qtySupplyDuplicata > 0 ? qtySupplyDuplicata : qty,
+              resaleQty: qty,
+              displayQty: volumes,
+              itemName: nome
+            });
+
+            if (!duplicata) continue;
+
+            const podeLancar = await confirmarPossivelDuplicataCompra({
+              supplier: fornecedor,
+              purchaseDate: data || dataSugerida,
+              supplyId: temFaceInsumo ? insumo?.id : null,
+              resaleId: temFaceRevenda ? revenda?.id : null,
+              supplyQty: qtySupplyDuplicata > 0 ? qtySupplyDuplicata : qty,
+              resaleQty: qty,
+              displayQty: volumes,
+              itemName: nome
+            });
+
+            if (!podeLancar) itensNaoLancados.add(indice);
+          }
+
+          for (let indice = 0; indice < itens.length; indice += 1) {
+            if (itensNaoLancados.has(indice)) continue;
+            const item = itens[indice];
             const nome = String(item.name || '').trim();
             const tipo = item.purchaseKind || 'revenda';
             const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
@@ -16008,32 +16074,6 @@
             let revenda = String(item.catalogValue || '').startsWith('revenda:')
               ? revendaDaUnidade.find((r) => String(r.id) === String(item.catalogValue).slice(8))
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
-
-            if (!item.duplicateAccepted) {
-              const unidadeItemEfetivaDuplicata = unidadeCompraEfetiva(item.purchaseUnit || item.unit || 'un');
-              const qtySupplyDuplicata = temFaceInsumo && insumo
-                ? (unidadesPorVolume > 0
-                    ? qtdUnidadesNaBaseDoInsumo(qty, insumo, item.purchaseUnit || 'un')
-                    : ((insumo.unit || 'un') !== 'un' && unidadeItemEfetivaDuplicata === 'un'
-                        ? qtdUnidadesNaBaseDoInsumo(volumes, insumo, unidadeItemEfetivaDuplicata)
-                        : converterQuantidadeUnidade(
-                            volumes,
-                            item.purchaseUnit || item.unit || unidadeCompraPadraoDaBase(insumo.unit || 'un'),
-                            insumo.unit || 'un'
-                          )))
-                : qty;
-              const podeLancar = await confirmarPossivelDuplicataCompra({
-                supplier: fornecedor,
-                purchaseDate: data || dataSugerida,
-                supplyId: temFaceInsumo ? insumo?.id : null,
-                resaleId: temFaceRevenda ? revenda?.id : null,
-                supplyQty: qtySupplyDuplicata > 0 ? qtySupplyDuplicata : qty,
-                resaleQty: qty,
-                displayQty: volumes,
-                itemName: nome
-              });
-              if (!podeLancar) continue;
-            }
 
             if (temFaceInsumo) {
               const classe = ['embalagem', 'limpeza', 'outros'].includes(tipo) ? tipo : 'insumo';
