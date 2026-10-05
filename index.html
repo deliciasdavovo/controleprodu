@@ -15581,6 +15581,7 @@
             if (!insumo) {
               insumo = await onAddSupply({
                 name: nome,
+                productCode: String(draft.productCode || '').trim(),
                 unit: unidadeTecnicaDaCompra(unidadeCompraCadastro),
                 purchaseUnit: unidadeCompraCadastro,
                 supplyClass: draft.supplyClass || 'insumo',
@@ -15613,16 +15614,18 @@
                 : (supplyExistente
                     ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
                     : unidadeCompraCadastro);
+              const productCode = String(draft.productCode || '').trim();
               if (variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
                 || packageType !== (insumo.packageType || null)
                 || packageUnits !== (Number(insumo.packageUnits) || null)
+                || productCode !== String(insumo.productCode || '')
                 || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
                 const unit = supplyExistente
                   ? insumo.unit
                   : unidadeTecnicaDaCompra(purchaseUnit);
-                await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits }, true);
-                insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits };
+                await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits, productCode }, true);
+                insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits, productCode };
               }
             }
 
@@ -15651,6 +15654,7 @@
           if (temRevenda) {
             const dadosRevenda = {
               productName: nome,
+              productCode: String(draft.productCode || '').trim(),
               category: draft.resaleCategory || 'revenda',
               currentQty: revenda?.currentQty || 0,
               unitOfMeasure: draft.priceUnit || 'un',
@@ -16386,11 +16390,23 @@
                               options={opcoesCadastro}
                               onType={(name) => setDraft((d) => ({ ...d, name }))}
                               onPick={selecionarCadastro}
-                              placeholder={modoProducao ? 'Digite ou escolha um produto' : 'Digite ou escolha um item'}
+                              placeholder={modoProducao ? 'Digite ou escolha um produto' : 'Digite nome ou código do item'}
                               emptyLabel="Item novo — será cadastrado ao salvar"
                               className="field field-md font-semibold"
                             />
                           </div>
+                          {!modoProducao && (
+                            <div className="col-span-12 sm:col-span-5">
+                              <label className="t-caption">Código do produto</label>
+                              <input
+                                value={draft.productCode || ''}
+                                onChange={(e) => setDraft((d) => ({ ...d, productCode: e.target.value }))}
+                                placeholder="Ex.: 12420221"
+                                className="field field-md tnum w-full"
+                              />
+                              <p className="t-nano ink-quiet mt-1">Opcional · também pode ser usado para pesquisar este item depois.</p>
+                            </div>
+                          )}
 
                           {!modoProducao && (compraPorVolumeDisponivel || volumeFixoCadastroExistente || temInsumo) && (
                             <div className="col-span-12 -mt-1">
