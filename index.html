@@ -14460,13 +14460,6 @@
             window.alert('Confira o volume de compra: informe o tipo e quantas unidades vêm em cada volume.');
             return;
           }
-          const equivalenciaIncompleta = linhasValidas.find((item) =>
-            item.useEquivalence && (!String(item.variationUnit || '').trim() || !(Number(item.variationFactor) > 0))
-          );
-          if (equivalenciaIncompleta) {
-            window.alert('Confira a equivalência técnica: informe a unidade e o fator.');
-            return;
-          }
           setSalvando(true);
           try {
             await onConfirm({
@@ -14474,8 +14467,8 @@
                 ...item,
                 selected: true,
                 unitsPerPackage: item.useVolume ? item.unitsPerPackage : '',
-                variationUnit: item.useEquivalence ? item.variationUnit : '',
-                variationFactor: item.useEquivalence ? item.variationFactor : ''
+                variationUnit: item.useEquivalence && String(item.variationUnit || '').trim() && Number(item.variationFactor) > 0 ? item.variationUnit : '',
+                variationFactor: item.useEquivalence && String(item.variationUnit || '').trim() && Number(item.variationFactor) > 0 ? item.variationFactor : ''
               })),
               fornecedor: fornecedor.trim(),
               data,
