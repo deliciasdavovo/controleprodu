@@ -362,6 +362,25 @@ create trigger separated_products_set_updated_at
 comment on table public.separated_products is 'Bebidas, cafeteria e encomendas — estoque fora da vitrine.';
 comment on column public.separated_products.product_code is 'Código de busca do produto usado no cadastro e no lançamento de compras.';
 
+-- ---------------------------------------------------------------------
+-- Cache de pesquisa externa de produtos por código
+-- ---------------------------------------------------------------------
+create table if not exists public.product_lookup_cache (
+  code         text primary key,
+  results      jsonb not null default '[]'::jsonb,
+  searched_at  timestamptz not null default now(),
+  expires_at   timestamptz not null default (now() + interval '30 days')
+);
+
+alter table public.product_lookup_cache enable row level security;
+
+create index if not exists product_lookup_cache_expires_idx
+  on public.product_lookup_cache (expires_at);
+
+comment on table public.product_lookup_cache is
+  'Cache de resultados de busca externa por código de produto. Acesso somente por Edge Function administrativa.';
+
+
 -- =====================================================================
 -- CMV — Custo da Mercadoria Vendida (seções 11 a 15)
 --
