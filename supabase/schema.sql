@@ -337,6 +337,7 @@ create table if not exists public.separated_products (
   unit_of_measure  text not null default 'un',
   min_qty          integer not null default 0,
   price            numeric(10,2) not null default 0,
+  product_code     text,
   is_active        boolean not null default true,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
@@ -345,8 +346,13 @@ create table if not exists public.separated_products (
   constraint separated_products_unit_name_unique unique (unit_code, name)
 );
 
+alter table public.separated_products
+  add column if not exists product_code text;
+
 create index if not exists separated_products_unit_idx
   on public.separated_products (unit_code, category);
+create index if not exists separated_products_product_code_idx
+  on public.separated_products (unit_code, product_code);
 
 drop trigger if exists separated_products_set_updated_at on public.separated_products;
 create trigger separated_products_set_updated_at
@@ -354,6 +360,7 @@ create trigger separated_products_set_updated_at
   for each row execute function public.set_updated_at();
 
 comment on table public.separated_products is 'Bebidas, cafeteria e encomendas — estoque fora da vitrine.';
+comment on column public.separated_products.product_code is 'Código de busca do produto usado no cadastro e no lançamento de compras.';
 
 -- =====================================================================
 -- CMV — Custo da Mercadoria Vendida (seções 11 a 15)
@@ -386,6 +393,7 @@ create table if not exists public.supplies (
   unit              text not null default 'g',
   variation_unit    text,
   variation_factor  numeric(12,3),
+  product_code      text,
   supply_class      text not null default 'insumo',
   is_active         boolean not null default true,
   created_at        timestamptz not null default now(),
@@ -396,7 +404,11 @@ create table if not exists public.supplies (
     check (variation_factor is null or variation_factor > 0)
 );
 
+alter table public.supplies
+  add column if not exists product_code text;
+
 create index if not exists supplies_class_idx on public.supplies (supply_class);
+create index if not exists supplies_product_code_idx on public.supplies (product_code);
 
 drop trigger if exists supplies_set_updated_at on public.supplies;
 create trigger supplies_set_updated_at
@@ -404,6 +416,7 @@ create trigger supplies_set_updated_at
   for each row execute function public.set_updated_at();
 
 comment on table public.supplies is 'Insumos, embalagens e material de limpeza usados na produção.';
+comment on column public.supplies.product_code is 'Código de busca do produto/insumo usado no cadastro e no lançamento de compras.';
 comment on column public.supplies.unit is 'Unidade base do insumo (g, ml ou un). O custo unitário é calculado nela.';
 comment on column public.supplies.variation_factor is
   'Quanto vale uma variação na unidade base. Base g/ml: 1 variação = N base (1 lata = 395 g). Base un: 1 un = N variações (1 un = 12 fatias).';
