@@ -14140,7 +14140,7 @@
                       </div>
                       <div>
                         <label className="t-caption block mb-1">Data da compra</label>
-                        <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="field field-md w-full" />
+                        <input type="date" value={data} onChange={(e) => setData(e.target.value)} onKeyDown={avancarNota} data-nota-enter="true" className="field field-md w-full" />
                       </div>
                     </div>
 
@@ -14323,8 +14323,13 @@
           purchaseKind: 'insumo',
           unit: 'g',
           purchaseUnit: 'kg',
-          packageType: '',
+          packageType: 'caixa',
           unitsPerPackage: '',
+          variationUnit: '',
+          variationFactor: '',
+          useVolume: false,
+          useEquivalence: false,
+          detailsOpen: false,
           volumes: '',
           cost: ''
         });
@@ -14343,6 +14348,35 @@
         });
         const adicionar = () => setItens((atuais) => [...atuais, novaLinha()]);
 
+        const avancarNota = (e) => {
+          if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+          const atual = e.currentTarget || e.target;
+          const raiz = atual.closest?.('[data-nota-form]');
+          if (!raiz) return;
+          const campos = Array.from(raiz.querySelectorAll('[data-nota-enter="true"]:not([disabled])'))
+            .filter((el) => el.offsetParent !== null);
+          const idx = campos.indexOf(atual);
+          if (idx < 0) return;
+
+          e.preventDefault();
+          if (idx < campos.length - 1) {
+            const proximo = campos[idx + 1];
+            requestAnimationFrame(() => {
+              proximo.focus();
+              if (proximo.tagName === 'INPUT' && proximo.select && proximo.type !== 'date') proximo.select();
+            });
+            return;
+          }
+
+          const nova = novaLinha();
+          setItens((atuais) => [...atuais, nova]);
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            const primeiro = raiz.querySelector('[data-row-id="' + nova.id + '"][data-col="code"]');
+            primeiro?.focus();
+            if (primeiro?.select) primeiro.select();
+          }));
+        };
+
         const escolherProduto = (item, opt) => alterar(item.id, {
           name: opt.label,
           productCode: opt.productCode || '',
@@ -14350,8 +14384,12 @@
           purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
           unit: opt.unit || 'un',
           purchaseUnit: opt.purchaseUnit || opt.unit || 'un',
-          packageType: opt.packageType || '',
-          unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : ''
+          packageType: opt.packageType || 'caixa',
+          unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : '',
+          variationUnit: opt.variationUnit || '',
+          variationFactor: Number(opt.variationFactor) > 0 ? Number(opt.variationFactor) : '',
+          useVolume: Number(opt.packageUnits) > 0,
+          useEquivalence: Number(opt.variationFactor) > 0
         });
         const digitarCodigo = (item, productCode) => {
           const codigo = String(productCode || '').trim();
@@ -14385,10 +14423,30 @@
             window.alert('Confira produto, quantidade e valor pago das linhas preenchidas.');
             return;
           }
+          const volumeIncompleto = linhasValidas.find((item) =>
+            item.useVolume && (!String(item.packageType || '').trim() || !(Number(item.unitsPerPackage) > 0))
+          );
+          if (volumeIncompleto) {
+            window.alert('Confira o volume de compra: informe o tipo e quantas unidades vêm em cada volume.');
+            return;
+          }
+          const equivalenciaIncompleta = linhasValidas.find((item) =>
+            item.useEquivalence && (!String(item.variationUnit || '').trim() || !(Number(item.variationFactor) > 0))
+          );
+          if (equivalenciaIncompleta) {
+            window.alert('Confira a equivalência técnica: informe a unidade e o fator.');
+            return;
+          }
           setSalvando(true);
           try {
             await onConfirm({
-              itens: linhasValidas.map((item) => ({ ...item, selected: true })),
+              itens: linhasValidas.map((item) => ({
+                ...item,
+                selected: true,
+                unitsPerPackage: item.useVolume ? item.unitsPerPackage : '',
+                variationUnit: item.useEquivalence ? item.variationUnit : '',
+                variationFactor: item.useEquivalence ? item.variationFactor : ''
+              })),
               fornecedor: fornecedor.trim(),
               data,
               numeroNota: String(numeroNota || '').trim()
@@ -14405,10 +14463,13 @@
         };
 
         return (
-          <div className={embedded
-            ? "w-full"
-            : "fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
-          }>
+          <div
+            data-nota-form
+            className={embedded
+              ? "w-full"
+              : "fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
+            }
+          >
             {!embedded && (
               <button type="button" className="absolute inset-0" aria-label="Fechar lançamento" onClick={() => !salvando && onClose && onClose()} />
             )}
@@ -14441,6 +14502,8 @@
                       placeholder="Digite ou escolha o fornecedor"
                       emptyLabel="Fornecedor novo"
                       className="field field-md"
+                      onKeyDown={avancarNota}
+                      inputProps={{ 'data-nota-enter': 'true' }}
                     />
                   </div>
                   <div>
@@ -14449,13 +14512,13 @@
                   </div>
                   <div>
                     <label className="t-caption block mb-1">Nº da nota <span className="ink-quiet">opcional</span></label>
-                    <input value={numeroNota} onChange={(e) => setNumeroNota(e.target.value)} placeholder="Ex.: 12584" className="field field-md w-full tnum" />
+                    <input value={numeroNota} onChange={(e) => setNumeroNota(e.target.value)} onKeyDown={avancarNota} data-nota-enter="true" placeholder="Ex.: 12584" className="field field-md w-full tnum" />
                   </div>
                 </div>
 
                 <div className="rounded-2xl border hairline overflow-hidden">
                   <div className="rola-x">
-                    <table className="w-full text-left min-w-[1040px]">
+                    <table className="w-full text-left min-w-[1160px]">
                       <thead>
                         <tr className="t-overline-sm border-b hairline bg-[#f5f5f7]">
                           <th className="py-2.5 px-3 font-bold w-[150px]">Código</th>
@@ -14464,17 +14527,22 @@
                           <th className="py-2.5 px-3 font-bold w-[100px]">Unidade</th>
                           <th className="py-2.5 px-3 text-right font-bold w-[120px]">Quantidade</th>
                           <th className="py-2.5 px-3 text-right font-bold w-[140px]">Valor pago</th>
-                          <th className="py-2.5 px-3 w-12"></th>
+                          <th className="py-2.5 px-3 font-bold w-[145px]">Opções</th>
                         </tr>
                       </thead>
                       <tbody>
                         {itens.map((item) => (
-                          <tr key={item.id} className="border-t hairline">
+                          <React.Fragment key={item.id}>
+                          <tr className="border-t hairline">
                             <td className="p-2.5">
                               <input
                                 value={item.productCode || ''}
                                 onChange={(e) => digitarCodigo(item, e.target.value)}
                                 placeholder="12420221"
+                                onKeyDown={avancarNota}
+                                data-nota-enter="true"
+                                data-row-id={item.id}
+                                data-col="code"
                                 className="field h-9 px-2.5 text-[12px] tnum w-full"
                               />
                             </td>
@@ -14488,12 +14556,18 @@
                                 emptyLabel="Produto novo — preencha a linha"
                                 className="field h-9 px-2.5 text-[12px] font-semibold w-full"
                                 panelMinWidth={360}
+                                onKeyDown={avancarNota}
+                                inputProps={{ 'data-nota-enter': 'true', 'data-row-id': item.id, 'data-col': 'product' }}
                               />
                             </td>
                             <td className="p-2.5">
                               <select
                                 value={item.purchaseKind || 'insumo'}
                                 onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })}
+                                onKeyDown={avancarNota}
+                                data-nota-enter="true"
+                                data-row-id={item.id}
+                                data-col="type"
                                 className="field h-9 px-2 text-[12px] field-select w-full"
                               >
                                 <option value="insumo">Insumo</option>
@@ -14511,6 +14585,10 @@
                                   purchaseUnit: e.target.value,
                                   unit: unidadeTecnicaDaCompra(e.target.value)
                                 })}
+                                onKeyDown={avancarNota}
+                                data-nota-enter="true"
+                                data-row-id={item.id}
+                                data-col="unit"
                                 className="field h-9 px-2 text-[12px] field-select w-full"
                               >
                                 {PURCHASE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -14522,6 +14600,10 @@
                                 decimals={3}
                                 onValueChange={(volumes) => alterar(item.id, { volumes })}
                                 placeholder="0"
+                                onKeyDown={avancarNota}
+                                data-nota-enter="true"
+                                data-row-id={item.id}
+                                data-col="qty"
                                 className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full"
                               />
                             </td>
@@ -14531,15 +14613,94 @@
                                 decimals={2}
                                 onValueChange={(cost) => alterar(item.id, { cost })}
                                 placeholder="0,00"
+                                onKeyDown={avancarNota}
+                                data-nota-enter="true"
+                                data-row-id={item.id}
+                                data-col="cost"
                                 className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full"
                               />
                             </td>
-                            <td className="p-2.5 text-right">
-                              <button type="button" onClick={() => remover(item.id)} className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center" title="Remover linha">
-                                <Icons.Trash2 className="w-4 h-4" />
-                              </button>
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => alterar(item.id, { detailsOpen: !item.detailsOpen })}
+                                  className={`btn btn-sm ${item.detailsOpen || item.useVolume || item.useEquivalence ? 'btn-primary' : 'btn-secondary'}`}
+                                >
+                                  Volume / equiv.
+                                </button>
+                                <button type="button" onClick={() => remover(item.id)} className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center" title="Remover linha">
+                                  <Icons.Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
+
+                          {item.detailsOpen && (
+                            <tr className="border-t hairline bg-black/[0.018]">
+                              <td colSpan="7" className="px-4 py-3">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  <div className="rounded-xl border hairline bg-white p-3">
+                                    <div className="flex items-center justify-between gap-2 mb-2.5">
+                                      <div>
+                                        <strong className="t-callout block">Volume de compra</strong>
+                                        <span className="t-nano ink-quiet">Ex.: 1 caixa = 12 un.</span>
+                                      </div>
+                                      <button type="button" onClick={() => alterar(item.id, { useVolume: !item.useVolume })} className={`btn btn-sm ${item.useVolume ? 'btn-primary' : 'btn-secondary'}`}>
+                                        {item.useVolume ? 'Ativado' : 'Usar volume'}
+                                      </button>
+                                    </div>
+                                    {item.useVolume && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="t-caption block mb-1">Tipo</label>
+                                          <select value={item.packageType || 'caixa'} onChange={(e) => alterar(item.id, { packageType: e.target.value })} className="field h-9 px-2 text-[12px] field-select w-full">
+                                            {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="t-caption block mb-1">Unidades por volume</label>
+                                          <NumeroBRField value={item.unitsPerPackage || ''} decimals={0} onValueChange={(unitsPerPackage) => alterar(item.id, { unitsPerPackage })} placeholder="12" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="rounded-xl border hairline bg-white p-3">
+                                    <div className="flex items-center justify-between gap-2 mb-2.5">
+                                      <div>
+                                        <strong className="t-callout block">Equivalência técnica</strong>
+                                        <span className="t-nano ink-quiet">Ex.: 1 un = 180 ml.</span>
+                                      </div>
+                                      <button type="button" onClick={() => alterar(item.id, { useEquivalence: !item.useEquivalence })} className={`btn btn-sm ${item.useEquivalence ? 'btn-primary' : 'btn-secondary'}`}>
+                                        {item.useEquivalence ? 'Ativada' : 'Usar equivalência'}
+                                      </button>
+                                    </div>
+                                    {item.useEquivalence && (
+                                      <div className="flex items-end gap-2">
+                                        <span className="t-callout font-semibold pb-2">1 {item.unit || 'un'} =</span>
+                                        <div className="w-28">
+                                          <NumeroBRField value={item.variationFactor || ''} decimals={3} onValueChange={(variationFactor) => alterar(item.id, { variationFactor })} placeholder="180" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
+                                        </div>
+                                        <div className="w-32">
+                                          <PickerField
+                                            value={item.variationUnit || ''}
+                                            options={UNIDADES_EQUIVALENCIA}
+                                            onType={(variationUnit) => alterar(item.id, { variationUnit })}
+                                            onPick={(opt) => alterar(item.id, { variationUnit: opt.value })}
+                                            placeholder="ml"
+                                            emptyLabel="Unidade nova"
+                                            className="field h-9 px-2.5 text-[12px] w-full"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>
