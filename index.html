@@ -14325,7 +14325,7 @@
       };
 
 
-      const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose }) => {
+      const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose, embedded = false }) => {
         const novaLinha = () => ({
           id: 'manual-' + Date.now() + '-' + Math.random().toString(36).slice(2),
           selected: true,
@@ -14454,25 +14454,40 @@
               data,
               numeroNota: String(numeroNota || '').trim()
             });
-            onClose();
+            if (embedded) {
+              setItens([novaLinha()]);
+              setNumeroNota('');
+            } else {
+              onClose && onClose();
+            }
           } finally {
             setSalvando(false);
           }
         };
 
         return (
-          <div className="fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5">
-            <button type="button" className="absolute inset-0" aria-label="Fechar lançamento" onClick={() => !salvando && onClose()} />
-            <div className="relative bg-white rounded-[22px] w-full max-w-6xl max-h-[96vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col">
+          <div className={embedded
+            ? "w-full"
+            : "fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
+          }>
+            {!embedded && (
+              <button type="button" className="absolute inset-0" aria-label="Fechar lançamento" onClick={() => !salvando && onClose && onClose()} />
+            )}
+            <div className={embedded
+              ? "relative bg-white rounded-[18px] w-full overflow-visible border hairline flex flex-col"
+              : "relative bg-white rounded-[22px] w-full max-w-6xl max-h-[96vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col"
+            }>
               <div className="px-5 py-4 border-b hairline flex items-start justify-between gap-3">
                 <div>
-                  <div className="t-overline flex items-center gap-1.5 mb-1"><Icons.ClipboardList className="w-3.5 h-3.5" /> Compra manual</div>
-                  <h3 className="t-title">Lançar como nota fiscal</h3>
-                  <p className="t-caption mt-1">Preencha fornecedor e data uma vez; depois lance somente os produtos.</p>
+                  <div className="t-overline flex items-center gap-1.5 mb-1"><Icons.ClipboardList className="w-3.5 h-3.5" /> {embedded ? 'Compra / nota fiscal' : 'Compra manual'}</div>
+                  <h3 className="t-title">{embedded ? 'Nova compra' : 'Lançar como nota fiscal'}</h3>
+                  <p className="t-caption mt-1">Fornecedor e data valem para todos os produtos abaixo. Adicione quantas linhas precisar.</p>
                 </div>
-                <button type="button" disabled={salvando} onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
-                  <Icons.X className="w-4 h-4" />
-                </button>
+                {!embedded && (
+                  <button type="button" disabled={salvando} onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                    <Icons.X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
@@ -14959,7 +14974,9 @@
         const [unificarDestino, setUnificarDestino] = useState('');
         const [unificandoCadastro, setUnificandoCadastro] = useState(false);
         const [cadastroDestacado, setCadastroDestacado] = useState('');
-        const [novaCompraAberta, setNovaCompraAberta] = useState(true);
+        // O lançamento principal agora é uma grade em formato de nota fiscal.
+        // O formulário antigo fica apenas como configuração avançada.
+        const [novaCompraAberta, setNovaCompraAberta] = useState(false);
 
         // A tabela mestre distingue cadastro, classe e finalidade operacional. No formulário de compra,
         // porém, insumo e revenda são a MESMA entrada: revenda é uma opção do
@@ -16410,7 +16427,7 @@
                   <button
                     type="button"
                     onClick={() => {
-                      setNovaCompraAberta(true);
+                      setNovaCompraAberta((aberta) => !aberta);
                       setDraft(BLANK_ENTRY);
                       fecharOpcoesExtrasCadastro();
                       setEditarTipoCadastro(false);
@@ -16419,9 +16436,9 @@
                       setUnidadeCompraFoiEditada(false);
                       setTimeout(() => nomeRef.current?.focus(), 50);
                     }}
-                    className="btn btn-primary"
+                    className="btn btn-secondary"
                   >
-                    + Nova compra
+                    {novaCompraAberta ? 'Fechar configuração avançada' : 'Configuração avançada'}
                   </button>
                   <button type="button" onClick={() => setXmlCompraAberta(true)} className="btn btn-secondary">
                     XML
@@ -16430,8 +16447,22 @@
                     Colar nota
                   </button>
                 </div>
+                <ManualPurchaseModal
+                  embedded
+                  catalogOptions={opcoesCompra}
+                  fornecedores={fornecedores}
+                  dataSugerida={dataSugerida}
+                  onConfirm={salvarItensNotaColada}
+                />
+
                 {novaCompraAberta && (
-                  <div className="cadastro-shell" data-expanded="true">
+                  <div className="cadastro-shell mt-4" data-expanded="true">
+                  <div className="px-5 pt-5 pb-1 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="t-overline">Configuração avançada do item</div>
+                      <p className="t-caption mt-1">Use somente para equivalência, volume, revenda, unidade-base e outras configurações do cadastro.</p>
+                    </div>
+                  </div>
                   <div className="cadastro-hero flex-col sm:flex-row">
                     <div className="cadastro-hero-principal">
                       <span className="cadastro-hero-icone" aria-hidden="true">
@@ -16448,10 +16479,6 @@
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                      <button type="button" onClick={() => setCompraManualAberta(true)} className="cadastro-hero-acao btn btn-primary btn-md shrink-0">
-                        <Icons.Plus className="w-4 h-4" />
-                        Lançar compra
-                      </button>
                       <button type="button" onClick={() => setXmlCompraAberta(true)} className="cadastro-hero-acao btn btn-secondary btn-md shrink-0">
                         <Icons.ClipboardList className="w-4 h-4" />
                         XML
