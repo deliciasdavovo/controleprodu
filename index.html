@@ -14353,6 +14353,14 @@
           packageType: opt.packageType || '',
           unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : ''
         });
+        const digitarCodigo = (item, productCode) => {
+          const codigo = String(productCode || '').trim();
+          const opt = codigo
+            ? catalogOptions.find((opcao) => String(opcao.productCode || '').trim() === codigo)
+            : null;
+          if (opt) escolherProduto(item, opt);
+          else alterar(item.id, { productCode });
+        };
 
         const linhasValidas = itens.filter((item) =>
           String(item.name || '').trim() || String(item.productCode || '').trim()
@@ -14450,7 +14458,7 @@
                             <td className="p-2.5">
                               <input
                                 value={item.productCode || ''}
-                                onChange={(e) => alterar(item.id, { productCode: e.target.value })}
+                                onChange={(e) => digitarCodigo(item, e.target.value)}
                                 placeholder="12420221"
                                 className="field h-9 px-2.5 text-[12px] tnum w-full"
                               />
@@ -15793,7 +15801,8 @@
                 const atualizado = { ...insumo, productCode: String(item.productCode || '').trim() };
                 await onUpdateSupply(atualizado, true);
                 insumo = atualizado;
-              } else if (unidadesPorVolume > 0
+              }
+              if (insumo && unidadesPorVolume > 0
                 && (!insumo.packageType || !(Number(insumo.packageUnits) > 0))) {
                 const atualizado = {
                   ...insumo,
