@@ -14345,6 +14345,8 @@
           useVolume: false,
           useEquivalence: false,
           detailsOpen: false,
+          qtySuggestion: '',
+          costSuggestion: '',
           volumes: '',
           cost: ''
         });
@@ -14398,7 +14400,9 @@
           const teveVolume = unidadesUltimoVolume > 0;
           alterar(item.id, {
             name: opt.label,
-            productCode: opt.productCode || '',
+            // Se o código foi digitado antes e este cadastro ainda não tinha
+            // código, conserva o que a pessoa informou em vez de apagar.
+            productCode: opt.productCode || item.productCode || '',
             catalogValue: opt.value,
             purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
             unit: opt.unit || 'un',
@@ -14409,8 +14413,12 @@
             variationFactor: Number(opt.variationFactor) > 0 ? Number(opt.variationFactor) : '',
             useVolume: teveVolume,
             useEquivalence: Number(opt.variationFactor) > 0,
-            volumes: opt.lastQty !== '' && opt.lastQty !== undefined ? opt.lastQty : '',
-            cost: opt.lastCost !== '' && opt.lastCost !== undefined ? opt.lastCost : ''
+            // A última compra volta a ser sugestão, não valor já confirmado.
+            // O primeiro Enter aceita a sugestão; o segundo avança.
+            qtySuggestion: opt.lastQty !== '' && opt.lastQty !== undefined ? opt.lastQty : '',
+            costSuggestion: opt.lastCost !== '' && opt.lastCost !== undefined ? opt.lastCost : '',
+            volumes: item.volumes || '',
+            cost: item.cost || ''
           });
         };
         const digitarCodigo = (item, productCode) => {
@@ -14628,8 +14636,11 @@
                               <NumeroBRField
                                 value={item.volumes || ''}
                                 decimals={3}
+                                sugestao={item.qtySuggestion || ''}
                                 onValueChange={(volumes) => alterar(item.id, { volumes })}
-                                placeholder="0"
+                                placeholder={item.qtySuggestion !== '' && item.qtySuggestion !== undefined
+                                  ? numeroCurtoBR(item.qtySuggestion)
+                                  : '0'}
                                 onKeyDown={avancarNota}
                                 data-nota-enter="true"
                                 data-row-id={item.id}
@@ -14641,8 +14652,11 @@
                               <NumeroBRField
                                 value={item.cost || ''}
                                 decimals={2}
+                                sugestao={item.costSuggestion || ''}
                                 onValueChange={(cost) => alterar(item.id, { cost })}
-                                placeholder="0,00"
+                                placeholder={item.costSuggestion !== '' && item.costSuggestion !== undefined
+                                  ? Number(item.costSuggestion).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : '0,00'}
                                 onKeyDown={avancarNota}
                                 data-nota-enter="true"
                                 data-row-id={item.id}
