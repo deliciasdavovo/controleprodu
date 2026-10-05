@@ -4876,6 +4876,18 @@
           })
         : null;
 
+      const buscarProdutoExternoPorCodigo = async (codigo) => {
+        const code = String(codigo || '').trim();
+        if (!code) return [];
+        if (!nfeSb) throw new Error('Supabase não conectado.');
+        const result = await nfeSb.functions.invoke('product-lookup', {
+          body: { code }
+        });
+        if (result.error) throw new Error(result.error.message || 'Falha ao buscar o produto.');
+        if (result.data?.error) throw new Error(result.data.error);
+        return Array.isArray(result.data?.results) ? result.data.results : [];
+      };
+
       // Toda consulta passa por aqui: erro do banco vira exceção com contexto
       const run = async (label, query) => {
         const { data, error } = await query;
@@ -14333,6 +14345,14 @@
         const [data, setData] = useState(dataSugerida || getTodayDateString());
         const [numeroNota, setNumeroNota] = useState('');
         const [salvando, setSalvando] = useState(false);
+        const [buscaExterna, setBuscaExterna] = useState({
+          rowId: '',
+          code: '',
+          loading: false,
+          results: [],
+          error: '',
+          searched: false
+        });
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -14358,8 +14378,49 @@
           const opt = codigo
             ? catalogOptions.find((opcao) => String(opcao.productCode || '').trim() === codigo)
             : null;
-          if (opt) escolherProduto(item, opt);
-          else alterar(item.id, { productCode });
+          if (opt) {
+            escolherProduto(item, opt);
+            if (buscaExterna.rowId === item.id) {
+              setBuscaExterna({ rowId: '', code: '', loading: false, results: [], error: '', searched: false });
+            }
+          } else {
+            alterar(item.id, { productCode });
+          }
+        };
+
+        const buscarCodigoNaInternet = async (item) => {
+          const codigo = String(item.productCode || '').trim();
+          if (codigo.length < 3) return;
+          const local = catalogOptions.find((opcao) => String(opcao.productCode || '').trim() === codigo);
+          if (local) {
+            escolherProduto(item, local);
+            return;
+          }
+          setBuscaExterna({ rowId: item.id, code: codigo, loading: true, results: [], error: '', searched: false });
+          try {
+            const results = await buscarProdutoExternoPorCodigo(codigo);
+            setBuscaExterna({ rowId: item.id, code: codigo, loading: false, results, error: '', searched: true });
+          } catch (e) {
+            setBuscaExterna({
+              rowId: item.id,
+              code: codigo,
+              loading: false,
+              results: [],
+              error: e?.message || 'Não foi possível pesquisar este código.',
+              searched: true
+            });
+          }
+        };
+
+        const usarResultadoExterno = (item, resultado) => {
+          alterar(item.id, {
+            name: resultado.name || item.name,
+            productCode: buscaExterna.code || item.productCode,
+            catalogValue: '',
+            unit: 'un',
+            purchaseUnit: 'un'
+          });
+          setBuscaExterna({ rowId: '', code: '', loading: false, results: [], error: '', searched: false });
         };
 
         const linhasValidas = itens.filter((item) =>
@@ -14459,9 +14520,27 @@
                               <input
                                 value={item.productCode || ''}
                                 onChange={(e) => digitarCodigo(item, e.target.value)}
+                                onBlur={() => {
+                                  const codigo = String(item.productCode || '').trim();
+                                  const local = catalogOptions.some((opcao) => String(opcao.productCode || '').trim() === codigo);
+                                  if (codigo.length >= 3 && !local && !String(item.name || '').trim()) {
+                                    buscarCodigoNaInternet(item);
+                                  }
+                                }}
                                 placeholder="12420221"
                                 className="field h-9 px-2.5 text-[12px] tnum w-full"
                               />
+                              {String(item.productCode || '').trim().length >= 3
+                                && !catalogOptions.some((opcao) => String(opcao.productCode || '').trim() === String(item.productCode || '').trim()) && (
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => buscarCodigoNaInternet(item)}
+                                  className="t-nano font-semibold underline underline-offset-2 mt-1.5 hover:text-[#0E0937]"
+                                >
+                                  Buscar na internet
+                                </button>
+                              )}
                             </td>
                             <td className="p-2.5">
                               <PickerField
@@ -14529,6 +14608,78 @@
                       </tbody>
                     </table>
                   </div>
+
+                  {buscaExterna.rowId && (
+                    <div className="border-t hairline bg-[#fafafa] px-4 py-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div>
+                          <div className="t-overline-sm">Busca pelo código {buscaExterna.code}</div>
+                          <p className="t-micro mt-1">Se o produto não está no seu cadastro, eu procuro em bases públicas da internet para você conferir.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setBuscaExterna({ rowId: '', code: '', loading: false, results: [], error: '', searched: false })}
+                        >
+                          Fechar
+                        </button>
+                      </div>
+
+                      {buscaExterna.loading ? (
+                        <div className="rounded-xl border hairline bg-white px-4 py-4 t-callout">Procurando produto…</div>
+                      ) : buscaExterna.error ? (
+                        <div className="rounded-xl border border-[#7d2027]/20 bg-[#7d2027]/[0.05] px-4 py-4">
+                          <p className="t-callout ink-expired">{buscaExterna.error}</p>
+                        </div>
+                      ) : buscaExterna.results.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {buscaExterna.results.map((resultado, idx) => {
+                            const linha = itens.find((x) => x.id === buscaExterna.rowId);
+                            return (
+                              <button
+                                type="button"
+                                key={resultado.source + ':' + idx + ':' + resultado.name}
+                                onClick={() => linha && usarResultadoExterno(linha, resultado)}
+                                className="text-left rounded-xl border hairline bg-white px-4 py-3 hover:bg-black/[0.02]"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <strong className="t-callout block">{resultado.name}</strong>
+                                    {(resultado.brand || resultado.quantity) && (
+                                      <span className="t-micro block mt-1">
+                                        {[resultado.brand, resultado.quantity].filter(Boolean).join(' · ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="pill tone-quiet shrink-0">{resultado.sourceLabel || resultado.source}</span>
+                                </div>
+                                <span className="t-nano font-semibold block mt-2">Usar este produto</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : buscaExterna.searched ? (
+                        <div className="rounded-xl border hairline bg-white px-4 py-4">
+                          <p className="t-callout">Não encontrei um produto confiável para esse código.</p>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => window.open(
+                                'https://www.google.com/search?q=' + encodeURIComponent(buscaExterna.code + ' produto'),
+                                '_blank',
+                                'noopener,noreferrer'
+                              )}
+                            >
+                              Pesquisar no Google
+                            </button>
+                            <span className="t-micro self-center">Ou preencha o nome manualmente e continue.</span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
                   <button type="button" onClick={adicionar} className="w-full px-4 py-3 border-t hairline text-left t-callout font-semibold hover:bg-black/[0.025]">
                     + Adicionar produto
                   </button>
