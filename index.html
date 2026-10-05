@@ -14377,20 +14377,27 @@
           }));
         };
 
-        const escolherProduto = (item, opt) => alterar(item.id, {
-          name: opt.label,
-          productCode: opt.productCode || '',
-          catalogValue: opt.value,
-          purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
-          unit: opt.unit || 'un',
-          purchaseUnit: opt.purchaseUnit || opt.unit || 'un',
-          packageType: opt.packageType || 'caixa',
-          unitsPerPackage: Number(opt.packageUnits) > 0 ? Number(opt.packageUnits) : '',
-          variationUnit: opt.variationUnit || '',
-          variationFactor: Number(opt.variationFactor) > 0 ? Number(opt.variationFactor) : '',
-          useVolume: Number(opt.packageUnits) > 0,
-          useEquivalence: Number(opt.variationFactor) > 0
-        });
+        const escolherProduto = (item, opt) => {
+          const unidadesUltimoVolume = Number(opt.lastPackageUnits) || Number(opt.packageUnits) || 0;
+          const tipoUltimoVolume = opt.lastPackageType || opt.packageType || 'caixa';
+          const teveVolume = unidadesUltimoVolume > 0;
+          alterar(item.id, {
+            name: opt.label,
+            productCode: opt.productCode || '',
+            catalogValue: opt.value,
+            purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
+            unit: opt.unit || 'un',
+            purchaseUnit: opt.lastPurchaseUnit || opt.purchaseUnit || opt.unit || 'un',
+            packageType: tipoUltimoVolume,
+            unitsPerPackage: teveVolume ? unidadesUltimoVolume : '',
+            variationUnit: opt.variationUnit || '',
+            variationFactor: Number(opt.variationFactor) > 0 ? Number(opt.variationFactor) : '',
+            useVolume: teveVolume,
+            useEquivalence: Number(opt.variationFactor) > 0,
+            volumes: opt.lastQty !== '' && opt.lastQty !== undefined ? opt.lastQty : '',
+            cost: opt.lastCost !== '' && opt.lastCost !== undefined ? opt.lastCost : ''
+          });
+        };
         const digitarCodigo = (item, productCode) => {
           const codigo = String(productCode || '').trim();
           const opt = codigo
@@ -14518,7 +14525,7 @@
 
                 <div className="rounded-2xl border hairline overflow-hidden">
                   <div className="rola-x">
-                    <table className="w-full text-left min-w-[1160px]">
+                    <table className="w-full text-left min-w-[980px]">
                       <thead>
                         <tr className="t-overline-sm border-b hairline bg-[#f5f5f7]">
                           <th className="py-2.5 px-3 font-bold w-[150px]">Código</th>
@@ -14527,7 +14534,7 @@
                           <th className="py-2.5 px-3 font-bold w-[100px]">Unidade</th>
                           <th className="py-2.5 px-3 text-right font-bold w-[120px]">Quantidade</th>
                           <th className="py-2.5 px-3 text-right font-bold w-[140px]">Valor pago</th>
-                          <th className="py-2.5 px-3 font-bold w-[145px]">Opções</th>
+                          <th className="py-2.5 px-3 w-12"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -14559,6 +14566,14 @@
                                 onKeyDown={avancarNota}
                                 inputProps={{ 'data-nota-enter': 'true', 'data-row-id': item.id, 'data-col': 'product' }}
                               />
+                              <button
+                                type="button"
+                                onClick={() => alterar(item.id, { detailsOpen: !item.detailsOpen })}
+                                className="t-nano font-semibold underline underline-offset-2 mt-1.5"
+                              >
+                                {item.detailsOpen ? 'Fechar volume / equivalência' : 'Volume / equivalência'}
+                                {(item.useVolume || item.useEquivalence) ? ' · configurado' : ''}
+                              </button>
                             </td>
                             <td className="p-2.5">
                               <select
@@ -14620,91 +14635,87 @@
                                 className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full"
                               />
                             </td>
-                            <td className="p-2.5">
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => alterar(item.id, { detailsOpen: !item.detailsOpen })}
-                                  className={`btn btn-sm ${item.detailsOpen || item.useVolume || item.useEquivalence ? 'btn-primary' : 'btn-secondary'}`}
-                                >
-                                  Volume / equiv.
-                                </button>
-                                <button type="button" onClick={() => remover(item.id)} className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center" title="Remover linha">
-                                  <Icons.Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
+                            <td className="p-2.5 text-right">
+                              <button type="button" onClick={() => remover(item.id)} className="w-8 h-8 rounded-full icon-danger inline-flex items-center justify-center" title="Remover linha">
+                                <Icons.Trash2 className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
-
-                          {item.detailsOpen && (
-                            <tr className="border-t hairline bg-black/[0.018]">
-                              <td colSpan="7" className="px-4 py-3">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                  <div className="rounded-xl border hairline bg-white p-3">
-                                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                                      <div>
-                                        <strong className="t-callout block">Volume de compra</strong>
-                                        <span className="t-nano ink-quiet">Ex.: 1 caixa = 12 un.</span>
-                                      </div>
-                                      <button type="button" onClick={() => alterar(item.id, { useVolume: !item.useVolume })} className={`btn btn-sm ${item.useVolume ? 'btn-primary' : 'btn-secondary'}`}>
-                                        {item.useVolume ? 'Ativado' : 'Usar volume'}
-                                      </button>
-                                    </div>
-                                    {item.useVolume && (
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                          <label className="t-caption block mb-1">Tipo</label>
-                                          <select value={item.packageType || 'caixa'} onChange={(e) => alterar(item.id, { packageType: e.target.value })} className="field h-9 px-2 text-[12px] field-select w-full">
-                                            {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="t-caption block mb-1">Unidades por volume</label>
-                                          <NumeroBRField value={item.unitsPerPackage || ''} decimals={0} onValueChange={(unitsPerPackage) => alterar(item.id, { unitsPerPackage })} placeholder="12" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="rounded-xl border hairline bg-white p-3">
-                                    <div className="flex items-center justify-between gap-2 mb-2.5">
-                                      <div>
-                                        <strong className="t-callout block">Equivalência técnica</strong>
-                                        <span className="t-nano ink-quiet">Ex.: 1 un = 180 ml.</span>
-                                      </div>
-                                      <button type="button" onClick={() => alterar(item.id, { useEquivalence: !item.useEquivalence })} className={`btn btn-sm ${item.useEquivalence ? 'btn-primary' : 'btn-secondary'}`}>
-                                        {item.useEquivalence ? 'Ativada' : 'Usar equivalência'}
-                                      </button>
-                                    </div>
-                                    {item.useEquivalence && (
-                                      <div className="flex items-end gap-2">
-                                        <span className="t-callout font-semibold pb-2">1 {item.unit || 'un'} =</span>
-                                        <div className="w-28">
-                                          <NumeroBRField value={item.variationFactor || ''} decimals={3} onValueChange={(variationFactor) => alterar(item.id, { variationFactor })} placeholder="180" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
-                                        </div>
-                                        <div className="w-32">
-                                          <PickerField
-                                            value={item.variationUnit || ''}
-                                            options={UNIDADES_EQUIVALENCIA}
-                                            onType={(variationUnit) => alterar(item.id, { variationUnit })}
-                                            onPick={(opt) => alterar(item.id, { variationUnit: opt.value })}
-                                            placeholder="ml"
-                                            emptyLabel="Unidade nova"
-                                            className="field h-9 px-2.5 text-[12px] w-full"
-                                          />
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
                           </React.Fragment>
                         ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {itens.filter((item) => item.detailsOpen).map((item) => (
+                    <div key={'detalhes-' + item.id} className="border-t hairline bg-black/[0.018] px-4 py-3">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                          <strong className="t-callout block">{item.name || 'Produto novo'}</strong>
+                          <span className="t-nano ink-quiet">Volume e equivalência desta linha</span>
+                        </div>
+                        <button type="button" onClick={() => alterar(item.id, { detailsOpen: false })} className="btn btn-secondary btn-sm">Fechar</button>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div className="rounded-xl border hairline bg-white p-3">
+                          <div className="flex items-center justify-between gap-2 mb-2.5">
+                            <div>
+                              <strong className="t-callout block">Volume de compra</strong>
+                              <span className="t-nano ink-quiet">Ex.: 1 caixa = 12 un.</span>
+                            </div>
+                            <button type="button" onClick={() => alterar(item.id, { useVolume: !item.useVolume })} className={`btn btn-sm ${item.useVolume ? 'btn-primary' : 'btn-secondary'}`}>
+                              {item.useVolume ? 'Ativado' : 'Usar volume'}
+                            </button>
+                          </div>
+                          {item.useVolume && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="t-caption block mb-1">Tipo</label>
+                                <select value={item.packageType || 'caixa'} onChange={(e) => alterar(item.id, { packageType: e.target.value })} className="field h-9 px-2 text-[12px] field-select w-full">
+                                  {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="t-caption block mb-1">Unidades por volume</label>
+                                <NumeroBRField value={item.unitsPerPackage || ''} decimals={0} onValueChange={(unitsPerPackage) => alterar(item.id, { unitsPerPackage })} placeholder="12" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-xl border hairline bg-white p-3">
+                          <div className="flex items-center justify-between gap-2 mb-2.5">
+                            <div>
+                              <strong className="t-callout block">Equivalência técnica</strong>
+                              <span className="t-nano ink-quiet">Ex.: 1 un = 180 ml.</span>
+                            </div>
+                            <button type="button" onClick={() => alterar(item.id, { useEquivalence: !item.useEquivalence })} className={`btn btn-sm ${item.useEquivalence ? 'btn-primary' : 'btn-secondary'}`}>
+                              {item.useEquivalence ? 'Ativada' : 'Usar equivalência'}
+                            </button>
+                          </div>
+                          {item.useEquivalence && (
+                            <div className="flex flex-wrap items-end gap-2">
+                              <span className="t-callout font-semibold pb-2">1 {item.unit || 'un'} =</span>
+                              <div className="w-28">
+                                <NumeroBRField value={item.variationFactor || ''} decimals={3} onValueChange={(variationFactor) => alterar(item.id, { variationFactor })} placeholder="180" className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-full" />
+                              </div>
+                              <div className="w-32">
+                                <PickerField
+                                  value={item.variationUnit || ''}
+                                  options={UNIDADES_EQUIVALENCIA}
+                                  onType={(variationUnit) => alterar(item.id, { variationUnit })}
+                                  onPick={(opt) => alterar(item.id, { variationUnit: opt.value })}
+                                  placeholder="ml"
+                                  emptyLabel="Unidade nova"
+                                  className="field h-9 px-2.5 text-[12px] w-full"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
 
                   <button type="button" onClick={adicionar} className="w-full px-4 py-3 border-t hairline text-left t-callout font-semibold hover:bg-black/[0.025]">
                     + Adicionar produto
@@ -15431,6 +15442,21 @@
           const mapa = new Map();
           supplies.forEach((x) => {
             const rev = revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(x.name));
+            const ultimaInsumo = ultimaCompra(comprasDoInsumo(x.id));
+            const pacoteUltima = lerUnidadeCompraVolume(ultimaInsumo?.purchaseUnit);
+            const unidadeUltima = pacoteUltima?.tipo
+              || ultimaInsumo?.purchaseUnit
+              || x.purchaseUnit
+              || unidadeCompraPadraoDaBase(x.unit);
+            const qtdUltima = ultimaInsumo
+              ? (pacoteUltima?.unidades
+                  ? (Number(ultimaInsumo.qty) || 0) / Number(pacoteUltima.unidades)
+                  : converterQuantidadeUnidade(
+                      Number(ultimaInsumo.qty) || 0,
+                      x.unit || unidadeTecnicaDaCompra(unidadeUltima),
+                      unidadeUltima
+                    ))
+              : 0;
             mapa.set(normalizeName(x.name), {
               value: `insumo:${x.id}`,
               label: x.name,
@@ -15445,12 +15471,29 @@
               packageType: x.packageType || '',
               packageUnits: Number(x.packageUnits) || 0,
               variationUnit: x.variationUnit || '',
-              variationFactor: Number(x.variationFactor) || 0
+              variationFactor: Number(x.variationFactor) || 0,
+              lastQty: qtdUltima > 0 ? qtdUltima : '',
+              lastCost: Number(ultimaInsumo?.cost) > 0 ? Number(ultimaInsumo.cost) : '',
+              lastPurchaseUnit: unidadeUltima,
+              lastPackageType: pacoteUltima?.tipo || '',
+              lastPackageUnits: Number(pacoteUltima?.unidades) || 0
             });
           });
           revendaDaUnidade.forEach((x) => {
             const key = normalizeName(x.productName);
             if (!mapa.has(key)) {
+              const ultimaRevenda = ultimaCompra(comprasDaRevenda(x.id));
+              const pacoteUltimaRevenda = lerUnidadeCompraVolume(ultimaRevenda?.purchaseUnit);
+              const unidadeUltimaRevenda = pacoteUltimaRevenda?.tipo
+                || ultimaRevenda?.purchaseUnit
+                || x.purchaseUnit
+                || x.priceUnit
+                || 'un';
+              const qtdUltimaRevenda = ultimaRevenda
+                ? (pacoteUltimaRevenda?.unidades
+                    ? (Number(ultimaRevenda.qty) || 0) / Number(pacoteUltimaRevenda.unidades)
+                    : (Number(ultimaRevenda.qty) || 0))
+                : 0;
               mapa.set(key, {
                 value: `revenda:${x.id}`,
                 label: x.productName,
@@ -15461,12 +15504,17 @@
                 unit: unidadeTecnicaDaCompra(x.purchaseUnit || x.priceUnit || x.unitOfMeasure || 'un'),
                 purchaseUnit: x.purchaseUnit || x.priceUnit || 'un',
                 packageType: x.packageType || '',
-                packageUnits: Number(x.packageUnits) || 0
+                packageUnits: Number(x.packageUnits) || 0,
+                lastQty: qtdUltimaRevenda > 0 ? qtdUltimaRevenda : '',
+                lastCost: Number(ultimaRevenda?.cost) > 0 ? Number(ultimaRevenda.cost) : '',
+                lastPurchaseUnit: unidadeUltimaRevenda,
+                lastPackageType: pacoteUltimaRevenda?.tipo || '',
+                lastPackageUnits: Number(pacoteUltimaRevenda?.unidades) || 0
               });
             }
           });
           return Array.from(mapa.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
-        }, [supplies, revendaDaUnidade]);
+        }, [supplies, revendaDaUnidade, supplyPurchases, resalePurchases]);
 
         const opcoesProducao = useMemo(
           () => products
