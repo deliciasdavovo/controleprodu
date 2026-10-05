@@ -26962,6 +26962,12 @@ ${BARRA_ACOES_HTML}
         const item = supply || resale;
         if (!item) return null;
 
+        // O modal vive fora de SuppliesRecipesView, então não pode depender
+        // da constante local usada pela tela de Cadastros.
+        const UNIDADES_EQUIVALENCIA_MODAL = [
+          'un', 'kg', 'g', 'L', 'ml', 'fatia', 'pacote', 'caixa', 'lata', 'pote', 'sachê'
+        ].map((value) => ({ value, label: value }));
+
         const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
         const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
 
@@ -27118,7 +27124,7 @@ ${BARRA_ACOES_HTML}
                         />
                         <PickerField
                           value={supply.variationUnit || ''}
-                          options={UNIDADES_EQUIVALENCIA}
+                          options={UNIDADES_EQUIVALENCIA_MODAL}
                           onPick={(opt) => atualizar({ variationUnit: opt.value })}
                           placeholder="g"
                           className="field field-md w-28"
