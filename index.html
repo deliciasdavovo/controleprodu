@@ -14314,6 +14314,21 @@
 
 
       const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose, embedded = false }) => {
+        // Estas listas precisam viver dentro da própria nota. O formulário
+        // avançado tem versões locais delas, mas a nota é um componente
+        // separado e não pode depender daquele escopo.
+        const TIPOS_VOLUME_NOTA = [
+          { value: 'caixa', label: 'Caixa' },
+          { value: 'pacote', label: 'Pacote' },
+          { value: 'fardo', label: 'Fardo' },
+          { value: 'display', label: 'Display' },
+          { value: 'bandeja', label: 'Bandeja' },
+          { value: 'outro', label: 'Outro' }
+        ];
+        const UNIDADES_EQUIVALENCIA_NOTA = [
+          'un', 'kg', 'g', 'L', 'ml', 'fatia', 'pacote', 'caixa', 'lata', 'pote', 'sachê', 'colher'
+        ].map((value) => ({ value, label: value }));
+
         const novaLinha = () => ({
           id: 'manual-' + Date.now() + '-' + Math.random().toString(36).slice(2),
           selected: true,
@@ -14672,7 +14687,7 @@
                               <div>
                                 <label className="t-caption block mb-1">Tipo</label>
                                 <select value={item.packageType || 'caixa'} onChange={(e) => alterar(item.id, { packageType: e.target.value })} className="field h-9 px-2 text-[12px] field-select w-full">
-                                  {TIPOS_VOLUME_REVENDA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                                  {TIPOS_VOLUME_NOTA.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
                                 </select>
                               </div>
                               <div>
@@ -14702,7 +14717,7 @@
                               <div className="w-32">
                                 <PickerField
                                   value={item.variationUnit || ''}
-                                  options={UNIDADES_EQUIVALENCIA}
+                                  options={UNIDADES_EQUIVALENCIA_NOTA}
                                   onType={(variationUnit) => alterar(item.id, { variationUnit })}
                                   onPick={(opt) => alterar(item.id, { variationUnit: opt.value })}
                                   placeholder="ml"
