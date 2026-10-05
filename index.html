@@ -15030,9 +15030,12 @@
 
         const unidadeCompraInsumoExistente = supplyExistente
           ? (
-              unidadeCompraCompativelComBase(supplyExistente.purchaseUnit, supplyExistente.unit || 'g')
-                ? supplyExistente.purchaseUnit
-                : unidadeCompraPadraoDaBase(supplyExistente.unit || 'g')
+              // Mostra a unidade realmente salva no cadastro. Antes, quando
+              // havia um cadastro antigo inconsistente (ex.: base g + compra un),
+              // a tela escondia o problema e trocava visualmente para kg.
+              // A validação/conversão continua acontecendo no lançamento, mas
+              // a interface não inventa outra unidade.
+              supplyExistente.purchaseUnit || unidadeCompraPadraoDaBase(supplyExistente.unit || 'g')
             )
           : '';
         const unidadeCompraRevendaExistente = revendaExistente
