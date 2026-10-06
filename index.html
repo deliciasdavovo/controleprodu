@@ -14414,7 +14414,8 @@
             catalogValue: opt.value,
             purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
             unit: opt.unit || 'un',
-            purchaseUnit: opt.lastPurchaseUnit || opt.purchaseUnit || opt.unit || 'un',
+            // A unidade definida no cadastro tem prioridade sobre a última compra.
+            purchaseUnit: opt.purchaseUnit || opt.unit || 'un',
             packageType: tipoUltimoVolume,
             unitsPerPackage: teveVolume ? unidadesUltimoVolume : '',
             variationUnit: opt.variationUnit || '',
@@ -14631,7 +14632,8 @@
                                 value={item.purchaseUnit || 'un'}
                                 onChange={(e) => alterar(item.id, {
                                   purchaseUnit: e.target.value,
-                                  unit: unidadeTecnicaDaCompra(e.target.value)
+                                  // Em cadastro existente, a unidade-base é fixa.
+                                  unit: item.catalogValue ? item.unit : unidadeTecnicaDaCompra(e.target.value)
                                 })}
                                 onKeyDown={avancarNota}
                                 data-nota-enter="true"
