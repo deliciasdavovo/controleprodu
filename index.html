@@ -14364,6 +14364,26 @@
         const [numeroNota, setNumeroNota] = useState('');
         const [salvando, setSalvando] = useState(false);
         const fornecedorInputRef = useRef(null);
+        const [codigosFornecedor, setCodigosFornecedor] = useState([]);
+        const carregarCodigos = async () => {
+          if (!sb) return;
+          const { data, error } = await sb.from('supplier_product_codes')
+            .select('supplier_name,product_code,supply_id,separated_product_id');
+          if (!error) setCodigosFornecedor(data || []);
+          else console.warn('Códigos por fornecedor:', error.message);
+        };
+        useEffect(() => { carregarCodigos(); }, []);
+        const normalizarCodigo = (v) => String(v || '').trim().toLowerCase();
+        const vinculosFornecedor = codigosFornecedor.filter((v) =>
+          normalizarCodigo(v.supplier_name) === normalizarCodigo(fornecedor)
+        );
+        const opcaoDoVinculo = (v) => catalogOptions.find((o) =>
+          o.value === (v.supply_id ? 'insumo:' + v.supply_id : 'revenda:' + v.separated_product_id)
+        );
+        const codigoParaProduto = (codigo) => {
+          const v = vinculosFornecedor.find((v) => normalizarCodigo(v.product_code) === normalizarCodigo(codigo));
+          return v ? opcaoDoVinculo(v) : null;
+        };
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -14411,7 +14431,7 @@
             name: opt.label,
             // Se o código foi digitado antes e este cadastro ainda não tinha
             // código, conserva o que a pessoa informou em vez de apagar.
-            productCode: opt.productCode || item.productCode || '',
+            productCode: item.productCode || (vinculosFornecedor.find((v) => opcaoDoVinculo(v)?.value === opt.value)?.product_code || ''),
             catalogValue: opt.value,
             purchaseKind: opt.purchaseKind || (String(opt.value).startsWith('insumo:') ? 'insumo' : 'revenda'),
             unit: opt.unit || 'un',
@@ -14434,11 +14454,9 @@
         };
         const digitarCodigo = (item, productCode) => {
           const codigo = String(productCode || '').trim();
-          const opt = codigo
-            ? catalogOptions.find((opcao) => String(opcao.productCode || '').trim() === codigo)
-            : null;
-          if (opt) escolherProduto(item, opt);
-          else alterar(item.id, { productCode });
+          const opt = fornecedor.trim() && codigo ? codigoParaProduto(codigo) : null;
+          if (opt) escolherProduto({ ...item, productCode: codigo }, opt);
+          else alterar(item.id, { productCode: codigo, catalogValue: '' });
         };
 
         const linhasValidas = itens.filter((item) =>
@@ -14486,6 +14504,7 @@
               numeroNota: String(numeroNota || '').trim()
             });
             if (embedded) {
+              await carregarCodigos();
               setItens([novaLinha()]);
               setNumeroNota('');
               setFornecedor('');
@@ -14585,13 +14604,19 @@
                               <input
                                 value={item.productCode || ''}
                                 onChange={(e) => digitarCodigo(item, e.target.value)}
-                                placeholder="12420221"
+                                list={'codigos-' + item.id}
+                                placeholder="Código fornecedor"
                                 onKeyDown={avancarNota}
                                 data-nota-enter="true"
                                 data-row-id={item.id}
                                 data-col="code"
                                 className="field h-9 px-2.5 text-[12px] tnum w-full"
                               />
+                              <datalist id={'codigos-' + item.id}>
+                                {vinculosFornecedor.map((v) => (
+                                  <option key={v.product_code} value={v.product_code} label={opcaoDoVinculo(v)?.label || ''} />
+                                ))}
+                              </datalist>
                             </td>
                             <td className="p-2.5">
                               <PickerField
@@ -16021,6 +16046,28 @@
         };
 
         const salvarItensNotaColada = async ({ itens, fornecedor, data }) => {
+          // Confere conflitos antes de escrever as compras: nenhum código de um
+          // fornecedor pode mudar silenciosamente de produto.
+          const codigosInformados = itens.filter((item) =>
+            String(item.productCode || '').trim() && String(fornecedor || '').trim()
+          );
+          if (codigosInformados.length && sb) {
+            const { data: codigosExistentes, error } = await sb.from('supplier_product_codes')
+              .select('product_code,supply_id,separated_product_id')
+              .ilike('supplier_name', String(fornecedor).trim());
+            if (error) throw new Error('Não foi possível verificar códigos do fornecedor: ' + error.message);
+            for (const item of codigosInformados) {
+              const outro = (codigosExistentes || []).find((v) =>
+                String(v.product_code).trim().toLowerCase() === String(item.productCode).trim().toLowerCase()
+              );
+              if (outro && item.catalogValue) {
+                const vinculoAtual = outro.supply_id ? 'insumo:' + outro.supply_id : 'revenda:' + outro.separated_product_id;
+                if (vinculoAtual !== item.catalogValue) {
+                  throw new Error('O código ' + item.productCode + ' já está vinculado a outro produto desse fornecedor.');
+                }
+              }
+            }
+          }
           // Primeiro revisa TODAS as possíveis duplicatas. Só depois começa a
           // gravar a nota. Assim o alerta nunca aparece quando parte da nota
           // já foi lançada.
@@ -16112,7 +16159,7 @@
               if (!insumo) {
                 insumo = await onAddSupply({
                   name: nome,
-                  productCode: String(item.productCode || '').trim(),
+                  productCode: '',
                   unit: item.unit || 'un',
                   purchaseUnit: item.purchaseUnit || item.unit || 'un',
                   supplyClass: classe,
@@ -16121,10 +16168,6 @@
                   packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
                   packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
-              } else if (String(item.productCode || '').trim() && String(insumo.productCode || '') !== String(item.productCode || '').trim()) {
-                const atualizado = { ...insumo, productCode: String(item.productCode || '').trim() };
-                await onUpdateSupply(atualizado, true);
-                insumo = atualizado;
               }
               if (insumo && unidadesPorVolume > 0
                 && (!insumo.packageType || !(Number(insumo.packageUnits) > 0))) {
@@ -16177,7 +16220,7 @@
               if (!revenda) {
                 revenda = await onAddSeparatedProduct({
                   productName: nome,
-                  productCode: String(item.productCode || '').trim(),
+                  productCode: '',
                   category: 'revenda',
                   currentQty: 0,
                   unitOfMeasure: 'un',
@@ -16188,11 +16231,6 @@
                   packageType: unidadesPorVolume > 0 ? (item.packageType || 'caixa') : null,
                   packageUnits: unidadesPorVolume > 0 ? unidadesPorVolume : null
                 });
-              }
-              if (revenda?.id && String(item.productCode || '').trim() && String(revenda.productCode || '') !== String(item.productCode || '').trim()) {
-                const revendaCodigoAtualizado = { ...revenda, productCode: String(item.productCode || '').trim() };
-                await onUpdateSeparatedProduct(revendaCodigoAtualizado, true);
-                revenda = revendaCodigoAtualizado;
               }
               if (revenda?.id && unidadesPorVolume > 0
                 && (!revenda.packageType || !(Number(revenda.packageUnits) > 0))) {
@@ -16213,6 +16251,35 @@
                   purchaseUnit: unidadeCompra,
                   cost
                 });
+              }
+            }
+
+            // Registra o vínculo comercial somente depois do item ser lançado.
+            // Produtos antigos continuam com seus IDs e históricos originais.
+            if (sb && String(fornecedor || '').trim() && String(item.productCode || '').trim()) {
+              const alvoInsumo = temFaceInsumo && insumo?.id;
+              const alvoRevenda = !alvoInsumo && temFaceRevenda && revenda?.id;
+              if (alvoInsumo || alvoRevenda) {
+                const { data: existente, error: erroBusca } = await sb.from('supplier_product_codes')
+                  .select('id,supply_id,separated_product_id')
+                  .ilike('supplier_name', String(fornecedor).trim())
+                  .ilike('product_code', String(item.productCode).trim())
+                  .maybeSingle();
+                if (erroBusca) throw erroBusca;
+                const dadosCodigo = {
+                  supplier_name: String(fornecedor).trim(),
+                  product_code: String(item.productCode).trim(),
+                  supply_id: alvoInsumo ? insumo.id : null,
+                  separated_product_id: alvoRevenda ? revenda.id : null
+                };
+                if (existente) {
+                  const destino = existente.supply_id ? 'insumo:' + existente.supply_id : 'revenda:' + existente.separated_product_id;
+                  const atual = alvoInsumo ? 'insumo:' + insumo.id : 'revenda:' + revenda.id;
+                  if (destino !== atual) throw new Error('Código do fornecedor já pertence a outro produto: ' + item.productCode);
+                } else {
+                  const { error: erroCodigo } = await sb.from('supplier_product_codes').insert(dadosCodigo);
+                  if (erroCodigo) throw erroCodigo;
+                }
               }
             }
           }
