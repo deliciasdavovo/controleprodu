@@ -14547,7 +14547,7 @@
                   </div>
                   <div>
                     <label className="t-caption block mb-1">Data</label>
-                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="field field-md w-full" />
+                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} onKeyDown={avancarNota} data-nota-enter="true" className="field field-md w-full" />
                   </div>
                   <div>
                     <label className="t-caption block mb-1">Nº da nota <span className="ink-quiet">opcional</span></label>
