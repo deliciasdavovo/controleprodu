@@ -14363,6 +14363,7 @@
         const [data, setData] = useState(dataSugerida || getTodayDateString());
         const [numeroNota, setNumeroNota] = useState('');
         const [salvando, setSalvando] = useState(false);
+        const fornecedorInputRef = useRef(null);
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -14487,6 +14488,11 @@
             if (embedded) {
               setItens([novaLinha()]);
               setNumeroNota('');
+              setFornecedor('');
+              // Deixa o formulário imediatamente pronto para a próxima nota.
+              requestAnimationFrame(() => requestAnimationFrame(() => {
+                fornecedorInputRef.current?.focus();
+              }));
             } else {
               onClose && onClose();
             }
@@ -14536,6 +14542,7 @@
                     <label className="t-caption block mb-1">Fornecedor</label>
                     <PickerField
                       value={fornecedor}
+                      inputRef={fornecedorInputRef}
                       options={fornecedores.map((f) => ({ value: f, label: f }))}
                       onType={setFornecedor}
                       onPick={(opt) => setFornecedor(opt.value)}
