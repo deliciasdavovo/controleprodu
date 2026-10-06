@@ -26515,8 +26515,16 @@ ${BARRA_ACOES_HTML}
                 </button>
                 {/* Cada saída responde a uma pergunta diferente. O texto fica
                     visível para não depender de descobrir pelo nome do PDF. */}
-                <div className="w-full xl:w-[800px]">
-                  <div className="t-overline mb-2">Escolha o relatório</div>
+                <details className="w-full rounded-xl border hairline bg-white/80 p-3 sm:p-4">
+                  <summary className="flex cursor-pointer items-center justify-between gap-3 select-none">
+                    <span className="min-w-0">
+                      <strong className="t-callout block">Gerar e exportar relatórios</strong>
+                      <span className="t-nano ink-quiet block mt-1">Resumo, variações e relatório completo</span>
+                    </span>
+                    <span className="t-micro shrink-0 text-[#145444] font-semibold">Ver opções ▾</span>
+                  </summary>
+                  <div className="mt-4 border-t hairline pt-4">
+                  <div className="t-overline mb-3">Escolha o relatório</div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
@@ -26581,7 +26589,8 @@ ${BARRA_ACOES_HTML}
                       </span>
                     </button>
                   </div>
-                </div>
+                  </div>
+                </details>
               </div>
             </div>
 
@@ -26628,20 +26637,20 @@ ${BARRA_ACOES_HTML}
 </button>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="card p-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="card p-3 sm:p-4">
                 <span className="t-overline">Fornecedores</span>
                 <div className="mt-2 t-metric-lg tnum">{placar.fornecedores}</div>
               </div>
-              <div className="card p-5">
+              <div className="card p-3 sm:p-4">
                 <span className="t-overline">Compras</span>
                 <div className="mt-2 t-metric-lg tnum">{placar.compras}</div>
               </div>
-              <div className="card p-5">
+              <div className="card p-3 sm:p-4">
                 <span className="t-overline">Total comprado</span>
                 <div className="mt-2 t-metric-sm tnum">{formatCurrencyBR(placar.total)}</div>
               </div>
-              <div className="card p-5">
+              <div className="card p-3 sm:p-4">
                 <span className="t-overline">Itens diferentes</span>
                 <div className="mt-2 t-metric-lg tnum">{placar.itens}</div>
               </div>
@@ -26650,7 +26659,7 @@ ${BARRA_ACOES_HTML}
             {/* O placar da variação: em quantos itens o preço andou, e em
                 quantos existe escolha de fornecedor */}
             {visao === 'item' && (
-              <div className="card p-5 flex flex-wrap items-center gap-x-8 gap-y-3">
+              <div className="card p-3 sm:p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div>
                   <div className="t-caption">Subiram de preço</div>
                   <div className="t-metric-xs tnum ink-expired">{subiram}</div>
