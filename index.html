@@ -5149,7 +5149,8 @@
         disabled = false,
         inputProps = {},
         emptyLabel = 'Nada encontrado',
-        panelMinWidth = 0
+        panelMinWidth = 0,
+        selectedValue = ''
       }) => {
         const [open, setOpen] = useState(false);
         const [active, setActive] = useState(-1);
@@ -5249,6 +5250,12 @@
           // no formulário. Se a pessoa ainda não usou as setas, a primeira
           // sugestão visível é a opção natural. O stopPropagation impede o
           // formulário pai de pular para o próximo campo no mesmo Enter.
+          // Enter em um produto já escolhido deve avançar, não escolher o primeiro da lista.
+          if (e.key === 'Enter' && open && selectedValue && !typed && active < 0) {
+            close();
+            if (onKeyDown) onKeyDown(e);
+            return;
+          }
           if (e.key === 'Enter' && open && visible.length > 0) {
             const escolha = visible[active >= 0 ? active : 0];
             e.preventDefault();
@@ -14347,6 +14354,7 @@
           detailsOpen: false,
           qtySuggestion: '',
           costSuggestion: '',
+          lastQtyForCost: 0,
           volumes: '',
           cost: ''
         });
@@ -14417,6 +14425,7 @@
             // O primeiro Enter aceita a sugestão; o segundo avança.
             qtySuggestion: opt.lastQty !== '' && opt.lastQty !== undefined ? opt.lastQty : '',
             costSuggestion: opt.lastCost !== '' && opt.lastCost !== undefined ? opt.lastCost : '',
+            lastQtyForCost: Number(opt.lastQty) > 0 ? Number(opt.lastQty) : 0,
             volumes: item.volumes || '',
             cost: item.cost || ''
           });
@@ -14488,6 +14497,13 @@
         return (
           <div
             data-nota-form
+            onKeyDownCapture={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.repeat) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!salvando && linhasValidas.length) confirmar();
+              }
+            }}
             className={embedded
               ? "w-full"
               : "fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
@@ -14575,6 +14591,7 @@
                                 options={catalogOptions}
                                 onType={(name) => alterar(item.id, { name, catalogValue: '' })}
                                 onPick={(opt) => escolherProduto(item, opt)}
+                                selectedValue={item.catalogValue}
                                 placeholder="Nome ou código do produto"
                                 emptyLabel="Produto novo — preencha a linha"
                                 className="field h-9 px-2.5 text-[12px] font-semibold w-full"
@@ -14645,10 +14662,16 @@
                               <NumeroBRField
                                 value={item.cost || ''}
                                 decimals={2}
-                                sugestao={item.costSuggestion || ''}
+                                sugestao={Number(item.costSuggestion) > 0
+                                  ? (Number(item.volumes) > 0 && Number(item.lastQtyForCost) > 0
+                                      ? (Number(item.costSuggestion) * Number(item.volumes) / Number(item.lastQtyForCost)).toFixed(2)
+                                      : item.costSuggestion)
+                                  : ''}
                                 onValueChange={(cost) => alterar(item.id, { cost })}
-                                placeholder={item.costSuggestion !== '' && item.costSuggestion !== undefined
-                                  ? Number(item.costSuggestion).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                placeholder={Number(item.costSuggestion) > 0
+                                  ? (Number(item.volumes) > 0 && Number(item.lastQtyForCost) > 0
+                                      ? Number(item.costSuggestion) * Number(item.volumes) / Number(item.lastQtyForCost)
+                                      : Number(item.costSuggestion)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                   : '0,00'}
                                 onKeyDown={avancarNota}
                                 data-nota-enter="true"
@@ -14745,7 +14768,7 @@
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <p className="t-micro ink-quiet">Dica: o código procura apenas no seu cadastro. Se for novo, preencha o nome e ele ficará vinculado ao item quando salvar.</p>
+                  <p className="t-micro ink-quiet">Dica: Enter avança entre os campos. Ctrl + Enter salva a compra. O código procura apenas no seu cadastro.</p>
                   <button type="button" disabled={salvando || !linhasValidas.length} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
                     {salvando ? 'Salvando…' : `Salvar compra · ${linhasValidas.length} ${linhasValidas.length === 1 ? 'item' : 'itens'}`}
                   </button>
