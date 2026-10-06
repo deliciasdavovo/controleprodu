@@ -14475,6 +14475,32 @@
           if (opt) escolherProduto({ ...item, productCode: codigo }, opt);
           else alterar(item.id, { productCode: codigo, catalogValue: '' });
         };
+        const confirmarCodigoOuAvancar = (e, item) => {
+          if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+            avancarNota(e);
+            return;
+          }
+          const digitado = String(e.currentTarget.value || item.productCode || '').trim();
+          const normalizado = normalizarCodigo(digitado);
+          // Enter aceita a sugestão do fornecedor antes de passar ao produto.
+          // Prioriza início do código, depois correspondência parcial.
+          const candidatos = digitado ? vinculosFornecedor
+            .filter((v) => normalizarCodigo(v.product_code).includes(normalizado))
+            .sort((a, b) => {
+              const aInicio = normalizarCodigo(a.product_code).startsWith(normalizado) ? 0 : 1;
+              const bInicio = normalizarCodigo(b.product_code).startsWith(normalizado) ? 0 : 1;
+              return aInicio - bInicio || String(a.product_code).localeCompare(String(b.product_code), 'pt-BR');
+            }) : [];
+          const vinculo = candidatos.find((v) => !!opcaoDoVinculo(v));
+          const opt = vinculo ? opcaoDoVinculo(vinculo) : null;
+          if (opt && (normalizarCodigo(vinculo.product_code) !== normalizado || item.catalogValue !== opt.value)) {
+            e.preventDefault();
+            e.stopPropagation();
+            escolherProduto({ ...item, productCode: vinculo.product_code }, opt);
+            return;
+          }
+          avancarNota(e);
+        };
 
         const linhasValidas = itens.filter((item) =>
           String(item.name || '').trim() || String(item.productCode || '').trim()
@@ -14623,7 +14649,7 @@
                                 onChange={(e) => digitarCodigo(item, e.target.value)}
                                 list={'codigos-' + item.id}
                                 placeholder="Código fornecedor"
-                                onKeyDown={avancarNota}
+                                onKeyDown={(e) => confirmarCodigoOuAvancar(e, item)}
                                 data-nota-enter="true"
                                 data-row-id={item.id}
                                 data-col="code"
