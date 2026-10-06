@@ -14320,7 +14320,7 @@
       };
 
 
-      const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose, embedded = false }) => {
+      const ManualPurchaseModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose, embedded = false, historicoCompras = {} }) => {
         // Estas listas precisam viver dentro da própria nota. O formulário
         // avançado tem versões locais delas, mas a nota é um componente
         // separado e não pode depender daquele escopo.
@@ -14427,6 +14427,23 @@
           const unidadesUltimoVolume = Number(opt.lastPackageUnits) || Number(opt.packageUnits) || 0;
           const tipoUltimoVolume = opt.lastPackageType || opt.packageType || 'caixa';
           const teveVolume = unidadesUltimoVolume > 0;
+          // Sugestões de quantidade e preço pertencem ao fornecedor selecionado.
+          const [face, idProduto] = String(opt.value || '').split(':');
+          const comprasItem = face === 'insumo'
+            ? (historicoCompras.insumos || []).filter((c) => String(c.supplyId) === idProduto)
+            : (historicoCompras.revenda || []).filter((c) => String(c.separatedProductId) === idProduto);
+          const ultimaFornecedor = comprasItem
+            .filter((c) => normalizarCodigo(c.supplier) === normalizarCodigo(fornecedor))
+            .sort((a, b) => String(b.purchaseDate || '').localeCompare(String(a.purchaseDate || '')) || String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')))[0];
+          const pacoteHistorico = lerUnidadeCompraVolume(ultimaFornecedor?.purchaseUnit);
+          const unidadeHistorica = pacoteHistorico?.tipo || ultimaFornecedor?.purchaseUnit || opt.purchaseUnit || 'un';
+          const quantidadeHistorica = ultimaFornecedor
+            ? (pacoteHistorico?.unidades
+                ? Number(ultimaFornecedor.qty) / Number(pacoteHistorico.unidades)
+                : (face === 'insumo'
+                    ? converterQuantidadeUnidade(Number(ultimaFornecedor.qty), opt.unit || 'un', unidadeHistorica)
+                    : Number(ultimaFornecedor.qty)))
+            : 0;
           alterar(item.id, {
             name: opt.label,
             // Se o código foi digitado antes e este cadastro ainda não tinha
@@ -14445,9 +14462,9 @@
             useEquivalence: Number(opt.variationFactor) > 0,
             // A última compra volta a ser sugestão, não valor já confirmado.
             // O primeiro Enter aceita a sugestão; o segundo avança.
-            qtySuggestion: opt.lastQty !== '' && opt.lastQty !== undefined ? opt.lastQty : '',
-            costSuggestion: opt.lastCost !== '' && opt.lastCost !== undefined ? opt.lastCost : '',
-            lastQtyForCost: Number(opt.lastQty) > 0 ? Number(opt.lastQty) : 0,
+            qtySuggestion: quantidadeHistorica > 0 ? quantidadeHistorica : '',
+            costSuggestion: Number(ultimaFornecedor?.cost) > 0 ? Number(ultimaFornecedor.cost) : '',
+            lastQtyForCost: quantidadeHistorica > 0 ? quantidadeHistorica : 0,
             volumes: item.volumes || '',
             cost: item.cost || ''
           });
@@ -18381,6 +18398,7 @@
               <ManualPurchaseModal
                 catalogOptions={opcoesCompra}
                 fornecedores={fornecedores}
+                historicoCompras={{ insumos: supplyPurchases, revenda: resalePurchases }}
                 dataSugerida={dataSugerida}
                 onConfirm={salvarItensNotaColada}
                 onClose={() => setCompraManualAberta(false)}
