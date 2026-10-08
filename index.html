@@ -13998,8 +13998,8 @@
           }
           setSalvando(true);
           try {
-            await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data, numeroNota, chave });
-            onClose();
+            const resultado = await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data, numeroNota, chave });
+            if (resultado !== false) onClose();
           } finally {
             setSalvando(false);
           }
@@ -14534,7 +14534,7 @@
           }
           setSalvando(true);
           try {
-            await onConfirm({
+            const resultado = await onConfirm({
               itens: linhasValidas.map((item) => ({
                 ...item,
                 selected: true,
@@ -14546,6 +14546,7 @@
               data,
               numeroNota: String(numeroNota || '').trim()
             });
+            if (resultado === false) return;
             if (embedded) {
               await carregarCodigos();
               setItens([novaLinha()]);
@@ -14914,8 +14915,8 @@
           }
           setSalvando(true);
           try {
-            await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data });
-            onClose();
+            const resultado = await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data });
+            if (resultado !== false) onClose();
           } finally {
             setSalvando(false);
           }
@@ -16100,14 +16101,14 @@
           );
           if (comprasNaMesmaData.length) {
             const identificacao = String(numeroNota || '').trim()
-              ? '\\nNota informada: ' + String(numeroNota).trim()
+              ? '\nNota informada: ' + String(numeroNota).trim()
               : '';
             const continuar = window.confirm(
-              'Possível nota fiscal já lançada!\\n\\n'
-              + 'Fornecedor: ' + String(fornecedor || '').trim() + '\\n'
-              + 'Data: ' + formatDateBR(dataNota) + identificacao + '\\n'
-              + 'Já existem ' + comprasNaMesmaData.length + ' lançamento(s) desse fornecedor nessa data.\\n\\n'
-              + 'Pode ser outra nota do mesmo dia. Confira antes de continuar.\\n\\n'
+              'Possível nota fiscal já lançada!\n\n'
+              + 'Fornecedor: ' + String(fornecedor || '').trim() + '\n'
+              + 'Data: ' + formatDateBR(dataNota) + identificacao + '\n'
+              + 'Já existem ' + comprasNaMesmaData.length + ' lançamento(s) desse fornecedor nessa data.\n\n'
+              + 'Pode ser outra nota do mesmo dia. Confira antes de continuar.\n\n'
               + 'OK: lançar mesmo assim | Cancelar: voltar e conferir.'
             );
             if (!continuar) return false;
