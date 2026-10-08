@@ -27877,7 +27877,9 @@ ${BARRA_ACOES_HTML}
                     <div className="sm:col-span-2">
                       <label className="t-overline-sm block mb-1.5">Equivalência técnica</label>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="t-micro">1 un =</span>
+                        {supply.unit === 'un' ? (
+                          <>
+                            <span className="t-micro">1 un =</span>
                         <NumeroBRField
                           value={supply.variationFactor || ''}
                           decimals={3}
@@ -27895,6 +27897,31 @@ ${BARRA_ACOES_HTML}
                           className="field field-md w-28"
                           panelMinWidth={140}
                         />
+                          </>
+                        ) : (
+                          <>
+                            <span className="t-micro">1</span>
+                        <PickerField
+                          value={supply.variationUnit || ''}
+                          options={UNIDADES_EQUIVALENCIA_MODAL}
+                          onPick={(opt) => atualizar({ variationUnit: opt.value })}
+                          placeholder="fatia"
+                          className="field field-md w-28"
+                          panelMinWidth={140}
+                        />
+                            <span className="t-micro">=</span>
+                        <NumeroBRField
+                          value={supply.variationFactor || ''}
+                          decimals={3}
+                          onValueChange={(variationFactor) => atualizar({
+                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
+                          })}
+                          placeholder="qtd."
+                          className="field field-md w-28 text-right tnum no-spin"
+                        />
+                            <span className="t-micro">{supply.unit || 'g'}</span>
+                          </>
+                        )}
                         {(supply.variationUnit || Number(supply.variationFactor) > 0) && (
                           <button
                             type="button"
