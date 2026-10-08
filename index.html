@@ -14380,10 +14380,25 @@
         const opcaoDoVinculo = (v) => catalogOptions.find((o) =>
           o.value === (v.supply_id ? 'insumo:' + v.supply_id : 'revenda:' + v.separated_product_id)
         );
-        const codigoParaProduto = (codigo) => {
-          const v = vinculosFornecedor.find((v) => normalizarCodigo(v.product_code) === normalizarCodigo(codigo));
-          return v ? opcaoDoVinculo(v) : null;
+        // Prioriza o código do fornecedor, mas aceita códigos legados do cadastro
+        // apenas quando identificam um único produto (evita vínculo incorreto).
+        const opcoesPorCodigo = (codigo) => {
+          const chave = normalizarCodigo(codigo);
+          if (!chave) return [];
+          const vinculadas = vinculosFornecedor
+            .filter((v) => normalizarCodigo(v.product_code) === chave)
+            .map(opcaoDoVinculo).filter(Boolean);
+          if (vinculadas.length) return vinculadas;
+          const legadas = catalogOptions.filter((o) => normalizarCodigo(o.productCode) === chave);
+          return legadas.length === 1 ? legadas : [];
         };
+        const codigoParaProduto = (codigo) => opcoesPorCodigo(codigo)[0] || null;
+        const sugestoesCodigo = [
+          ...vinculosFornecedor.map((v) => ({ codigo: v.product_code, opcao: opcaoDoVinculo(v) })),
+          ...catalogOptions.filter((o) => o.productCode && opcoesPorCodigo(o.productCode)[0]?.value === o.value)
+            .map((o) => ({ codigo: o.productCode, opcao: o }))
+        ].filter((v, i, arr) => v.opcao && arr.findIndex((x) =>
+          normalizarCodigo(x.codigo) === normalizarCodigo(v.codigo)) === i);
 
         const alterar = (id, campos) => setItens((atuais) =>
           atuais.map((item) => item.id === id ? { ...item, ...campos } : item)
@@ -14471,10 +14486,20 @@
         };
         const digitarCodigo = (item, productCode) => {
           const codigo = String(productCode || '').trim();
-          const opt = fornecedor.trim() && codigo ? codigoParaProduto(codigo) : null;
+          const opt = codigo ? codigoParaProduto(codigo) : null;
           if (opt) escolherProduto({ ...item, productCode: codigo }, opt);
-          else alterar(item.id, { productCode: codigo, catalogValue: '' });
+          else alterar(item.id, { productCode: codigo, catalogValue: '', name: '' });
         };
+        // Reconhece códigos digitados antes da escolha do fornecedor ou enquanto
+        // os vínculos do Supabase ainda estavam carregando.
+        useEffect(() => {
+          itens.forEach((item) => {
+            if (item.productCode && !item.catalogValue) {
+              const opt = codigoParaProduto(item.productCode);
+              if (opt) escolherProduto(item, opt);
+            }
+          });
+        }, [fornecedor, codigosFornecedor]);
         const confirmarCodigoOuAvancar = (e, item) => {
           if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
             avancarNota(e);
@@ -14484,19 +14509,19 @@
           const normalizado = normalizarCodigo(digitado);
           // Enter aceita a sugestão do fornecedor antes de passar ao produto.
           // Prioriza início do código, depois correspondência parcial.
-          const candidatos = digitado ? vinculosFornecedor
-            .filter((v) => normalizarCodigo(v.product_code).includes(normalizado))
+          const candidatos = digitado ? sugestoesCodigo
+            .filter((v) => normalizarCodigo(v.codigo).includes(normalizado))
             .sort((a, b) => {
-              const aInicio = normalizarCodigo(a.product_code).startsWith(normalizado) ? 0 : 1;
-              const bInicio = normalizarCodigo(b.product_code).startsWith(normalizado) ? 0 : 1;
-              return aInicio - bInicio || String(a.product_code).localeCompare(String(b.product_code), 'pt-BR');
+              const aInicio = normalizarCodigo(a.codigo).startsWith(normalizado) ? 0 : 1;
+              const bInicio = normalizarCodigo(b.codigo).startsWith(normalizado) ? 0 : 1;
+              return aInicio - bInicio || String(a.codigo).localeCompare(String(b.codigo), 'pt-BR');
             }) : [];
-          const vinculo = candidatos.find((v) => !!opcaoDoVinculo(v));
-          const opt = vinculo ? opcaoDoVinculo(vinculo) : null;
-          if (opt && (normalizarCodigo(vinculo.product_code) !== normalizado || item.catalogValue !== opt.value)) {
+          const vinculo = candidatos[0];
+          const opt = vinculo?.opcao;
+          if (opt && (normalizarCodigo(vinculo.codigo) !== normalizado || item.catalogValue !== opt.value)) {
             e.preventDefault();
             e.stopPropagation();
-            escolherProduto({ ...item, productCode: vinculo.product_code }, opt);
+            escolherProduto({ ...item, productCode: vinculo.codigo }, opt);
             return;
           }
           avancarNota(e);
@@ -14657,8 +14682,8 @@
                                 className="field h-9 px-2.5 text-[12px] tnum w-full"
                               />
                               <datalist id={'codigos-' + item.id}>
-                                {vinculosFornecedor.map((v) => (
-                                  <option key={v.product_code} value={v.product_code} label={opcaoDoVinculo(v)?.label || ''} />
+                                {sugestoesCodigo.map((v) => (
+                                  <option key={v.codigo} value={v.codigo} label={v.opcao.label || ''} />
                                 ))}
                               </datalist>
                             </td>
