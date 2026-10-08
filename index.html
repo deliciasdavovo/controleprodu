@@ -16088,7 +16088,30 @@
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
 
-        const salvarItensNotaColada = async ({ itens, fornecedor, data }) => {
+        const salvarItensNotaColada = async ({ itens, fornecedor, data, numeroNota = '' }) => {
+          // Verificação no nível da nota, antes de lançar qualquer item.
+          // O histórico atual guarda compras por item, portanto fornecedor + data
+          // é um indício (não prova) de nota repetida.
+          const dataNota = String(data || dataSugerida || '').slice(0, 10);
+          const fornecedorNota = normalizeName(String(fornecedor || '').trim());
+          const comprasNaMesmaData = [...supplyPurchases, ...resalePurchases].filter((compra) =>
+            String(compra.purchaseDate || '').slice(0, 10) === dataNota
+            && normalizeName(String(compra.supplier || '').trim()) === fornecedorNota
+          );
+          if (comprasNaMesmaData.length) {
+            const identificacao = String(numeroNota || '').trim()
+              ? '\\nNota informada: ' + String(numeroNota).trim()
+              : '';
+            const continuar = window.confirm(
+              'Possível nota fiscal já lançada!\\n\\n'
+              + 'Fornecedor: ' + String(fornecedor || '').trim() + '\\n'
+              + 'Data: ' + formatDateBR(dataNota) + identificacao + '\\n'
+              + 'Já existem ' + comprasNaMesmaData.length + ' lançamento(s) desse fornecedor nessa data.\\n\\n'
+              + 'Pode ser outra nota do mesmo dia. Confira antes de continuar.\\n\\n'
+              + 'OK: lançar mesmo assim | Cancelar: voltar e conferir.'
+            );
+            if (!continuar) return false;
+          }
           // Confere conflitos antes de escrever as compras: nenhum código de um
           // fornecedor pode mudar silenciosamente de produto.
           const codigosInformados = itens.filter((item) =>
