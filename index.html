@@ -3543,7 +3543,26 @@
         .lark-base-ui table.lark-table td { height:34px!important; padding:5px 8px!important; }
       }
 
-    </style>
+    
+      /* Controle Produ — layout com navegação estável, sem alterar formulários e tabelas. */
+      .controle-side{display:none}
+      @media(min-width:1024px){
+        .controle-side{display:flex;flex-direction:column;position:fixed;left:0;top:56px;bottom:0;width:216px;z-index:35;background:#fff;border-right:1px solid #e2e9e4;padding:18px 10px 14px;overflow-y:auto;gap:8px}
+        .controle-side-top{padding:0 10px 8px;font-size:10px;letter-spacing:.1em;font-weight:800;color:#87958d}
+        .controle-side-group{padding:4px 0 9px;border-bottom:1px solid #edf0ed}
+        .controle-side-group h2{margin:0 0 6px;padding:4px 10px;font-size:11px;color:#65736b;font-weight:800}
+        .controle-side-link{display:flex;align-items:center;gap:10px;width:100%;min-height:37px;padding:8px 11px;border-radius:7px;text-align:left;font-size:12px;font-weight:600;color:#425249;transition:background .15s,color .15s}
+        .controle-side-link:hover{background:#f1f5f2;color:#1c4b36}
+        .controle-side-link[data-active="true"]{background:#eaf2ec;color:#184b35;font-weight:800;box-shadow:inset 3px 0 #286849}
+        .controle-side-link span:nth-child(2){flex:1}
+        .controle-side-count{background:#f9e5e5;color:#9a3030;border-radius:50px;padding:1px 6px;font-size:10px}
+        .controle-side-home{margin-top:auto;text-align:left;border-top:1px solid #edf0ed;padding:14px 11px 4px;font-size:12px;font-weight:700;color:#576c5f}
+        .app-navbar nav.hidden.lg\\:flex{display:none!important}
+        .app-navbar-mainrow>.hidden.lg\\:flex{display:none!important}
+        .app-main{margin-left:216px!important;width:calc(100% - 216px)!important;max-width:none!important;padding-left:clamp(20px,3vw,48px)!important;padding-right:clamp(20px,3vw,48px)!important}
+        .app-navbar>.max-w-7xl{max-width:none!important}
+      }
+</style>
   </head>
   <body>
     <div id="root"></div>
@@ -5899,6 +5918,32 @@
           </header>
         );
       };
+
+      // Navegação lateral persistente para desktop; no celular permanece a navegação existente.
+      const DesktopSidebar = ({ activeTab, onTabChange, onHome, totalAlerts }) => (
+        <aside className="controle-side" aria-label="Navegação principal">
+          <div className="controle-side-top">ÁREAS DO SISTEMA</div>
+          {Object.entries(NAV_GROUPS).map(([groupId, group]) => (
+            <section key={groupId} className="controle-side-group" aria-label={group.title}>
+              <h2>{group.label}</h2>
+              {group.tabs.map((tab) => {
+                const Icon = tab.icon;
+                const selected = tab.id === activeTab;
+                return (
+                  <button key={tab.id} type="button" className="controle-side-link"
+                    data-active={selected} aria-current={selected ? 'page' : undefined}
+                    title={tab.fullLabel} onClick={() => onTabChange(tab.id)}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{tab.label}</span>
+                    {tab.id === 'vitrine' && totalAlerts > 0 && <span className="controle-side-count">{totalAlerts}</span>}
+                  </button>
+                );
+              })}
+            </section>
+          ))}
+          <button type="button" className="controle-side-home" onClick={onHome}>← Tela inicial</button>
+        </aside>
+      );
 
       // ==========================================
       // CAMPO DA CONTAGEM
@@ -30523,6 +30568,8 @@ ${BARRA_ACOES_HTML}
               totalAlerts={totalAlerts}
               onHome={() => setEntryMode(null)}
             />
+
+            <DesktopSidebar activeTab={activeTab} onTabChange={setActiveTab} onHome={() => setEntryMode(null)} totalAlerts={totalAlerts} />
 
             {errorMsg && (
               <div className="banner-error">
