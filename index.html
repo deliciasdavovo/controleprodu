@@ -3562,6 +3562,29 @@
         .app-main{margin-left:216px!important;width:calc(100% - 216px)!important;max-width:none!important;padding-left:clamp(20px,3vw,48px)!important;padding-right:clamp(20px,3vw,48px)!important}
         .app-navbar>.max-w-7xl{max-width:none!important}
       }
+
+      /* Reforma mobile: acesso rápido inferior e menu completo recolhível. */
+      @media(max-width:1023px){
+        .mobile-nav-shell{display:none!important}
+        .controle-mobile-toolbar{display:flex;align-items:center;gap:10px;min-height:43px;padding:5px 12px;border-top:1px solid #eef0ee;background:#fff}
+        .controle-mobile-menu-button{display:flex;align-items:center;gap:6px;color:#23513a;font-size:12px;font-weight:750;min-height:32px;padding:5px 9px;border:1px solid #e0e9e2;border-radius:7px}
+        .controle-mobile-page{flex:1;min-width:0;text-align:center;font-size:13px;font-weight:800;color:#244734;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .controle-mobile-bottom{position:fixed;left:0;right:0;bottom:0;z-index:48;display:flex;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #dae4dc;padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px rgba(20,50,35,.06)}
+        .controle-mobile-bottom-link{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;color:#6b756f;font-size:10px;font-weight:700;border-radius:7px}
+        .controle-mobile-bottom-link[data-active="true"]{color:#1d5c3d;background:#eaf3ec}
+        .controle-mobile-overlay{position:fixed;inset:0;z-index:80}
+        .controle-mobile-backdrop{position:absolute;inset:0;background:rgba(10,26,17,.45);width:100%}
+        .controle-mobile-drawer{position:absolute;left:0;top:0;bottom:0;width:min(310px,86vw);background:#fff;padding:18px 14px calc(25px + env(safe-area-inset-bottom));overflow-y:auto;box-shadow:8px 0 24px rgba(0,0,0,.13)}
+        .controle-mobile-drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;color:#234b36;font-size:16px}
+        .controle-mobile-drawer-head button{padding:8px;font-size:18px}
+        .controle-mobile-group{margin-bottom:16px}
+        .controle-mobile-group h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#819087;font-weight:800;padding:4px 10px 8px}
+        .controle-mobile-link{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:43px;padding:10px 12px;color:#3f5447;border-radius:7px;font-size:13px;font-weight:650}
+        .controle-mobile-link[data-active="true"]{background:#eaf3ec;color:#185439;font-weight:800}
+        .app-main{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
+        .fab-add{bottom:calc(83px + env(safe-area-inset-bottom))!important}
+        .app-main .overflow-x-auto,.app-main .rola-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+      }
 </style>
   </head>
   <body>
@@ -5765,8 +5788,10 @@
       const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts, onHome }) => {
         const navItems = NAV_GROUPS[groupOfTab(activeTab)].tabs;
         const mobileTabsRef = useRef(null);
+        const [menuMobileAberto, setMenuMobileAberto] = useState(false);
 
         const abrirAba = (tabId) => {
+          setMenuMobileAberto(false);
           onTabChange(tabId);
           if (window.innerWidth < 1024) {
             requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
@@ -5863,58 +5888,66 @@
               </div>
             </div>
 
-            {/* No celular o topo escolhe só o grupo; as telas desse grupo
-                ficam na barra fixa de baixo, alcançável com o polegar. */}
-            <div className="mobile-nav-shell lg:hidden">
-              <div className="mobile-nav-groups">
-                <div className="segmented">
-                  {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
-                    <button
-                      key={id}
-                      onClick={() => abrirAba(grupo.tabs[0].id)}
-                      data-active={groupOfTab(activeTab) === id}
-                      title={grupo.title}
-                    >
-                      {grupo.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <nav
-                ref={mobileTabsRef}
-                className="mobile-nav-tabs"
-                style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
-                aria-label={NAV_GROUPS[groupOfTab(activeTab)].title}
-              >
-                {navItems.map((tab) => {
-                  const IconComp = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => abrirAba(tab.id)}
-                      title={tab.fullLabel}
-                      aria-label={tab.fullLabel}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={`mobile-nav-tab relative ${
-                        isActive ? 'bg-[#0E0937] text-white' : 'text-[#6e6e73] bg-transparent'
-                      }`}
-                    >
-                      <IconComp className="shrink-0" />
-                      <span>{tab.label}</span>
-                      {tab.id === 'vitrine' && totalAlerts > 0 && (
-                        <span className={`mobile-nav-badge min-w-4 h-4 px-1 text-[9px] font-bold rounded-full flex items-center justify-center tnum ${
-                          isActive ? 'bg-white/25 text-white' : 'badge-expired'
-                        }`}>
-                          {totalAlerts}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
+            {/* Menu mobile compacto com acesso a todas as áreas. */}
+            <div className="controle-mobile-toolbar lg:hidden">
+              <button type="button" className="controle-mobile-menu-button"
+                aria-label="Abrir menu de navegação" aria-expanded={menuMobileAberto}
+                onClick={() => setMenuMobileAberto((aberto) => !aberto)}>
+                <Icons.LayoutGrid className="w-4 h-4" />
+                <span>Menu</span>
+              </button>
+              <span className="controle-mobile-page">
+                {NAV_GROUPS[groupOfTab(activeTab)].tabs.find((tab) => tab.id === activeTab)?.label || 'Controle Produ'}
+              </span>
+              <button type="button" className="controle-mobile-menu-button" onClick={onHome}>
+                Início
+              </button>
             </div>
+            {menuMobileAberto && (
+              <div className="controle-mobile-overlay lg:hidden">
+                <button type="button" className="controle-mobile-backdrop" aria-label="Fechar menu"
+                  onClick={() => setMenuMobileAberto(false)} />
+                <nav className="controle-mobile-drawer" aria-label="Todas as áreas">
+                  <div className="controle-mobile-drawer-head">
+                    <strong>Áreas do sistema</strong>
+                    <button type="button" aria-label="Fechar menu" onClick={() => setMenuMobileAberto(false)}>✕</button>
+                  </div>
+                  {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
+                    <div key={id} className="controle-mobile-group">
+                      <h3>{grupo.label}</h3>
+                      {grupo.tabs.map((tab) => {
+                        const Icon = tab.icon;
+                        return <button type="button" key={tab.id}
+                          className="controle-mobile-link" data-active={activeTab === tab.id}
+                          aria-current={activeTab === tab.id ? 'page' : undefined}
+                          onClick={() => abrirAba(tab.id)}>
+                          <Icon className="w-4 h-4" />{tab.label}
+                        </button>;
+                      })}
+                    </div>
+                  ))}
+                </nav>
+              </div>
+            )}
+            <nav className="controle-mobile-bottom lg:hidden" aria-label="Acesso rápido">
+              {[
+                NAV_GROUPS.vitrine.tabs[0],
+                NAV_GROUPS.vitrine.tabs[2],
+                NAV_GROUPS.cmv.tabs[0],
+                NAV_GROUPS.cmv.tabs[2]
+              ].map((tab) => {
+                const Icon = tab.icon;
+                return <button type="button" key={tab.id} onClick={() => abrirAba(tab.id)}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  data-active={activeTab === tab.id} className="controle-mobile-bottom-link">
+                  <Icon className="w-5 h-5" /><span>{tab.label}</span>
+                </button>;
+              })}
+              <button type="button" className="controle-mobile-bottom-link"
+                aria-label="Todas as áreas" onClick={() => setMenuMobileAberto(true)}>
+                <Icons.LayoutGrid className="w-5 h-5" /><span>Mais</span>
+              </button>
+            </nav>
           </header>
         );
       };
