@@ -27855,6 +27855,16 @@ ${BARRA_ACOES_HTML}
 
         const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
         const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
+        const unidadeCompraAtual = item.purchaseUnit || (tipo === 'insumo' ? unidadeCompraPadraoDaBase(unidadeBase) : 'un');
+        const unidadeCompraCompativel = unidadeBase === 'g'
+          ? ['g', 'kg'].includes(unidadeCompraAtual)
+          : unidadeBase === 'ml'
+            ? ['ml', 'L'].includes(unidadeCompraAtual)
+            : unidadeBase === 'un' ? unidadeCompraAtual === 'un' : true;
+        const fatorConversaoCompra = unidadeBase === 'g' && unidadeCompraAtual === 'kg' ? 1000
+          : unidadeBase === 'ml' && unidadeCompraAtual === 'L' ? 1000
+          : unidadeCompraAtual === unidadeBase ? 1 : null;
+        const unidadeCompraRecomendada = unidadeCompraPadraoDaBase(unidadeBase);
 
         // O histórico pode existir em um dos dois lados do cadastro. Isso
         // acontece nos itens híbridos (insumo + revenda) e em dados antigos.
@@ -27967,6 +27977,12 @@ ${BARRA_ACOES_HTML}
                       className="field field-md w-full"
                     />
                     {tipo === 'insumo' && <p className="t-nano mt-1">Unidade base {supply.unit || 'un'} continua travada.</p>}
+                    {!unidadeCompraCompativel && tipo === 'insumo' && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <p className="t-micro text-red-700">Unidade de compra incompatível com a base {unidadeBase}. Isso pode distorcer o custo.</p>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => atualizar({ purchaseUnit: unidadeCompraRecomendada })}>Usar {unidadeCompraRecomendada} nas próximas compras</button>
+                      </div>
+                    )}
                   </div>
 
                   {tipo === 'revenda' && (
@@ -28001,6 +28017,19 @@ ${BARRA_ACOES_HTML}
                       />
                       <span className="t-micro">un</span>
                     </div>
+                  </div>
+
+                  <div className="sm:col-span-2 rounded-xl border hairline p-3">
+                    <div className="t-overline-sm mb-1.5">Conversão da compra para o custo</div>
+                    <div className="t-body font-semibold">
+                      {fatorConversaoCompra
+                        ? `1 ${unidadeCompraAtual} = ${numeroCurtoBR(fatorConversaoCompra)} ${unidadeBase}`
+                        : `Unidade de compra: ${unidadeCompraAtual} · unidade-base: ${unidadeBase}`}
+                    </div>
+                    <p className="t-nano ink-quiet mt-1">
+                      Esta conversão acompanha a unidade de compra acima. A equivalência técnica abaixo é independente: por exemplo, 1 fatia = 30 g.
+                    </p>
+                    {!unidadeCompraCompativel && <p className="t-micro text-red-700 mt-1">Revise a unidade de compra antes de lançar novas compras. As quantidades antigas não são alteradas automaticamente.</p>}
                   </div>
 
                   {tipo === 'insumo' && (
