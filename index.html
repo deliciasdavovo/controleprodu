@@ -27376,15 +27376,22 @@ ${BARRA_ACOES_HTML}
                                 <span className="t-micro ink-quiet block mt-1">{compraAtual?.data ? formatDateBR(compraAtual.data) : 'Sem data'}</span>
                               </td>
                               <td>
-                                <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
-                                {precoBase > 0 && <small className="block ink-quiet mt-1">Referência: {formatPrecoInsumo(precoBase, i.unidade)}</small>}
-                                {i.anterior?.custoUnit > 0 && (
-                                  <div className="fornecedor-preco-referencia">
-                                    <span className="block text-[10px] ink-quiet">Comparado com</span>
-                                    <strong className="block tnum">{formatPrecoCompraComercial(i.anterior)}</strong>
-                                    <span className="block text-[10px] ink-quiet">{i.anterior.fornecedor || 'Sem fornecedor'}{i.anterior.data ? ' · ' + formatDateBR(i.anterior.data) : ''}</span>
+                                {i.atual?.variacaoPct != null && Number.isFinite(percentual) ? (
+                                  <div className="fornecedor-variacao-simples">
+                                    <strong className="block tnum text-[17px] font-bold leading-tight text-[#263d32]">
+                                      {percentual > 0 ? '+' : ''}{percentual.toFixed(0)}%
+                                    </strong>
+                                    <span className="block mt-1 text-[11px] font-medium text-[#66736b]">
+                                      {percentual > 0 ? 'Aumento' : percentual < 0 ? 'Redução' : 'Sem alteração'}
+                                      {' · '}{periodoRelatorioPrecos === '12' ? '1 ano' : periodoRelatorioPrecos + ' meses'}
+                                    </span>
+                                    {precoBase > 0 && (
+                                      <span className="block mt-1 text-[10px] text-[#7a827c]">
+                                        Base: {formatPrecoInsumo(precoBase, i.unidade)}
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                ) : <span className="text-[11px] ink-quiet">Sem comparação</span>}
                               </td>
                               <td>
                                 <button type="button"
