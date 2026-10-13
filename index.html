@@ -3620,6 +3620,13 @@
       .compras-planilha-ui table.fornecedores-por-item-table td.sticky{background:#fff!important}
       .compras-planilha-ui table.fornecedores-por-item-table tbody tr:nth-child(even) td.sticky{background:#f8faf8!important}
       @media(max-width:640px){.compras-planilha-ui table.fornecedores-por-item-table{min-width:850px!important}.compras-planilha-ui table.fornecedores-por-item-table tbody td{padding:10px!important}}
+
+      /* Comparativo: referência explícita e ação de histórico identificável. */
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-referencia{margin-top:7px;padding-top:6px;border-top:1px solid #dde8e0;line-height:1.45}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-referencia strong{font-size:12px;color:#254d38;font-weight:800}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao{display:inline-flex;align-items:center;gap:6px;border:1px solid #246047!important;background:#266549!important;color:white!important;font-size:11px!important;font-weight:800!important;border-radius:8px!important;padding:8px 11px!important;min-height:35px!important;box-shadow:0 2px 5px rgba(20,70,43,.1)}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao:hover{background:#194c36!important;border-color:#194c36!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao:focus-visible{outline:2px solid #38825a;outline-offset:2px}
 </style>
   </head>
   <body>
@@ -27349,6 +27356,13 @@ ${BARRA_ACOES_HTML}
                               </td>
                               <td>
                                 <VariacaoBadge variacaoUnit={i.atual.variacaoUnit} variacaoPct={i.atual.variacaoPct} unidade={i.unidade} />
+                                {i.anterior?.custoUnit > 0 && (
+                                  <div className="fornecedor-preco-referencia">
+                                    <span className="block text-[10px] ink-quiet">Comparado com</span>
+                                    <strong className="block tnum">{formatPrecoCompraComercial(i.anterior)}</strong>
+                                    <span className="block text-[10px] ink-quiet">{i.anterior.fornecedor || 'Sem fornecedor'}{i.anterior.data ? ' · ' + formatDateBR(i.anterior.data) : ''}</span>
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <button type="button"
@@ -27357,7 +27371,7 @@ ${BARRA_ACOES_HTML}
                                     setHistoricoItem({ itemId: i.itemId, item: i.item });
                                   }}
                                   title={`Abrir histórico de compras de ${i.item}`}
-                                  className="btn btn-secondary btn-sm">
+                                  className="btn btn-sm fornecedor-historico-acao">
                                   <Icons.History className="w-3.5 h-3.5" />
                                   Ver histórico · <span className="tnum">{i.compras}</span>
                                 </button>
