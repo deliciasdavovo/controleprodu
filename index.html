@@ -28174,6 +28174,8 @@ ${BARRA_ACOES_HTML}
                             {comprasItem.map((compra) => {
                               const qtd = Number(compra.qty) || 0;
                               const custo = Number(compra.cost) || 0;
+                              const pacoteCompra = lerUnidadeCompraVolume(compra.purchaseUnit);
+                              const qtdVolumes = pacoteCompra ? qtd / pacoteCompra.unidades : qtd;
                               const custoUnitario = qtd > 0 ? custo / qtd : 0;
                               return (
                                 <tr key={compra.id} className="border-t hairline align-middle">
@@ -28196,24 +28198,33 @@ ${BARRA_ACOES_HTML}
                                   </td>
                                   <td className="p-2.5">
                                     <NumeroBRField
-                                      value={compra.qty || ''}
+                                      value={qtdVolumes || ''}
                                       decimals={3}
-                                      onValueChange={(qty) => atualizarCompra(compra, { qty: Number(qty) || 0 })}
+                                      onValueChange={(quantidade) => atualizarCompra(compra, { qty: (Number(quantidade) || 0) * (pacoteCompra?.unidades || 1) })}
                                       className="field h-9 px-2.5 text-[12px] text-right tnum no-spin w-28"
                                     />
                                   </td>
                                   <td className="p-2.5">
                                     <select
                                       value={compra.purchaseUnit || item.purchaseUnit || 'un'}
-                                      onChange={(e) => atualizarCompra(compra, { purchaseUnit: e.target.value })}
+                                      onChange={(e) => {
+                                        const novaUnidade = e.target.value;
+                                        const novoPacote = lerUnidadeCompraVolume(novaUnidade);
+                                        atualizarCompra(compra, {
+                                          purchaseUnit: novaUnidade,
+                                          qty: novoPacote ? qtdVolumes * novoPacote.unidades : qtdVolumes
+                                        });
+                                      }}
                                       className="field h-9 px-2 text-[12px] field-select w-full"
                                     >
                                       {Array.from(new Set([
                                         compra.purchaseUnit || '',
                                         item.purchaseUnit || '',
+                                        ...(volumeValidoCadastro ? [criarUnidadeCompraVolume(volumeTipoCadastro, volumeQtdCadastro)] : []),
                                         ...PURCHASE_UNITS
-                                      ].filter(Boolean))).map((u) => <option key={u} value={u}>{u}</option>)}
+                                      ].filter(Boolean))).map((u) => <option key={u} value={u}>{lerUnidadeCompraVolume(u) ? `${pluralVolumeRevenda(lerUnidadeCompraVolume(u).tipo, 1)} (${numeroCurtoBR(lerUnidadeCompraVolume(u).unidades)} un)` : u}</option>)}
                                     </select>
+                                    {pacoteCompra && <div className="t-nano ink-quiet mt-1">1 {pluralVolumeRevenda(pacoteCompra.tipo, 1)} = {numeroCurtoBR(pacoteCompra.unidades)} un</div>}
                                   </td>
                                   <td className="p-2.5">
                                     <span className="pill tone-quiet">{compra.__origem === 'insumo' ? 'Insumo' : 'Revenda'}</span>
