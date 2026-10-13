@@ -27937,18 +27937,15 @@ ${BARRA_ACOES_HTML}
                   <div>
                     <label className="t-overline-sm block mb-1.5">Unidade de compra</label>
                     <PickerField
-                      value={item.purchaseUnit || (tipo === 'insumo' ? unidadeCompraPadraoDaBase(supply.unit) : 'un')}
-                      options={PURCHASE_UNITS.map((u) => ({ value: u, label: u }))}
-                      onPick={(opt) => atualizar({ purchaseUnit: opt.value })}
+                      value={volumeValidoCadastro ? 'volume' : unidadeCompraAtual}
+                      options={[...PURCHASE_UNITS.map((u) => ({ value: u, label: u })), { value: 'volume', label: 'Volume' }]}
+                      onPick={(opt) => atualizar(opt.value === 'volume'
+                        ? { purchaseUnit: 'un', packageType: item.packageType || 'outro', packageUnits: item.packageUnits || null }
+                        : { purchaseUnit: opt.value, packageType: '', packageUnits: null })}
                       className="field field-md w-full"
                     />
-                    {tipo === 'insumo' && <p className="t-nano mt-1">Unidade base {supply.unit || 'un'} continua travada.</p>}
-                    {!unidadeCompraCompativel && tipo === 'insumo' && (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <p className="t-micro text-red-700">Unidade de compra incompatível com a base {unidadeBase}. Isso pode distorcer o custo.</p>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => atualizar({ purchaseUnit: unidadeCompraRecomendada })}>Usar {unidadeCompraRecomendada} nas próximas compras</button>
-                      </div>
-                    )}
+                    {volumeValidoCadastro && <p className="t-nano mt-1">1 volume corresponde a {numeroCurtoBR(volumeQtdCadastro)} unidades.</p>}
+                    {tipo === 'insumo' && <p className="t-nano mt-1">Unidade base {supply.unit || 'un'} permanece independente.</p>}
                   </div>
 
                   {tipo === 'revenda' && (
@@ -27963,34 +27960,28 @@ ${BARRA_ACOES_HTML}
                     </div>
                   )}
 
-                  <div className="sm:col-span-2">
-                    <label className="t-overline-sm block mb-1.5">Embalagem padrão de compra</label>
-                    <p className="t-nano ink-quiet mb-2">Informe o tipo de embalagem e quantas unidades ela contém. Ex.: 1 caixa contém 400 un.</p>
-                    <div className="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 items-center">
-                      <select
-                        value={item.packageType || ''}
-                        onChange={(e) => atualizar({ packageType: e.target.value })}
-                        className="field field-md field-select"
-                      >
-                        <option value="">Sem volume padrão</option>
-                        {TIPOS_VOLUME_REVENDA.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                      </select>
-                      <NumeroBRField
-                        value={item.packageUnits || ''}
-                        decimals={0}
-                        onValueChange={(packageUnits) => atualizar({ packageUnits: Number(packageUnits) || null })}
-                        placeholder="un."
-                        className="field field-md text-right tnum no-spin"
-                      />
-                      <span className="t-micro">un</span>
+                  {(volumeValidoCadastro || !!item.packageType) && (
+                    <div className="sm:col-span-2">
+                      <label className="t-overline-sm block mb-1.5">Quantidade dentro de 1 volume</label>
+                      <div className="flex items-center gap-2">
+                        <span className="t-callout whitespace-nowrap">1 volume =</span>
+                        <NumeroBRField
+                          value={item.packageUnits || ''}
+                          decimals={0}
+                          onValueChange={(packageUnits) => atualizar({ packageType: 'outro', packageUnits: Number(packageUnits) || null })}
+                          placeholder="Ex.: 400"
+                          className="field field-md text-right tnum no-spin max-w-36"
+                        />
+                        <span className="t-callout">un</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="sm:col-span-2 rounded-xl border hairline p-3">
                     <div className="t-overline-sm mb-1.5">Volume e conversão para custo</div>
                     {volumeValidoCadastro && (
                       <div className="t-body font-semibold text-[#20563c]">
-                        {'1 ' + nomeVolumeCadastro.toLowerCase() + ' = ' + numeroCurtoBR(volumeQtdCadastro) + ' ' + unidadeDentroVolume}
+                        {'1 volume = ' + numeroCurtoBR(volumeQtdCadastro) + ' ' + unidadeDentroVolume}
                       </div>
                     )}
                     <div className="t-callout font-medium mt-1">
@@ -27999,7 +27990,7 @@ ${BARRA_ACOES_HTML}
                         : `Compra registrada em ${unidadeCompraAtual} · base de custo em ${unidadeBase}`}
                     </div>
                     <p className="t-nano ink-quiet mt-1">
-                      A caixa/fardo/pacote contém a quantidade informada acima. O histórico preserva a unidade registrada em cada compra. A equivalência técnica abaixo é independente (ex.: 1 fatia = 30 g).
+                      O volume contém a quantidade informada acima. O histórico preserva a unidade registrada em cada compra. A equivalência técnica abaixo é independente (ex.: 1 fatia = 30 g).
                     </p>
                     {!unidadeCompraCompativel && <p className="t-micro text-red-700 mt-1">Revise a unidade de compra antes de lançar novas compras. As quantidades antigas não são alteradas automaticamente.</p>}
                   </div>
