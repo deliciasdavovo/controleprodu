@@ -4661,9 +4661,11 @@
       // Como a loja escreve a variação do insumo, para conferir de bate-pronto
       const rotuloVariacao = (supply) => {
         if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
+        // Dados legados: quando a base é g/ml, o fator armazenado representa
+        // quantas unidades-base correspondem a 1 unidade alternativa.
         return supply.unit === 'un'
-          ? `1 un = ${supply.variationFactor} ${supply.variationUnit}`
-          : `1 ${supply.variationUnit} = ${supply.variationFactor} ${supply.unit}`;
+          ? `1 un = ${numeroCurtoBR(supply.variationFactor)} ${supply.variationUnit}`
+          : `1 ${supply.variationUnit} = ${numeroCurtoBR(supply.variationFactor)} ${supply.unit}`;
       };
 
       // ------------------------------------------
@@ -17177,7 +17179,12 @@
                           {temInsumo && opcoesExtrasCadastro.equivalencia && (
                             <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
                               <div className="t-overline-sm mb-1">Equivalência técnica</div>
-                              <p className="t-nano ink-quiet mb-2">Use somente quando a ficha/CMV precisar converter a unidade do item. Não é o tamanho da caixa ou do fardo.</p>
+                              <p className="t-nano ink-quiet mb-2">Equivalência do cadastro: 1 unidade padrão corresponde a X unidades de medida. Volume de caixa/fardo é configurado separadamente.</p>
+                              <div className="flex items-center gap-2 mb-3">
+                                <label className="t-caption">Unidade padrão (base do custo)</label>
+                                <strong className="t-body">{supplyExistente?.unit || draft.unit}</strong>
+                                {supplyExistente && <span className="t-nano ink-quiet">Unidades técnicas com compras antigas exigem reconciliação antes de mudar.</span>}
+                              </div>
                               <div className="flex flex-wrap items-center gap-2">
                                 {draft.unit === 'un' ? (
                                   <>
@@ -17269,11 +17276,9 @@
                                     setDraft((d) => ({
                                       ...d,
                                       purchaseUnit,
-                                      // Cadastro existente: a unidade-base é estrutural e não muda
-                                      // quando a pessoa só altera a forma de compra.
-                                      unit: cadastroExistente
-                                        ? (d.unit || supplyExistente?.unit || unidadeTecnicaDaCompra(purchaseUnit))
-                                        : unidadeTecnicaDaCompra(purchaseUnit)
+                                      // A unidade técnica permanece vinculada ao cadastro.
+                                      // A unidade comercial da nota pode ser alterada separadamente.
+                                      unit: supplyExistente?.unit || d.unit || unidadeTecnicaDaCompra(purchaseUnit)
                                     }));
                                     setEditarUnidadePadrao(false);
                                   }}
