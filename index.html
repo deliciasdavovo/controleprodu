@@ -3585,6 +3585,29 @@
         .fab-add{bottom:calc(83px + env(safe-area-inset-bottom))!important}
         .app-main .overflow-x-auto,.app-main .rola-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
       }
+
+      /* Etapa 1 — linguagem visual comum para cabeçalhos, buscas e ações.
+         Regras restritas ao conteúdo: mantém as planilhas compactas. */
+      .app-main .t-display{font-size:clamp(23px,2.4vw,30px);line-height:1.18;letter-spacing:-.025em;color:#203b2c}
+      .app-main .t-overline{font-size:10px;letter-spacing:.075em;font-weight:750;color:#68796f}
+      .app-main .t-title{font-size:clamp(18px,1.8vw,21px);line-height:1.25;color:#253b2e}
+      .app-main .field-search{min-height:37px;border:1px solid #dbe5dd;border-radius:8px;background-color:#fff;box-shadow:none}
+      .app-main .field-search:focus{border-color:#367252;box-shadow:0 0 0 3px rgba(54,114,82,.11)}
+      .app-main input[type="search"]:not(.field-search){border-color:#dbe5dd}
+      .app-main .btn-primary{background:#265d42;border-color:#265d42;color:#fff}
+      .app-main .btn-primary:hover{background:#194c34}
+      .app-main .btn-secondary{background:#f3f6f3;color:#294734;border:1px solid #dce7de}
+      .app-main .btn-secondary:hover{background:#eaf1eb}
+      .app-main .btn:focus-visible,.controle-mobile-bottom-link:focus-visible,.controle-mobile-menu-button:focus-visible,.controle-side-link:focus-visible{outline:2px solid #34855d;outline-offset:2px}
+      .app-main .btn:disabled{opacity:.5;cursor:not-allowed}
+      @media(max-width:639px){
+        .app-main .t-display{font-size:24px}
+        .app-main .t-title{font-size:19px}
+        .app-main .field-search{min-height:42px;font-size:14px}
+        .app-main .btn:not(.btn-xs){min-height:38px}
+        .app-main input,.app-main select,.app-main textarea{max-width:100%}
+      }
+      @media(min-width:1024px){.controle-context{height:30px;align-items:center;gap:7px;padding:5px 2px 0;font-size:11px;color:#75867a}.controle-context strong{font-weight:750;color:#315941}.controle-side{top:86px}.app-navbar{background:#fff}}
 </style>
   </head>
   <body>
@@ -5809,6 +5832,11 @@
         return (
           <header className="app-navbar glass sticky top-0 z-40 border-b hairline">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="controle-context lg:flex hidden" aria-label="Localização atual">
+                <span>{NAV_GROUPS[groupOfTab(activeTab)].label}</span>
+                <span aria-hidden="true">›</span>
+                <strong>{NAV_GROUPS[groupOfTab(activeTab)].tabs.find((t) => t.id === activeTab)?.fullLabel || 'Controle Produ'}</strong>
+              </div>
               <div className="app-navbar-top flex items-center justify-between h-14 gap-4">
                 <div className="app-navbar-mainrow flex items-center gap-4 min-w-0">
                   <div className="app-brand flex items-center gap-2.5">
