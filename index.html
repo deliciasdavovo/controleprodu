@@ -26651,7 +26651,6 @@ ${BARRA_ACOES_HTML}
                           <tr className="t-overline-sm border-b hairline">
                             <th className="py-3 pr-3 font-bold">Data</th>
                             <th className="py-3 px-3 font-bold">Fornecedor</th>
-                            <th className="py-3 px-3 font-bold">Tipo</th>
                             <th className="py-3 px-3 text-right font-bold">Quantidade</th>
                             <th className="py-3 px-3 text-right font-bold">Valor pago</th>
                             <th className="py-3 pl-3 text-right font-bold">Custo unit.</th>
@@ -26662,7 +26661,6 @@ ${BARRA_ACOES_HTML}
                             <tr key={`${c.tipo}-${c.id}`} className="border-t hairline">
                               <td className="py-3 pr-3 t-callout whitespace-nowrap">{c.data ? formatDateBR(c.data) : '—'}</td>
                               <td className="py-3 px-3 t-callout font-semibold">{c.fornecedor}</td>
-                              <td className="py-3 px-3"><span className="pill tone-quiet">{c.tipo}</span></td>
                               <td className="py-3 px-3 text-right t-callout tnum">
                                 {formatQuantidadeCompra(c)}
                                 {rotuloConteudoVolume(c) && <span className="t-nano font-semibold block mt-1">{rotuloConteudoVolume(c)}</span>}
