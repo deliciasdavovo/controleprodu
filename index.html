@@ -16081,6 +16081,10 @@
             return;
           }
 
+          if (temInsumo && supplyExistente && draft.unit !== supplyExistente.unit && comprasDoInsumo(supplyExistente.id).length > 0) {
+            window.alert('Este produto possui compras antigas na unidade-base anterior. A alteração exige reconciliação do histórico para preservar quantidades e custos. A unidade de compra continua editável.');
+            return;
+          }
           const qtdInformada = Number(draft.qty) || 0;
           const cost = Number(draft.cost) || 0;
           const unidadesPorVolume = compraPorVolume ? unidadesPorVolumeCompra : 0;
@@ -16142,7 +16146,7 @@
               insumo = await onAddSupply({
                 name: nome,
                 productCode: String(draft.productCode || '').trim(),
-                unit: unidadeTecnicaDaCompra(unidadeCompraCadastro),
+                unit: draft.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro),
                 purchaseUnit: unidadeCompraCadastro,
                 supplyClass: draft.supplyClass || 'insumo',
                 variationUnit: opcoesExtrasCadastro.equivalencia ? (equivalenciaDigitada || null) : null,
@@ -16175,15 +16179,14 @@
                     ? (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))
                     : unidadeCompraCadastro);
               const productCode = String(draft.productCode || '').trim();
-              if (variationUnit !== (insumo.variationUnit || null)
+              if (draft.unit !== insumo.unit
+                || variationUnit !== (insumo.variationUnit || null)
                 || variationFactor !== (Number(insumo.variationFactor) || null)
                 || packageType !== (insumo.packageType || null)
                 || packageUnits !== (Number(insumo.packageUnits) || null)
                 || productCode !== String(insumo.productCode || '')
                 || purchaseUnit !== (insumo.purchaseUnit || unidadeCompraPadraoDaBase(insumo.unit))) {
-                const unit = supplyExistente
-                  ? insumo.unit
-                  : unidadeTecnicaDaCompra(purchaseUnit);
+                const unit = draft.unit || insumo.unit || unidadeTecnicaDaCompra(purchaseUnit);
                 await onUpdateSupply({ ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits, productCode }, true);
                 insumo = { ...insumo, unit, purchaseUnit, variationUnit, variationFactor, packageType, packageUnits, productCode };
               }
@@ -17182,7 +17185,7 @@
                               <p className="t-nano ink-quiet mb-2">Equivalência do cadastro: 1 unidade padrão corresponde a X unidades de medida. Volume de caixa/fardo é configurado separadamente.</p>
                               <div className="flex items-center gap-2 mb-3">
                                 <label className="t-caption">Unidade padrão (base do custo)</label>
-                                <strong className="t-body">{supplyExistente?.unit || draft.unit}</strong>
+                                <select className="field field-sm w-24" value={draft.unit || 'un'} onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))} aria-label="Unidade padrão de custo">{['un', 'g', 'kg', 'ml', 'L'].map((u) => <option key={u} value={u}>{u}</option>)}</select>
                                 {supplyExistente && <span className="t-nano ink-quiet">Unidades técnicas com compras antigas exigem reconciliação antes de mudar.</span>}
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
