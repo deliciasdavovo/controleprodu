@@ -13349,6 +13349,7 @@
         unidadesCompra = null,
         compraPorVolume = false,
         volumePadrao = null,
+        unidadeCompraConfigurada = null,
         fornecedores = [],
         dataSugerida = '',
         onAdd,
@@ -13367,6 +13368,7 @@
           unitsPerPackage: pacoteAnterior?.unidades ? String(pacoteAnterior.unidades) : '',
           cost: ''
         };
+        const [abaProduto, setAbaProduto] = useState('compras');
         const [draft, setDraft] = useState(BLANK);
         const [edicaoVolume, setEdicaoVolume] = useState(null);
         const [usarVolumeNaNovaCompra, setUsarVolumeNaNovaCompra] = useState(compraPorVolume);
@@ -13454,6 +13456,39 @@
                 </button>
               </div>
 
+              <div className="flex gap-1 border-b hairline mb-4" role="tablist" aria-label="Detalhes do produto">
+                <button type="button" role="tab" aria-selected={abaProduto === 'compras'} onClick={() => setAbaProduto('compras')} className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${abaProduto === 'compras' ? 'border-[#0E0937] text-[#0E0937]' : 'border-transparent ink-quiet'}`}>Compras</button>
+                <button type="button" role="tab" aria-selected={abaProduto === 'equivalencia'} onClick={() => setAbaProduto('equivalencia')} className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${abaProduto === 'equivalencia' ? 'border-[#0E0937] text-[#0E0937]' : 'border-transparent ink-quiet'}`}>Equivalência e volume</button>
+              </div>
+              {abaProduto === 'equivalencia' ? (
+                <section role="tabpanel" className="space-y-4 pb-3">
+                  <p className="t-body ink-quiet">Confira a unidade do produto e a conversão usada para calcular o custo. Estas informações pertencem ao cadastro do item, não a cada compra.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="border hairline rounded-xl p-3">
+                      <div className="t-caption ink-quiet mb-1">Unidade base do custo</div>
+                      <strong className="t-body">{unidadeBase || 'un'}</strong>
+                    </div>
+                    <div className="border hairline rounded-xl p-3">
+                      <div className="t-caption ink-quiet mb-1">Unidade de compra cadastrada</div>
+                      <strong className="t-body">{unidadeCompraConfigurada || unidadeBase || 'un'}</strong>
+                    </div>
+                  </div>
+                  <div className="border hairline rounded-xl p-4">
+                    <div className="t-caption ink-quiet mb-2">Volume / embalagem</div>
+                    {volumePadrao?.unidades > 0 ? (
+                      <strong className="t-body">1 {volumePadrao.tipo} = {numeroCurtoBR(volumePadrao.unidades)} unidades</strong>
+                    ) : (
+                      <p className="t-body ink-quiet">Nenhum volume fixo configurado para este produto.</p>
+                    )}
+                  </div>
+                  <p className="t-micro">Exemplos: 1 kg = 1.000 g; 1 L = 1.000 ml. Equivalências específicas, como 1 fatia = 30 g, devem ser registradas no cadastro do produto.</p>
+                  {onOpenItem && (
+                    <button type="button" className="btn btn-primary btn-md" onClick={onOpenItem}>Editar equivalência e volume no cadastro</button>
+                  )}
+                  <p className="t-micro ink-quiet">A edição abre o cadastro original, para que todas as telas utilizem a mesma configuração.</p>
+                </section>
+              ) : (
+              <>
               <form onSubmit={salvar} className="pt-4 border-t hairline">
                 <div className="t-overline mb-2">Lançar compra</div>
                 {compraPorVolume && (
@@ -13722,6 +13757,8 @@
               <p className="t-micro pt-3">
                 O custo do item é sempre o da compra mais recente — é o que você vai pagar para repor.
               </p>
+              </>
+              )}
             </div>
           </div>
         );
@@ -18595,6 +18632,7 @@
                   unidadesCompra={volumeFixoDoCadastro(s) ? null : [s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)]}
                   compraPorVolume={!!volumeFixoDoCadastro(s)}
                   volumePadrao={volumeFixoDoCadastro(s)}
+                  unidadeCompraConfigurada={s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)}
                   fornecedores={fornecedores}
                   dataSugerida={dataSugerida}
                   onAdd={(c) => onAddSupplyPurchase(s.id, c)}
@@ -18618,6 +18656,7 @@
                   unidadesCompra={volumeFixoDoCadastro(item) ? null : [item.purchaseUnit || 'un', 'kg', 'g'].filter((v, i, a) => a.indexOf(v) === i)}
                   compraPorVolume={!!volumeFixoDoCadastro(item)}
                   volumePadrao={volumeFixoDoCadastro(item)}
+                  unidadeCompraConfigurada={item.purchaseUnit || 'un'}
                   fornecedores={fornecedores}
                   dataSugerida={dataSugerida}
                   onAdd={(c) => onAddResalePurchase(item.id, c)}
