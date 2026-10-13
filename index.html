@@ -27319,7 +27319,6 @@ ${BARRA_ACOES_HTML}
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[205px]">Produto</th>
                           <th className="min-w-[155px] text-right">Preço atual</th><th className="min-w-[155px] text-right">Compra anterior</th><th className="min-w-[155px] text-right">3ª última compra</th>
-                          <th className="min-w-[190px]">Fornecedor / data</th>
                           <th className="min-w-[145px]">
                             <span className="block mb-1">Variação</span>
                             <select value={periodoRelatorioPrecos}
@@ -27358,8 +27357,8 @@ ${BARRA_ACOES_HTML}
                                 {compraAtual ? (
                                   <>
                                     <strong className="fornecedor-preco-atual tnum block">{formatPrecoCompraComercial(compraAtual)}</strong>
-                                    <span className="t-micro ink-quiet block mt-1">{formatCurrencyBR(compraAtual.cost)} no total</span>
-                                    {rotuloConteudoVolume(compraAtual) && <span className="t-micro ink-quiet block mt-1">{rotuloConteudoVolume(compraAtual)}</span>}
+                                    <small className="block ink-quiet">{compraAtual.fornecedor || 'Sem fornecedor'}</small>
+                                    <small className="block ink-quiet tnum">{compraAtual.data ? formatDateBR(compraAtual.data) : 'Sem data'}</small>}
                                   </>
                                 ) : <span className="ink-quiet">—</span>}
                               </td>
@@ -27371,10 +27370,6 @@ ${BARRA_ACOES_HTML}
                                   {compra && <small className="block ink-quiet tnum">{formatDateBR(compra.data)}</small>}
                                 </td>;
                               })}
-                              <td>
-                                <span className="t-callout font-semibold block">{compraAtual?.fornecedor || 'Sem fornecedor'}</span>
-                                <span className="t-micro ink-quiet block mt-1">{compraAtual?.data ? formatDateBR(compraAtual.data) : 'Sem data'}</span>
-                              </td>
                               <td>
                                 {i.atual?.variacaoPct != null && Number.isFinite(percentual) ? (
                                   <div className="fornecedor-variacao-simples">
