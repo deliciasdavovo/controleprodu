@@ -1,0 +1,78 @@
+name: Precompilar React do navegador
+
+on:
+  push:
+    branches:
+      - main
+      - fix/precompilar-jsx-para-abertura-rapida
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - '.github/workflows/precompilar-navegador.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  testar-e-compilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar compilador e navegador de teste
+        run: |
+          npm install --no-save esbuild@0.25.12 playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Compilar JSX para JavaScript simples
+        run: |
+          mkdir -p compiled
+          npx esbuild src/embalagens.jsx --loader:.jsx=jsx --jsx=transform --format=iife --target=es2018 --minify --outfile=compiled/embalagens.js
+          npx esbuild src/app.jsx --loader:.jsx=jsx --jsx=transform --format=iife --target=es2018 --minify --outfile=compiled/app.js
+          wc -c compiled/*.js
+      - name: Abrir site local, CMV e Embalagens no Chromium
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/site-log.txt 2>&1 &
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1300, height: 850 } });
+            const fatal = [];
+            page.on('pageerror', e => fatal.push(String(e.stack || e.message).slice(0, 500)));
+            try {
+              const start = Date.now();
+              const response = await page.goto('http://127.0.0.1:8765/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+              await page.waitForFunction(() => {
+                const el = document.querySelector('#root');
+                return el && el.innerText.includes('Entrar no CMV');
+              }, null, {timeout: 45000});
+              console.log('TEMPO_TELA_INICIAL_MS:', Date.now() - start);
+              await page.getByRole('button', {name:/Entrar no CMV/i}).first().click();
+              await page.getByRole('button', {name:/^Embalagens$/i}).first().click();
+              await page.getByText('2. Tabela por quantidade', {exact:true}).waitFor({state:'visible',timeout:20000});
+              await page.getByText('Embalagens cadastradas', {exact:false}).first().waitFor({state:'visible',timeout:12000});
+              console.log('NAVEGACAO_CMV_EMBALAGENS_OK:', true);
+              console.log('ERROS_NAVEGADOR:', JSON.stringify(fatal));
+              if (!response || response.status() >= 400 || fatal.length) {
+                throw new Error('Navegador apresentou falha de execucao.');
+              }
+            } finally { await browser.close(); }
+          })().catch(e => {console.error(e.stack || e); process.exit(1)});
+          NODE
+      - name: Publicar scripts compilados no repositorio
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f compiled/embalagens.js compiled/app.js
+          if git diff --staged --quiet; then
+            echo "Compilados ja estao atualizados."
+          else
+            git commit -m "Atualiza scripts compilados do navegador [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
