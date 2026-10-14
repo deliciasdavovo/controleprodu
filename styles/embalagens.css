@@ -66,3 +66,9 @@
 .emb-tabela th.emb-col-embalagem{min-width:128px}
 .emb-tabela .emb-col-produto{min-width:245px}
 @media(max-width:680px){.emb-tabela .emb-col-produto{min-width:185px;width:185px}.emb-tabela .emb-col-quantidade{min-width:96px;width:96px}}
+
+/* Regras distintas para o mesmo produto conforme a quantidade. */
+.emb-adicionar-variacao{display:block;margin:6px 0 0 7px;padding:3px 0;border:0;background:transparent;color:#286447;font-weight:750;font-size:10px;text-align:left;cursor:pointer}
+.emb-adicionar-variacao:hover{text-decoration:underline}
+.emb-regra-alerta{color:#a45622;background:#fff5e9;border-radius:4px;margin:4px 0 0;padding:5px;font-size:10px;font-weight:650}
+.emb-por-produto{font-size:9px;white-space:normal;text-align:center;color:#75877a}
