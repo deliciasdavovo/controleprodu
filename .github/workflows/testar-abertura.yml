@@ -42,7 +42,7 @@ jobs:
               if (r.status() >= 400) log('http-' + r.status(), r.url());
             });
             try {
-              const response = await page.goto('https://deliciasdavovo.github.io/controleprodu/?teste=abertura-20261014', {
+              const response = await page.goto('https://deliciasdavovo.github.io/controleprodu/index.html?revisao=' + process.env.GITHUB_SHA, {
                 waitUntil: 'domcontentloaded', timeout: 60000
               });
               await page.waitForTimeout(18000);
@@ -63,6 +63,10 @@ jobs:
               console.log('STATUS_HTTP:', response?.status());
               console.log('ESTADO_DOM:', JSON.stringify(state, null, 2));
               console.log('ERROS:', JSON.stringify(alerts, null, 2));
+              if (state.babelLoaded || !state.scripts.includes('./compiled/app.js') ||
+                  !state.scripts.includes('./compiled/embalagens.js')) {
+                throw new Error('CDN entregou a versão antiga da página, ainda dependente do Babel.');
+              }
               await page.screenshot({ path: '/tmp/controleprodu-abertura.png', fullPage: false });
               if (!response || response.status() >= 400 || !state.htmlLength ||
                   state.statusText.includes('Carregando Controle Produ')) {
