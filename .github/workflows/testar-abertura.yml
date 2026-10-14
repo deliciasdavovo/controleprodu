@@ -69,6 +69,26 @@ jobs:
                 throw new Error('A pagina nao terminou de abrir no Chromium.');
               }
               console.log('PAGINA_ABRIU_NAVEGADOR: SIM');
+              const entrarCMV = page.getByRole('button', { name: /Entrar no CMV/i });
+              console.log('BOTAO_ENTRAR_CMV:', await entrarCMV.count());
+              if (await entrarCMV.count() < 1) throw new Error('Botao de entrada CMV nao apareceu');
+              await entrarCMV.first().click();
+              await page.waitForTimeout(6000);
+              console.log('TEXTO_APOS_CMV:', (await page.locator('#root').innerText()).slice(0, 1100));
+              const botaoEmbalagens = page.getByRole('button', { name: /^Embalagens$/i });
+              console.log('BOTAO_EMBALAGENS:', await botaoEmbalagens.count());
+              if (await botaoEmbalagens.count() < 1) throw new Error('Botao Embalagens nao existe');
+              await botaoEmbalagens.first().click();
+              await page.waitForTimeout(5000);
+              console.log('TEXTO_EMBALAGENS:', (await page.locator('#root').innerText()).slice(0, 2200));
+              console.log('ERROS_DEPOIS:', JSON.stringify(alerts, null, 2));
+              if ((await page.locator('body').innerText()).includes('Erro ao carregar:')) {
+                throw new Error('A aba Embalagens apresentou erro ao carregar.');
+              }
+              if (!(await page.getByText('2. Tabela por quantidade', {exact:true}).count())) {
+                throw new Error('A planilha de embalagens nao apareceu.');
+              }
+              console.log('ABA_EMBALAGENS_ABRIU: SIM');
             } finally {
               await browser.close();
             }
