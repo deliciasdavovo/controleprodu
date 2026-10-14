@@ -1,0 +1,3582 @@
+:root {
+        /* Superfícies no estilo das interfaces do iOS/macOS */
+        --bg-canvas: #f2f2f7;
+        --bg-surface: #ffffff;
+        --bg-elevated: #f9f9fb;
+        --ink-1: #1d1d1f;   /* Títulos */
+        --ink-2: #424245;   /* Corpo */
+        --ink-3: #6e6e73;   /* Secundário */
+        --ink-4: #86868b;   /* Terciário / legendas */
+        --hairline: rgba(60, 60, 67, 0.12);
+        --accent: #0E0937;
+        /* O roxo da casa lavado, para o selo quieto que anda na mesma
+           família do cheio */
+        --accent-soft: rgba(14, 9, 55, 0.085);
+
+        /* ==========================================
+           AS CORES DE ESTADO — UMA PALETA SÓ
+           ==========================================
+           Antes a tela tinha duas famílias disputando o mesmo significado: a
+           etiqueta do cartão usava as cores da loja e o resto usava as cores
+           do sistema do iPhone. "Vencido" saía vinho na etiqueta, vermelho no
+           nome do produto e um terceiro vermelho na pílula da lista — três
+           vermelhos para uma ideia só, e o olho tinha que reaprender a cor em
+           cada componente.
+
+           Agora quem manda são as cores da loja, que são as do papel que o
+           balcão já prende no lote. A tela combina com o balcão:
+
+             verde   #274133 → fresco, e a venda (o que está bom)
+             amarelo #F2C14E → último dia, e o que passou do padrão
+             vinho   #7D2027 → vencido, a perda e o erro do sistema
+
+           Cada família tem os mesmos tons, e é sempre nessa ordem que eles
+           são usados:
+             base  — a cor cheia: a quina do cartão, o botão sólido, a bolinha
+             on    — o texto que vai por cima da cor cheia
+             ink   — a mesma cor escurecida o bastante para virar texto sobre
+                     fundo claro (o amarelo da quina é claro demais e não
+                     passa em contraste, por isso o ink dele é bem mais
+                     fechado — mas continua sendo o mesmo tom de âmbar)
+             tint  — de onde saem os fundos lavados, quando a cor cheia é
+                     clara ou escura demais para lavar bem
+             soft  — o fundo lavado do selo e do botão quieto
+             line  — o fio da borda desse selo */
+        --fresh: #274133;
+        --fresh-on: var(--cream);
+        --fresh-ink: #274133;
+        /* O verde da loja é escuro demais para virar fundo lavado: a 10% ele
+           sai cinza e o botão de venda perde a cor. O fundo usa um verde mais
+           claro da mesma família, e o texto por cima continua no tom cheio. */
+        --fresh-tint: #2E7D51;
+        --fresh-soft: rgba(46, 125, 81, 0.13);
+        --fresh-line: rgba(46, 125, 81, 0.24);
+        --last: #F2C14E;
+        --last-on: #3A2A05;
+        --last-ink: #8A5A16;
+        /* O amarelo da quina é claro demais para lavar: a 16% ele some no
+           branco. O fundo sai de um âmbar do meio da mesma rampa. */
+        --last-tint: #C8901E;
+        --last-soft: rgba(200, 144, 30, 0.18);
+        --last-line: rgba(200, 144, 30, 0.30);
+        --expired: #7D2027;
+        --expired-on: var(--cream);
+        --expired-ink: #7D2027;
+        --expired-soft: rgba(125, 32, 39, 0.10);
+        --expired-line: rgba(125, 32, 39, 0.18);
+        --cream: #EDDDC5;
+        /* O cinza do que não pede nada: o normal não ganha cor */
+        --quiet: #c7c7cc;
+
+        --radius-lg: 22px;
+        --radius-md: 16px;
+        --radius-sm: 12px;
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.025), 0 10px 30px rgba(0, 0, 0, 0.045);
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+        background: var(--bg-canvas);
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.72) 0, rgba(255,255,255,0) 320px),
+          var(--bg-canvas);
+        color: var(--ink-1);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "kern" 1, "liga" 1, "cv11" 1;
+        letter-spacing: -0.01em;
+      }
+
+      /* ==========================================
+         HIERARQUIA TIPOGRÁFICA (escala Apple HIG)
+         ========================================== */
+      .t-display {
+        font-size: 32px;
+        line-height: 1.09;
+        font-weight: 800;
+        letter-spacing: -0.028em;
+        color: var(--ink-1);
+      }
+      .t-title {
+        font-size: 22px;
+        line-height: 1.18;
+        font-weight: 700;
+        letter-spacing: -0.022em;
+      }
+      .t-headline {
+        font-size: 17px;
+        line-height: 1.29;
+        font-weight: 700;
+        letter-spacing: -0.018em;
+      }
+      .t-body {
+        font-size: 15px;
+        line-height: 1.47;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+      }
+      .t-callout {
+        font-size: 13px;
+        line-height: 1.38;
+        font-weight: 500;
+        letter-spacing: -0.006em;
+        color: var(--ink-3);
+      }
+      .t-caption {
+        font-size: 12px;
+        line-height: 1.33;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+      .t-overline {
+        font-size: 11px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-4);
+      }
+      .t-overline-sm { font-size: 10px; letter-spacing: 0.07em; }
+      /* Dois degraus abaixo da legenda. Eles não existiam, e por isso a tela
+         vivia pedindo a legenda e corrigindo o tamanho em pixel logo em
+         seguida: a escala mandava 12 e o lugar pedia 11. Agora o degrau tem
+         nome, e o próximo ajuste é aqui — e não em pixel solto no JSX. */
+      .t-micro {
+        font-size: 11px;
+        line-height: 1.27;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+      .t-nano {
+        font-size: 10px;
+        line-height: 1.3;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-4);
+      }
+
+      /* ==========================================
+         OS NÚMEROS QUE SE LEEM DE LONGE
+         O resultado de um cartão não é texto: é número. Antes cada um repetia
+         à mão `tnum leading-none font-extrabold tracking-[-0.03em]` no seu
+         tamanho, e dois cartões vizinhos saíam com pesos diferentes. Agora o
+         tratamento é um só e o que muda é o degrau.
+         ========================================== */
+      .t-metric-lg, .t-metric, .t-metric-sm, .t-metric-xs {
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--ink-1);
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum" 1;
+      }
+      .t-metric-lg { font-size: 34px; }
+      .t-metric    { font-size: 30px; }
+      .t-metric-sm { font-size: 22px; letter-spacing: -0.022em; }
+      .t-metric-xs { font-size: 19px; letter-spacing: -0.022em; }
+      /* A unidade que anda colada no número: ela nunca compete com ele */
+      .t-metric-unit {
+        margin-left: 4px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--ink-4);
+      }
+      .t-unit {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+      /* O tracinho de "aqui não tem nada": mesmo tamanho e mesmo cinza em
+         toda tabela da tela */
+      .t-empty {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--quiet);
+      }
+      .ink-muted { color: var(--quiet); }
+      /* Números tabulares: colunas de estoque sempre alinhadas */
+      .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+      /* ==========================================
+         SUPERFÍCIES E CARTÕES
+         ========================================== */
+      .card {
+        background: var(--bg-surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+      }
+      .card-flat {
+        background: var(--bg-surface);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-lg);
+      }
+      .card-quiet {
+        background: var(--bg-elevated);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-md);
+      }
+      .hairline { border-color: var(--hairline) !important; }
+
+      /* Vidro fosco — barra de navegação e modais */
+      .glass {
+        background: rgba(248, 248, 250, 0.78);
+        backdrop-filter: saturate(190%) blur(24px);
+        -webkit-backdrop-filter: saturate(190%) blur(24px);
+      }
+      .glass-dark {
+        background: rgba(22, 22, 24, 0.72);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+      }
+
+      /* ==========================================
+         CONTROLES
+         ========================================== */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        border-radius: 980px;
+        transition: background-color .18s ease, transform .12s ease, opacity .18s ease, box-shadow .18s ease;
+        white-space: nowrap;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .btn:active { transform: scale(0.97); }
+      .btn:focus-visible,
+      button:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.22);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover { background: #211A58; }
+      .btn-secondary {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--ink-1);
+      }
+      .btn-secondary:hover { background: rgba(0, 0, 0, 0.09); }
+      .btn-danger { background: var(--expired); color: var(--expired-on); }
+      .btn-danger:hover { background: #94262E; }
+      /* Cores lavadas: o aviso aparece sem pintar a tela inteira */
+      .btn-danger-quiet { background: var(--expired-soft); color: var(--expired-ink); }
+      .btn-danger-quiet:hover { background: rgba(125, 32, 39, 0.17); }
+      .btn-success-quiet { background: var(--fresh-soft); color: var(--fresh-ink); }
+      .btn-success-quiet:hover { background: rgba(46, 125, 81, 0.20); }
+      .btn-warn { background: var(--last); color: var(--last-on); }
+      .btn-warn:hover { background: #F6CE72; }
+      .btn-success { background: var(--fresh); color: var(--fresh-on); }
+      .btn-success:hover { background: #34543F; }
+      .btn-sm { height: 30px; padding: 0 12px; font-size: 12px; }
+      .btn-md { height: 36px; padding: 0 16px; font-size: 13px; }
+      .btn-lg { height: 44px; padding: 0 22px; font-size: 15px; }
+
+      /* Baixa rápida: só duas decisões. Toque tira uma unidade e a barra que
+         cresce ao segurar deixa claro que o lote inteiro será baixado. */
+      .item-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+      }
+      .item-action {
+        position: relative;
+        isolation: isolate;
+        min-width: 0;
+        height: 38px;
+        padding: 0 7px;
+        gap: 5px;
+        overflow: hidden;
+        border-radius: 12px;
+        font-size: 12.5px;
+        font-weight: 700;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+      .item-action::before {
+        content: '';
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        width: 0;
+        border-radius: inherit;
+        opacity: 0;
+      }
+      .item-action[data-holding="true"]::before {
+        opacity: 1;
+        animation: long-press-fill 600ms linear forwards;
+      }
+      /* Venda e perda são AÇÕES, e não estados.
+
+         O cartão já diz o estado na quina — fresco, último dia, vencido — e
+         embaixo dela vinham dois retângulos lavados, cada um do tamanho de
+         um quarto do cartão. O tom lavado da loja foi feito para o selo
+         pequeno: esticado nesse tamanho, o verde vira menta e o vinho vira
+         rosa, duas cores que não existem em nenhum outro lugar da tela e que
+         ainda brigavam com a cor da quina logo acima. Eram também os únicos
+         botões do app com borda colorida.
+
+         Agora os dois usam o cinza quieto dos outros botões e a cor fica só
+         no ícone, na tinta cheia da loja. A cor volta a ser área quando é
+         resposta ao dedo: o fundo lavado no hover e o enchimento do segurar.
+         Sobra uma área de cor no cartão, a quina, que é o que a loja lê de
+         longe. */
+      .item-action { background: rgba(0, 0, 0, 0.05); }
+      .item-action:hover { background: rgba(0, 0, 0, 0.09); }
+      .item-action-sale { color: var(--fresh-ink); }
+      .item-action-sale:hover { background: var(--fresh-soft); }
+      .item-action-sale::before { background: rgba(46, 125, 81, 0.28); }
+      .item-action-loss { color: var(--expired-ink); }
+      .item-action-loss:hover { background: var(--expired-soft); }
+      .item-action-loss::before { background: rgba(125, 32, 39, 0.22); }
+      @keyframes long-press-fill { from { width: 0; } to { width: 100%; } }
+
+      /* Segmented control (iOS) */
+      /* No celular o segmentado com muitos botões — os dias da semana, as
+         cinco listas do histórico — ficava mais largo que a tela e empurrava
+         a PÁGINA inteira junto: o cabeçalho e todos os cartões saíam
+         desalinhados por causa de uma tirinha de botões. Agora ele rola
+         dentro de si mesmo e a página não sente. */
+      .segmented {
+        display: inline-flex;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding: 2px;
+        gap: 2px;
+        background: rgba(120, 120, 128, 0.12);
+        border-radius: 10px;
+      }
+      .segmented::-webkit-scrollbar { display: none; }
+      .segmented > button {
+        flex: 0 0 auto;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        padding: 5px 12px;
+        color: var(--ink-3);
+        white-space: nowrap;
+        transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+      }
+      .segmented > button:hover { color: var(--ink-1); }
+      .segmented > button[data-active="true"] {
+        background: #fff;
+        color: var(--ink-1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+      }
+      .segmented-dark { background: rgba(120, 120, 128, 0.24); }
+      .segmented-dark > button { color: rgba(235, 235, 245, 0.6); }
+      .segmented-dark > button:hover { color: #fff; }
+      .segmented-dark > button[data-active="true"] {
+        background: rgba(99, 99, 102, 0.9);
+        color: #fff;
+        box-shadow: none;
+      }
+
+      /* Stepper (iOS): − valor + em um bloco cinza único. O sinal não é botão
+         colorido: quem manda na leitura é o número no meio. */
+      .stepper {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(120, 120, 128, 0.12);
+        border-radius: 980px;
+        padding: 2px;
+      }
+      .stepper > button {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 980px;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ink-1);
+        transition: background-color .16s ease, transform .12s ease;
+      }
+      .stepper > button:hover { background: rgba(255, 255, 255, 0.9); }
+      .stepper > button:active { transform: scale(0.92); }
+      .stepper-value {
+        min-width: 26px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--ink-1);
+      }
+
+      /* Campos de formulário */
+      .field {
+        width: 100%;
+        background: var(--bg-surface);
+        border: 1px solid rgba(60, 60, 67, 0.15);
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: var(--ink-1);
+        transition: border-color .16s ease, box-shadow .16s ease;
+      }
+      .field::placeholder { color: var(--ink-4); font-weight: 400; }
+      .field:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.16);
+      }
+      .field-sm { height: 32px; padding: 0 10px; }
+      .field-md { height: 38px; padding: 0 12px; }
+      /* Padding próprio: evita conflito com utilitários pl-/pr- do Tailwind */
+      .field-search { padding-left: 34px; padding-right: 12px; }
+      /* Largura pelo conteúdo, mas nunca além do que a tela tem: os filtros
+         de responsável e de motivo do relatório de perdas cresciam com a
+         opção mais longa e esticavam a página inteira no celular */
+      .field-auto { width: auto; max-width: 100%; }
+
+      /* Campo de número: as setinhas do navegador só atrapalham no tamanho
+         pequeno que a vitrine usa */
+      .no-spin::-webkit-outer-spin-button,
+      .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .no-spin { -moz-appearance: textfield; }
+
+      /* Toda caixa de seleção usa a seta do site, e não a do sistema */
+      select.field,
+      .field-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 11px 11px;
+        padding-right: 30px;
+      }
+      select.field { cursor: pointer; }
+      select.field::-ms-expand { display: none; }
+      select.field:focus,
+      .field-select:focus {
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230071e3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      }
+      .field option {
+        font-family: inherit;
+        font-weight: 500;
+        color: var(--ink-1);
+        background: var(--bg-surface);
+      }
+
+      /* Cadastro/compra: fluxo guiado no estilo de uma folha do sistema.
+         A hierarquia vem de espaço, superfícies e estado — não de bordas
+         pesadas. As etapas também funcionam como navegação dentro do form. */
+      .cadastro-shell {
+        overflow: visible;
+        border-radius: 24px;
+        border: 1px solid rgba(60, 60, 67, 0.11);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.025), 0 14px 40px rgba(14, 9, 55, 0.055);
+      }
+      .cadastro-hero {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .cadastro-hero-principal {
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        min-width: 0;
+      }
+      .cadastro-hero-icone {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: linear-gradient(145deg, #26204f, #0e0937);
+        box-shadow: 0 7px 18px rgba(14, 9, 55, 0.19);
+      }
+      .cadastro-hero h3 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.2;
+        font-weight: 800;
+        letter-spacing: -0.028em;
+        color: var(--ink-1);
+      }
+      .cadastro-hero p {
+        max-width: 640px;
+        margin: 4px 0 0;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .cadastro-atalho-calculo {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        color: var(--ink-3);
+        background: rgba(118, 118, 128, 0.075);
+        font-size: 10px;
+        font-weight: 650;
+      }
+      .cadastro-navegacao {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin: 20px 0 14px;
+        padding: 5px;
+        border-radius: 16px;
+        background: rgba(118, 118, 128, 0.075);
+      }
+      .cadastro-etapa {
+        min-width: 0;
+        min-height: 44px;
+        padding: 6px 10px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        text-align: left;
+        color: var(--ink-3);
+        transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .cadastro-etapa:hover { color: var(--ink-1); background: rgba(255, 255, 255, 0.58); }
+      .cadastro-etapa:active { transform: scale(.985); }
+      .cadastro-etapa[data-state="current"] {
+        color: var(--ink-1);
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 14px rgba(14, 9, 55, .06);
+      }
+      .cadastro-etapa[data-state="complete"] { color: var(--accent); }
+      .cadastro-etapa-numero {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: var(--ink-3);
+        background: rgba(118, 118, 128, 0.12);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .cadastro-etapa[data-state="current"] .cadastro-etapa-numero {
+        color: #fff;
+        background: var(--accent);
+      }
+      .cadastro-etapa[data-state="complete"] .cadastro-etapa-numero {
+        color: #fff;
+        background: var(--fresh);
+      }
+      .cadastro-etapa-texto { min-width: 0; }
+      .cadastro-etapa-texto strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11.5px;
+        font-weight: 750;
+        line-height: 1.15;
+      }
+      .cadastro-etapa-texto small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: 2px;
+        color: var(--ink-4);
+        font-size: 9px;
+        font-weight: 550;
+      }
+      .cadastro-form .field {
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        letter-spacing: -0.01em;
+        background-color: rgba(255, 255, 255, 0.94);
+        border-color: rgba(60, 60, 67, 0.12);
+        border-radius: 12px;
+        transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+      }
+      .cadastro-form .field::placeholder {
+        font-family: inherit;
+        letter-spacing: -0.01em;
+      }
+      .cadastro-form .field:hover:not(:disabled) {
+        border-color: rgba(14, 9, 55, 0.28);
+      }
+      .cadastro-form .field:focus {
+        background-color: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.12);
+      }
+      .cadastro-form label {
+        display: flex;
+        min-height: 18px;
+        align-items: center;
+        line-height: 1.2;
+        margin-bottom: 6px;
+      }
+      .cadastro-form .field-md { height: 46px; }
+      .cadastro-campo-config,
+      .cadastro-campo-data,
+      .cadastro-campo-numero,
+      .cadastro-campo-valor,
+      .cadastro-campo-unidade {
+        width: 100%;
+        justify-self: start;
+      }
+      .cadastro-campo-config { max-width: 210px; }
+      .cadastro-campo-data { max-width: 180px; }
+      .cadastro-campo-numero { max-width: 170px; }
+      .cadastro-campo-valor { max-width: 190px; }
+      .cadastro-campo-unidade { max-width: 110px; }
+      .cadastro-config-botao,
+      .cadastro-config-valor {
+        width: 100%;
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 12px;
+        border: 1px solid rgba(60, 60, 67, 0.1);
+        border-radius: 12px;
+        background: rgba(118, 118, 128, 0.07);
+        color: var(--ink-1);
+        text-align: left;
+      }
+      .cadastro-config-botao {
+        cursor: pointer;
+        transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .16s ease;
+      }
+      .cadastro-config-botao:hover {
+        border-color: rgba(0, 113, 227, 0.28);
+        background: rgba(0, 113, 227, 0.065);
+      }
+      .cadastro-config-botao:focus-visible {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.12);
+      }
+      .cadastro-config-botao:active { transform: scale(.985); }
+      .cadastro-config-botao span,
+      .cadastro-config-valor span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .cadastro-config-botao small,
+      .cadastro-config-valor small {
+        flex: 0 0 auto;
+        color: var(--accent);
+        font-size: 9.5px;
+        font-weight: 750;
+      }
+      .cadastro-config-valor small { color: var(--ink-4); }
+      .cadastro-lista-cadastros {
+        /* A tabela é grande e fica abaixo do formulário. O navegador pode
+           adiar layout e pintura enquanto ela estiver fora da tela. */
+        content-visibility: auto;
+        contain-intrinsic-size: auto 760px;
+      }
+      .cadastro-opcoes {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 18px;
+      }
+      .cadastro-opcoes-titulo {
+        margin-right: 2px;
+        color: var(--ink-4);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+      }
+      .cadastro-duas-colunas {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+        align-items: stretch;
+        gap: 12px;
+      }
+      .cadastro-bloco {
+        min-width: 0;
+        padding: 19px;
+        border: 1px solid rgba(60, 60, 67, 0.095);
+        border-radius: 19px;
+        background: rgba(247, 247, 249, 0.82);
+        scroll-margin-top: 88px;
+      }
+      .cadastro-bloco-cabecalho {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        margin-bottom: 17px;
+      }
+      .cadastro-bloco-passo {
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: var(--accent);
+        font-size: 11px;
+        font-weight: 800;
+        box-shadow: 0 4px 10px rgba(14, 9, 55, .14);
+      }
+      .cadastro-bloco-titulo { min-width: 0; }
+      .cadastro-bloco-titulo > span {
+        display: block;
+        margin-top: 1px;
+      }
+      .cadastro-bloco-cabecalho strong {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.018em;
+        color: var(--ink-1);
+      }
+      .cadastro-bloco-cabecalho span {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+      .cadastro-grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        column-gap: 12px;
+        row-gap: 15px;
+        align-items: end;
+      }
+      .cadastro-preco-calculado {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        margin-top: 14px;
+        padding: 9px 11px;
+        border: 1px solid rgba(60, 60, 67, 0.09);
+        border-radius: 13px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+      .cadastro-preco-calculado span {
+        display: block;
+        color: var(--ink-4);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .cadastro-preco-detalhe {
+        display: block;
+        margin-top: 2px;
+        color: var(--ink-4);
+        font-size: 10px;
+        font-weight: 500;
+      }
+      .cadastro-preco-calculado b {
+        flex-shrink: 0;
+        font-size: 15px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .cadastro-equivalencia {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--hairline);
+      }
+      .cadastro-rodape {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+        gap: 14px;
+        align-items: stretch;
+        position: sticky;
+        bottom: 10px;
+        z-index: 18;
+        margin-top: 14px;
+        padding: 10px;
+        border: 1px solid rgba(60, 60, 67, 0.12);
+        border-radius: 18px;
+        background: rgba(250, 250, 252, 0.9);
+        box-shadow: 0 10px 34px rgba(14, 9, 55, 0.12), 0 1px 2px rgba(0, 0, 0, .04);
+        backdrop-filter: saturate(180%) blur(18px);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
+        scroll-margin-top: 88px;
+      }
+      .cadastro-rodape .cadastro-contexto {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+      }
+      .cadastro-status {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--last);
+        box-shadow: 0 0 0 4px rgba(181, 122, 0, .1);
+      }
+      .cadastro-status[data-ready="true"] {
+        background: var(--fresh);
+        box-shadow: 0 0 0 4px rgba(47, 93, 69, .1);
+      }
+      .cadastro-contexto-texto { min-width: 0; }
+      .cadastro-contexto-texto strong {
+        display: block;
+        margin-bottom: 1px;
+        color: var(--ink-1);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .cadastro-contexto-texto span {
+        display: block;
+        color: var(--ink-3);
+        line-height: 1.35;
+      }
+      @media (max-width: 899px) {
+        .cadastro-duas-colunas { grid-template-columns: 1fr; }
+        .cadastro-rodape { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 639px) {
+        .cadastro-shell { border-radius: 20px; }
+        .cadastro-hero { align-items: stretch; }
+        .cadastro-hero-principal { gap: 10px; }
+        .cadastro-hero-icone { width: 38px; height: 38px; border-radius: 12px; }
+        .cadastro-hero-acao { width: 100%; }
+        .cadastro-navegacao { gap: 4px; margin-top: 16px; }
+        .cadastro-etapa { justify-content: center; padding: 6px; }
+        .cadastro-etapa-texto small { display: none; }
+        .cadastro-bloco { padding: 16px 14px; border-radius: 17px; }
+        .cadastro-grid { row-gap: 14px; }
+        .cadastro-form .field { font-size: 16px; }
+        .cadastro-form .field-md { height: 46px; }
+        .cadastro-campo-config { max-width: 190px; }
+        .cadastro-campo-data { max-width: 170px; }
+        .cadastro-campo-numero { max-width: 155px; }
+        .cadastro-campo-valor { max-width: 180px; }
+        .cadastro-opcoes { margin-bottom: 15px; }
+        .cadastro-rodape { bottom: 6px; border-radius: 16px; }
+      }
+
+      /* ==========================================
+         LISTA DE ESCOLHA (PickerField)
+         Substitui o menu que o navegador desenha sozinho
+         ========================================== */
+      .picker-panel {
+        position: fixed;
+        z-index: 140;
+        padding: 6px;
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(60, 60, 67, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 18px 50px rgba(14, 9, 55, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        backdrop-filter: saturate(180%) blur(18px);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
+      }
+      .picker-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        min-height: 38px;
+        text-align: left;
+        padding: 8px 11px;
+        border-radius: 11px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--ink-1);
+        transition: background-color .12s ease, color .12s ease, transform .1s ease;
+      }
+      .picker-option:hover { background: rgba(14, 9, 55, 0.055); }
+      .picker-option:active { transform: scale(0.99); }
+      .picker-option[data-active="true"] { background: var(--accent); color: #fff; }
+      .picker-disabled {
+        background-color: rgba(118, 118, 128, 0.055) !important;
+        color: var(--ink-4) !important;
+        cursor: not-allowed !important;
+        opacity: .88;
+      }
+      .picker-option[data-muted="true"] { color: var(--ink-3); font-weight: 500; }
+      .picker-option[data-active="true"][data-muted="true"] { color: #fff; }
+      .picker-hint {
+        flex-shrink: 0;
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-4);
+      }
+      .picker-option[data-active="true"] .picker-hint { color: rgba(255, 255, 255, 0.85); }
+      .picker-empty {
+        padding: 9px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--ink-4);
+      }
+
+      /* ==========================================
+         NOME DO ITEM NAS LISTAS
+         No cartão da vitrine quem tem cor é a quina dobrada, e mais nada.
+         Já nas listas — a de exceções do painel do agora — não existe quina
+         para olhar, e aí o nome do produto empresta a cor do estado dele:
+         âmbar no último dia, vinho no vencido, tinta normal no resto. Sem
+         fundo pintado: é a mesma cor da quina, só que na letra.
+         ========================================== */
+      .mark {
+        background: transparent;
+        color: inherit;
+        border-radius: 7px;
+        padding: 0;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+      .mark-warning { color: var(--last-ink); }
+      .mark-expired { color: var(--expired-ink); }
+
+      /* ==========================================
+         CARTÃO DO PRODUTO NA VITRINE
+         O cartãozinho de papel do balcão, na tela: a data do lote em cima,
+         o nome do produto no meio, quanto sobrou do lote e, embaixo, os
+         dois botões de baixa — tudo centralizado, como no papel.
+         A etiqueta é a quina dobrada do cartão: um triângulo colorido no
+         canto de cima, com os dias de vitrine escritos dentro. Verde está
+         fresco, amarelo é o último dia e vinho precisa sair agora.
+         Fora dela, nada no cartão tem cor: nome, data e número são todos
+         em tinta preta, e é isso que faz a quina saltar. O amarelo e o
+         verde são propositalmente opostos — um bem claro e um bem escuro —
+         para não virarem a mesma cor de longe.
+         ========================================== */
+      .item-card {
+        position: relative;
+        /* A quina dobrada é cortada pelo próprio canto do cartão */
+        overflow: hidden;
+        margin-top: 8px;
+        padding: 9px;
+        border: 1px solid var(--hairline);
+        border-radius: 14px;
+        background: var(--bg-surface);
+        text-align: center;
+      }
+      /* A data do lote: a primeira linha do papel, como na vitrine */
+      .item-card-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        max-width: 100%;
+        font-size: 11px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-3);
+      }
+      .item-card-name {
+        margin-top: 4px;
+        font-size: 16px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: -0.018em;
+        color: var(--ink-1);
+        overflow-wrap: anywhere;
+      }
+      .item-card-qty { margin-top: 3px; }
+
+      /* A quina dobrada: o triângulo de cor no canto de cima, com os dias
+         de vitrine escritos dentro dele. O número não fica encostado na
+         ponta: ele senta no meio do triângulo — o ponto onde há cor dos dois
+         lados — para parecer escrito na quina, e não colado nela. */
+      .item-tag {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 1;
+        display: block;
+        width: 46px;
+        height: 46px;
+        padding: 9px 10px 0 0;
+        clip-path: polygon(100% 0, 0 0, 100% 100%);
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      .item-tag[data-tag="verde"] { background: var(--fresh); color: var(--cream); }
+      .item-tag[data-tag="amarela"] { background: var(--last); color: var(--last-on); }
+      .item-tag[data-tag="vermelha"] { background: var(--expired); color: var(--cream); }
+
+      /* Selos de status */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 980px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.005em;
+        padding: 2px 9px;
+        white-space: nowrap;
+      }
+
+      /* ==========================================
+         AS CLASSES DE ESTADO
+         A tela pede o estado, e não a cor: tone- pinta o selo inteiro, ink-
+         pinta só o texto ou o ícone e dot- pinta a bolinha. Trocar o vinho da
+         loja um dia é mexer no token lá em cima, e não caçar hexadecimal por
+         nove mil linhas.
+         ========================================== */
+      .tone-fresh   { background: var(--fresh-soft);   color: var(--fresh-ink); }
+      .tone-last    { background: var(--last-soft);    color: var(--last-ink); }
+      .tone-expired { background: var(--expired-soft); color: var(--expired-ink); }
+      .tone-quiet   { background: rgba(0, 0, 0, 0.05); color: var(--ink-3); }
+
+      .ink-fresh   { color: var(--fresh-ink); }
+      .ink-last    { color: var(--last-ink); }
+      .ink-expired { color: var(--expired-ink); }
+      .ink-quiet   { color: var(--ink-3); }
+
+      .dot-fresh   { background: var(--fresh); }
+      .dot-last    { background: var(--last); }
+      .dot-expired { background: var(--expired); }
+      .dot-quiet   { background: var(--quiet); }
+
+      /* ==========================================
+         O SELO DA FREQUÊNCIA — O FIXO E O QUE VARIA
+
+         O padrão tem duas naturezas de item e elas nunca se pareceram na
+         tela: o FIXO, que entra todo dia e é a espinha da semana, e o que
+         VARIA, que entra só em alguns dias e acompanha o movimento. Isso
+         estava escrito em cinza pequeno ("Todo dia", "3 dias"), então quem
+         olhava a grade tinha que parar e ler linha por linha.
+
+         A cor aqui não é de estado: verde, amarelo e vinho continuam falando
+         só de fresco, último dia e perda. A frequência anda na cor da casa —
+         o roxo do --accent — em duas intensidades: cheia no fixo, lavada no
+         que varia. É a mesma família, então o selo não briga com a paleta de
+         estado, e o contraste entre o cheio e o lavado continua de pé em
+         preto e branco.
+         ========================================== */
+      .freq {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 100%;
+        border-radius: 980px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: -0.005em;
+        white-space: nowrap;
+      }
+      .freq[data-fixo="fixo"]  { background: var(--accent); color: #fff; }
+      .freq[data-fixo="varia"] { background: var(--accent-soft); color: var(--accent); }
+      /* Item que não entra em dia nenhum não é nem um nem outro: fica fora
+         da cor, senão a ausência pareceria uma das duas naturezas */
+      .freq[data-fixo="fora"]  { background: rgba(0, 0, 0, 0.05); color: var(--ink-4); }
+      .freq-nome { overflow: hidden; text-overflow: ellipsis; }
+
+      /* A semana em sete traços, na ordem de segunda a domingo: o traço aceso
+         é o dia em que o item entra. O fixo sai com a barra inteira acesa; o
+         que varia sai com o desenho dos dias dele, e dois itens de dias
+         diferentes ficam diferentes à distância, sem precisar ler. */
+      .freq-semana { display: inline-flex; gap: 2px; flex-shrink: 0; }
+      .freq-dia {
+        width: 3px;
+        height: 10px;
+        border-radius: 1.5px;
+        background: currentColor;
+        opacity: 0.26;
+      }
+      .freq-dia[data-on="true"] { opacity: 1; }
+
+      /* Na tabela da semana o fio da esquerda repete a natureza do item, para
+         a linha inteira já chegar classificada ao olho */
+      .week-table td[data-natureza="fixo"]  { box-shadow: inset 3px 0 0 var(--accent); }
+      /* O lavado do selo é claro demais para virar fio de 3px: o fio do que
+         varia sai do mesmo roxo, um pouco mais firme, para as duas naturezas
+         terem fio e a linha sem fio não parecer um item sem classificação */
+      .week-table td[data-natureza="varia"] { box-shadow: inset 3px 0 0 rgba(14, 9, 55, 0.20); }
+
+      /* O contador de avisos da barra de navegação: cor cheia, creme por cima */
+      .badge-expired { background: var(--expired); color: var(--expired-on); }
+      /* Um bloco inteiro em fundo lavado — a folha que pergunta o motivo da perda */
+      .surface-expired { background: var(--expired-soft); }
+      /* A faixa de erro do sistema. O erro usa o mesmo vinho do vencido: a
+         tela inteira tem um vermelho só, e ele quer dizer "algo deu errado" */
+      .banner-error {
+        background: var(--expired-soft);
+        border-bottom: 1px solid var(--expired-line);
+        color: var(--expired-ink);
+      }
+      /* Botão de excluir: cinza parado, vinho quando a mão chega perto */
+      .icon-danger {
+        color: var(--ink-4);
+        transition: background-color .16s ease, color .16s ease;
+      }
+      .icon-danger:hover { background: var(--expired-soft); color: var(--expired-ink); }
+      /* Dentro da faixa de erro o X já nasce na cor da faixa */
+      .banner-error .icon-danger { color: inherit; }
+      .banner-error .icon-danger:hover { background: rgba(125, 32, 39, 0.14); }
+
+      /* ==========================================
+         MEDIDOR DE OCUPAÇÃO DA VITRINE
+         O quanto do móvel está tomado, do lado do nome dele: uma tirinha
+         curta que enche da esquerda para a direita com os produtos que estão
+         nos espaços. O móvel cheio não fica no fim da tirinha, e sim em um
+         risquinho antes dele: assim a tinta tem para onde passar. Móvel no
+         ponto para na marca; móvel com mais produto do que espaço atravessa
+         a marca e entra na sobra, em âmbar. É o que a porcentagem sozinha
+         não mostra — 100% e 112% desenhavam a mesma tirinha cheia.
+         ========================================== */
+      .meter { display: inline-flex; align-items: center; gap: 5px; }
+      .meter-track {
+        position: relative;
+        width: 80px;
+        height: 7px;
+        border-radius: 980px;
+        /* A sobra, depois da marca, fica mais clara que o caminho até ela */
+        background: rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+      }
+      /* O caminho até o padrão do dia */
+      .meter-room {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.09);
+      }
+      .meter-fill,
+      .meter-over {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        transition: width .3s ease;
+      }
+      .meter-fill {
+        left: 0;
+        border-radius: 980px;
+        background: rgba(14, 9, 55, 0.45);
+      }
+      /* Móvel no ponto do padrão fica com a tinta cheia */
+      .meter-fill[data-full="true"] { background: var(--accent); }
+      /* O que passou do padrão, encostado na marca e correndo para a direita */
+      .meter-over {
+        border-radius: 0 980px 980px 0;
+        background: var(--last);
+      }
+      /* O risquinho do padrão do dia, por cima da tinta */
+      .meter-mark {
+        position: absolute;
+        top: -1px;
+        bottom: -1px;
+        width: 1.5px;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+      }
+      .meter-value {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-3);
+        font-variant-numeric: tabular-nums;
+      }
+      .meter-value[data-over="true"] { color: var(--last-ink); }
+
+      /* ==========================================
+         TABELA DA SEMANA
+         Uma tabela para ler de relance: linha inteira acende ao passar, a
+         coluna do dia aberto fica de fundo azul lavado e a célula só ganha
+         moldura quando a mão chega nela. Nada de fundo pintado por
+         quantidade — a régua é o número, não a cor.
+         ========================================== */
+      .week-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .week-table tbody tr { transition: background-color .14s ease; }
+      .week-table tbody tr:hover { background: rgba(0, 0, 0, 0.022); }
+      /* A coluna sticky do produto acompanha o realce da linha */
+      .week-table tbody tr:hover > td[data-sticky="true"] { background: #fafafa !important; }
+      .week-table td[data-hoje="true"], .week-table th[data-hoje="true"] {
+        background: rgba(14, 9, 55, 0.045);
+      }
+
+      /* Célula de quantidade: campo invisível até você chegar perto */
+      .qty-cell {
+        width: 100%;
+        min-width: 44px;
+        height: 32px;
+        text-align: center;
+        border-radius: 8px;
+        background: transparent;
+        border: 1px solid transparent;
+        transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
+      }
+      /* ==========================================
+         O MAPA DAS VITRINES
+
+         A tabela da semana responde "quanto", espaço por espaço não responde
+         "o quê": para saber o desenho da vitrine — o que ocupa o espaço 3 na
+         terça, e se é o mesmo da segunda — era preciso abrir dia por dia e
+         guardar de cabeça.
+
+         O mapa é a planilha que a loja já desenha na mão: uma linha por
+         espaço, uma coluna por dia, o nome do produto dentro. Dias seguidos
+         com o mesmo produto viram uma faixa só, então o espaço que não muda
+         sai como uma barra inteira e o que troca sai picotado — o desenho da
+         semana aparece antes de qualquer leitura.
+
+         As cores aqui são de IDENTIDADE, e não de estado: elas só separam um
+         produto do outro dentro da mesma linha, e por isso ficam longe do
+         verde, do amarelo e do vinho da loja, que continuam querendo dizer
+         fresco, último dia e perda. O primeiro tom é o índigo da casa, que é
+         o que o espaço fixo veste.
+         ========================================== */
+      :root {
+        --mapa-0-bg: rgba(14, 9, 55, 0.10);    --mapa-0-ink: #0E0937;
+        --mapa-1-bg: rgba(11, 107, 112, 0.16); --mapa-1-ink: #075256;
+        --mapa-2-bg: rgba(109, 59, 158, 0.15); --mapa-2-ink: #562C80;
+        --mapa-3-bg: rgba(63, 71, 86, 0.16);   --mapa-3-ink: #333A47;
+      }
+
+      .mapa {
+        display: grid;
+        grid-template-columns: 46px repeat(7, minmax(62px, 1fr));
+        gap: 2px;
+        align-items: stretch;
+        min-width: 600px;
+      }
+
+      .mapa-dia {
+        border-radius: 9px;
+        padding: 5px 4px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--ink-4);
+        text-align: center;
+        transition: background-color .14s ease, color .14s ease;
+      }
+      .mapa-dia:hover { color: var(--ink-1); background: rgba(0, 0, 0, 0.04); }
+      .mapa-dia[data-hoje="true"] { color: #fff; background: var(--accent); }
+
+      /* O número do espaço, com o fio da natureza da linha: índigo cheio no
+         espaço que não muda a semana inteira, apagado no que troca */
+      .mapa-espaco {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 5px;
+        padding-right: 7px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--ink-4);
+        font-variant-numeric: tabular-nums;
+      }
+      .mapa-espaco::before {
+        content: '';
+        width: 3px;
+        align-self: stretch;
+        margin: 3px 0;
+        border-radius: 2px;
+        background: transparent;
+      }
+      .mapa-espaco[data-natureza="fixo"]::before  { background: var(--accent); }
+      .mapa-espaco[data-natureza="varia"]::before { background: rgba(14, 9, 55, 0.20); }
+
+      /* Uma faixa é uma corrida de dias seguidos com o mesmo produto. Ela
+         atravessa as colunas desses dias, do jeito que a planilha da loja
+         junta as células */
+      .mapa-faixa {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 1px;
+        min-width: 0;
+        min-height: 32px;
+        padding: 4px 8px;
+        border-radius: 9px;
+        text-align: left;
+        transition: filter .14s ease;
+      }
+      .mapa-faixa:hover { filter: brightness(0.955); }
+      .mapa-faixa[data-tom="0"] { background: var(--mapa-0-bg); color: var(--mapa-0-ink); }
+      .mapa-faixa[data-tom="1"] { background: var(--mapa-1-bg); color: var(--mapa-1-ink); }
+      .mapa-faixa[data-tom="2"] { background: var(--mapa-2-bg); color: var(--mapa-2-ink); }
+      .mapa-faixa[data-tom="3"] { background: var(--mapa-3-bg); color: var(--mapa-3-ink); }
+      /* Espaço sem produto no dia não ganha cor: o vazio tem que parecer vazio */
+      .mapa-faixa[data-vazio="true"] {
+        background: transparent;
+        border: 1px dashed var(--hairline);
+        color: var(--quiet);
+        font-weight: 600;
+      }
+      .mapa-faixa[data-vazio="true"]:hover { filter: none; background: rgba(0, 0, 0, 0.02); }
+
+      .mapa-nome {
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mapa-qtd { font-size: 10px; font-weight: 700; line-height: 1.15; opacity: 0.6; }
+
+      /* O título da vitrine, atravessando a grade inteira */
+      .mapa-vitrine { grid-column: 1 / -1; padding: 11px 0 2px; }
+
+      .qty-cell:hover { background: rgba(0, 0, 0, 0.04); }
+      .qty-cell:focus {
+        outline: none;
+        background: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3.5px rgba(14, 9, 55, 0.16);
+      }
+
+      /* ==========================================
+         PLANILHA DO PEDIDO
+         Linhas e colunas de verdade: fio de grade em toda célula, número
+         alinhado à direita, cabeçalho preso no alto, total preso embaixo e as
+         duas primeiras colunas presas na esquerda, para o nome do produto não
+         sumir quando a planilha corre de lado. Cor só onde é aviso.
+         ========================================== */
+      .sheet {
+        width: 100%;
+        min-width: 1080px;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12.5px;
+      }
+      .sheet th, .sheet td {
+        border-bottom: 1px solid var(--hairline);
+        border-right: 1px solid var(--hairline);
+        padding: 3px 8px;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .sheet th:last-child, .sheet td:last-child { border-right: 0; }
+      .sheet .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+      /* O fundo da linha mora numa variável: as células presas na esquerda
+         acompanham o realce sem precisar de regra própria */
+      .sheet tbody tr { --row-bg: var(--bg-surface); }
+      .sheet tbody tr[data-fora="true"] { --row-bg: #fafafa; color: var(--ink-4); }
+      .sheet tbody tr:hover { --row-bg: #f5f4f8; }
+      .sheet tbody td { background: var(--row-bg); }
+
+      .sheet thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: var(--bg-canvas);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-4);
+        padding-top: 7px;
+        padding-bottom: 7px;
+      }
+      .sheet tfoot td {
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        background: var(--bg-canvas);
+        font-weight: 800;
+        border-top: 1px solid rgba(0, 0, 0, 0.16);
+      }
+      .sheet th[data-sticky], .sheet td[data-sticky] { position: sticky; z-index: 2; }
+      .sheet thead th[data-sticky], .sheet tfoot td[data-sticky] { z-index: 4; }
+
+      /* No celular a planilha do pedido tem catorze colunas e cabem três. A
+         Produzir é a décima primeira — ou seja, a única coluna que se digita
+         ficava fora da tela, e nada dizia que ela existia. Agora ela fica
+         presa na direita, do mesmo jeito que o produto fica preso na
+         esquerda: rola-se o meio da planilha para conferir padrão, loja e
+         falta, e a célula que se digita continua embaixo do polegar. */
+      @media (max-width: 640px) {
+        .sheet th[data-fim="true"], .sheet td[data-fim="true"] {
+          position: sticky;
+          right: 0;
+          z-index: 3;
+          box-shadow: -9px 0 12px -9px rgba(0, 0, 0, 0.22);
+        }
+        .sheet thead th[data-fim="true"], .sheet tfoot td[data-fim="true"] { z-index: 5; }
+      }
+
+      /* A célula que se digita: limpa até a mão chegar nela */
+      .sheet-input {
+        width: 100%;
+        min-width: 54px;
+        height: 26px;
+        padding: 0 5px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease;
+      }
+      .sheet-input:hover { background: rgba(0, 0, 0, 0.05); }
+      .sheet-input:focus {
+        outline: none;
+        background: #fff;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(14, 9, 55, 0.16);
+      }
+
+      /* Caixinha de marcação da primeira coluna */
+      .sheet-check {
+        width: 17px;
+        height: 17px;
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.24);
+        background: #fff;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color .14s ease, border-color .14s ease;
+      }
+      .sheet-check:hover { border-color: var(--accent); }
+      .sheet-check[data-on="true"] { background: var(--accent); border-color: var(--accent); }
+
+      /* Divisor fino no padrão das listas do iOS */
+      /* ==========================================
+         A BEIRADA QUE AVISA QUE ROLA
+
+         No celular quase toda tabela larga é maior que a tela e rola por
+         dentro. Só que nada dizia isso: a planilha do pedido cortava
+         justamente a coluna Produzir, a única que se digita, e o móvel da
+         vitrine cortava o cartão da direita no meio. Quem olhava via uma
+         tela quebrada, não uma tela que continua.
+
+         A sombra na beirada resolve sem JavaScript: duas camadas brancas
+         presas ao conteúdo (`local`) tapam as sombras quando a rolagem está
+         na ponta, e duas sombras presas ao quadro (`scroll`) aparecem do
+         lado em que ainda há conteúdo. Chegou no fim, a sombra some — é a
+         mesma dica que o iOS dá nas listas que passam da tela.
+         ========================================== */
+      .rola-x {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        background:
+          linear-gradient(to right, var(--bg-surface) 40%, rgba(255, 255, 255, 0)) left center / 34px 100% no-repeat local,
+          linear-gradient(to left,  var(--bg-surface) 40%, rgba(255, 255, 255, 0)) right center / 34px 100% no-repeat local,
+          radial-gradient(farthest-side at 0 50%,   rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)) left center / 13px 100% no-repeat scroll,
+          radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)) right center / 13px 100% no-repeat scroll;
+      }
+      /* Dentro de um cartão de fundo lavado a camada que tapa tem que ser da
+         cor daquele fundo, senão sobra uma faixa branca na beirada */
+      .rola-x[data-fundo="elevado"] {
+        background-image:
+          linear-gradient(to right, var(--bg-elevated) 40%, rgba(249, 249, 251, 0)),
+          linear-gradient(to left,  var(--bg-elevated) 40%, rgba(249, 249, 251, 0)),
+          radial-gradient(farthest-side at 0 50%,   rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0)),
+          radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+      }
+
+      /* A tabela de registros — perdas, vendas, produção, histórico — é
+         `w-full`, então no celular ela não rolava: ela se espremia, e cada
+         linha virava três linhas de palavras picadas. Com uma largura mínima
+         ela volta a ser uma tabela e passa a rolar dentro do .rola-x, uma
+         linha por lançamento. */
+      .tabela-larga { min-width: 620px; }
+      /* Uma linha por lançamento. Sem isso o celular preferia espremer a
+         coluna e picar "Torta pedaço frango" em três linhas, o que embaralha
+         a leitura de cima para baixo: a tabela fica alta, torta e difícil de
+         varrer. Quebrando nada, ela cresce para o lado e rola — que é o que
+         a planilha do pedido já fazia. O que é bloco dentro da célula, como o
+         lote embaixo da data, continua na linha de baixo. */
+      .tabela-larga th, .tabela-larga td { white-space: nowrap; }
+
+      /* Compras/Fornecedores — densidade de planilha de verdade.
+         Linha baixa, fonte pequena e grade visível: leitura parecida com Excel. */
+      .compras-planilha-ui .rola-x {
+        border: 1px solid rgba(0,0,0,.14);
+        border-radius: 8px;
+        background: #fff;
+        overflow: auto;
+      }
+      .compras-planilha-ui .rola-x > table {
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fff;
+        font-size: 11px;
+        line-height: 1.15;
+      }
+      .compras-planilha-ui .rola-x > table th,
+      .compras-planilha-ui .rola-x > table td {
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+        border-right: 1px solid rgba(0,0,0,.10);
+        border-bottom: 1px solid rgba(0,0,0,.10);
+        vertical-align: middle;
+      }
+      .compras-planilha-ui .rola-x > table th:last-child,
+      .compras-planilha-ui .rola-x > table td:last-child { border-right: 0; }
+      .compras-planilha-ui .rola-x > table tbody tr:last-child > td { border-bottom: 0; }
+      .compras-planilha-ui .rola-x > table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 8;
+        background: #f0f0f2;
+        font-size: 10px !important;
+        line-height: 1.1 !important;
+        letter-spacing: .035em;
+        font-weight: 700;
+        white-space: nowrap;
+        box-shadow: inset 0 -1px rgba(0,0,0,.10);
+      }
+      .compras-planilha-ui .rola-x > table tbody td,
+      .compras-planilha-ui .rola-x > table tbody td .t-body,
+      .compras-planilha-ui .rola-x > table tbody td .t-callout,
+      .compras-planilha-ui .rola-x > table tbody td .t-micro {
+        font-size: 11px !important;
+        line-height: 1.15 !important;
+      }
+      .compras-planilha-ui .rola-x > table tbody td .t-nano {
+        font-size: 9px !important;
+        line-height: 1.1 !important;
+      }
+      .compras-planilha-ui .rola-x > table .pill {
+        min-height: 18px;
+        padding: 2px 5px;
+        font-size: 9px !important;
+        line-height: 1;
+        border-radius: 4px;
+      }
+      .compras-planilha-ui .rola-x > table input,
+      .compras-planilha-ui .rola-x > table select,
+      .compras-planilha-ui .rola-x > table .field {
+        min-height: 27px !important;
+        height: 27px !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+        font-size: 10.5px !important;
+        border-radius: 4px !important;
+      }
+      .compras-planilha-ui .rola-x > table tbody tr:hover > td {
+        background-color: rgba(14,9,55,.025);
+      }
+      .compras-planilha-ui .rola-x > table th.sticky,
+      .compras-planilha-ui .rola-x > table td.sticky {
+        box-shadow: 1px 0 rgba(0,0,0,.11);
+      }
+      .compras-planilha-ui .rola-x > table .tnum {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.01em;
+      }
+      @media (max-width: 640px) {
+        .compras-planilha-ui .rola-x {
+          border-radius: 6px;
+          margin-left: -6px;
+          margin-right: -6px;
+        }
+        .compras-planilha-ui .rola-x > table {
+          font-size: 10.5px;
+        }
+        .compras-planilha-ui .rola-x > table th,
+        .compras-planilha-ui .rola-x > table td {
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
+          padding-left: 6px !important;
+          padding-right: 6px !important;
+        }
+      }
+
+      /* Densidade Excel aplicada a TODAS as tabelas de Compras/Fornecedores.
+         Antes só .rola-x recebia a regra; a planilha principal usa overflow-auto
+         próprio e por isso não mudava visualmente. */
+      .compras-planilha-ui table {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      .compras-planilha-ui table th,
+      .compras-planilha-ui table td {
+        padding: 4px 6px !important;
+        height: 27px !important;
+        vertical-align: middle !important;
+        border-right: 1px solid rgba(0,0,0,.10) !important;
+        border-bottom: 1px solid rgba(0,0,0,.10) !important;
+      }
+      .compras-planilha-ui table th {
+        font-size: 9.5px !important;
+        line-height: 1.08 !important;
+        font-weight: 700 !important;
+        letter-spacing: .025em !important;
+        background: #f1f1f3 !important;
+        white-space: nowrap !important;
+      }
+      .compras-planilha-ui table td,
+      .compras-planilha-ui table td span,
+      .compras-planilha-ui table td strong,
+      .compras-planilha-ui table td div {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+      }
+      .compras-planilha-ui table td .t-nano {
+        font-size: 8.5px !important;
+        line-height: 1.05 !important;
+      }
+      .compras-planilha-ui table td .t-micro,
+      .compras-planilha-ui table td .t-caption {
+        font-size: 9px !important;
+        line-height: 1.08 !important;
+      }
+      .compras-planilha-ui table td .pill {
+        font-size: 8.5px !important;
+        min-height: 17px !important;
+        padding: 1px 5px !important;
+        border-radius: 3px !important;
+      }
+      .compras-planilha-ui table input,
+      .compras-planilha-ui table select,
+      .compras-planilha-ui table .field {
+        height: 25px !important;
+        min-height: 25px !important;
+        font-size: 10px !important;
+        line-height: 1 !important;
+        padding: 2px 5px !important;
+        border-radius: 3px !important;
+      }
+
+      /* A planilha principal tinha 1680px e colunas largas demais. */
+      .compras-planilha-ui table.excel-densa {
+        min-width: 1180px !important;
+      }
+      .compras-planilha-ui table.excel-densa th,
+      .compras-planilha-ui table.excel-densa td {
+        min-width: 82px !important;
+      }
+      .compras-planilha-ui table.excel-densa th:first-child,
+      .compras-planilha-ui table.excel-densa td:first-child {
+        min-width: 185px !important;
+        max-width: 220px !important;
+      }
+      .compras-planilha-ui table.excel-densa th button {
+        font-size: 9.5px !important;
+        line-height: 1 !important;
+      }
+
+      /* Remove o visual de "card dentro da célula" nas visões analíticas. */
+      .compras-planilha-ui table td .text-\[20px\],
+      .compras-planilha-ui table td .text-\[22px\],
+      .compras-planilha-ui table td .text-\[15px\],
+      .compras-planilha-ui table td .text-\[14px\],
+      .compras-planilha-ui table td .text-\[13px\],
+      .compras-planilha-ui table td .text-\[12px\] {
+        font-size: 10.5px !important;
+        line-height: 1.12 !important;
+      }
+      .compras-planilha-ui table td .mt-2 { margin-top: 2px !important; }
+      .compras-planilha-ui table td .mt-1 { margin-top: 1px !important; }
+      .compras-planilha-ui table td .space-y-2 > :not([hidden]) ~ :not([hidden]),
+      .compras-planilha-ui table td .space-y-2\.5 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 3px !important;
+      }
+
+      @media (max-width: 640px) {
+        .compras-planilha-ui table {
+          font-size: 10px !important;
+        }
+        .compras-planilha-ui table th,
+        .compras-planilha-ui table td {
+          padding: 3px 5px !important;
+          height: 25px !important;
+        }
+        .compras-planilha-ui table.excel-densa {
+          min-width: 1080px !important;
+        }
+      }
+
+      /* Fornecedores > Por item
+         Esta visão é de leitura e comparação, não de digitação. A grade Excel
+         usada nas outras tabelas criava linhas verticais/horizontais dentro de
+         cada produto e fazia Compra atual, Comparação e Histórico parecerem
+         registros separados. Aqui cada produto volta a ser um único bloco. */
+      .compras-planilha-ui table.fornecedores-por-item-table {
+        min-width: 1040px !important;
+        border-collapse: separate !important;
+        border-spacing: 0 8px !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table thead th {
+        height: auto !important;
+        padding: 7px 14px 9px !important;
+        border-right: 0 !important;
+        border-bottom: 1px solid rgba(0,0,0,.08) !important;
+        background: #fff !important;
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td {
+        height: auto !important;
+        padding: 13px 14px !important;
+        vertical-align: top !important;
+        border: 0 !important;
+        background: #f7f7f8 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td:first-child {
+        border-radius: 10px 0 0 10px !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td:last-child {
+        border-radius: 0 10px 10px 0 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:hover > td {
+        background: #f1f1f3 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table th.sticky,
+      .compras-planilha-ui table.fornecedores-por-item-table td.sticky {
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-nome {
+        font-size: 14px !important;
+        line-height: 1.28 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-atual {
+        font-size: 19px !important;
+        line-height: 1 !important;
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-bloco-secundario {
+        margin-top: 9px !important;
+        padding: 8px 9px;
+        border: 0 !important;
+        border-radius: 8px;
+        background: rgba(255,255,255,.72);
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-linha {
+        padding: 7px 9px !important;
+        border: 0 !important;
+        border-radius: 8px;
+        background: rgba(255,255,255,.72);
+      }
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-linha + .fornecedor-historico-linha {
+        margin-top: 6px !important;
+      }
+      @media (max-width: 640px) {
+        .compras-planilha-ui table.fornecedores-por-item-table {
+          min-width: 960px !important;
+        }
+        .compras-planilha-ui table.fornecedores-por-item-table tbody td {
+          padding: 10px 11px !important;
+        }
+      }
+
+      /* Planilha de cotações: grade real, como uma planilha, sem precisar
+         depender de espaço em branco para separar as colunas. */
+      .cotacao-planilha-grid {
+        display: grid;
+        align-items: stretch;
+      }
+      .cotacao-planilha-grid > div {
+        min-width: 0;
+        padding: 10px 8px;
+        border-right: 1px solid var(--hairline);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .cotacao-planilha-grid > div:last-child { border-right: 0; }
+      .cotacao-planilha-cabecalho {
+        background: rgba(0,0,0,0.035);
+        border-bottom: 1px solid var(--hairline);
+      }
+      .cotacao-planilha-linha {
+        border-bottom: 1px solid var(--hairline);
+      }
+      .cotacao-planilha-linha:last-child { border-bottom: 0; }
+      .cotacao-menor {
+        background: var(--fresh-soft);
+        color: var(--fresh-ink);
+      }
+      .cotacao-menor .valor-cotacao {
+        font-weight: 800 !important;
+        color: var(--fresh-ink);
+      }
+
+      /* A coluna que AGE fica presa na direita, como o nome do item já fica
+         preso na esquerda. Numa tabela de onze colunas dentro de um telefone
+         de 390 px, o botão da ficha técnica nascia setecentos pixels fora da
+         tela: quem não sabia que dava para arrastar de lado achava que ele
+         tinha sumido da aba. Agora ele está sempre à vista, e são os números
+         que passam por baixo. */
+      /* Na planilha cruzada a última coluna é o total, e ela também fica
+         presa: rolar até dezembro sem perder de vista quanto deu no ano. */
+      .tabela-larga th.col-acao, .tabela-larga td.col-acao {
+        position: sticky;
+        right: 0;
+        z-index: 11;
+        background: var(--bg-surface);
+        padding-left: 10px;
+      }
+      /* A sombrinha diz que há tabela por baixo, e não uma borda qualquer */
+      .tabela-larga th.col-acao::before, .tabela-larga td.col-acao::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -13px;
+        width: 13px;
+        pointer-events: none;
+        background: radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+      }
+
+      .divide-hairline > * + * { border-top: 1px solid var(--hairline); }
+
+      /* Lista de apoio: lista agrupada de verdade, com cabeçalhos presos e
+         linhas contínuas como nos painéis de Ajustes do iOS. */
+      .support-panel {
+        box-shadow: var(--shadow-card);
+      }
+      .support-add-panel {
+        background: rgba(118, 118, 128, 0.055);
+      }
+      .support-list {
+        background: var(--bg-surface);
+        overscroll-behavior: contain;
+      }
+      .support-section-header {
+        background: rgba(248, 248, 250, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      .support-row {
+        position: relative;
+        padding: 13px 16px 14px;
+        background: var(--bg-surface);
+        border-bottom: 1px solid var(--hairline);
+        transition: background-color .16s ease;
+      }
+      .support-row:last-child { border-bottom: 0; }
+      .support-row:hover { background: rgba(14, 9, 55, 0.035); }
+      .support-slot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        border-radius: 9px;
+        background: rgba(118, 118, 128, 0.10);
+        color: var(--ink-3);
+        font-size: 10.5px;
+        font-weight: 750;
+        font-variant-numeric: tabular-nums;
+      }
+      .support-qty {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        color: var(--ink-1);
+        white-space: nowrap;
+      }
+      .support-qty strong {
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 750;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+      }
+      .support-fields {
+        display: grid;
+        grid-template-columns: minmax(112px, 1fr) 62px 66px;
+        gap: 7px;
+        margin-top: 11px;
+        padding: 9px;
+        border-radius: 14px;
+        background: rgba(118, 118, 128, 0.065);
+      }
+      .support-fields .field {
+        background: rgba(255, 255, 255, 0.82);
+        border-color: transparent;
+      }
+      .support-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 32px;
+        gap: 7px;
+        margin-top: 9px;
+      }
+      /* ==========================================
+         LANÇAR ITEM PELO CELULAR
+         No computador o formulário de lançar item fica na lista de apoio, ao
+         lado da vitrine. No celular a lista cai embaixo de toda a vitrine, e
+         chegar nela é rolagem demais para a coisa que a loja mais faz. Então
+         no celular o lançamento vira um + preso no canto da tela e uma folha
+         que sobe de baixo, com alvo de dedo.
+
+         Os campos da folha têm 16px de propósito: com menos que isso o iPhone
+         dá zoom sozinho quando o dedo toca no campo e a tela sai do lugar.
+         ========================================== */
+      .fab-add {
+        position: fixed;
+        right: 16px;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        z-index: 45;
+        height: 54px;
+        padding: 0 22px 0 18px;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--accent);
+        box-shadow: 0 10px 30px rgba(14, 9, 55, 0.34), 0 2px 8px rgba(0, 0, 0, 0.16);
+      }
+      .fab-add:hover { background: #211A58; }
+      /* Só existe no celular, e some pela media query, e não pela classe
+         lg:hidden do Tailwind: o .btn desta folha de estilo vem depois do
+         utilitário e ganharia dele no display */
+      .fab-add { display: none; }
+      @media (max-width: 1023px) {
+        .fab-add { display: inline-flex; }
+      }
+
+      .bottom-sheet {
+        width: 100%;
+        max-height: 92vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: var(--bg-surface);
+        border-radius: 26px 26px 0 0;
+        padding-bottom: calc(18px + env(safe-area-inset-bottom));
+        box-shadow: 0 -14px 48px rgba(0, 0, 0, 0.22);
+        animation: bottom-sheet-up .22s ease-out;
+      }
+      @keyframes bottom-sheet-up {
+        from { transform: translateY(26px); opacity: 0.4; }
+        to { transform: none; opacity: 1; }
+      }
+      /* Puxador do topo: no celular ele avisa que a folha é uma folha */
+      .bottom-sheet-grab {
+        width: 38px;
+        height: 5px;
+        margin: 0 auto 12px;
+        border-radius: 980px;
+        background: rgba(60, 60, 67, 0.22);
+      }
+      @media (min-width: 640px) {
+        .bottom-sheet {
+          max-width: 440px;
+          border-radius: var(--radius-lg);
+          padding-bottom: 18px;
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+          animation: none;
+        }
+      }
+
+      .field-lg { height: 46px; padding: 0 14px; font-size: 16px; }
+
+      /* Quantidade no dedo: os sinais são alvo grande e o número no meio
+         continua sendo campo, para quem prefere digitar */
+      .qty-stepper { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; }
+      .qty-stepper > button {
+        height: 46px;
+        border-radius: 14px;
+        background: rgba(120, 120, 128, 0.12);
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ink-1);
+        transition: background-color .16s ease, transform .12s ease;
+        touch-action: manipulation;
+      }
+      .qty-stepper > button:hover { background: rgba(120, 120, 128, 0.2); }
+      .qty-stepper > button:active { transform: scale(0.95); }
+      .qty-stepper input { text-align: center; font-size: 17px; font-weight: 800; }
+      /* Atalho de quantidade e de data: um toque em vez do teclado */
+      .chip {
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 980px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-3);
+        background: rgba(120, 120, 128, 0.12);
+        transition: background-color .16s ease, color .16s ease;
+        touch-action: manipulation;
+      }
+      .chip:hover { color: var(--ink-1); }
+      .chip[data-active="true"] { background: var(--accent); color: #fff; }
+
+      .app-navbar {
+        box-shadow: 0 1px 0 rgba(255,255,255,0.72), 0 8px 30px rgba(0,0,0,0.025);
+      }
+      .showcase-card {
+        box-shadow: var(--shadow-card);
+      }
+
+      .scrollbar-none::-webkit-scrollbar { display: none; }
+      .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* Dica de atalho: só faz sentido em quem confere no computador, com
+         teclado. No celular da loja ela nem aparece. */
+      .so-teclado { display: none; }
+      @media (hover: hover) and (pointer: fine) {
+        .so-teclado { display: block; }
+      }
+      .tecla {
+        display: inline-block;
+        min-width: 18px;
+        padding: 0 4px;
+        border: 1px solid rgba(0, 0, 0, 0.16);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        background: #fff;
+        font-weight: 700;
+        line-height: 16px;
+        text-align: center;
+        color: #6e6e73;
+      }
+
+      /* ==========================================
+         PAINEL DO AGORA — VER, ENTENDER, AGIR
+         O topo da vitrine responde três perguntas, sempre na mesma ordem:
+         como está a vitrine, o que está pedindo atenção e o que fazer agora.
+         Cada resposta vem em camadas — o número que se lê de longe, a leitura
+         dele em uma linha e, só quando a pessoa pede, a lista item a item.
+         ========================================== */
+      .briefing-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--hairline);
+      }
+      @media (max-width: 767px) {
+        .briefing-grid { grid-template-columns: 1fr; }
+      }
+      .briefing-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 14px 16px 16px;
+        background: var(--bg-surface);
+      }
+      /* A pergunta vem antes da resposta, e miúda: quem manda na leitura é o
+         número embaixo dela */
+      .briefing-q {
+        font-size: 11px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--ink-4);
+      }
+      /* Nível 1 — o resultado, lido de longe. É o mesmo degrau `t-metric`
+         dos cartões de perda: número grande da tela é sempre este. */
+      .briefing-answer {
+        font-size: 30px;
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--ink-1);
+        font-variant-numeric: tabular-nums;
+      }
+      /* Quando a resposta é frase e não número, ela desce um degrau: frase em
+         corpo de número vira grito */
+      .briefing-answer-sm {
+        font-size: 18px;
+        line-height: 1.2;
+        letter-spacing: -0.022em;
+      }
+      .briefing-answer-unit {
+        margin-left: 4px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-4);
+      }
+      /* Nível 2 — o que aquele número quer dizer */
+      .briefing-read {
+        font-size: 12.5px;
+        line-height: 1.35;
+        font-weight: 600;
+        color: var(--ink-3);
+      }
+      .briefing-cell[data-tom="perigo"] .briefing-answer { color: var(--expired-ink); }
+      .briefing-cell[data-tom="calmo"] .briefing-answer { color: var(--fresh-ink); }
+      /* A ação fica sempre colada no pé da coluna: o dedo aprende o lugar */
+      .briefing-action { margin-top: auto; padding-top: 12px; }
+
+      /* Nível 3 — a investigação, atrás de um toque */
+      .briefing-more {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 16px;
+        border-top: 1px solid var(--hairline);
+        background: var(--bg-elevated);
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+        transition: background-color .16s ease;
+      }
+      .briefing-more:hover { background: rgba(0, 0, 0, 0.045); }
+      .briefing-chevron { transition: transform .18s ease; }
+      .briefing-more[aria-expanded="true"] .briefing-chevron { transform: rotate(90deg); }
+
+      /* ==========================================
+         LISTA DE EXCEÇÕES
+         O sistema não repete o que está normal: aqui entra só o que precisa
+         de alguma coisa, e a ação de resolver vem do lado do item.
+         ========================================== */
+      .exc-group {
+        padding: 9px 16px 4px;
+        border-top: 1px solid var(--hairline);
+        background: var(--bg-elevated);
+      }
+      .exc-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 16px;
+        border-top: 1px solid var(--hairline);
+        transition: background-color .14s ease;
+      }
+      .exc-row:hover { background: rgba(0, 0, 0, 0.015); }
+      .exc-name {
+        font-size: 13.5px;
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        color: var(--ink-1);
+        overflow-wrap: anywhere;
+      }
+      .exc-where {
+        margin-top: 1px;
+        font-size: 11.5px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-4);
+      }
+      /* Os mesmos dois botões de baixa da vitrine, na largura do lugar */
+      .exc-actions { width: 92px; flex-shrink: 0; }
+      .exc-actions .item-action { height: 32px; }
+
+      /* ==========================================
+         TENDÊNCIA (SPARKLINE)
+         Um número sozinho não diz se está melhorando ou piorando. O risquinho
+         mostra o caminho que ele fez até aqui, e o ponto marca hoje.
+         ========================================== */
+      /* A cor vem de quem está mostrando o desenho: quem lê perda quer o
+         risquinho na cor de perda */
+      .spark {
+        display: block;
+        width: 100%;
+        height: 36px;
+        overflow: visible;
+      }
+      .spark-line {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .spark-area { fill: currentColor; opacity: 0.10; stroke: none; }
+      .spark-dot { stroke: currentColor; stroke-width: 5.5; stroke-linecap: round; }
+
+      /* A cor da variação é o que ela significa, e não a direção da seta:
+         em perda, subir é ruim; em venda, subir é bom */
+      .delta-ruim { color: var(--expired-ink); }
+      .delta-bom { color: var(--fresh-ink); }
+      .delta-flat { color: var(--ink-3); }
+
+      /* ==========================================
+         DENSIDADE SOB DEMANDA
+         A mesma vitrine em dois tamanhos: confortável para o celular do
+         balcão e compacto para ver o móvel inteiro na tela do computador.
+         ========================================== */
+      .showcase-grid[data-density="compacto"] .item-card {
+        margin-top: 6px;
+        padding: 6px 7px;
+        border-radius: 12px;
+      }
+      .showcase-grid[data-density="compacto"] .item-card-name { margin-top: 2px; font-size: 14px; }
+      .showcase-grid[data-density="compacto"] .item-card-date { font-size: 10px; }
+      .showcase-grid[data-density="compacto"] .item-card-qty { margin-top: 2px; }
+      .showcase-grid[data-density="compacto"] .item-actions { gap: 5px; margin-top: 6px !important; }
+      .showcase-grid[data-density="compacto"] .item-action { height: 30px; }
+      /* A quina também encolhe, e o triângulo continua triângulo */
+      .showcase-grid[data-density="compacto"] .item-tag {
+        width: 38px;
+        height: 38px;
+        padding: 7px 8px 0 0;
+        font-size: 11px;
+      }
+
+      /* ==========================================
+         MOBILE — O APP INTEIRO
+         Uma camada responsiva comum para todas as abas. A ideia é que o
+         iPhone nunca precise "lutar" com a interface: página não vaza para
+         os lados, campos não dão zoom, alvos de toque são grandes e a
+         navegação principal fica em duas linhas previsíveis.
+         ========================================== */
+      @media (max-width: 1023px) {
+        html, body, #root {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        body { overscroll-behavior-x: none; }
+
+        .app-main {
+          width: 100%;
+          min-width: 0;
+          padding: 14px 12px calc(92px + env(safe-area-inset-bottom)) !important;
+        }
+        .app-main > * { min-width: 0; max-width: 100%; }
+
+        .app-navbar {
+          padding-top: env(safe-area-inset-top);
+          background: rgba(248, 248, 250, 0.94);
+          backdrop-filter: saturate(190%) blur(20px);
+          -webkit-backdrop-filter: saturate(190%) blur(20px);
+        }
+        .app-navbar-top {
+          min-height: 52px;
+          height: auto !important;
+          padding-top: 7px;
+          padding-bottom: 7px;
+          gap: 8px !important;
+        }
+        .app-navbar-mainrow {
+          min-width: 0;
+          width: 100%;
+          gap: 8px !important;
+        }
+        .app-brand { flex: 0 0 auto; }
+        .app-brand-mark { width: 34px !important; height: 34px !important; }
+        .nav-home-mobile {
+          width: 38px;
+          height: 38px !important;
+          padding: 0 !important;
+          flex: 0 0 38px;
+        }
+        .nav-unit-switch {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .nav-unit-switch > button {
+          min-width: 0;
+          flex: 1 1 0;
+          padding-left: 10px;
+          padding-right: 10px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .mobile-nav-shell {
+          border-top: 1px solid var(--hairline);
+          padding: 7px 10px 8px;
+          background: rgba(248, 248, 250, 0.88);
+        }
+        .mobile-nav-groups .segmented {
+          width: 100%;
+          display: flex;
+        }
+        .mobile-nav-groups .segmented > button {
+          flex: 1 1 0;
+          min-height: 36px;
+          padding: 6px 10px;
+        }
+
+        /* No celular as telas principais viram uma barra de app fixa embaixo.
+           Nada de procurar aba arrastando chips para o lado. */
+        .mobile-nav-tabs {
+          position: fixed;
+          left: 8px;
+          right: 8px;
+          bottom: calc(8px + env(safe-area-inset-bottom));
+          z-index: 90;
+          display: grid;
+          gap: 3px;
+          margin: 0;
+          padding: 6px;
+          overflow: visible;
+          border: 1px solid rgba(60, 60, 67, 0.13);
+          border-radius: 20px;
+          background: rgba(249, 249, 251, 0.94);
+          box-shadow: 0 12px 36px rgba(14, 9, 55, 0.16), 0 2px 8px rgba(0,0,0,.06);
+          backdrop-filter: saturate(190%) blur(20px);
+          -webkit-backdrop-filter: saturate(190%) blur(20px);
+        }
+        .mobile-nav-tab {
+          min-width: 0;
+          height: 54px;
+          padding: 5px 2px;
+          border-radius: 14px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          font-size: 10px;
+          line-height: 1.05;
+          font-weight: 700;
+          letter-spacing: -0.015em;
+          white-space: nowrap;
+          overflow: hidden;
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .mobile-nav-tab > span:not(.mobile-nav-badge) {
+          display: block;
+          width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-align: center;
+        }
+        .mobile-nav-tab svg {
+          width: 18px !important;
+          height: 18px !important;
+        }
+        .mobile-nav-badge {
+          position: absolute;
+          top: 4px;
+          right: 7px;
+        }
+
+        .card, .card-flat, .card-quiet, .cadastro-shell {
+          max-width: 100%;
+          min-width: 0;
+        }
+        .rola-x {
+          width: 100%;
+          max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabela-larga { max-width: none; }
+
+        .picker-panel {
+          max-width: calc(100vw - 20px) !important;
+        }
+
+        /* Filtros e botões segmentados não empurram mais a página. */
+        .segmented {
+          max-width: 100%;
+          min-width: 0;
+        }
+        .segmented > button {
+          min-height: 34px;
+          touch-action: manipulation;
+        }
+
+        .bottom-sheet {
+          max-height: min(94dvh, 94vh);
+          padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        }
+      }
+
+      @media (max-width: 639px) {
+        :root {
+          --radius-lg: 17px;
+          --radius-md: 14px;
+          --radius-sm: 11px;
+        }
+
+        .app-navbar > .max-w-7xl { padding-left: 10px !important; padding-right: 10px !important; }
+        .app-brand-copy { display: none; }
+        .mobile-nav-shell { padding-top: 6px; padding-bottom: 7px; }
+        .mobile-nav-groups { max-width: 280px; margin: 0 auto; }
+        .mobile-nav-groups .segmented > button { font-size: 12px; }
+        .mobile-nav-tabs { left: 6px; right: 6px; bottom: calc(6px + env(safe-area-inset-bottom)); }
+        .mobile-nav-tab { height: 52px; font-size: 9.5px; }
+        .fab-add { bottom: calc(78px + env(safe-area-inset-bottom)) !important; }
+        .fixed.inset-x-0.bottom-4 { bottom: calc(78px + env(safe-area-inset-bottom)) !important; }
+
+        .t-display { font-size: 27px; line-height: 1.08; }
+        .t-title { font-size: 20px; }
+        .t-headline { font-size: 16px; }
+        .t-body { font-size: 14px; line-height: 1.45; }
+        .t-callout { font-size: 13px; }
+        .t-metric-lg { font-size: 30px; }
+        .t-metric { font-size: 27px; }
+
+        .card {
+          border-radius: 17px;
+          box-shadow: 0 1px 2px rgba(0,0,0,.02), 0 6px 18px rgba(0,0,0,.035);
+        }
+
+        /* iOS amplia a página quando um campo focado tem menos de 16px. */
+        input.field,
+        select.field,
+        textarea.field,
+        .field input,
+        .field-select {
+          font-size: 16px !important;
+        }
+        .field-sm,
+        .field-md {
+          min-height: 44px;
+          height: 44px;
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+        textarea.field {
+          height: auto !important;
+          min-height: 110px;
+          padding: 12px !important;
+          line-height: 1.45;
+        }
+
+        /* Botão pequeno no desktop continua pequeno visualmente, mas no dedo
+           ganha uma área segura de toque. */
+        .btn-sm, .btn-md {
+          min-height: 40px;
+          height: 40px;
+          padding-left: 14px;
+          padding-right: 14px;
+          font-size: 13px;
+        }
+        .btn-lg { min-height: 46px; }
+
+        .item-action { min-height: 42px; height: 42px; }
+        .chip { min-height: 38px; height: 38px; }
+
+        /* Diálogos viram folhas de baixo no telefone. Evita cartão minúsculo
+           flutuando no meio e deixa o botão de fechar sempre alcançável. */
+        [role="dialog"].fixed {
+          align-items: flex-end !important;
+          justify-content: center !important;
+          padding: 0 !important;
+        }
+        [role="dialog"].fixed > div,
+        [role="dialog"].fixed > form {
+          width: 100% !important;
+          max-width: none !important;
+          max-height: 94dvh;
+          margin: 0 !important;
+          border-radius: 24px 24px 0 0 !important;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+
+        /* Tabelas ainda podem rolar quando o dado realmente é tabular, mas
+           ficam mais densas e dentro do viewport. */
+        .tabela-larga { min-width: 540px; }
+        .tabela-larga th, .tabela-larga td { font-size: 12px; }
+
+        .briefing-cell { padding: 13px 14px 14px; }
+        .briefing-answer { font-size: 27px; }
+
+        .fab-add {
+          right: 12px;
+          bottom: calc(14px + env(safe-area-inset-bottom));
+          height: 50px;
+          padding-left: 16px;
+          padding-right: 18px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+      }
+
+      @media (max-width: 640px) {
+        :root { --radius-lg: 18px; }
+        .support-row { padding-left: 14px; padding-right: 14px; }
+        .support-fields { grid-template-columns: minmax(105px, 1fr) 58px 62px; }
+        .item-action { height: 40px; font-size: 13px; }
+      }
+    
+      /* FORNECEDORES — visual planilha Excel v3 */
+      .compras-planilha-ui .rola-x,
+      .compras-planilha-ui .overflow-auto {
+        border: 1px solid #cfd2d6 !important;
+        border-radius: 4px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        scrollbar-gutter: stable;
+      }
+      .compras-planilha-ui table {
+        width: max-content;
+        min-width: 100%;
+        background: #fff !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        table-layout: auto;
+      }
+      .compras-planilha-ui table th,
+      .compras-planilha-ui table td {
+        height: 29px !important;
+        padding: 4px 7px !important;
+        border-right: 1px solid #d9dce0 !important;
+        border-bottom: 1px solid #d9dce0 !important;
+        white-space: nowrap !important;
+        vertical-align: middle !important;
+      }
+      .compras-planilha-ui table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 9;
+        background: #edf1ed !important;
+        color: #27332d !important;
+        font-size: 10.5px !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+        letter-spacing: .015em !important;
+        text-transform: none !important;
+        box-shadow: inset 0 -1px #bcc3be !important;
+      }
+      .compras-planilha-ui table tbody td,
+      .compras-planilha-ui table tbody td span,
+      .compras-planilha-ui table tbody td strong,
+      .compras-planilha-ui table tbody td div {
+        font-size: 11.5px !important;
+        line-height: 1.18 !important;
+      }
+      .compras-planilha-ui table tbody tr:nth-child(even) > td {
+        background: #fafbfa !important;
+      }
+      .compras-planilha-ui table tbody tr:hover > td {
+        background: #eef5f0 !important;
+      }
+      .compras-planilha-ui table tbody td:first-child {
+        font-weight: 600;
+        color: #202722;
+      }
+      .compras-planilha-ui table .text-right,
+      .compras-planilha-ui table td.text-right,
+      .compras-planilha-ui table .tnum {
+        font-variant-numeric: tabular-nums;
+      }
+      .compras-planilha-ui table .pill {
+        min-height: 18px !important;
+        padding: 2px 5px !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table input,
+      .compras-planilha-ui table select,
+      .compras-planilha-ui table .field {
+        height: 25px !important;
+        min-height: 25px !important;
+        border-radius: 2px !important;
+        border-color: #cfd2d6 !important;
+        background: #fff !important;
+        font-size: 11px !important;
+        padding: 2px 5px !important;
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table button {
+        box-shadow: none !important;
+      }
+      .compras-planilha-ui table.excel-densa {
+        min-width: 1080px !important;
+      }
+      .compras-planilha-ui table.excel-densa th,
+      .compras-planilha-ui table.excel-densa td {
+        min-width: 76px !important;
+      }
+      .compras-planilha-ui table.excel-densa th:first-child,
+      .compras-planilha-ui table.excel-densa td:first-child {
+        min-width: 170px !important;
+        max-width: 210px !important;
+      }
+      @media (max-width: 640px) {
+        .compras-planilha-ui .rola-x,
+        .compras-planilha-ui .overflow-auto {
+          margin-left: -10px;
+          margin-right: -10px;
+          border-left: 0 !important;
+          border-right: 0 !important;
+          border-radius: 0 !important;
+        }
+        .compras-planilha-ui table th,
+        .compras-planilha-ui table td {
+          height: 27px !important;
+          padding: 3px 6px !important;
+        }
+        .compras-planilha-ui table tbody td,
+        .compras-planilha-ui table tbody td span,
+        .compras-planilha-ui table tbody td strong,
+        .compras-planilha-ui table tbody td div {
+          font-size: 10.5px !important;
+        }
+        .compras-planilha-ui table thead th {
+          font-size: 9.5px !important;
+        }
+      }
+
+
+      /* Cadastros — extensão visual do Lark Base */
+      .lark-cadastros-ui {
+        --lark-border: rgba(31,35,41,.10);
+        --lark-border-strong: rgba(31,35,41,.15);
+        --lark-head: #f7f8fa;
+        --lark-hover: #f8f9fb;
+        --lark-blue-soft: #eef4ff;
+        --lark-blue: #3370ff;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs {
+        display:inline-flex;
+        gap:3px;
+        padding:3px;
+        border:1px solid var(--lark-border);
+        border-radius:9px;
+        background:#f5f6f7;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button {
+        min-height:32px;
+        padding:0 12px;
+        border:0;
+        border-radius:6px;
+        color:#646a73;
+        background:transparent;
+        font-size:12px;
+        font-weight:600;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button:hover {
+        color:#1f2329;
+        background:#fff;
+      }
+      .lark-cadastros-ui > .lark-cadastros-tabs button[data-active="true"] {
+        color:#245bdb;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.08);
+      }
+
+      .lark-cadastros-ui .cadastro-shell {
+        border:1px solid var(--lark-border-strong);
+        border-radius:12px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastros-ui .cadastro-hero-icone {
+        width:36px;
+        height:36px;
+        border-radius:8px;
+        color:#245bdb;
+        background:#eef4ff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-hero h3 {
+        font-size:17px;
+        font-weight:700;
+        letter-spacing:-.015em;
+      }
+      .lark-cadastros-ui .cadastro-atalho-calculo {
+        border-radius:5px;
+        color:#646a73;
+        background:#f5f6f7;
+      }
+      .lark-cadastros-ui .cadastro-navegacao {
+        gap:3px;
+        margin:16px 0 12px;
+        padding:3px;
+        border:1px solid var(--lark-border);
+        border-radius:9px;
+        background:#f7f8fa;
+      }
+      .lark-cadastros-ui .cadastro-etapa {
+        min-height:38px;
+        padding:5px 9px;
+        border-radius:6px;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] {
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.08);
+      }
+      .lark-cadastros-ui .cadastro-etapa-numero {
+        width:22px;
+        height:22px;
+        border-radius:5px;
+        font-size:10px;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] .cadastro-etapa-numero {
+        color:#245bdb;
+        background:#eef4ff;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="complete"] .cadastro-etapa-numero {
+        color:#2f5d45;
+        background:#edf7f0;
+      }
+
+      .lark-cadastros-ui .cadastro-bloco {
+        padding:16px;
+        border:1px solid var(--lark-border);
+        border-radius:10px;
+        background:#fbfbfc;
+      }
+      .lark-cadastros-ui .cadastro-bloco-passo {
+        width:24px;
+        height:24px;
+        border-radius:5px;
+        color:#245bdb;
+        background:#eef4ff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho {
+        margin-bottom:14px;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho strong {
+        font-size:14px;
+        font-weight:700;
+      }
+
+      .lark-cadastros-ui .cadastro-form .field,
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        border-radius:6px;
+        border-color:var(--lark-border);
+        background:#fff;
+        box-shadow:none;
+      }
+      .lark-cadastros-ui .cadastro-form .field:hover:not(:disabled),
+      .lark-cadastros-ui .cadastro-config-botao:hover {
+        border-color:rgba(31,35,41,.22);
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-form .field:focus,
+      .lark-cadastros-ui .cadastro-config-botao:focus-visible {
+        border-color:rgba(51,112,255,.55);
+        box-shadow:0 0 0 2px rgba(51,112,255,.10);
+      }
+      .lark-cadastros-ui .cadastro-form .field-md {
+        height:40px;
+      }
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        min-height:40px;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado {
+        border-radius:7px;
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-rodape {
+        bottom:8px;
+        border:1px solid var(--lark-border-strong);
+        border-radius:10px;
+        background:rgba(255,255,255,.94);
+        box-shadow:0 8px 24px rgba(31,35,41,.08);
+      }
+
+      .lark-cadastros-ui .lark-cadastros-list {
+        padding:0!important;
+        overflow:hidden;
+        border:1px solid var(--lark-border-strong);
+        border-radius:10px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        padding:10px 12px 8px;
+        border-bottom:1px solid var(--lark-border);
+        background:#fff;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        padding:7px 12px;
+        border-bottom:1px solid var(--lark-border);
+        background:#fafbfc;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .field {
+        border-radius:6px!important;
+        border-color:var(--lark-border)!important;
+        background:#f7f8fa!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table {
+        border-collapse:separate!important;
+        border-spacing:0!important;
+        font-size:12px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th,
+      .lark-cadastros-ui table.lark-cadastros-table td {
+        height:36px!important;
+        padding:6px 9px!important;
+        border-right:1px solid var(--lark-border)!important;
+        border-bottom:1px solid var(--lark-border)!important;
+        font-size:12px!important;
+        line-height:1.25!important;
+        background:#fff;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        position:sticky;
+        top:0;
+        z-index:8;
+        height:34px!important;
+        color:#646a73;
+        background:var(--lark-head)!important;
+        font-size:11px!important;
+        font-weight:600!important;
+        letter-spacing:0!important;
+        text-transform:none!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table tbody tr:hover > td {
+        background:var(--lark-hover)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th.sticky,
+      .lark-cadastros-ui table.lark-cadastros-table td.sticky {
+        background:#fff!important;
+        box-shadow:1px 0 0 var(--lark-border-strong);
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th.sticky {
+        background:var(--lark-head)!important;
+        z-index:12;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input,
+      .lark-cadastros-ui table.lark-cadastros-table select,
+      .lark-cadastros-ui table.lark-cadastros-table .field {
+        min-height:29px!important;
+        height:29px!important;
+        border-radius:5px!important;
+        border-color:transparent!important;
+        background:transparent!important;
+        font-size:12px!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input:hover,
+      .lark-cadastros-ui table.lark-cadastros-table select:hover,
+      .lark-cadastros-ui table.lark-cadastros-table .field:hover {
+        background:#f2f3f5!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input:focus,
+      .lark-cadastros-ui table.lark-cadastros-table select:focus,
+      .lark-cadastros-ui table.lark-cadastros-table .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table .btn {
+        min-height:28px;
+        border-radius:5px;
+        box-shadow:none;
+      }
+      @media (max-width:639px) {
+        .lark-cadastros-ui .cadastro-shell { border-radius:10px; }
+        .lark-cadastros-ui .cadastro-bloco { padding:13px; border-radius:8px; }
+        .lark-cadastros-ui .lark-cadastros-list { border-radius:8px; }
+      }
+
+
+      /* Cadastros v2 — estrutura realmente plana, sem card dentro de card */
+      .lark-cadastros-ui {
+        gap:14px!important;
+      }
+      .lark-cadastros-ui > div:first-child {
+        margin-bottom:2px;
+      }
+      .lark-cadastros-ui > div:first-child .t-display {
+        font-size:22px!important;
+        line-height:1.15!important;
+        letter-spacing:-.02em!important;
+      }
+      .lark-cadastros-ui > div:first-child .t-body {
+        margin-top:3px!important;
+        font-size:12px!important;
+        color:#646a73!important;
+      }
+
+      .lark-cadastros-ui .cadastro-shell {
+        padding:0!important;
+        border:0!important;
+        border-radius:0!important;
+        background:transparent!important;
+        box-shadow:none!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-hero {
+        align-items:center!important;
+        padding:10px 12px!important;
+        border:1px solid rgba(31,35,41,.10);
+        border-radius:8px;
+        background:#fff;
+      }
+      .lark-cadastros-ui .cadastro-hero-principal {
+        gap:8px!important;
+      }
+      .lark-cadastros-ui .cadastro-hero-icone {
+        display:none!important;
+      }
+      .lark-cadastros-ui .cadastro-hero h3 {
+        font-size:14px!important;
+        line-height:1.2!important;
+        font-weight:700!important;
+      }
+      .lark-cadastros-ui .cadastro-hero p {
+        margin-top:2px!important;
+        font-size:11px!important;
+        line-height:1.35!important;
+      }
+      .lark-cadastros-ui .cadastro-atalho-calculo {
+        margin-top:5px!important;
+        padding:2px 6px!important;
+        font-size:9.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-hero-acao {
+        min-height:30px!important;
+        height:30px!important;
+        padding:0 9px!important;
+        border-radius:5px!important;
+        font-size:11px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-navegacao {
+        display:flex!important;
+        align-items:center!important;
+        gap:0!important;
+        margin:8px 0 0!important;
+        padding:0 4px!important;
+        border:0!important;
+        border-bottom:1px solid rgba(31,35,41,.10)!important;
+        border-radius:0!important;
+        background:transparent!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa {
+        flex:0 0 auto!important;
+        min-height:30px!important;
+        padding:4px 8px!important;
+        border-radius:5px 5px 0 0!important;
+        gap:6px!important;
+        border-bottom:2px solid transparent!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="current"] {
+        background:transparent!important;
+        color:#245bdb!important;
+        border-bottom-color:#3370ff!important;
+        box-shadow:none!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa[data-state="complete"] {
+        color:#4e5969!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-numero {
+        width:18px!important;
+        height:18px!important;
+        border-radius:4px!important;
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-texto strong {
+        font-size:10.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-etapa-texto small {
+        display:none!important;
+      }
+
+      .lark-cadastros-ui .cadastro-form {
+        margin-top:0!important;
+      }
+      .lark-cadastros-ui .cadastro-duas-colunas {
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+        gap:0!important;
+        border:1px solid rgba(31,35,41,.10)!important;
+        border-top:0!important;
+        border-radius:0 0 8px 8px!important;
+        background:#fff!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco {
+        padding:13px 14px!important;
+        border:0!important;
+        border-radius:0!important;
+        background:#fff!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco + .cadastro-bloco {
+        border-left:1px solid rgba(31,35,41,.10)!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho {
+        gap:7px!important;
+        margin-bottom:10px!important;
+        padding-bottom:7px!important;
+        border-bottom:1px solid rgba(31,35,41,.08)!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-passo {
+        width:20px!important;
+        height:20px!important;
+        border-radius:4px!important;
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho strong {
+        font-size:12.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-bloco-cabecalho span {
+        font-size:9.5px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-grid {
+        column-gap:9px!important;
+        row-gap:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-form label {
+        min-height:14px!important;
+        margin-bottom:3px!important;
+        font-size:10px!important;
+        color:#646a73!important;
+      }
+      .lark-cadastros-ui .cadastro-form .field-md {
+        height:34px!important;
+        min-height:34px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao,
+      .lark-cadastros-ui .cadastro-config-valor {
+        min-height:34px!important;
+        height:34px!important;
+        padding:0 9px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao span,
+      .lark-cadastros-ui .cadastro-config-valor span {
+        font-size:11px!important;
+      }
+      .lark-cadastros-ui .cadastro-config-botao small,
+      .lark-cadastros-ui .cadastro-config-valor small {
+        font-size:9px!important;
+      }
+      .lark-cadastros-ui .cadastro-opcoes {
+        margin-bottom:9px!important;
+        gap:5px!important;
+      }
+      .lark-cadastros-ui .cadastro-opcoes .btn,
+      .lark-cadastros-ui .cadastro-grid .btn {
+        min-height:28px!important;
+        height:28px!important;
+        padding:0 8px!important;
+        border-radius:5px!important;
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado {
+        min-height:36px!important;
+        margin-top:8px!important;
+        padding:6px 8px!important;
+        border-radius:5px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado span {
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-preco-calculado b {
+        font-size:13px!important;
+      }
+      .lark-cadastros-ui .cadastro-equivalencia {
+        margin-top:10px!important;
+        padding-top:9px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-rodape {
+        position:static!important;
+        display:flex!important;
+        align-items:center!important;
+        justify-content:space-between!important;
+        gap:10px!important;
+        margin-top:8px!important;
+        padding:7px 8px!important;
+        border:1px solid rgba(31,35,41,.10)!important;
+        border-radius:7px!important;
+        background:#fff!important;
+        box-shadow:none!important;
+        backdrop-filter:none!important;
+      }
+      .lark-cadastros-ui .cadastro-rodape .cadastro-contexto {
+        min-height:30px!important;
+        padding:3px 5px!important;
+      }
+      .lark-cadastros-ui .cadastro-contexto-texto strong {
+        font-size:10px!important;
+      }
+      .lark-cadastros-ui .cadastro-contexto-texto span {
+        font-size:9.5px!important;
+      }
+      .lark-cadastros-ui .cadastro-rodape .btn {
+        width:auto!important;
+        min-width:180px!important;
+        min-height:32px!important;
+        height:32px!important;
+        border-radius:5px!important;
+        font-size:11px!important;
+      }
+
+      .lark-cadastros-ui .cadastro-lista-cadastros {
+        margin-top:10px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        padding:8px 9px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        padding:5px 9px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th,
+      .lark-cadastros-ui table.lark-cadastros-table td {
+        height:32px!important;
+        padding:4px 7px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        height:30px!important;
+        font-size:10.5px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table input,
+      .lark-cadastros-ui table.lark-cadastros-table select,
+      .lark-cadastros-ui table.lark-cadastros-table .field {
+        min-height:26px!important;
+        height:26px!important;
+        font-size:11px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table .btn {
+        min-height:26px!important;
+        height:26px!important;
+        padding:0 7px!important;
+        font-size:10px!important;
+      }
+
+      @media (max-width:899px) {
+        .lark-cadastros-ui .cadastro-duas-colunas {
+          grid-template-columns:1fr!important;
+        }
+        .lark-cadastros-ui .cadastro-bloco + .cadastro-bloco {
+          border-left:0!important;
+          border-top:1px solid rgba(31,35,41,.10)!important;
+        }
+        .lark-cadastros-ui .cadastro-rodape {
+          align-items:stretch!important;
+          flex-direction:column!important;
+        }
+        .lark-cadastros-ui .cadastro-rodape .btn {
+          width:100%!important;
+        }
+      }
+      @media (max-width:639px) {
+        .lark-cadastros-ui .cadastro-hero {
+          padding:9px!important;
+        }
+        .lark-cadastros-ui .cadastro-navegacao {
+          overflow-x:auto!important;
+        }
+        .lark-cadastros-ui .cadastro-etapa {
+          flex:0 0 auto!important;
+        }
+      }
+
+
+      /* Cadastros v3 — tabela primeiro, compra sob demanda */
+      .lark-cadastros-ui .cadastro-hero,
+      .lark-cadastros-ui .cadastro-navegacao {
+        display:none!important;
+      }
+      .lark-cadastro-commandbar {
+        display:flex;
+        align-items:center;
+        gap:7px;
+        min-height:42px;
+        padding:6px 8px;
+        border:1px solid rgba(31,35,41,.12);
+        border-radius:9px;
+        background:#fff;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-cadastro-commandbar .command-search {
+        position:relative;
+        flex:1 1 280px;
+        min-width:180px;
+        max-width:420px;
+      }
+      .lark-cadastro-commandbar .command-filter {
+        flex:0 0 160px;
+      }
+      .lark-cadastro-commandbar .field {
+        height:30px!important;
+        min-height:30px!important;
+        border-radius:5px!important;
+        border-color:rgba(31,35,41,.10)!important;
+        background:#f7f8fa!important;
+        box-shadow:none!important;
+        font-size:11.5px!important;
+      }
+      .lark-cadastro-commandbar .field:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-cadastro-commandbar .btn {
+        min-height:30px!important;
+        height:30px!important;
+        padding:0 9px!important;
+        border-radius:5px!important;
+        font-size:10.5px!important;
+        white-space:nowrap;
+      }
+      .lark-cadastro-commandbar .command-spacer {
+        flex:1 1 auto;
+      }
+
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] {
+        margin-top:7px!important;
+        padding:0!important;
+        border:1px solid rgba(31,35,41,.12)!important;
+        border-radius:9px!important;
+        background:#fff!important;
+        overflow:visible!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-form {
+        padding:0!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-duas-colunas {
+        border:0!important;
+        border-radius:9px 9px 0 0!important;
+      }
+      .lark-cadastros-ui .cadastro-shell[data-expanded="true"] .cadastro-rodape {
+        margin:0!important;
+        border:0!important;
+        border-top:1px solid rgba(31,35,41,.10)!important;
+        border-radius:0 0 9px 9px!important;
+      }
+
+      .lark-cadastros-ui .lark-cadastros-list {
+        margin-top:0!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-toolbar {
+        display:none!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list-meta {
+        min-height:32px!important;
+        padding:5px 8px!important;
+      }
+      .lark-cadastros-ui .lark-cadastros-list .rola-x {
+        max-height:64vh;
+        overflow:auto;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table {
+        min-width:1540px!important;
+        table-layout:auto!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th:first-child,
+      .lark-cadastros-ui table.lark-cadastros-table td:first-child {
+        min-width:210px!important;
+      }
+      .lark-cadastros-ui table.lark-cadastros-table th {
+        position:sticky!important;
+        top:0!important;
+      }
+
+      @media(max-width:700px) {
+        .lark-cadastro-commandbar {
+          flex-wrap:wrap;
+        }
+        .lark-cadastro-commandbar .command-search {
+          flex:1 1 100%;
+          max-width:none;
+        }
+        .lark-cadastro-commandbar .command-filter {
+          flex:1 1 150px;
+        }
+      }
+
+
+      /* Cadastros v4 — visão principal curta; configurações ficam no lápis */
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table {
+        width:100%!important;
+        min-width:980px!important;
+        table-layout:fixed!important;
+      }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(3),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(3),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(4),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(4),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(5),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(5),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(12),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(12) {
+        display:none!important;
+      }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(1),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(1) { width:24%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(2),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(2) { width:14%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(6),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(6) { width:16%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(7),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(7) { width:12%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(8),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(8) { width:11%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(9),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(9) { width:11%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(10),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(10) { width:12%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(11),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(11) { width:13%!important; }
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table th:nth-child(13),
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td:nth-child(13) { width:15%!important; }
+
+      .lark-cadastros-ui .cadastro-lista-cadastros table.lark-cadastros-table td {
+        overflow:hidden!important;
+        text-overflow:ellipsis!important;
+      }
+      @media(min-width:1180px) {
+        .lark-cadastros-ui .cadastro-lista-cadastros > .rola-x {
+          overflow-x:hidden!important;
+        }
+      }
+
+      /* Banco de dados — visual inspirado no Lark Base */
+      .lark-base-ui {
+        --lark-border: rgba(31,35,41,.10);
+        --lark-border-strong: rgba(31,35,41,.15);
+        --lark-head: #f7f8fa;
+        --lark-hover: #f8f9fb;
+        --lark-blue-soft: #eef4ff;
+      }
+      .lark-toolbar {
+        background:#fff;
+        border:1px solid var(--lark-border);
+        border-radius:10px;
+        padding:8px 10px;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-view-tabs { display:flex; gap:3px; background:transparent; padding:0; }
+      .lark-view-tabs button {
+        border:0; border-radius:6px; background:transparent; color:#646a73;
+        font-weight:600; min-height:32px; padding:0 11px;
+        transition:background-color .14s ease,color .14s ease;
+      }
+      .lark-view-tabs button:hover { background:#f2f3f5; color:#1f2329; }
+      .lark-view-tabs button[data-active="true"] {
+        background:var(--lark-blue-soft); color:#245bdb; box-shadow:none;
+      }
+      .lark-search {
+        border-color:var(--lark-border)!important;
+        background:#f7f8fa!important;
+        box-shadow:none!important;
+      }
+      .lark-search:focus {
+        background:#fff!important;
+        border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-sheet {
+        background:#fff;
+        border:1px solid var(--lark-border-strong);
+        border-radius:10px;
+        box-shadow:0 1px 2px rgba(31,35,41,.025);
+      }
+      .lark-sheet > .overflow-auto { max-height:68vh; }
+      .lark-base-ui table.lark-table {
+        width:max(100%, 980px)!important;
+        min-width:980px!important;
+        table-layout:fixed!important;
+        border-collapse:separate!important;
+        border-spacing:0!important;
+        font-size:12px!important;
+      }
+      .lark-base-ui table.lark-table th,
+      .lark-base-ui table.lark-table td {
+        height:36px!important; padding:6px 10px!important;
+        border-right:1px solid var(--lark-border)!important;
+        border-bottom:1px solid var(--lark-border)!important;
+        background:#fff; font-size:12px!important; line-height:1.25!important;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      }
+      .lark-base-ui table.lark-table th {
+        position:sticky; top:0; z-index:8; height:34px!important;
+        background:var(--lark-head)!important; color:#646a73;
+        font-size:11px!important; font-weight:600!important; text-transform:none;
+        box-shadow:inset 0 -1px var(--lark-border);
+      }
+      .lark-base-ui table.lark-table tbody tr:hover > td { background:var(--lark-hover)!important; }
+      .lark-base-ui table.lark-table th.sticky,
+      .lark-base-ui table.lark-table td.sticky {
+        left:0; box-shadow:1px 0 0 var(--lark-border-strong);
+      }
+      .lark-base-ui table.lark-table td.sticky,
+      .lark-base-ui table.lark-table td.sticky > * {
+        max-width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+      }
+      .lark-base-ui table.lark-items-table th:nth-child(1),
+      .lark-base-ui table.lark-items-table td:nth-child(1) { width:24%; }
+      .lark-base-ui table.lark-items-table th:nth-child(2),
+      .lark-base-ui table.lark-items-table td:nth-child(2) { width:12%; }
+      .lark-base-ui table.lark-items-table th:nth-child(3),
+      .lark-base-ui table.lark-items-table td:nth-child(3) { width:18%; }
+      .lark-base-ui table.lark-items-table th:nth-child(4),
+      .lark-base-ui table.lark-items-table td:nth-child(4) { width:19%; }
+      .lark-base-ui table.lark-items-table th:nth-child(5),
+      .lark-base-ui table.lark-items-table td:nth-child(5) { width:8%; }
+      .lark-base-ui table.lark-items-table th:nth-child(6),
+      .lark-base-ui table.lark-items-table td:nth-child(6) { width:8%; }
+      .lark-base-ui table.lark-items-table th:nth-child(7),
+      .lark-base-ui table.lark-items-table td:nth-child(7) { width:11%; }
+
+      .lark-base-ui table.lark-suppliers-table th:nth-child(1),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(1) { width:24%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(2),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(2) { width:9%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(3),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(3) { width:8%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(4),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(4) { width:13%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(5),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(5) { width:14%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(6),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(6) { width:22%; }
+      .lark-base-ui table.lark-suppliers-table th:nth-child(7),
+      .lark-base-ui table.lark-suppliers-table td:nth-child(7) { width:10%; }
+      .lark-base-ui table.lark-table th.sticky { background:var(--lark-head)!important; z-index:12; }
+      .lark-base-ui table.lark-table td.sticky { background:#fff!important; z-index:3; }
+      .lark-base-ui table.lark-table tbody tr:hover > td.sticky { background:var(--lark-hover)!important; }
+      .lark-base-ui table.lark-table input,
+      .lark-base-ui table.lark-table select,
+      .lark-base-ui table.lark-table .field {
+        min-height:29px!important; height:29px!important; border-radius:5px!important;
+        border-color:transparent!important; background:transparent!important;
+        font-size:12px!important; padding:3px 7px!important;
+      }
+      .lark-base-ui table.lark-table input:hover,
+      .lark-base-ui table.lark-table select:hover,
+      .lark-base-ui table.lark-table .field:hover { background:#f2f3f5!important; }
+      .lark-base-ui table.lark-table input:focus,
+      .lark-base-ui table.lark-table select:focus,
+      .lark-base-ui table.lark-table .field:focus {
+        background:#fff!important; border-color:rgba(51,112,255,.55)!important;
+        box-shadow:0 0 0 2px rgba(51,112,255,.10)!important;
+      }
+      .lark-chip {
+        display:inline-flex; align-items:center; min-height:22px; padding:2px 8px;
+        border-radius:5px; background:#eef4ff; color:#245bdb;
+        font-size:11px!important; font-weight:600; white-space:nowrap;
+      }
+      .lark-base-ui table.lark-table .btn.btn-secondary {
+        border-color:var(--lark-border)!important; background:#fff!important; box-shadow:none!important;
+      }
+      .lark-base-ui table.lark-table .btn.btn-secondary:hover { background:#f2f3f5!important; }
+      @media (max-width:640px) {
+        .lark-toolbar { border-radius:8px; padding:8px; }
+        .lark-base-ui table.lark-table { min-width:900px!important; font-size:11.5px!important; }
+        .lark-base-ui table.lark-table th,
+        .lark-base-ui table.lark-table td { height:34px!important; padding:5px 8px!important; }
+      }
+
+    
+      /* Controle Produ — layout com navegação estável, sem alterar formulários e tabelas. */
+      .controle-side{display:none}
+      @media(min-width:1024px){
+        .controle-side{display:flex;flex-direction:column;position:fixed;left:0;top:56px;bottom:0;width:216px;z-index:35;background:#fff;border-right:1px solid #e2e9e4;padding:18px 10px 14px;overflow-y:auto;gap:8px}
+        .controle-side-top{padding:0 10px 8px;font-size:10px;letter-spacing:.1em;font-weight:800;color:#87958d}
+        .controle-side-group{padding:4px 0 9px;border-bottom:1px solid #edf0ed}
+        .controle-side-group h2{margin:0 0 6px;padding:4px 10px;font-size:11px;color:#65736b;font-weight:800}
+        .controle-side-link{display:flex;align-items:center;gap:10px;width:100%;min-height:37px;padding:8px 11px;border-radius:7px;text-align:left;font-size:12px;font-weight:600;color:#425249;transition:background .15s,color .15s}
+        .controle-side-link:hover{background:#f1f5f2;color:#1c4b36}
+        .controle-side-link[data-active="true"]{background:#eaf2ec;color:#184b35;font-weight:800;box-shadow:inset 3px 0 #286849}
+        .controle-side-link span:nth-child(2){flex:1}
+        .controle-side-count{background:#f9e5e5;color:#9a3030;border-radius:50px;padding:1px 6px;font-size:10px}
+        .controle-side-home{margin-top:auto;text-align:left;border-top:1px solid #edf0ed;padding:14px 11px 4px;font-size:12px;font-weight:700;color:#576c5f}
+        .app-navbar .app-navbar-top nav{display:none!important}
+        .app-navbar-mainrow > div:last-child.hidden{display:none!important}
+        .app-main{margin-left:216px!important;width:calc(100% - 216px)!important;max-width:none!important;padding-left:clamp(20px,3vw,48px)!important;padding-right:clamp(20px,3vw,48px)!important}
+        .app-navbar>.max-w-7xl{max-width:none!important}
+      }
+
+      /* Reforma mobile: acesso rápido inferior e menu completo recolhível. */
+      @media(max-width:1023px){
+        .mobile-nav-shell{display:none!important}
+        .controle-mobile-toolbar{display:flex;align-items:center;gap:10px;min-height:43px;padding:5px 12px;border-top:1px solid #eef0ee;background:#fff}
+        .controle-mobile-menu-button{display:flex;align-items:center;gap:6px;color:#23513a;font-size:12px;font-weight:750;min-height:32px;padding:5px 9px;border:1px solid #e0e9e2;border-radius:7px}
+        .controle-mobile-page{flex:1;min-width:0;text-align:center;font-size:13px;font-weight:800;color:#244734;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .controle-mobile-bottom{position:fixed;left:0;right:0;bottom:0;z-index:48;display:flex;justify-content:space-around;align-items:stretch;background:#fff;border-top:1px solid #dae4dc;padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px rgba(20,50,35,.06)}
+        .controle-mobile-bottom-link{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;color:#6b756f;font-size:10px;font-weight:700;border-radius:7px}
+        .controle-mobile-bottom-link[data-active="true"]{color:#1d5c3d;background:#eaf3ec}
+        .controle-mobile-overlay{position:fixed;inset:0;z-index:80}
+        .controle-mobile-backdrop{position:absolute;inset:0;background:rgba(10,26,17,.45);width:100%}
+        .controle-mobile-drawer{position:absolute;left:0;top:0;bottom:0;width:min(310px,86vw);background:#fff;padding:18px 14px calc(25px + env(safe-area-inset-bottom));overflow-y:auto;box-shadow:8px 0 24px rgba(0,0,0,.13)}
+        .controle-mobile-drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;color:#234b36;font-size:16px}
+        .controle-mobile-drawer-head button{padding:8px;font-size:18px}
+        .controle-mobile-group{margin-bottom:16px}
+        .controle-mobile-group h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#819087;font-weight:800;padding:4px 10px 8px}
+        .controle-mobile-link{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-height:43px;padding:10px 12px;color:#3f5447;border-radius:7px;font-size:13px;font-weight:650}
+        .controle-mobile-link[data-active="true"]{background:#eaf3ec;color:#185439;font-weight:800}
+        .app-main{padding-bottom:calc(105px + env(safe-area-inset-bottom))!important}
+        .fab-add{bottom:calc(83px + env(safe-area-inset-bottom))!important}
+        .app-main .overflow-x-auto,.app-main .rola-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+      }
+
+      /* Etapa 1 — linguagem visual comum para cabeçalhos, buscas e ações.
+         Regras restritas ao conteúdo: mantém as planilhas compactas. */
+      .app-main .t-display{font-size:clamp(23px,2.4vw,30px);line-height:1.18;letter-spacing:-.025em;color:#203b2c}
+      .app-main .t-overline{font-size:10px;letter-spacing:.075em;font-weight:750;color:#68796f}
+      .app-main .t-title{font-size:clamp(18px,1.8vw,21px);line-height:1.25;color:#253b2e}
+      .app-main .field-search{min-height:37px;border:1px solid #dbe5dd;border-radius:8px;background-color:#fff;box-shadow:none}
+      .app-main .field-search:focus{border-color:#367252;box-shadow:0 0 0 3px rgba(54,114,82,.11)}
+      .app-main input[type="search"]:not(.field-search){border-color:#dbe5dd}
+      .app-main .btn-primary{background:#265d42;border-color:#265d42;color:#fff}
+      .app-main .btn-primary:hover{background:#194c34}
+      .app-main .btn-secondary{background:#f3f6f3;color:#294734;border:1px solid #dce7de}
+      .app-main .btn-secondary:hover{background:#eaf1eb}
+      .app-main .btn:focus-visible,.controle-mobile-bottom-link:focus-visible,.controle-mobile-menu-button:focus-visible,.controle-side-link:focus-visible{outline:2px solid #34855d;outline-offset:2px}
+      .app-main .btn:disabled{opacity:.5;cursor:not-allowed}
+      @media(max-width:639px){
+        .app-main .t-display{font-size:24px}
+        .app-main .t-title{font-size:19px}
+        .app-main .field-search{min-height:42px;font-size:14px}
+        .app-main .btn:not(.btn-xs){min-height:38px}
+        .app-main input,.app-main select,.app-main textarea{max-width:100%}
+      }
+      @media(min-width:1024px){.controle-context{height:30px;align-items:center;gap:7px;padding:5px 2px 0;font-size:11px;color:#75867a}.controle-context strong{font-weight:750;color:#315941}.controle-side{top:86px}.app-navbar{background:#fff}}
+
+      /* Fornecedores > Por item: uma linha legível por produto. */
+      .compras-planilha-ui table.fornecedores-por-item-table{min-width:860px!important;border-collapse:collapse!important;border-spacing:0!important;table-layout:auto}
+      .compras-planilha-ui table.fornecedores-por-item-table thead th{background:#f0f4f1!important;color:#355642!important;border-bottom:1px solid #d7e1d9!important;padding:10px 12px!important;font-size:11px!important;font-weight:750}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td{background:#fff!important;padding:12px!important;border-bottom:1px solid #e1e7e2!important;vertical-align:middle!important;border-radius:0!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:nth-child(even) td{background:#f8faf8!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:hover td{background:#edf4ef!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-nome{font-size:12px!important;line-height:1.4!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-atual{font-size:14px!important;line-height:1.35!important}
+      .compras-planilha-ui table.fornecedores-por-item-table td.sticky{background:#fff!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:nth-child(even) td.sticky{background:#f8faf8!important}
+      @media(max-width:640px){.compras-planilha-ui table.fornecedores-por-item-table{min-width:850px!important}.compras-planilha-ui table.fornecedores-por-item-table tbody td{padding:10px!important}}
+
+      /* Comparativo: referência explícita e ação de histórico identificável. */
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-referencia{margin-top:7px;padding-top:6px;border-top:1px solid #dde8e0;line-height:1.45}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-preco-referencia strong{font-size:12px;color:#254d38;font-weight:800}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao{display:inline-flex;align-items:center;gap:6px;border:1px solid #246047!important;background:#266549!important;color:white!important;font-size:11px!important;font-weight:800!important;border-radius:8px!important;padding:8px 11px!important;min-height:35px!important;box-shadow:0 2px 5px rgba(20,70,43,.1)}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao:hover{background:#194c36!important;border-color:#194c36!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao:focus-visible{outline:2px solid #38825a;outline-offset:2px}
+
+      /* Comparação de fornecedores: grade contínua igual ao histórico. */
+      .compras-planilha-ui table.fornecedores-por-item-table{min-width:1160px!important;border-collapse:collapse!important;border-spacing:0!important}
+      .compras-planilha-ui table.fornecedores-por-item-table thead th{background:#edf2ee!important;color:#344b3d!important;padding:9px 10px!important;border:1px solid #d3ded6!important;font-size:11px!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td{padding:9px 10px!important;border:1px solid #e0e6e1!important;border-radius:0!important;background:#fff!important;vertical-align:middle!important;font-size:12px!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody tr:nth-child(even) td{background:#f8faf8!important}
+      .compras-planilha-ui table.fornecedores-por-item-table tbody td small{font-size:10px;line-height:1.4;margin-top:3px}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-item-nome{font-size:12px!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao{background:#255b40!important;color:#fff!important;border:1px solid #255b40!important;border-radius:7px!important;padding:7px 10px!important;font-weight:750!important}
+      .compras-planilha-ui table.fornecedores-por-item-table .fornecedor-historico-acao:hover{background:#194831!important}

@@ -1,0 +1,19 @@
+name: Validar sintaxe JSX
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sintaxe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compilar JSX para detectar erros de sintaxe
+        run: npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --outfile=/tmp/controleprodu-validado.js
