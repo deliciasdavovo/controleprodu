@@ -128,6 +128,7 @@
     const [buscaEmbalagem, setBuscaEmbalagem] = useState('');
     const [buscaProduto, setBuscaProduto] = useState('');
     const [mostrarInativos, setMostrarInativos] = useState(false);
+    const [galeriaAberta, setGaleriaAberta] = useState(false);
     const [carregada, setCarregada] = useState('');
     const [erro, setErro] = useState('');
     const [estado, setEstado] = useState('Carregando…');
@@ -378,9 +379,13 @@
 
       <div className="emb-bloco">
         <div className="emb-linha-titulo">
-          <div><h2>1. Embalagens cadastradas</h2>
-            <p>Os itens classificados como Embalagem em Cadastros aparecem automaticamente. Aqui você só adiciona a foto.</p></div>
+          <div><h2>Embalagens cadastradas ({embalagensDisponiveis.length})</h2>
+            <p>Os itens da categoria Embalagem são vinculados automaticamente; abra para adicionar ou trocar fotos.</p></div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setGaleriaAberta((v) => !v)}>
+            {galeriaAberta ? 'Ocultar catálogo' : 'Ver catálogo e fotos'}
+          </button>
         </div>
+        {galeriaAberta && <>
         <div className="emb-adicionar emb-filtros">
           <input className="field field-md" value={buscaEmbalagem}
             onChange={(e) => setBuscaEmbalagem(e.target.value)} placeholder="Buscar embalagem no cadastro…"
@@ -412,6 +417,7 @@
               'Nenhuma embalagem encontrada. Classifique os itens em Cadastros como Embalagem.'}
           </div>}
         </div>
+        </>}
       </div>
 
       <div className="emb-bloco">
