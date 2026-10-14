@@ -2179,6 +2179,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           title: 'Custo, preço e fornecedores',
           tabs: [
             { id: 'insumos', label: 'Cadastros', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
+            { id: 'embalagens', label: 'Embalagens', fullLabel: 'Organização de embalagens por produto', icon: Icons.Package },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart },
             { id: 'nfe', label: 'Notas NF-e', fullLabel: 'Notas fiscais recebidas', icon: Icons.ClipboardList }
@@ -27224,6 +27225,23 @@ ${BARRA_ACOES_HTML}
                   onUpdateQty={handleUpdateSeparatedQty}
                   onAddSeparatedProduct={handleAddSeparatedProduct}
                 />
+              )}
+
+              {activeTab === 'embalagens' && (
+                window.PackagingMatrixView ? (
+                  <window.PackagingMatrixView
+                    sb={sb}
+                    currentUnit={currentUnit}
+                    unitName={getUnitName(units, currentUnit)}
+                    products={products}
+                    separatedProducts={separatedProducts}
+                    supplies={supplies}
+                  />
+                ) : (
+                  <div className="rounded-xl border hairline bg-white p-6">
+                    Não foi possível carregar o organizador de embalagens. Atualize a página.
+                  </div>
+                )
               )}
 
               {activeTab === 'insumos' && (

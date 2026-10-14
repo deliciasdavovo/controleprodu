@@ -2,7 +2,7 @@ name: Validar sintaxe JSX
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
   pull_request:
 
 jobs:
@@ -16,4 +16,6 @@ jobs:
         with:
           node-version: '22'
       - name: Compilar JSX para detectar erros de sintaxe
-        run: npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --outfile=/tmp/controleprodu-validado.js
+        run: |
+          npx --yes esbuild@0.25.12 src/embalagens.jsx --loader:.jsx=jsx --outfile=/tmp/embalagens-validado.js
+          npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --outfile=/tmp/controleprodu-validado.js
