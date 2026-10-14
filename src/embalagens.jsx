@@ -40,7 +40,7 @@
       const img = new Image();
       img.src = link;
       await img.decode();
-      const escala = Math.min(1, 460 / Math.max(img.naturalWidth, img.naturalHeight));
+      const escala = Math.min(1, 320 / Math.max(img.naturalWidth, img.naturalHeight));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(img.naturalWidth * escala));
       canvas.height = Math.max(1, Math.round(img.naturalHeight * escala));
@@ -49,9 +49,10 @@
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      let dados = canvas.toDataURL('image/jpeg', .72);
-      if (dados.length > 160000) dados = canvas.toDataURL('image/jpeg', .45);
-      if (dados.length > 160000) throw new Error('Imagem grande demais. Envie outra foto.');
+      let dados = canvas.toDataURL('image/jpeg', .58);
+      if (dados.length > 45000) dados = canvas.toDataURL('image/jpeg', .38);
+      if (dados.length > 45000) dados = canvas.toDataURL('image/jpeg', .25);
+      if (dados.length > 45000) throw new Error('Imagem grande demais. Envie uma foto mais simples.');
       return dados;
     } finally {
       URL.revokeObjectURL(link);
@@ -71,7 +72,7 @@
 
   const lerDados = (salvo) => {
     const dados = salvo && typeof salvo === 'object' && !Array.isArray(salvo) ? salvo : {};
-    const embalagens = Array.isArray(dados.embalagens) ? dados.embalagens.slice(0, 24)
+    const embalagens = Array.isArray(dados.embalagens) ? dados.embalagens.slice(0, 100)
       .filter((e) => e && e.id)
       .map((e) => ({ id: String(e.id), nome: String(e.nome || ''), foto: fotoSegura(e.foto) })) : [];
     const originais = Array.isArray(dados.linhas) ? dados.linhas.slice(0, 500) : [];
