@@ -54,3 +54,15 @@
 .emb-remover-linha:hover{color:#ac3030}
 .emb-rodape{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:14px;font-size:11px;color:#758579}
 @media(max-width:680px){.emb-bloco{padding:13px 11px}.emb-cabecalho .emb-acoes{width:100%}.emb-cabecalho .emb-acoes button{flex:1}.emb-adicionar{flex-direction:column;align-items:stretch}.emb-rotulo-titulo{flex-wrap:wrap}.emb-rotulo-titulo input{width:100%;flex:auto}.emb-col-produto{min-width:175px;width:175px}.emb-input-produto{min-width:150px}.emb-rodape .emb-acoes{width:100%}.emb-rodape .emb-acoes button{flex:1}}
+
+/* Ficha de embalagem: quantidades sempre por unidade do produto. */
+.emb-th-ajuda{display:block;font-size:9px;font-weight:500;line-height:1.3;color:#718776;margin-top:4px}
+.emb-composicao{font-size:10px;line-height:1.55;color:#4e7958;font-weight:600;white-space:normal;margin:3px 0 0 7px;overflow-wrap:anywhere}
+.emb-quantidade-por-produto{display:flex;flex-direction:column;align-items:center;gap:1px}
+.emb-quantidade-por-produto .emb-input-numero{font-weight:750;font-size:13px}
+.emb-por-produto{font-size:9px;color:#819087;font-weight:500;white-space:nowrap}
+.emb-total-calculado{font-size:10px;color:#286a40;font-weight:750;white-space:nowrap}
+.emb-tabela .emb-col-quantidade{min-width:110px;width:116px}
+.emb-tabela th.emb-col-embalagem{min-width:128px}
+.emb-tabela .emb-col-produto{min-width:245px}
+@media(max-width:680px){.emb-tabela .emb-col-produto{min-width:185px;width:185px}.emb-tabela .emb-col-quantidade{min-width:96px;width:96px}}
