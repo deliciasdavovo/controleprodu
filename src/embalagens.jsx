@@ -40,7 +40,7 @@
       const img = new Image();
       img.src = link;
       await img.decode();
-      const escala = Math.min(1, 460 / Math.max(img.naturalWidth, img.naturalHeight));
+      const escala = Math.min(1, 320 / Math.max(img.naturalWidth, img.naturalHeight));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(img.naturalWidth * escala));
       canvas.height = Math.max(1, Math.round(img.naturalHeight * escala));
@@ -49,33 +49,32 @@
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      let dados = canvas.toDataURL('image/jpeg', .72);
-      if (dados.length > 160000) dados = canvas.toDataURL('image/jpeg', .45);
-      if (dados.length > 160000) throw new Error('Imagem grande demais. Envie outra foto.');
+      let dados = canvas.toDataURL('image/jpeg', .58);
+      if (dados.length > 45000) dados = canvas.toDataURL('image/jpeg', .38);
+      if (dados.length > 45000) dados = canvas.toDataURL('image/jpeg', .25);
+      if (dados.length > 45000) throw new Error('Imagem grande demais. Envie uma foto mais simples.');
       return dados;
     } finally {
       URL.revokeObjectURL(link);
     }
   };
 
-  const celulaLimpa = (entrada, idsEmbalagens) => {
-    // O modelo novo usa [{embalagemId, quantidade}].
+  const celulaLimpa = (entrada) => {
     if (!Array.isArray(entrada)) return [];
-    const conhecidos = new Set(idsEmbalagens);
     const vistos = new Set();
-    return entrada.slice(0, 24).filter((x) => {
-      if (!x || !conhecidos.has(String(x.embalagemId)) || vistos.has(String(x.embalagemId))) return false;
-      vistos.add(String(x.embalagemId));
-      return numero(x.quantidade) > 0;
-    }).map((x) => ({ embalagemId: String(x.embalagemId), quantidade: numero(x.quantidade) }));
+    return entrada.slice(0, 80).filter((item) => {
+      const id = item && String(item.embalagemId || '');
+      if (!id || vistos.has(id) || numero(item.quantidade) < 1) return false;
+      vistos.add(id);
+      return true;
+    }).map((item) => ({ embalagemId: String(item.embalagemId), quantidade: numero(item.quantidade) }));
   };
 
   const lerDados = (salvo) => {
     const dados = salvo && typeof salvo === 'object' && !Array.isArray(salvo) ? salvo : {};
-    const embalagens = Array.isArray(dados.embalagens) ? dados.embalagens.slice(0, 24)
+    const embalagens = Array.isArray(dados.embalagens) ? dados.embalagens.slice(0, 100)
       .filter((e) => e && e.id)
       .map((e) => ({ id: String(e.id), nome: String(e.nome || ''), foto: fotoSegura(e.foto) })) : [];
-    const ids = embalagens.map((e) => e.id);
     const originais = Array.isArray(dados.linhas) ? dados.linhas.slice(0, 500) : [];
     const formatoNovo = Array.isArray(dados.faixas) && dados.faixas.length > 0;
     if (formatoNovo) {
@@ -84,9 +83,9 @@
       const linhas = originais.filter((x) => x && x.id).map((x) => {
         const celulas = {};
         faixas.forEach((faixa) => {
-          celulas[faixa.id] = celulaLimpa(x.celulas && x.celulas[faixa.id], ids);
+          celulas[faixa.id] = celulaLimpa(x.celulas && x.celulas[faixa.id]);
         });
-        return { id: String(x.id), produto: String(x.produto || ''), celulas };
+        return { id: String(x.id), productId: String(x.productId || ''), produto: String(x.produto || ''), celulas };
       });
       return { titulo: String(dados.titulo || 'Tabela de embalagens por quantidade'), embalagens,
         faixas: faixas.length ? faixas : colunasIniciais(), linhas };
@@ -114,7 +113,7 @@
       const coluna = 'legado-' + Math.max(1, numero(x.quantidade));
       const alocacoes = x.alocacoes && typeof x.alocacoes === 'object' ? x.alocacoes : {};
       linha.celulas[coluna] = celulaLimpa(
-        Object.entries(alocacoes).map(([embalagemId, quantidade]) => ({ embalagemId, quantidade })), ids
+        Object.entries(alocacoes).map(([embalagemId, quantidade]) => ({ embalagemId, quantidade }))
       );
     });
     return { titulo: String(dados.titulo || 'Tabela de embalagens por quantidade'), embalagens,
@@ -126,7 +125,9 @@
     const [embalagens, setEmbalagens] = useState([]);
     const [faixas, setFaixas] = useState(colunasIniciais);
     const [linhas, setLinhas] = useState([]);
-    const [novaEmbalagem, setNovaEmbalagem] = useState('');
+    const [buscaEmbalagem, setBuscaEmbalagem] = useState('');
+    const [buscaProduto, setBuscaProduto] = useState('');
+    const [mostrarInativos, setMostrarInativos] = useState(false);
     const [carregada, setCarregada] = useState('');
     const [erro, setErro] = useState('');
     const [estado, setEstado] = useState('Carregando…');
@@ -137,11 +138,46 @@
     const unidadeAtiva = useRef(currentUnit);
     unidadeAtiva.current = currentUnit;
 
-    const nomesCadastrados = useMemo(() => [...new Set([...products, ...separatedProducts, ...supplies]
-      .map((p) => String(p.name || p.productName || '').trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR')), [products, separatedProducts, supplies]);
+    const embalagensDisponiveis = useMemo(() => {
+      const fotos = new Map(embalagens.map((e) => [e.id, e.foto]));
+      const originais = supplies.filter((e) => e && e.id && String(e.supplyClass || '').toLowerCase() === 'embalagem')
+        .map((e) => ({ id: String(e.id), nome: String(e.name || 'Embalagem'),
+          foto: fotoSegura(fotos.get(String(e.id))) }));
+      const ids = new Set(originais.map((e) => e.id));
+      const antigas = embalagens.filter((e) => !ids.has(e.id));
+      return [...originais, ...antigas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    }, [supplies, embalagens]);
     const indiceEmbalagens = useMemo(() =>
-      new Map(embalagens.map((embalagem) => [embalagem.id, embalagem])), [embalagens]);
+      new Map(embalagensDisponiveis.map((e) => [e.id, e])), [embalagensDisponiveis]);
+    const produtosProducao = useMemo(() => products
+      .filter((p) => p && p.id && p.name && (mostrarInativos || p.showcaseEnabled !== false))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')), [products, mostrarInativos]);
+    const linhasCatalogo = useMemo(() => {
+      const porId = new Map(linhas.filter((x) => x.productId).map((x) => [x.productId, x]));
+      const porNome = new Map();
+      linhas.filter((x) => !x.productId).forEach((x) => {
+        const nome = x.produto.trim().toLocaleLowerCase('pt-BR');
+        if (nome && !porNome.has(nome)) porNome.set(nome, x);
+      });
+      const utilizadas = new Set();
+      const daProducao = produtosProducao.map((p) => {
+        const antigo = porId.get(String(p.id)) || porNome.get(p.name.trim().toLocaleLowerCase('pt-BR'));
+        if (antigo) utilizadas.add(antigo.id);
+        return antigo ? { ...antigo, productId: String(p.id), produto: p.name }
+          : { id: 'producao-' + p.id, productId: String(p.id), produto: p.name, celulas: {} };
+      });
+      const extras = linhas.filter((x) => !utilizadas.has(x.id) &&
+        (!x.productId || !products.some((p) => p.id === x.productId)));
+      return [...daProducao, ...extras];
+    }, [produtosProducao, products, linhas]);
+    const linhasVisiveis = useMemo(() => {
+      const termo = buscaProduto.trim().toLocaleLowerCase('pt-BR');
+      return termo ? linhasCatalogo.filter((x) => x.produto.toLocaleLowerCase('pt-BR').includes(termo)) : linhasCatalogo;
+    }, [linhasCatalogo, buscaProduto]);
+    const embalagensVisiveis = useMemo(() => {
+      const termo = buscaEmbalagem.trim().toLocaleLowerCase('pt-BR');
+      return termo ? embalagensDisponiveis.filter((x) => x.nome.toLocaleLowerCase('pt-BR').includes(termo)) : embalagensDisponiveis;
+    }, [embalagensDisponiveis, buscaEmbalagem]);
 
     useEffect(() => {
       const leitura = ++leituraAtual.current;
@@ -202,11 +238,17 @@
     }, [sb, currentUnit, carregada, conteudo]);
 
     const atualizarCelula = (linhaId, faixaId, atualizar) => {
-      setLinhas((anteriores) => anteriores.map((linha) => {
-        if (linha.id !== linhaId) return linha;
-        const atual = Array.isArray(linha.celulas[faixaId]) ? linha.celulas[faixaId] : [];
-        return { ...linha, celulas: { ...linha.celulas, [faixaId]: atualizar(atual) } };
-      }));
+      const origem = linhasCatalogo.find((x) => x.id === linhaId);
+      if (!origem) return;
+      setLinhas((anteriores) => {
+        const existe = anteriores.some((x) => x.id === linhaId);
+        const atualizadas = existe ? anteriores : [...anteriores, { ...origem, celulas: { ...origem.celulas } }];
+        return atualizadas.map((linha) => {
+          if (linha.id !== linhaId) return linha;
+          const atual = Array.isArray(linha.celulas[faixaId]) ? linha.celulas[faixaId] : [];
+          return { ...linha, celulas: { ...linha.celulas, [faixaId]: atualizar(atual) } };
+        });
+      });
     };
     const adicionarNaCelula = (linhaId, faixaId, embalagemId) => {
       if (!embalagemId) return;
@@ -218,16 +260,7 @@
         ? { ...x, quantidade: quantidade === '' ? '' : Math.max(1, numero(quantidade)) } : x));
     const excluirDaCelula = (linhaId, faixaId, embalagemId) =>
       atualizarCelula(linhaId, faixaId, (lista) => lista.filter((x) => x.embalagemId !== embalagemId));
-    const apagarEmbalagem = (id) => {
-      if (!window.confirm('Excluir a embalagem do cadastro e de todas as células?')) return;
-      setEmbalagens((prev) => prev.filter((e) => e.id !== id));
-      setLinhas((prev) => prev.map((linha) => ({
-        ...linha,
-        celulas: Object.fromEntries(Object.entries(linha.celulas).map(([key, lista]) => [
-          key, (Array.isArray(lista) ? lista : []).filter((x) => x.embalagemId !== id)
-        ]))
-      })));
-    };
+    const apagarFoto = (id) => setEmbalagens((prev) => prev.filter((e) => e.id !== id));
     const apagarColuna = (id) => {
       if (faixas.length <= 1) return window.alert('A tabela precisa ter pelo menos uma coluna.');
       if (!window.confirm('Remover esta coluna e suas embalagens selecionadas?')) return;
@@ -242,7 +275,12 @@
       if (!arq) return;
       try {
         const foto = await fotoCompactada(arq);
-        setEmbalagens((prev) => prev.map((e) => e.id === id ? { ...e, foto } : e));
+        setEmbalagens((prev) => {
+          const existe = prev.some((e) => e.id === id);
+          if (existe) return prev.map((e) => e.id === id ? { ...e, foto } : e);
+          const item = embalagensDisponiveis.find((e) => e.id === id);
+          return [...prev, { id, nome: item ? item.nome : 'Embalagem', foto }];
+        });
         setErro('');
       } catch (e) {
         setErro(e.message);
@@ -256,7 +294,8 @@
       .map(({ embalagem, quantidade }) => numero(quantidade) + ' × ' + embalagem.nome).join(' + ');
 
     const csv = () => {
-      const validas = linhas.filter((linha) => linha.produto.trim());
+      const validas = linhasCatalogo.filter((linha) => linha.produto.trim() &&
+        faixas.some((faixa) => (linha.celulas[faixa.id] || []).some((x) => numero(x.quantidade) > 0)));
       if (!validas.length) return window.alert('Adicione pelo menos um produto ao relatório.');
       const tabela = [
         [titulo || 'Tabela de embalagens por quantidade'],
@@ -275,7 +314,8 @@
         tabela.map((linha) => linha.map(celula).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
     };
     const imprimir = () => {
-      const validas = linhas.filter((linha) => linha.produto.trim());
+      const validas = linhasCatalogo.filter((linha) => linha.produto.trim() &&
+        faixas.some((faixa) => (linha.celulas[faixa.id] || []).some((x) => numero(x.quantidade) > 0)));
       if (!validas.length) return window.alert('Adicione pelo menos um produto ao relatório.');
       const win = window.open('', '_blank');
       if (!win) return window.alert('Autorize a janela de impressão para salvar o relatório em PDF.');
@@ -327,7 +367,7 @@
         <div>
           <div className="emb-sobretitulo">Controle de embalagens · {unitName}</div>
           <h1>Organização das embalagens</h1>
-          <p>Produtos nas linhas, quantidades nas colunas e as embalagens dentro de cada célula.</p>
+          <p>Produtos da Produção e embalagens de Cadastros, vinculados ao Supabase. Escolha as embalagens dentro de cada célula.</p>
         </div>
         <div className="emb-acoes">
           <button type="button" className="btn btn-secondary btn-sm" onClick={csv}>Baixar Excel (CSV)</button>
@@ -338,29 +378,21 @@
 
       <div className="emb-bloco">
         <div className="emb-linha-titulo">
-          <div><h2>1. Cadastrar embalagens</h2>
-            <p>Cadastre uma vez o nome e a foto de cada modelo. Depois você poderá selecionar várias na mesma célula.</p></div>
+          <div><h2>1. Embalagens cadastradas</h2>
+            <p>Os itens classificados como Embalagem em Cadastros aparecem automaticamente. Aqui você só adiciona a foto.</p></div>
         </div>
-        <form className="emb-adicionar" onSubmit={(e) => {
-          e.preventDefault();
-          if (!novaEmbalagem.trim() || embalagens.length >= 24) return;
-          setEmbalagens((prev) => [...prev, { id: idNovo(), nome: novaEmbalagem.trim(), foto: '' }]);
-          setNovaEmbalagem('');
-        }}>
-          <input className="field field-md" value={novaEmbalagem} maxLength={90}
-            onChange={(e) => setNovaEmbalagem(e.target.value)}
-            placeholder="Ex.: Saquinho 3 kg, bandejinha M03, caixa B03…" aria-label="Nova embalagem"/>
-          <button type="submit" className="btn btn-secondary btn-sm"
-            disabled={!novaEmbalagem.trim() || embalagens.length >= 24}>+ Embalagem</button>
-        </form>
+        <div className="emb-adicionar emb-filtros">
+          <input className="field field-md" value={buscaEmbalagem}
+            onChange={(e) => setBuscaEmbalagem(e.target.value)} placeholder="Buscar embalagem no cadastro…"
+            aria-label="Buscar embalagem"/>
+          <span className="emb-contagem">{embalagensDisponiveis.length} embalagens cadastradas</span>
+        </div>
         <div className="emb-galeria">
-          {embalagens.map((e) => <div className="emb-cartao" key={e.id}>
+          {embalagensVisiveis.map((e) => <div className="emb-cartao" key={e.id}>
             <div className="emb-foto">
               {e.foto ? <img src={fotoSegura(e.foto)} alt={e.nome}/> : <span>Sem foto</span>}
             </div>
-            <input className="field field-sm" value={e.nome} maxLength={90}
-              aria-label="Nome da embalagem" onChange={(evento) => setEmbalagens((prev) =>
-                prev.map((antiga) => antiga.id === e.id ? { ...antiga, nome: evento.target.value } : antiga))}/>
+            <div className="emb-nome-cadastro" title={e.nome}>{e.nome}</div>
             <div className="emb-cartao-acoes">
               <label className="emb-upload">
                 {e.foto ? 'Trocar foto' : '+ Enviar foto'}
@@ -371,12 +403,13 @@
                     evento.target.value = '';
                   }}/>
               </label>
-              <button type="button" className="emb-excluir" onClick={() => apagarEmbalagem(e.id)}
-                aria-label={'Excluir ' + e.nome}>Excluir</button>
+              {e.foto && <button type="button" className="emb-excluir" onClick={() => apagarFoto(e.id)}
+                aria-label={'Remover foto de ' + e.nome}>Remover foto</button>}
             </div>
           </div>)}
-          {!embalagens.length && <div className="emb-vazio">
-            Cadastre as embalagens acima. Cada uma ficará disponível para adicionar às células da tabela.
+          {!embalagensVisiveis.length && <div className="emb-vazio">
+            {embalagensDisponiveis.length ? 'Nenhuma embalagem corresponde à busca.' :
+              'Nenhuma embalagem encontrada. Classifique os itens em Cadastros como Embalagem.'}
           </div>}
         </div>
       </div>
@@ -384,22 +417,28 @@
       <div className="emb-bloco">
         <div className="emb-linha-titulo">
           <div><h2>2. Tabela por quantidade</h2>
-            <p>Uma linha por produto. Edite os títulos das colunas e selecione as embalagens em cada célula.</p></div>
+            <p>Produtos ativos de Produção aparecem automaticamente nas linhas. Escolha as embalagens em cada célula.</p></div>
           <div className="emb-acoes">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
               setFaixas((prev) => prev.length >= 20 ? prev : [...prev, { id: idNovo(), rotulo: 'Outra quantidade' }])}>
               + Coluna
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
-              setLinhas((prev) => prev.length >= 500 ? prev : [...prev, { id: idNovo(), produto: '', celulas: {} }])}>
-              + Produto
-            </button>
+            <label className="emb-mostrar-inativos">
+              <input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)}/>
+              Incluir inativos
+            </label>
           </div>
         </div>
         <label className="emb-rotulo-titulo">Título do relatório
           <input className="field field-md" maxLength={110} value={titulo}
             onChange={(e) => setTitulo(e.target.value)}/>
         </label>
+        <div className="emb-adicionar emb-filtros">
+          <input className="field field-md" value={buscaProduto}
+            onChange={(e) => setBuscaProduto(e.target.value)} placeholder="Buscar produto da Produção…"
+            aria-label="Buscar produto"/>
+          <span className="emb-contagem">{produtosProducao.length} produtos de Produção</span>
+        </div>
         <div className="emb-rolagem">
           <table className="emb-tabela emb-matriz">
             <thead>
@@ -419,13 +458,9 @@
               </tr>
             </thead>
             <tbody>
-              {linhas.map((linha) => <tr key={linha.id}>
+              {linhasVisiveis.map((linha) => <tr key={linha.id}>
                 <td className="emb-col-produto">
-                  <input className="emb-input-produto" type="text" maxLength={130}
-                    aria-label="Nome do produto" list="emb-produtos-cadastrados"
-                    placeholder="Selecione ou digite" value={linha.produto}
-                    onChange={(e) => setLinhas((prev) => prev.map((p) =>
-                      p.id === linha.id ? { ...p, produto: e.target.value } : p))}/>
+                  <span className="emb-produto-do-cadastro" title={linha.produto}>{linha.produto}</span>
                 </td>
                 {faixas.map((faixa) => {
                   const lista = partes(linha, faixa.id);
@@ -451,7 +486,7 @@
                             onClick={() => excluirDaCelula(linha.id, faixa.id, embalagem.id)}>×</button>
                         </div>)}
                       {!lista.length && <div className="emb-celula-vazia">Nenhuma embalagem</div>}
-                      {embalagens.length > 0
+                      {embalagensDisponiveis.length > 0
                         ? <div className="emb-adicao-celula">
                             {abertas && <select autoFocus className="emb-select-embalagem" value=""
                               aria-label={'Escolher embalagem para ' + linha.produto + ' em ' + faixa.rotulo}
@@ -460,36 +495,29 @@
                                 setEditando(null);
                               }}>
                               <option value="">Escolha a embalagem…</option>
-                              {embalagens.filter((e) => !lista.some((x) => x.embalagem.id === e.id))
+                              {embalagensDisponiveis.filter((e) => !lista.some((x) => x.embalagem.id === e.id))
                                 .map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
                             </select>}
                             <button className="emb-adicionar-na-celula" type="button"
-                              disabled={lista.length >= embalagens.length}
+                              disabled={lista.length >= embalagensDisponiveis.length}
                               onClick={() => setEditando(abertas ? null : { linha: linha.id, faixa: faixa.id })}>
                               {abertas ? 'Cancelar' : '+ Embalagem'}
                             </button>
                           </div>
-                        : <span className="emb-celula-vazia">Cadastre as embalagens primeiro</span>}
+                        : <span className="emb-celula-vazia">Nenhuma embalagem no cadastro</span>}
                     </div>
                   </td>;
                 })}
-                <td className="emb-col-excluir">
-                  <button type="button" className="emb-remover-linha" title="Excluir produto"
-                    aria-label={'Excluir produto ' + (linha.produto || '')}
-                    onClick={() => setLinhas((prev) => prev.filter((p) => p.id !== linha.id))}>×</button>
-                </td>
+                <td className="emb-col-excluir"></td>
               </tr>)}
-              {!linhas.length && <tr><td colSpan={faixas.length + 2} className="emb-vazio-celula">
-                Clique em <strong>+ Produto</strong> para iniciar. Depois escolha as embalagens dentro de cada célula.
+              {!linhasVisiveis.length && <tr><td colSpan={faixas.length + 2} className="emb-vazio-celula">
+                Nenhum produto da Produção encontrado com estes filtros.
               </td></tr>}
             </tbody>
           </table>
-          <datalist id="emb-produtos-cadastrados">
-            {nomesCadastrados.map((nome) => <option key={nome} value={nome}/>)}
-          </datalist>
         </div>
         <div className="emb-rodape">
-          <span>{linhas.length} produtos · {faixas.length} colunas de quantidade · {embalagens.length} embalagens cadastradas</span>
+          <span>{linhasVisiveis.length} produtos exibidos · {faixas.length} faixas de quantidade · {embalagensDisponiveis.length} embalagens cadastradas</span>
           <div className="emb-acoes">
             <button type="button" className="btn btn-secondary btn-sm" onClick={csv}>Baixar Excel (CSV)</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={imprimir}>Imprimir / Salvar PDF</button>

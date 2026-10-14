@@ -85,3 +85,13 @@
   .emb-rodape .emb-acoes{width:100%}
   .emb-rodape .emb-acoes button{flex:1}
 }
+
+/* Integração: produtos e embalagens são referências aos cadastros já existentes. */
+.emb-filtros{margin-bottom:12px}
+.emb-filtros .field{flex:1;min-width:160px;max-width:540px}
+.emb-contagem{color:#6f8276;font-weight:600;font-size:11px;white-space:nowrap}
+.emb-nome-cadastro{font-size:11px;line-height:1.35;font-weight:750;color:#2d5039;min-height:34px;overflow-wrap:anywhere}
+.emb-produto-do-cadastro{display:block;font-size:12px;line-height:1.45;font-weight:750;color:#2d4737;overflow-wrap:anywhere;padding:8px 5px}
+.emb-mostrar-inativos{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;color:#64786b;white-space:nowrap;cursor:pointer}
+.emb-mostrar-inativos input{accent-color:#285f40}
+@media(max-width:680px){.emb-contagem{white-space:normal}.emb-mostrar-inativos{padding:6px 1px}}
