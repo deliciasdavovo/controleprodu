@@ -215,7 +215,7 @@
     };
     const alterarQuantidade = (linhaId, faixaId, embalagemId, quantidade) =>
       atualizarCelula(linhaId, faixaId, (lista) => lista.map((x) => x.embalagemId === embalagemId
-        ? { ...x, quantidade: numero(quantidade) } : x).filter((x) => x.quantidade > 0));
+        ? { ...x, quantidade: quantidade === '' ? '' : Math.max(1, numero(quantidade)) } : x));
     const excluirDaCelula = (linhaId, faixaId, embalagemId) =>
       atualizarCelula(linhaId, faixaId, (lista) => lista.filter((x) => x.embalagemId !== embalagemId));
     const apagarEmbalagem = (id) => {
@@ -249,10 +249,11 @@
       }
     };
     const partes = (linha, faixaId) => (linha.celulas[faixaId] || [])
-      .filter((x) => numero(x.quantidade) > 0 && indiceEmbalagens.has(x.embalagemId))
-      .map((x) => ({ embalagem: indiceEmbalagens.get(x.embalagemId), quantidade: numero(x.quantidade) }));
+      .filter((x) => indiceEmbalagens.has(x.embalagemId))
+      .map((x) => ({ embalagem: indiceEmbalagens.get(x.embalagemId), quantidade: x.quantidade }));
     const descricaoCelula = (linha, faixaId) => partes(linha, faixaId)
-      .map(({ embalagem, quantidade }) => quantidade + ' × ' + embalagem.nome).join(' + ');
+      .filter((item) => numero(item.quantidade) > 0)
+      .map(({ embalagem, quantidade }) => numero(quantidade) + ' × ' + embalagem.nome).join(' + ');
 
     const csv = () => {
       const validas = linhas.filter((linha) => linha.produto.trim());
@@ -279,7 +280,7 @@
       const win = window.open('', '_blank');
       if (!win) return window.alert('Autorize a janela de impressão para salvar o relatório em PDF.');
       const celulaHTML = (linha, faixa) => {
-        const itens = partes(linha, faixa.id);
+        const itens = partes(linha, faixa.id).filter((item) => numero(item.quantidade) > 0);
         return itens.length ? itens.map(({ embalagem, quantidade }) =>
           '<div class="item">' +
           (fotoSegura(embalagem.foto) ? '<img src="' + embalagem.foto + '" alt="">' : '') +
@@ -342,7 +343,7 @@
         </div>
         <form className="emb-adicionar" onSubmit={(e) => {
           e.preventDefault();
-          if (!novaEmbalagem.trim()) return;
+          if (!novaEmbalagem.trim() || embalagens.length >= 24) return;
           setEmbalagens((prev) => [...prev, { id: idNovo(), nome: novaEmbalagem.trim(), foto: '' }]);
           setNovaEmbalagem('');
         }}>
@@ -350,7 +351,7 @@
             onChange={(e) => setNovaEmbalagem(e.target.value)}
             placeholder="Ex.: Saquinho 3 kg, bandejinha M03, caixa B03…" aria-label="Nova embalagem"/>
           <button type="submit" className="btn btn-secondary btn-sm"
-            disabled={!novaEmbalagem.trim()}>+ Embalagem</button>
+            disabled={!novaEmbalagem.trim() || embalagens.length >= 24}>+ Embalagem</button>
         </form>
         <div className="emb-galeria">
           {embalagens.map((e) => <div className="emb-cartao" key={e.id}>
@@ -386,11 +387,11 @@
             <p>Uma linha por produto. Edite os títulos das colunas e selecione as embalagens em cada célula.</p></div>
           <div className="emb-acoes">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
-              setFaixas((prev) => [...prev, { id: idNovo(), rotulo: 'Outra quantidade' }])}>
+              setFaixas((prev) => prev.length >= 20 ? prev : [...prev, { id: idNovo(), rotulo: 'Outra quantidade' }])}>
               + Coluna
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
-              setLinhas((prev) => [...prev, { id: idNovo(), produto: '', celulas: {} }])}>
+              setLinhas((prev) => prev.length >= 500 ? prev : [...prev, { id: idNovo(), produto: '', celulas: {} }])}>
               + Produto
             </button>
           </div>
