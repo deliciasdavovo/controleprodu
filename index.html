@@ -51,7 +51,7 @@
     <!-- React, ReactDOM & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Scripts React precompilados: não dependemos mais do Babel no navegador. -->
     <!-- Supabase: banco de dados da aplicação -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="./styles/main.css">
@@ -60,7 +60,7 @@
   <body>
     <div id="root"><div id="startup-message" style="font-family:Arial,sans-serif;padding:40px 20px;text-align:center;color:#294734"><strong>Carregando Controle Produ...</strong><p style="font-size:13px">Se o sistema não abrir, atualize a página.</p></div></div>
 
-    <script type="text/babel" src="./src/embalagens.jsx"></script>
-    <script type="text/babel" src="./src/app.jsx"></script>
+    <script defer src="./compiled/embalagens.js"></script>
+    <script defer src="./compiled/app.js"></script>
   </body>
 </html>
