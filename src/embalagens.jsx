@@ -1,25 +1,26 @@
-/* Organizador de embalagens — componente isolado do Controle Produ.
-   A versão atual do site usa Babel Standalone e React globais, sem bundler. */
+/* Controle Produ — Organizador visual de embalagens por faixa de quantidade.
+ * Um produto por linha; cada celula contem MULTIPLAS embalagens cadastradas.
+ * Compatível com Babel Standalone e com o formato anterior salvo no Supabase. */
 (function () {
   const { useState, useEffect, useMemo, useRef } = React;
-
-  const novoId = () => (window.crypto && window.crypto.randomUUID)
+  const idNovo = () => (window.crypto && window.crypto.randomUUID)
     ? window.crypto.randomUUID()
     : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
-  const somenteInteiro = (valor) => {
-    if (valor === '') return '';
-    const num = Number(valor);
-    return Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0;
+  const numero = (valor) => {
+    const n = Number(valor);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   };
-  const inteiro = (valor) => Math.max(0, Number(valor) || 0);
-  const escapar = (valor) => String(valor == null ? '' : valor).replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-  const imagemSegura = (valor) =>
-    (typeof valor === 'string' && valor.length < 300000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(valor)) ? valor : '';
-  const nomeArquivo = (texto) => String(texto || 'embalagens').normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0,70);
-  const guardarArquivo = (nome, conteudo, tipo) => {
+  const escapar = (valor) => String(valor == null ? '' : valor).replace(/[&<>"']/g,
+    (caractere) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[caractere]));
+  const fotoSegura = (valor) => typeof valor === 'string' && valor.length < 300000 &&
+    /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(valor) ? valor : '';
+  const colunasIniciais = () => [
+    { id: 'quantidade-1', rotulo: '1 unidade' },
+    { id: 'quantidade-maior', rotulo: 'Mais de X unidades' }
+  ];
+  const slug = (valor) => String(valor || 'embalagens').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 65);
+  const arquivo = (nome, conteudo, tipo) => {
     const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
     const link = document.createElement('a');
     link.href = url;
@@ -27,392 +28,475 @@
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
-  const comprimirFoto = async (arquivo) => {
-    if (!arquivo || !arquivo.type.startsWith('image/')) throw new Error('Escolha uma imagem JPG, PNG ou WEBP.');
-    if (arquivo.size > 8 * 1024 * 1024) throw new Error('A imagem deve ter até 8 MB.');
-    const url = URL.createObjectURL(arquivo);
+  const fotoCompactada = async (arq) => {
+    if (!arq || !['image/png', 'image/jpeg', 'image/webp'].includes(arq.type)) {
+      throw new Error('Escolha uma foto em JPG, PNG ou WEBP.');
+    }
+    if (arq.size > 8 * 1024 * 1024) throw new Error('A foto deve ter até 8 MB.');
+    const link = URL.createObjectURL(arq);
     try {
-      const foto = new Image();
-      foto.src = url;
-      await foto.decode();
-      const tela = document.createElement('canvas');
-      const fator = Math.min(1, 460 / Math.max(foto.naturalWidth, foto.naturalHeight));
-      tela.width = Math.max(1, Math.round(foto.naturalWidth * fator));
-      tela.height = Math.max(1, Math.round(foto.naturalHeight * fator));
-      const desenho = tela.getContext('2d');
-      if (!desenho) throw new Error('Não foi possível preparar a foto.');
-      desenho.fillStyle = '#ffffff';
-      desenho.fillRect(0, 0, tela.width, tela.height);
-      desenho.drawImage(foto, 0, 0, tela.width, tela.height);
-      let dados = tela.toDataURL('image/jpeg', 0.72);
-      if (dados.length > 160000) dados = tela.toDataURL('image/jpeg', 0.48);
-      if (dados.length > 160000) throw new Error('Foto muito grande. Tente uma imagem menor.');
+      const img = new Image();
+      img.src = link;
+      await img.decode();
+      const escala = Math.min(1, 460 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * escala));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * escala));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Não foi possível preparar a imagem.');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      let dados = canvas.toDataURL('image/jpeg', .72);
+      if (dados.length > 160000) dados = canvas.toDataURL('image/jpeg', .45);
+      if (dados.length > 160000) throw new Error('Imagem grande demais. Envie outra foto.');
       return dados;
     } finally {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(link);
     }
   };
 
-  const normalizar = (dados) => {
-    const objeto = dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {};
-    return {
-      titulo: typeof objeto.titulo === 'string' ? objeto.titulo : 'Tabela de embalagens por quantidade',
-      embalagens: Array.isArray(objeto.embalagens) ? objeto.embalagens.slice(0, 24).filter((x) => x && x.id).map((x) => ({
-        id: String(x.id), nome: String(x.nome || ''), foto: imagemSegura(x.foto)
-      })) : [],
-      linhas: Array.isArray(objeto.linhas) ? objeto.linhas.slice(0, 500).filter((x) => x && x.id).map((x) => ({
-        id: String(x.id), produto: String(x.produto || ''), quantidade: Math.max(1, inteiro(x.quantidade)),
-        alocacoes: x.alocacoes && typeof x.alocacoes === 'object' && !Array.isArray(x.alocacoes) ? x.alocacoes : {}
-      })) : []
-    };
+  const celulaLimpa = (entrada, idsEmbalagens) => {
+    // O modelo novo usa [{embalagemId, quantidade}].
+    if (!Array.isArray(entrada)) return [];
+    const conhecidos = new Set(idsEmbalagens);
+    const vistos = new Set();
+    return entrada.slice(0, 24).filter((x) => {
+      if (!x || !conhecidos.has(String(x.embalagemId)) || vistos.has(String(x.embalagemId))) return false;
+      vistos.add(String(x.embalagemId));
+      return numero(x.quantidade) > 0;
+    }).map((x) => ({ embalagemId: String(x.embalagemId), quantidade: numero(x.quantidade) }));
+  };
+
+  const lerDados = (salvo) => {
+    const dados = salvo && typeof salvo === 'object' && !Array.isArray(salvo) ? salvo : {};
+    const embalagens = Array.isArray(dados.embalagens) ? dados.embalagens.slice(0, 24)
+      .filter((e) => e && e.id)
+      .map((e) => ({ id: String(e.id), nome: String(e.nome || ''), foto: fotoSegura(e.foto) })) : [];
+    const ids = embalagens.map((e) => e.id);
+    const originais = Array.isArray(dados.linhas) ? dados.linhas.slice(0, 500) : [];
+    const formatoNovo = Array.isArray(dados.faixas) && dados.faixas.length > 0;
+    if (formatoNovo) {
+      const faixas = dados.faixas.slice(0, 20).filter((x) => x && x.id)
+        .map((x) => ({ id: String(x.id), rotulo: String(x.rotulo || '').slice(0, 90) }));
+      const linhas = originais.filter((x) => x && x.id).map((x) => {
+        const celulas = {};
+        faixas.forEach((faixa) => {
+          celulas[faixa.id] = celulaLimpa(x.celulas && x.celulas[faixa.id], ids);
+        });
+        return { id: String(x.id), produto: String(x.produto || ''), celulas };
+      });
+      return { titulo: String(dados.titulo || 'Tabela de embalagens por quantidade'), embalagens,
+        faixas: faixas.length ? faixas : colunasIniciais(), linhas };
+    }
+    // Migração não destrutiva das versões anteriores (uma linha por quantidade).
+    // Dados antigos são agrupados em uma linha por produto, com uma coluna por quantidade.
+    const regras = originais.filter((x) => x && x.id);
+    if (!regras.length) {
+      return { titulo: String(dados.titulo || 'Tabela de embalagens por quantidade'),
+        embalagens, faixas: colunasIniciais(), linhas: [] };
+    }
+    const quantidades = [...new Set(regras.map((x) => Math.max(1, numero(x.quantidade))))].sort((a, b) => a - b);
+    const faixas = quantidades.map((q) => ({
+      id: 'legado-' + q, rotulo: q === 1 ? '1 unidade' : q + ' unidades'
+    }));
+    if (!quantidades.includes(1)) faixas.unshift({ id: 'quantidade-1', rotulo: '1 unidade' });
+    const porProduto = new Map();
+    regras.forEach((x) => {
+      const nome = String(x.produto || '');
+      const chave = nome.trim().toLocaleLowerCase('pt-BR') || String(x.id);
+      if (!porProduto.has(chave)) porProduto.set(chave, {
+        id: String(x.id), produto: nome, celulas: {}
+      });
+      const linha = porProduto.get(chave);
+      const coluna = 'legado-' + Math.max(1, numero(x.quantidade));
+      const alocacoes = x.alocacoes && typeof x.alocacoes === 'object' ? x.alocacoes : {};
+      linha.celulas[coluna] = celulaLimpa(
+        Object.entries(alocacoes).map(([embalagemId, quantidade]) => ({ embalagemId, quantidade })), ids
+      );
+    });
+    return { titulo: String(dados.titulo || 'Tabela de embalagens por quantidade'), embalagens,
+      faixas, linhas: [...porProduto.values()] };
   };
 
   const PackagingMatrixView = ({ sb, currentUnit, unitName, products = [], separatedProducts = [], supplies = [] }) => {
     const [titulo, setTitulo] = useState('Tabela de embalagens por quantidade');
     const [embalagens, setEmbalagens] = useState([]);
+    const [faixas, setFaixas] = useState(colunasIniciais);
     const [linhas, setLinhas] = useState([]);
     const [novaEmbalagem, setNovaEmbalagem] = useState('');
     const [carregada, setCarregada] = useState('');
-    const [situacao, setSituacao] = useState('Carregando…');
     const [erro, setErro] = useState('');
-    const sequenciaLeitura = useRef(0);
-    const filaGravacao = useRef(Promise.resolve());
-    const ultimoSalvo = useRef('');
-    const unidadeAtual = useRef(currentUnit);
-    unidadeAtual.current = currentUnit;
+    const [estado, setEstado] = useState('Carregando…');
+    const [editando, setEditando] = useState(null);
+    const leituraAtual = useRef(0);
+    const fila = useRef(Promise.resolve());
+    const ultimo = useRef('');
+    const unidadeAtiva = useRef(currentUnit);
+    unidadeAtiva.current = currentUnit;
 
-    const opcoesProdutos = useMemo(() => {
-      const todos = [...products, ...separatedProducts, ...supplies]
-        .map((item) => String(item.name || item.productName || '').trim())
-        .filter(Boolean);
-      return [...new Set(todos)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    }, [products, separatedProducts, supplies]);
+    const nomesCadastrados = useMemo(() => [...new Set([...products, ...separatedProducts, ...supplies]
+      .map((p) => String(p.name || p.productName || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')), [products, separatedProducts, supplies]);
+    const indiceEmbalagens = useMemo(() =>
+      new Map(embalagens.map((embalagem) => [embalagem.id, embalagem])), [embalagens]);
 
     useEffect(() => {
-      const idLeitura = ++sequenciaLeitura.current;
+      const leitura = ++leituraAtual.current;
       setCarregada('');
-      setSituacao('Carregando…');
+      setEstado('Carregando…');
       setErro('');
+      setEditando(null);
       if (!sb || !currentUnit) {
-        setErro('Não foi possível conectar o organizador ao banco de dados.');
+        setErro('Não foi possível conectar ao banco de dados.');
         return;
       }
       sb.from('packaging_matrices').select('layout').eq('unit_code', currentUnit).maybeSingle()
         .then(({ data, error }) => {
-          if (idLeitura !== sequenciaLeitura.current) return;
+          if (leitura !== leituraAtual.current) return;
           if (error) throw error;
-          const atual = normalizar(data ? data.layout : null);
-          setTitulo(atual.titulo);
-          setEmbalagens(atual.embalagens);
-          setLinhas(atual.linhas);
-          ultimoSalvo.current = JSON.stringify(atual);
+          const registro = lerDados(data && data.layout);
+          setTitulo(registro.titulo);
+          setEmbalagens(registro.embalagens);
+          setFaixas(registro.faixas);
+          setLinhas(registro.linhas);
+          ultimo.current = JSON.stringify(registro);
           setCarregada(currentUnit);
-          setSituacao(data ? 'Salvo no Supabase' : 'Novo organizador');
-        })
-        .catch((e) => {
-          if (idLeitura !== sequenciaLeitura.current) return;
-          setErro('Não foi possível carregar as embalagens: ' + e.message);
-          setSituacao('Erro ao carregar');
+          setEstado(data ? 'Salvo no Supabase' : 'Novo organizador');
+        }).catch((e) => {
+          if (leitura !== leituraAtual.current) return;
+          setErro('Erro ao carregar: ' + e.message);
+          setEstado('Erro');
         });
-      return () => { sequenciaLeitura.current += 1; };
+      return () => { leituraAtual.current += 1; };
     }, [sb, currentUnit]);
 
-    const dados = useMemo(() => ({ titulo, embalagens, linhas }), [titulo, embalagens, linhas]);
-    const json = useMemo(() => JSON.stringify(dados), [dados]);
-
-    // Salva somente depois de terminar a leitura da unidade ativa.
-    // A fila impede que requisições antigas sobrescrevam edições mais novas.
+    const layout = useMemo(() => ({ titulo, embalagens, faixas, linhas }), [titulo, embalagens, faixas, linhas]);
+    const conteudo = useMemo(() => JSON.stringify(layout), [layout]);
     useEffect(() => {
-      if (carregada !== currentUnit || !sb || json === ultimoSalvo.current) return;
-      setSituacao('Alterações pendentes…');
-      const timer = setTimeout(() => {
-        setSituacao('Salvando…');
-        const unidadeDaGravacao = currentUnit;
-        const registro = { unit_code: unidadeDaGravacao, layout: dados, updated_at: new Date().toISOString() };
-        const promessa = filaGravacao.current.then(async () => {
-          const { error } = await sb.from('packaging_matrices').upsert(registro, { onConflict: 'unit_code' });
+      if (!sb || carregada !== currentUnit || ultimo.current === conteudo) return;
+      setEstado('Alterações pendentes…');
+      const t = setTimeout(() => {
+        setEstado('Salvando…');
+        const unidade = currentUnit;
+        const pacote = { unit_code: unidade, layout, updated_at: new Date().toISOString() };
+        const gravacao = fila.current.then(async () => {
+          const { error } = await sb.from('packaging_matrices').upsert(pacote, { onConflict: 'unit_code' });
           if (error) throw error;
         });
-        filaGravacao.current = promessa.catch(() => {});
-        promessa.then(() => {
-          if (unidadeAtual.current === unidadeDaGravacao) {
-            ultimoSalvo.current = json;
-            setErro('');
-            setSituacao('Salvo no Supabase');
-          }
+        fila.current = gravacao.catch(() => {});
+        gravacao.then(() => {
+          if (unidadeAtiva.current !== unidade) return;
+          ultimo.current = conteudo;
+          setEstado('Salvo no Supabase');
+          setErro('');
         }).catch((e) => {
-          if (unidadeAtual.current === unidadeDaGravacao) {
-            setErro('Não foi possível salvar: ' + e.message);
-            setSituacao('Erro ao salvar');
-          }
+          if (unidadeAtiva.current !== unidade) return;
+          setEstado('Erro ao salvar');
+          setErro('Não foi possível salvar: ' + e.message);
         });
       }, 700);
-      return () => clearTimeout(timer);
-    }, [json, carregada, currentUnit, sb]);
+      return () => clearTimeout(t);
+    }, [sb, currentUnit, carregada, conteudo]);
 
-    const alterarLinha = (id, campos) => setLinhas((antigas) =>
-      antigas.map((linha) => linha.id === id ? { ...linha, ...campos } : linha));
-    const alterarCelula = (linhaId, embalagemId, valor) => setLinhas((antigas) =>
-      antigas.map((linha) => linha.id === linhaId
-        ? { ...linha, alocacoes: { ...linha.alocacoes, [embalagemId]: somenteInteiro(valor) } }
-        : linha));
-    // Uma linha representa UMA REGRA DE EMBALAGEM para uma quantidade exata.
-    // Ex.: Croissant | 1 | 1 saquinho.
-    //      Croissant | 2 | 1 bandejinha + 1 saquinho.
-    // A quantidade NÃO multiplica os materiais: escolhe uma combinação diferente.
-    const linhasValidas = linhas.filter((linha) => linha.produto.trim() && inteiro(linha.quantidade) >= 1);
-    const composicaoDe = (linha) => embalagens
-      .map((embalagem) => ({ nome: embalagem.nome.trim(), qtd: inteiro(linha.alocacoes[embalagem.id]) }))
-      .filter((item) => item.qtd > 0)
-      .map((item) => item.qtd + ' ' + item.nome)
-      .join(' + ');
-    const contagemRegras = (produto, quantidade, excetoId) =>
-      linhas.filter((linha) => linha.id !== excetoId
-        && linha.produto.trim().toLocaleLowerCase('pt-BR') === produto.trim().toLocaleLowerCase('pt-BR')
-        && inteiro(linha.quantidade) === inteiro(quantidade)).length;
-    const adicionarRegra = (linhaOrigem) => {
-      setLinhas((anteriores) => {
-        const index = linhaOrigem ? anteriores.findIndex((x) => x.id === linhaOrigem.id) : -1;
-        const produto = linhaOrigem ? linhaOrigem.produto : '';
-        const usadas = new Set(anteriores.filter((x) => x.produto.trim().toLocaleLowerCase('pt-BR') === produto.trim().toLocaleLowerCase('pt-BR'))
-          .map((x) => inteiro(x.quantidade)));
-        let quantidade = linhaOrigem ? inteiro(linhaOrigem.quantidade) + 1 : 1;
-        while (usadas.has(quantidade)) quantidade += 1;
-        const regra = { id: novoId(), produto, quantidade, alocacoes: {} };
-        const proximas = anteriores.slice();
-        proximas.splice(index >= 0 ? index + 1 : proximas.length, 0, regra);
-        return proximas;
-      });
+    const atualizarCelula = (linhaId, faixaId, atualizar) => {
+      setLinhas((anteriores) => anteriores.map((linha) => {
+        if (linha.id !== linhaId) return linha;
+        const atual = Array.isArray(linha.celulas[faixaId]) ? linha.celulas[faixaId] : [];
+        return { ...linha, celulas: { ...linha.celulas, [faixaId]: atualizar(atual) } };
+      }));
     };
-
-    const adicionarFoto = async (id, arquivo) => {
-      if (!arquivo) return;
+    const adicionarNaCelula = (linhaId, faixaId, embalagemId) => {
+      if (!embalagemId) return;
+      atualizarCelula(linhaId, faixaId, (lista) => lista.some((x) => x.embalagemId === embalagemId)
+        ? lista : [...lista, { embalagemId, quantidade: 1 }]);
+    };
+    const alterarQuantidade = (linhaId, faixaId, embalagemId, quantidade) =>
+      atualizarCelula(linhaId, faixaId, (lista) => lista.map((x) => x.embalagemId === embalagemId
+        ? { ...x, quantidade: quantidade === '' ? '' : Math.max(1, numero(quantidade)) } : x));
+    const excluirDaCelula = (linhaId, faixaId, embalagemId) =>
+      atualizarCelula(linhaId, faixaId, (lista) => lista.filter((x) => x.embalagemId !== embalagemId));
+    const apagarEmbalagem = (id) => {
+      if (!window.confirm('Excluir a embalagem do cadastro e de todas as células?')) return;
+      setEmbalagens((prev) => prev.filter((e) => e.id !== id));
+      setLinhas((prev) => prev.map((linha) => ({
+        ...linha,
+        celulas: Object.fromEntries(Object.entries(linha.celulas).map(([key, lista]) => [
+          key, (Array.isArray(lista) ? lista : []).filter((x) => x.embalagemId !== id)
+        ]))
+      })));
+    };
+    const apagarColuna = (id) => {
+      if (faixas.length <= 1) return window.alert('A tabela precisa ter pelo menos uma coluna.');
+      if (!window.confirm('Remover esta coluna e suas embalagens selecionadas?')) return;
+      setFaixas((prev) => prev.filter((x) => x.id !== id));
+      setLinhas((prev) => prev.map((linha) => {
+        const celulas = { ...linha.celulas };
+        delete celulas[id];
+        return { ...linha, celulas };
+      }));
+    };
+    const carregarFoto = async (id, arq) => {
+      if (!arq) return;
       try {
-        const foto = await comprimirFoto(arquivo);
-        setEmbalagens((antigas) => antigas.map((embalagem) =>
-          embalagem.id === id ? { ...embalagem, foto } : embalagem));
+        const foto = await fotoCompactada(arq);
+        setEmbalagens((prev) => prev.map((e) => e.id === id ? { ...e, foto } : e));
         setErro('');
       } catch (e) {
         setErro(e.message);
       }
     };
-    const excluirEmbalagem = (id) => {
-      if (!window.confirm('Excluir esta embalagem e sua coluna da tabela?')) return;
-      setEmbalagens((antigas) => antigas.filter((embalagem) => embalagem.id !== id));
-      setLinhas((antigas) => antigas.map((linha) => {
-        const alocacoes = { ...linha.alocacoes };
-        delete alocacoes[id];
-        return { ...linha, alocacoes };
-      }));
-    };
+    const partes = (linha, faixaId) => (linha.celulas[faixaId] || [])
+      .filter((x) => indiceEmbalagens.has(x.embalagemId))
+      .map((x) => ({ embalagem: indiceEmbalagens.get(x.embalagemId), quantidade: x.quantidade }));
+    const descricaoCelula = (linha, faixaId) => partes(linha, faixaId)
+      .filter((item) => numero(item.quantidade) > 0)
+      .map(({ embalagem, quantidade }) => numero(quantidade) + ' × ' + embalagem.nome).join(' + ');
 
-    const baixarCSV = () => {
-      if (!linhasValidas.length) return window.alert('Cadastre um produto e a quantidade correspondente antes de exportar.');
-      const linhasCSV = [
+    const csv = () => {
+      const validas = linhas.filter((linha) => linha.produto.trim());
+      if (!validas.length) return window.alert('Adicione pelo menos um produto ao relatório.');
+      const tabela = [
         [titulo || 'Tabela de embalagens por quantidade'],
         ['Unidade', unitName],
         ['Data', new Date().toLocaleDateString('pt-BR')],
-        ['Orientação', 'Cada linha mostra como embalar aquela quantidade específica de produtos. Os números nas colunas são embalagens para a combinação inteira, não por unidade.'],
         [],
-        ['Produto', 'Quantidade de produtos', 'Embalagem utilizada', ...embalagens.map((x) => x.nome)],
-        ...linhasValidas.map((linha) => [
-          linha.produto,
-          inteiro(linha.quantidade),
-          composicaoDe(linha) || 'Embalagem ainda não definida',
-          ...embalagens.map((item) => inteiro(linha.alocacoes[item.id]) || '')
-        ])
+        ['Produto', ...faixas.map((f) => f.rotulo || 'Quantidade')],
+        ...validas.map((linha) => [linha.produto, ...faixas.map((f) => descricaoCelula(linha, f.id))])
       ];
-      const celulaCSV = (dado) => {
-        let texto = String(dado == null ? '' : dado);
-        if (/^[\s]*[=+\-@]/.test(texto)) texto = "'" + texto;
-        return '"' + texto.replace(/"/g, '""') + '"';
+      const celula = (v) => {
+        let valor = String(v == null ? '' : v);
+        if (/^\s*[=+\-@]/.test(valor)) valor = "'" + valor;
+        return '"' + valor.replace(/"/g, '""') + '"';
       };
-      guardarArquivo(nomeArquivo(titulo || 'tabela-embalagens') + '.csv', '\uFEFF' +
-        linhasCSV.map((linha) => linha.map(celulaCSV).join(';')).join('\r\n'),
-        'text/csv;charset=utf-8;');
+      arquivo(slug(titulo || 'tabela-embalagens') + '.csv', '\uFEFF' +
+        tabela.map((linha) => linha.map(celula).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
     };
-
     const imprimir = () => {
-      if (!linhasValidas.length) return window.alert('Cadastre um produto e a quantidade correspondente antes de gerar o relatório.');
-      const janela = window.open('', '_blank');
-      if (!janela) return window.alert('Autorize a janela de impressão para salvar o relatório em PDF.');
-      const cabecalho = embalagens.map((item) =>
-        '<th><div class="foto">' +
-        (imagemSegura(item.foto) ? '<img alt="" src="' + item.foto + '">' : '<span>SEM FOTO</span>') +
-        '</div><strong>' + escapar(item.nome) + '</strong></th>').join('');
-      const corpo = linhasValidas.map((linha) => '<tr>' +
-        '<td class="produto">' + escapar(linha.produto) + '</td>' +
-        '<td class="numero">' + inteiro(linha.quantidade) + '</td>' +
-        '<td class="descricao">' + escapar(composicaoDe(linha) || 'Não definida') + '</td>' +
-        embalagens.map((item) => '<td class="numero">' + (inteiro(linha.alocacoes[item.id]) || '—') + '</td>').join('') +
-        '</tr>').join('');
-      const pagina = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' +
-        escapar(titulo) + '</title><style>' +
-        '@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#21362b;margin:0}' +
-        'header{border-bottom:2px solid #2c6045;padding-bottom:14px;margin-bottom:16px}' +
-        'h1{font-size:22px;margin:0 0 7px}p{margin:0;color:#64756a}table{border-collapse:collapse;width:100%;table-layout:auto}' +
-        'th,td{border:1px solid #cedbd1;padding:9px 8px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}' +
-        'th{background:#edf3ee;font-size:10px}th:first-child,td:first-child{text-align:left;min-width:110px}' +
-        'th:nth-child(2),td:nth-child(2){width:82px}th:nth-child(3),td:nth-child(3){text-align:left;min-width:150px}' +
-        '.produto{font-weight:700}.descricao{color:#385a43}.numero{font-weight:700;font-size:12px}' +
-        'tbody tr:nth-child(even){background:#f8faf8}.foto{height:55px;display:flex;justify-content:center;align-items:center;margin-bottom:4px}' +
-        '.foto img{max-width:62px;max-height:52px;object-fit:contain}.foto span{color:#b3bcb5;font-size:9px}' +
-        '.acoes{text-align:right;margin:0 0 18px}.acoes button{padding:9px 14px;border:0;border-radius:6px;background:#28563c;color:white;cursor:pointer}' +
-        '@media print{.acoes{display:none}thead{display:table-header-group}tr{page-break-inside:avoid}}' +
+      const validas = linhas.filter((linha) => linha.produto.trim());
+      if (!validas.length) return window.alert('Adicione pelo menos um produto ao relatório.');
+      const win = window.open('', '_blank');
+      if (!win) return window.alert('Autorize a janela de impressão para salvar o relatório em PDF.');
+      const celulaHTML = (linha, faixa) => {
+        const itens = partes(linha, faixa.id).filter((item) => numero(item.quantidade) > 0);
+        return itens.length ? itens.map(({ embalagem, quantidade }) =>
+          '<div class="item">' +
+          (fotoSegura(embalagem.foto) ? '<img src="' + embalagem.foto + '" alt="">' : '') +
+          '<div><b>' + quantidade + ' × ' + escapar(embalagem.nome) + '</b></div></div>'
+        ).join('') : '<span class="vazio">—</span>';
+      };
+      const pagina = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+        '<title>' + escapar(titulo) + '</title><style>' +
+        '@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}' +
+        'body{font:12px Arial,sans-serif;color:#274334;margin:0}.acoes{text-align:right;margin-bottom:16px}' +
+        '.acoes button{background:#275b3e;border:0;color:#fff;padding:10px 15px;border-radius:6px;cursor:pointer}' +
+        'header{border-bottom:2px solid #2c6045;padding-bottom:12px;margin-bottom:15px}' +
+        'h1{font-size:21px;margin:0 0 6px}header p{margin:0;color:#748476}' +
+        'table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border:1px solid #d5dfd7;padding:9px;text-align:left;vertical-align:top;overflow-wrap:anywhere}' +
+        'th{background:#edf3ee;font-size:11px}th:first-child{width:23%}td:first-child{font-weight:bold}' +
+        'tr:nth-child(even) td{background:#f9fbf9}.item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #eaf0eb}' +
+        '.item:last-child{border:0}.item img{max-width:44px;width:44px;height:44px;object-fit:contain;border:1px solid #e1e8e3;border-radius:4px}' +
+        '.vazio{color:#aaa}@media print{.acoes{display:none}thead{display:table-header-group}tr{break-inside:avoid}}' +
         '</style></head><body><div class="acoes"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>' +
-        '<header><h1>' + escapar(titulo || 'Tabela de embalagens por quantidade') + '</h1><p>' +
-        escapar(unitName) + ' · ' + new Date().toLocaleDateString('pt-BR') +
-        ' · A embalagem depende da quantidade de produtos.</p></header>' +
-        '<table><thead><tr><th>PRODUTO</th><th>QUANTIDADE DE PRODUTOS</th>' +
-        '<th>COMPOSIÇÃO DA EMBALAGEM</th>' + cabecalho +
-        '</tr></thead><tbody>' + corpo + '</tbody></table></body></html>';
-      janela.document.open();
-      janela.document.write(pagina);
-      janela.document.close();
-      janela.focus();
+        '<header><h1>' + escapar(titulo || 'Tabela de embalagens por quantidade') + '</h1>' +
+        '<p>' + escapar(unitName) + ' · ' + new Date().toLocaleDateString('pt-BR') + '</p></header>' +
+        '<table><thead><tr><th>Produto</th>' +
+        faixas.map((faixa) => '<th>' + escapar(faixa.rotulo || 'Quantidade') + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        validas.map((linha) => '<tr><td>' + escapar(linha.produto) + '</td>' +
+          faixas.map((faixa) => '<td>' + celulaHTML(linha, faixa) + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table></body></html>';
+      win.document.open();
+      win.document.write(pagina);
+      win.document.close();
+      win.focus();
     };
 
     if (carregada !== currentUnit) {
-      return <section className="emb-area">
-        <h1>Organização das embalagens</h1>
-        <p>{erro || 'Carregando embalagens da unidade…'}</p>
-        {erro && <button type="button" className="btn btn-secondary" onClick={() => window.location.reload()}>Tentar novamente</button>}
+      return <section className="emb-area"><h1>Organização das embalagens</h1>
+        <p>{erro || 'Carregando tabela da unidade…'}</p>
+        {erro && <button type="button" className="btn btn-secondary"
+          onClick={() => window.location.reload()}>Tentar novamente</button>}
       </section>;
     }
 
-    return (
-      <section className="emb-area">
-        <div className="emb-cabecalho">
-          <div>
-            <span className="emb-sobretitulo">Controle de embalagens · {unitName}</span>
-            <h1>Organização das embalagens</h1>
-            <p>A quantidade define como o produto deve ser embalado: 1 croissant usa 1 saquinho; 2 croissants usam 1 bandejinha + 1 saquinho.</p>
-          </div>
-          <div className="emb-acoes">
-            <button className="btn btn-secondary btn-sm" type="button" onClick={baixarCSV}>Baixar Excel (CSV)</button>
-            <button className="btn btn-primary btn-sm" type="button" onClick={imprimir}>Imprimir / Salvar PDF</button>
-          </div>
+    return <section className="emb-area">
+      <header className="emb-cabecalho">
+        <div>
+          <div className="emb-sobretitulo">Controle de embalagens · {unitName}</div>
+          <h1>Organização das embalagens</h1>
+          <p>Produtos nas linhas, quantidades nas colunas e as embalagens dentro de cada célula.</p>
         </div>
-        <div className="emb-status" role="status">{situacao}{erro ? <span className="emb-erro"> — {erro}</span> : null}</div>
-
-        <div className="emb-bloco">
-          <div className="emb-linha-titulo">
-            <div><h2>1. Cadastro de embalagens</h2><p>Cadastre cada embalagem uma vez, com nome e foto. Ela aparecerá nas colunas da tabela.</p></div>
-          </div>
-          <form className="emb-adicionar" onSubmit={(e) => {
-            e.preventDefault();
-            const nome = novaEmbalagem.trim();
-            if (!nome) return;
-            setEmbalagens((antigas) => [...antigas, { id: novoId(), nome, foto: '' }]);
-            setNovaEmbalagem('');
-          }}>
-            <input className="field field-md" value={novaEmbalagem}
-              onChange={(e) => setNovaEmbalagem(e.target.value)}
-              placeholder="Ex.: Caixa bolo família, bandeja B03, saco kraft…" maxLength={90}
-              aria-label="Nome da nova embalagem" />
-            <button type="submit" className="btn btn-secondary btn-sm" disabled={!novaEmbalagem.trim()}>+ Embalagem</button>
-          </form>
-          <div className="emb-galeria">
-            {embalagens.map((embalagem) => <div className="emb-cartao" key={embalagem.id}>
-              <div className="emb-foto">
-                {embalagem.foto ? <img src={imagemSegura(embalagem.foto)} alt={embalagem.nome} /> :
-                  <span>Sem foto</span>}
-              </div>
-              <input className="field field-sm" aria-label="Nome da embalagem"
-                maxLength={90} value={embalagem.nome}
-                onChange={(e) => setEmbalagens((antigas) => antigas.map((x) =>
-                  x.id === embalagem.id ? { ...x, nome: e.target.value } : x))} />
-              <div className="emb-cartao-acoes">
-                <label className="emb-upload">
-                  {embalagem.foto ? 'Trocar foto' : '+ Enviar foto'}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => {
-                    const arquivo = e.target.files && e.target.files[0];
-                    adicionarFoto(embalagem.id, arquivo);
-                    e.target.value = '';
-                  }} />
-                </label>
-                <button type="button" className="emb-excluir" onClick={() => excluirEmbalagem(embalagem.id)}
-                  aria-label={'Excluir ' + embalagem.nome}>Excluir</button>
-              </div>
-            </div>)}
-            {!embalagens.length && <div className="emb-vazio">Adicione a primeira embalagem acima. Ela aparecerá como uma coluna na tabela.</div>}
-          </div>
+        <div className="emb-acoes">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={csv}>Baixar Excel (CSV)</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={imprimir}>Imprimir / Salvar PDF</button>
         </div>
+      </header>
+      <div className="emb-status" role="status">{estado}{erro ? <span className="emb-erro"> — {erro}</span> : null}</div>
 
-        <div className="emb-bloco">
-          <div className="emb-linha-titulo">
-            <div><h2>2. Regra de embalagem por quantidade</h2><p>Crie <strong>uma linha para cada quantidade</strong> do mesmo produto. Ex.: Croissant / 1 / saquinho; Croissant / 2 / bandejinha + saquinho. Cada célula indica quantas embalagens usar nessa situação.</p></div>
-            <button type="button" className="btn btn-secondary btn-sm"
-              onClick={() => adicionarRegra(null)}>+ Produto / quantidade</button>
-          </div>
-          <label className="emb-rotulo-titulo">Título do relatório
-            <input className="field field-md" value={titulo} onChange={(e) => setTitulo(e.target.value)}
-              maxLength={110} placeholder="Tabela de embalagens por quantidade" />
-          </label>
-          <div className="emb-rolagem">
-            <table className="emb-tabela">
-              <thead>
-                <tr><th className="emb-col-produto">Produto / Regra</th><th className="emb-col-quantidade">Quantidade <small className="emb-th-ajuda">de produtos</small></th>
-                  {embalagens.map((item) => <th key={item.id} className="emb-col-embalagem">
-                    <div className="emb-th-foto">{item.foto && <img src={imagemSegura(item.foto)} alt="" />}</div>
-                    <span>{item.nome}</span><small className="emb-th-ajuda">quantidade de embalagens</small>
-                  </th>)}
-                  <th className="emb-col-excluir" aria-label="Ações"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((linha) => <tr key={linha.id}>
-                  <td className="emb-col-produto">
-                    <input className="emb-input-produto" type="text"
-                      aria-label="Produto" list="emb-produtos-cadastrados" value={linha.produto}
-                      placeholder="Selecione ou digite" maxLength={130}
-                      onChange={(e) => alterarLinha(linha.id, { produto: e.target.value })} />
-                    <div className="emb-composicao">{composicaoDe(linha) || 'Defina as embalagens para esta quantidade'}</div>
-                    {contagemRegras(linha.produto, linha.quantidade, linha.id) > 0 &&
-                      <div className="emb-regra-alerta">Quantidade repetida para o mesmo produto</div>}
-                    <button type="button" className="emb-adicionar-variacao"
-                      title={'Criar outra regra de embalagem para ' + (linha.produto || 'este produto')}
-                      onClick={() => adicionarRegra(linha)}>+ Outra quantidade</button>
-                  </td>
-                  <td><input className="emb-input-numero" type="number" min="1" step="1"
-                    aria-label={'Quantidade de produtos nesta regra para ' + (linha.produto || 'produto')}
-                    title="Ex.: 1 croissant usa saquinho; 2 croissants usam bandejinha mais saquinho."
-                    value={linha.quantidade} placeholder="1"
-                    onChange={(e) => alterarLinha(linha.id, { quantidade: e.target.value === '' ? '' : Math.max(1, somenteInteiro(e.target.value)) })} /></td>
-                  {embalagens.map((embalagem) => <td key={embalagem.id}>
-                    <div className="emb-quantidade-por-produto">
-                      <input className="emb-input-numero" type="number" min="0" step="1"
-                        aria-label={'Quantidade de ' + embalagem.nome + ' para ' + (linha.quantidade || '?') + ' unidades de ' + (linha.produto || 'produto')}
-                        title={'Quantas unidades da embalagem ' + embalagem.nome + ' são usadas para embalar ' + linha.quantidade + ' unidades deste produto?'}
-                        value={linha.alocacoes[embalagem.id] == null ? '' : linha.alocacoes[embalagem.id]}
-                        placeholder="—" onChange={(e) => alterarCelula(linha.id, embalagem.id, e.target.value)} />
-                      {inteiro(linha.alocacoes[embalagem.id]) > 0 && <small className="emb-por-produto">nesta quantidade</small>}
-                    </div>
-                  </td>)}
-                  <td className="emb-col-excluir">
-                    <button type="button" className="emb-remover-linha" title="Remover linha"
-                      onClick={() => setLinhas((anteriores) => anteriores.filter((x) => x.id !== linha.id))}>×</button>
-                  </td>
-                </tr>)}
-                {!linhas.length && <tr><td colSpan={embalagens.length + 3} className="emb-vazio-celula">Clique em + Produto / quantidade para cadastrar a primeira regra.</td></tr>}
-              </tbody>
-
-            </table>
-            <datalist id="emb-produtos-cadastrados">{opcoesProdutos.map((x) => <option key={x} value={x} />)}</datalist>
-          </div>
-          <div className="emb-rodape">
-            <span>{linhas.length} regras por quantidade · {embalagens.length} tipos de embalagem</span>
-            <div className="emb-acoes">
-              <button type="button" className="btn btn-secondary btn-sm" onClick={baixarCSV}>Baixar Excel (CSV)</button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={imprimir}>Imprimir / Salvar PDF</button>
+      <div className="emb-bloco">
+        <div className="emb-linha-titulo">
+          <div><h2>1. Cadastrar embalagens</h2>
+            <p>Cadastre uma vez o nome e a foto de cada modelo. Depois você poderá selecionar várias na mesma célula.</p></div>
+        </div>
+        <form className="emb-adicionar" onSubmit={(e) => {
+          e.preventDefault();
+          if (!novaEmbalagem.trim() || embalagens.length >= 24) return;
+          setEmbalagens((prev) => [...prev, { id: idNovo(), nome: novaEmbalagem.trim(), foto: '' }]);
+          setNovaEmbalagem('');
+        }}>
+          <input className="field field-md" value={novaEmbalagem} maxLength={90}
+            onChange={(e) => setNovaEmbalagem(e.target.value)}
+            placeholder="Ex.: Saquinho 3 kg, bandejinha M03, caixa B03…" aria-label="Nova embalagem"/>
+          <button type="submit" className="btn btn-secondary btn-sm"
+            disabled={!novaEmbalagem.trim() || embalagens.length >= 24}>+ Embalagem</button>
+        </form>
+        <div className="emb-galeria">
+          {embalagens.map((e) => <div className="emb-cartao" key={e.id}>
+            <div className="emb-foto">
+              {e.foto ? <img src={fotoSegura(e.foto)} alt={e.nome}/> : <span>Sem foto</span>}
             </div>
+            <input className="field field-sm" value={e.nome} maxLength={90}
+              aria-label="Nome da embalagem" onChange={(evento) => setEmbalagens((prev) =>
+                prev.map((antiga) => antiga.id === e.id ? { ...antiga, nome: evento.target.value } : antiga))}/>
+            <div className="emb-cartao-acoes">
+              <label className="emb-upload">
+                {e.foto ? 'Trocar foto' : '+ Enviar foto'}
+                <input type="file" accept="image/png,image/jpeg,image/webp"
+                  onChange={(evento) => {
+                    const item = evento.target.files && evento.target.files[0];
+                    carregarFoto(e.id, item);
+                    evento.target.value = '';
+                  }}/>
+              </label>
+              <button type="button" className="emb-excluir" onClick={() => apagarEmbalagem(e.id)}
+                aria-label={'Excluir ' + e.nome}>Excluir</button>
+            </div>
+          </div>)}
+          {!embalagens.length && <div className="emb-vazio">
+            Cadastre as embalagens acima. Cada uma ficará disponível para adicionar às células da tabela.
+          </div>}
+        </div>
+      </div>
+
+      <div className="emb-bloco">
+        <div className="emb-linha-titulo">
+          <div><h2>2. Tabela por quantidade</h2>
+            <p>Uma linha por produto. Edite os títulos das colunas e selecione as embalagens em cada célula.</p></div>
+          <div className="emb-acoes">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
+              setFaixas((prev) => prev.length >= 20 ? prev : [...prev, { id: idNovo(), rotulo: 'Outra quantidade' }])}>
+              + Coluna
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() =>
+              setLinhas((prev) => prev.length >= 500 ? prev : [...prev, { id: idNovo(), produto: '', celulas: {} }])}>
+              + Produto
+            </button>
           </div>
         </div>
-      </section>
-    );
+        <label className="emb-rotulo-titulo">Título do relatório
+          <input className="field field-md" maxLength={110} value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}/>
+        </label>
+        <div className="emb-rolagem">
+          <table className="emb-tabela emb-matriz">
+            <thead>
+              <tr>
+                <th className="emb-col-produto">PRODUTO</th>
+                {faixas.map((faixa) => <th key={faixa.id} className="emb-cabecalho-coluna">
+                  <input className="emb-faixa-titulo" aria-label="Nome da coluna de quantidade"
+                    maxLength={90} value={faixa.rotulo}
+                    onChange={(e) => setFaixas((prev) => prev.map((f) =>
+                      f.id === faixa.id ? { ...f, rotulo: e.target.value } : f))}/>
+                  <span className="emb-ajuda-coluna">Quantas embalagens usar?</span>
+                  <button type="button" className="emb-remover-coluna"
+                    title="Remover esta coluna" aria-label={'Remover coluna ' + faixa.rotulo}
+                    disabled={faixas.length <= 1} onClick={() => apagarColuna(faixa.id)}>×</button>
+                </th>)}
+                <th className="emb-col-excluir"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((linha) => <tr key={linha.id}>
+                <td className="emb-col-produto">
+                  <input className="emb-input-produto" type="text" maxLength={130}
+                    aria-label="Nome do produto" list="emb-produtos-cadastrados"
+                    placeholder="Selecione ou digite" value={linha.produto}
+                    onChange={(e) => setLinhas((prev) => prev.map((p) =>
+                      p.id === linha.id ? { ...p, produto: e.target.value } : p))}/>
+                </td>
+                {faixas.map((faixa) => {
+                  const lista = partes(linha, faixa.id);
+                  const abertas = editando && editando.linha === linha.id && editando.faixa === faixa.id;
+                  return <td key={faixa.id} className="emb-celula">
+                    <div className="emb-itens-celula">
+                      {lista.map(({ embalagem, quantidade }) =>
+                        <div className="emb-chip" key={embalagem.id}>
+                          {embalagem.foto
+                            ? <img className="emb-chip-foto" src={fotoSegura(embalagem.foto)} alt=""/>
+                            : <span className="emb-chip-foto emb-chip-sem-foto">□</span>}
+                          <div className="emb-chip-conteudo">
+                            <div title={embalagem.nome} className="emb-chip-nome">{embalagem.nome}</div>
+                            <label className="emb-chip-qtd">
+                              <span>Qtd.</span>
+                              <input type="number" min="1" step="1" value={quantidade}
+                                aria-label={'Quantidade de ' + embalagem.nome + ' para ' + linha.produto + ' em ' + faixa.rotulo}
+                                onChange={(e) => alterarQuantidade(linha.id, faixa.id, embalagem.id, e.target.value)}/>
+                            </label>
+                          </div>
+                          <button type="button" className="emb-chip-remover" title="Remover embalagem"
+                            aria-label={'Remover ' + embalagem.nome + ' desta célula'}
+                            onClick={() => excluirDaCelula(linha.id, faixa.id, embalagem.id)}>×</button>
+                        </div>)}
+                      {!lista.length && <div className="emb-celula-vazia">Nenhuma embalagem</div>}
+                      {embalagens.length > 0
+                        ? <div className="emb-adicao-celula">
+                            {abertas && <select autoFocus className="emb-select-embalagem" value=""
+                              aria-label={'Escolher embalagem para ' + linha.produto + ' em ' + faixa.rotulo}
+                              onChange={(e) => {
+                                adicionarNaCelula(linha.id, faixa.id, e.target.value);
+                                setEditando(null);
+                              }}>
+                              <option value="">Escolha a embalagem…</option>
+                              {embalagens.filter((e) => !lista.some((x) => x.embalagem.id === e.id))
+                                .map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                            </select>}
+                            <button className="emb-adicionar-na-celula" type="button"
+                              disabled={lista.length >= embalagens.length}
+                              onClick={() => setEditando(abertas ? null : { linha: linha.id, faixa: faixa.id })}>
+                              {abertas ? 'Cancelar' : '+ Embalagem'}
+                            </button>
+                          </div>
+                        : <span className="emb-celula-vazia">Cadastre as embalagens primeiro</span>}
+                    </div>
+                  </td>;
+                })}
+                <td className="emb-col-excluir">
+                  <button type="button" className="emb-remover-linha" title="Excluir produto"
+                    aria-label={'Excluir produto ' + (linha.produto || '')}
+                    onClick={() => setLinhas((prev) => prev.filter((p) => p.id !== linha.id))}>×</button>
+                </td>
+              </tr>)}
+              {!linhas.length && <tr><td colSpan={faixas.length + 2} className="emb-vazio-celula">
+                Clique em <strong>+ Produto</strong> para iniciar. Depois escolha as embalagens dentro de cada célula.
+              </td></tr>}
+            </tbody>
+          </table>
+          <datalist id="emb-produtos-cadastrados">
+            {nomesCadastrados.map((nome) => <option key={nome} value={nome}/>)}
+          </datalist>
+        </div>
+        <div className="emb-rodape">
+          <span>{linhas.length} produtos · {faixas.length} colunas de quantidade · {embalagens.length} embalagens cadastradas</span>
+          <div className="emb-acoes">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={csv}>Baixar Excel (CSV)</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={imprimir}>Imprimir / Salvar PDF</button>
+          </div>
+        </div>
+      </div>
+    </section>;
   };
-
   window.PackagingMatrixView = PackagingMatrixView;
 })();
