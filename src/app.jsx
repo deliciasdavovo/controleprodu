@@ -692,6 +692,7 @@ const { useState, useEffect, useMemo, useRef } = React;
       // Produto vendido a quilo precisa do peso da unidade: a receita rende 40
       // fatias de 120 g, então rende 4,8 kg — e é por kg que o preço é dado.
       const custoPorUnidadeDeVenda = (product, ficha) => {
+        if (ficha?.custoPendente) return 0;
         if (!ficha || !(ficha.custo > 0)) return Number(product?.manualCost) || 0;
         const rendimento = Number(ficha.yieldQty) || 0;
         if (rendimento <= 0) return 0;
@@ -963,9 +964,25 @@ const { useState, useEffect, useMemo, useRef } = React;
         const itens = recipeItems.filter((i) => i.recipeId === recipe.id);
         const proximaPilha = new Set(pilha);
         proximaPilha.add(productId);
+        const pendencias = itens.flatMap((item) => {
+          if (item.supplyId) {
+            const insumo = supplies.find((x) => x.id === item.supplyId);
+            if (!insumo) return [];
+            const d = diagnosticoCustoInsumo(insumo.id, purchases, insumo);
+            return d.pendente ? [{ nome: insumo.name, motivo: d.motivo }] : [];
+          }
+          if (item.componentProductId) {
+            const produtoComponente = products.find((x) => x.id === item.componentProductId);
+            const dependencia = fichaDoProduto(item.componentProductId, recipes, recipeItems,
+              supplies, purchases, products, proximaPilha);
+            return dependencia?.custoPendente
+              ? [{ nome: produtoComponente?.name || 'Produto da casa', motivo: 'Ficha de origem com conversão pendente.' }]
+              : [];
+          }
+          return [];
+        });
         return {
-          ...recipe,
-          itens,
+          ...recipe, itens, pendencias, custoPendente: pendencias.length > 0,
           custo: custoDaFicha(
             itens, supplies, purchases, products, recipes, recipeItems, proximaPilha
           )
@@ -13172,7 +13189,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
-          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
+          hint: diagnosticoCustoInsumo(s.id, supplyPurchases, s).pendente
+            ? 'Revisar equivalência da compra'
+            : formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
         }));
 
         const PAINEIS = [
@@ -15097,8 +15116,9 @@ const { useState, useEffect, useMemo, useRef } = React;
           }
           onUpdateRecipe({ yieldUnit: unidadeVenda, weightPerUnit: ficha.weightPerUnit });
         }, [ficha?.id, produto.priceUnit]);
-        const cmv = calcularCmv(custoUn, preco);
-        const calculavel = preco > 0 && custoUn > 0;
+        const custoPendente = !!ficha?.custoPendente;
+        const cmv = custoPendente ? 0 : calcularCmv(custoUn, preco);
+        const calculavel = !custoPendente && preco > 0 && custoUn > 0;
 
         const opcoesComponentes = useMemo(() => {
           const comprados = supplyOptions.map((o) => ({
@@ -15258,11 +15278,11 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div className="col-span-12 sm:col-span-8 flex flex-wrap items-center gap-4 sm:justify-end">
                 <div>
                   <div className="t-caption">Custo da receita</div>
-                  <div className="t-metric-xs tnum">{formatCurrencyBR(custoTotal)}</div>
+                  <div className="t-metric-xs tnum">{custoPendente ? '—' : formatCurrencyBR(custoTotal)}</div>
                 </div>
                 <div>
                   <div className="t-caption">Custo por {produto.priceUnit || 'un'}</div>
-                  <div className="t-metric-xs tnum">{custoUn > 0 ? formatCurrencyBR(custoUn) : '—'}</div>
+                  <div className="t-metric-xs tnum">{!custoPendente && custoUn > 0 ? formatCurrencyBR(custoUn) : '—'}</div>
                 </div>
                 <div>
                   <div className="t-caption">CMV</div>
@@ -15271,6 +15291,15 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
             </div>
 
+            {custoPendente && (
+              <div role="alert" className="my-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 text-sm">
+                <strong>CMV pendente: unidade da compra sem equivalência.</strong>
+                <p className="mt-1">O custo não é confiável enquanto uma compra não puder ser convertida para a unidade-base.</p>
+                {(ficha.pendencias || []).map((p, i) => (
+                  <p key={i} className="mt-1">{p.nome}: {p.motivo} Corrija no cadastro do insumo, em Unidades e equivalências.</p>
+                ))}
+              </div>
+            )}
             <div className="py-4 border-b hairline">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                 <div className="min-w-0">
@@ -15330,6 +15359,9 @@ const { useState, useEffect, useMemo, useRef } = React;
                     const custoLinha = custoDoItemDaFicha(
                       item, supplies, supplyPurchases, products, recipes, recipeItems, new Set([produto.id])
                     );
+                    const linhaPendente = supply
+                      ? diagnosticoCustoInsumo(supply.id, supplyPurchases, supply).pendente
+                      : !!componentFicha?.custoPendente;
                     const peso = custoTotal > 0 ? (custoLinha / custoTotal) * 100 : 0;
                     const unidadeBase = supply?.unit || componentFicha?.yieldUnit || 'un';
                     const unidades = supply
@@ -15340,7 +15372,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                       : `insumo:${item.supplyId || ''}`;
                     const rendimentoComponente = Number(componentFicha?.yieldQty) || 0;
                     const custoOrigem = supply
-                      ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases, supply), supply.unit)
+                      ? (linhaPendente ? 'Equivalência pendente' : formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases, supply), supply.unit))
                       : (componentFicha && rendimentoComponente > 0 && componentFicha.custo > 0
                         ? `${formatCurrencyBR(componentFicha.custo / rendimentoComponente)}/${unidadeBase}`
                         : '—');
@@ -15391,7 +15423,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                           {custoOrigem}
                         </td>
                         <td className="py-2.5 px-3 text-right t-body tnum font-semibold">
-                          {custoLinha > 0 ? formatCurrencyBR(custoLinha) : '—'}
+                          {linhaPendente ? <span className="text-amber-800">Revisar conversão</span> : (custoLinha > 0 ? formatCurrencyBR(custoLinha) : '—')}
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center justify-end gap-2">
@@ -15471,7 +15503,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
           const custoUn = custoPorUnidadeDeVenda(p, ficha);
           const preco = Number(p.price) || 0;
-          const calculavel = preco > 0 && custoUn > 0;
+          const calculavel = !ficha?.custoPendente && preco > 0 && custoUn > 0;
           const lucro = preco - custoUn;
           return {
             produto: p,
@@ -15492,7 +15524,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
-          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
+          hint: diagnosticoCustoInsumo(s.id, supplyPurchases, s).pendente
+            ? 'Revisar equivalência da compra'
+            : formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
         }));
 
         const linhasRevenda = useMemo(() => separatedProducts
