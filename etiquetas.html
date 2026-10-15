@@ -16,21 +16,33 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--green)}button{cur
 button.primary{background:var(--green);color:white;border-color:var(--green)}button:disabled{opacity:.5;cursor:not-allowed}
 .toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.notice{padding:10px 12px;background:#f5f6f2;border:1px solid #e5e9e2;border-radius:9px;color:#59675b;font-size:11px;line-height:1.5;margin:10px 0}
 .list{border:1px solid var(--line);border-radius:10px;max-height:390px;overflow:auto}.item{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #edf0ed;cursor:pointer}.item:last-child{border:0}.item:hover{background:#f7f9f6}.item strong{display:block;font-size:12px}.item small{color:#798079}.preview-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:15px}
-.sheet{background:#fff;border:1px dashed #b8c2b9;border-radius:8px;padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start;min-height:220px}
-.plaque{aspect-ratio:1.65;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:#123d26;color:#fff;padding:14px 16px;border:2px solid #d9cba6;border-radius:11px;box-shadow:inset 0 0 0 4px #123d26,inset 0 0 0 5px #d9cba6;break-inside:avoid;overflow:hidden}
+.sheet{background:#fff;border:1px dashed #b8c2b9;border-radius:8px;padding:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-content:start;min-height:220px}
+.plaque{aspect-ratio:1.5;min-width:0;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:#123d26;color:#fff;padding:8px 10px;border:1px solid #d9cba6;border-radius:6px;box-shadow:inset 0 0 0 3px #123d26,inset 0 0 0 4px #d9cba6;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
 .plaque.minimal{border:1px solid #d9cba6;border-radius:6px;box-shadow:none}
-.plaque .name{font:400 clamp(12px,1.45vw,17px)/1.2 'Libre Caslon Text',Georgia,serif;overflow-wrap:anywhere;text-wrap:balance;margin-bottom:7px}
-.plaque .flavor{font:400 clamp(16px,1.85vw,22px)/1.18 'Libre Caslon Text',Georgia,serif;letter-spacing:.035em;overflow-wrap:anywhere;text-wrap:balance}
-.plaque .rule{height:1px;width:76%;background:#d9cba6;margin:12px auto 10px;flex-shrink:0}
-.plaque .price{font:400 clamp(19px,2.35vw,29px)/1.1 'Libre Caslon Text',Georgia,serif}
-.plaque .unit{font:400 11px/1.25 'Libre Caslon Text',Georgia,serif;margin-top:3px}
+.plaque .name{font:400 clamp(10px,1.15vw,14px)/1.2 'Libre Caslon Text',Georgia,serif;overflow-wrap:anywhere;text-wrap:balance;margin-bottom:3px}
+.plaque .flavor{font:400 clamp(12px,1.35vw,17px)/1.13 'Libre Caslon Text',Georgia,serif;letter-spacing:.035em;overflow-wrap:anywhere;text-wrap:balance}
+.plaque .rule{height:1px;width:74%;background:#d9cba6;margin:6px auto 5px;flex-shrink:0}
+.plaque .price{font:400 clamp(15px,1.75vw,21px)/1.1 'Libre Caslon Text',Georgia,serif}
+.plaque .unit{font:400 10px/1.2 'Libre Caslon Text',Georgia,serif;margin-top:3px}
 .plaque.production{background:#fff;color:#233a29;border:1px solid #233a29;box-shadow:none}
 .plaque.production .price{font:400 12px Manrope,Arial,sans-serif}
 .plaque.production .unit{font:11px Manrope,Arial,sans-serif}
 .selected-row{display:grid;grid-template-columns:1fr 100px 92px auto;align-items:center;gap:7px;border-bottom:1px solid #eee;padding:8px 0}.selected-row strong{font-size:11px}.selected-row input,.selected-row select{padding:7px;font-size:11px}.selected-row button{padding:7px}.muted{font-size:11px;color:#707b71}.empty{color:#858d86;padding:35px 10px;text-align:center}.footer-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
-@media(max-width:850px){main{grid-template-columns:1fr;margin-top:12px}.sheet{gap:9px}.plaque .name{font-size:clamp(12px,3.3vw,20px)}.plaque .price{font-size:clamp(15px,4vw,22px)}.selected-row{grid-template-columns:1fr 76px 72px auto}header{padding:14px 18px}}
+@media(max-width:850px){main{grid-template-columns:1fr;margin-top:12px}.sheet{gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}.plaque .name{font-size:clamp(10px,2.5vw,13px)}.plaque .flavor{font-size:clamp(12px,3.2vw,16px)}.plaque .price{font-size:clamp(15px,3.7vw,20px)}.selected-row{grid-template-columns:1fr 76px 72px auto}header{padding:14px 18px}}
 @page{size:A4 portrait;margin:10mm}
-@media print{body{background:white}header,.settings,.preview-header,.footer-actions,.notice{display:none!important}main{display:block;max-width:none;margin:0;padding:0}.panel{border:0;padding:0}.preview{display:block}.sheet{border:0;padding:0;display:grid;grid-template-columns:repeat(2,90mm);gap:5mm;min-height:0;justify-content:center}.plaque{width:90mm;height:55mm;aspect-ratio:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact;outline:none;border:1px solid #d4c9a9}.plaque .name{font-size:12pt}.plaque .flavor{font-size:17pt}.plaque .price{font-size:20pt}.plaque .unit{font-size:9pt}.plaque .rule{margin:9px auto 8px}}
+@media print{
+ html,body{width:190mm!important;min-width:0!important;margin:0!important;padding:0!important;background:#fff!important}
+ header,.settings,.preview-header,.footer-actions,.notice{display:none!important}
+ main,.panel.preview{display:block!important;width:190mm!important;max-width:190mm!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important}
+ .sheet{display:grid!important;width:190mm!important;max-width:190mm!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;grid-template-columns:repeat(3,60mm)!important;grid-auto-rows:40mm!important;column-gap:5mm!important;row-gap:4mm!important;justify-content:start!important;align-content:start!important;overflow:visible!important}
+ .plaque{box-sizing:border-box!important;width:60mm!important;height:40mm!important;min-width:60mm!important;max-width:60mm!important;min-height:40mm!important;max-height:40mm!important;aspect-ratio:auto!important;padding:3mm 4mm!important;margin:0!important;border:0.35mm solid #d9cba6!important;border-radius:2mm!important;box-shadow:inset 0 0 0 0.9mm #123d26,inset 0 0 0 1.15mm #d9cba6!important;print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important;break-inside:avoid!important;page-break-inside:avoid!important}
+ .plaque .name{font-size:9pt!important;line-height:1.1!important;margin:0 0 1.5mm!important;max-width:100%!important}
+ .plaque .flavor{font-size:11pt!important;line-height:1.1!important;letter-spacing:0!important;max-width:100%!important}
+ .plaque .rule{height:0.25mm!important;width:75%!important;margin:2mm auto 1.6mm!important}
+ .plaque .price{font-size:15pt!important;line-height:1.1!important}
+ .plaque .unit{font-size:8pt!important;line-height:1.1!important;margin-top:1mm!important}
+ .plaque.production{box-shadow:none!important}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/acorn@8.14.0/dist/acorn.js"></script>
 </head>
@@ -58,7 +70,7 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 <div id="selected"><p class="muted">Selecione produtos acima.</p></div>
 </section>
 <section class="panel preview">
-<div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 9 × 5,5 cm · verde e branco</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
+<div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 6 × 4 cm · 3 por linha</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
 <div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. O preço vem do produto ou da variação específica cadastrada no PedidosCardápio. Sem preço definido, a impressão será bloqueada. Alterações nesta tela são apenas para impressão; não alteram o CMV.</div>
 <div class="sheet" id="sheet"><div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div></div>
 <div class="footer-actions"><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div>
