@@ -88,7 +88,7 @@ jobs:
               // O PDF de manual deve carregar a foto incorporada no próprio arquivo.
               const [manual] = await Promise.all([
                 page.waitForEvent('popup',{timeout:15000}),
-                page.getByRole('button',{name:/Manual com fotos \\(PDF\\)/i}).click()
+                page.getByRole('button',{name:'Manual com fotos (PDF)'}).click()
               ]);
               await manual.waitForLoadState('domcontentloaded');
               await manual.locator('.embalagem-foto').first().waitFor({state:'visible',timeout:12000});
