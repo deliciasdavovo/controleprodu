@@ -9810,6 +9810,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         subtitulo,
         compras,
         unidadeBase,
+        supply = null,
         unidadesCompra = null,
         compraPorVolume = false,
         volumePadrao = null,
@@ -9874,8 +9875,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const fornecedorOptions = fornecedores.map((f) => ({ value: f, label: f }));
 
         const custoUnitDe = (c) => {
+          if (supply) return diagnosticoCustoInsumo(supply.id, [c], supply);
           const qtd = Number(c.qty) || 0;
-          return qtd > 0 ? (Number(c.cost) || 0) / qtd : 0;
+          return { custo: qtd > 0 ? (Number(c.cost) || 0) / qtd : 0, pendente: false };
         };
 
         const salvar = (e) => {
@@ -9894,6 +9896,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             supplier: draft.supplier.trim(),
             purchaseDate: draft.purchaseDate || null,
             qty,
+            quantityBasis: supply ? 'purchase' : undefined,
             purchaseUnit: compraNovaPorVolume
               ? criarUnidadeCompraVolume((volumePadrao || pacoteAnterior)?.tipo || 'caixa', unidadesPorVolume)
               : (compraPorVolume ? 'un' : (draft.purchaseUnit || undefined)),
@@ -10184,7 +10187,8 @@ const { useState, useEffect, useMemo, useRef } = React;
                                 onValueChange={(qty) => onUpdate({ ...c, qty: Number(qty) || 0 })}
                                 className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
                               />
-                              <span className="t-micro max-w-44 text-right">{unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
+                              <span className="t-micro max-w-44 text-right">{supply && c.quantityBasis === 'base'
+                                ? unidadeBase : unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)}</span>
                             </div>
                           )}
                         </td>
@@ -10199,7 +10203,9 @@ const { useState, useEffect, useMemo, useRef } = React;
                         </td>
                         <td className="py-2 px-3 text-right">
                           <span className="t-body tnum">
-                            {formatPrecoInsumo(custoUnitDe(c), compraPorVolume ? unidadeBase : unidadeCompraEfetiva(c.purchaseUnit || unidadeBase))}
+                            {custoUnitDe(c).pendente
+                               ? <span className="text-amber-800" title={custoUnitDe(c).motivo}>Revisar equivalência</span>
+                               : formatPrecoInsumo(custoUnitDe(c).custo, supply ? unidadeBase : (compraPorVolume ? unidadeBase : unidadeCompraEfetiva(c.purchaseUnit || unidadeBase)))}
                           </span>
                           {idx === 0 && <div className="t-nano ink-quiet">é este que vale</div>}
                         </td>
@@ -15024,6 +15030,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                     : `Compras em ${s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)}${rotuloVariacao(s) ? ` · ${rotuloVariacao(s)}` : ''}`}
                   compras={comprasDoInsumo(s.id)}
                   unidadeBase={s.unit}
+                  supply={s}
                   unidadesCompra={volumeFixoDoCadastro(s) ? null : [s.purchaseUnit || unidadeCompraPadraoDaBase(s.unit)]}
                   compraPorVolume={!!volumeFixoDoCadastro(s)}
                   volumePadrao={volumeFixoDoCadastro(s)}
