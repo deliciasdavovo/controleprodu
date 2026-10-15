@@ -26096,10 +26096,9 @@ ${BARRA_ACOES_HTML}
           const unidadeNova = updated.purchaseUnit || unidadeCompraPadraoDaBase(updated.unit);
           const mudouUnidadeCompra = !!anterior && unidadeAnterior !== unidadeNova;
 
+          // A unidade comercial do cadastro vale para novas compras.
+          // As unidades das notas históricas são fatos e não podem ser sobrescritas.
           setSupplies((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-          if (mudouUnidadeCompra) {
-            aplicarMudancaUnidadeHistoricoLocal('supply', updated.id, unidadeNova);
-          }
 
           const temVariationUnit = !!String(updated.variationUnit || '').trim();
           const temVariationFactor = Number(updated.variationFactor) > 0;
@@ -26125,22 +26124,12 @@ ${BARRA_ACOES_HTML}
           const key = `insumo:${updated.id}`;
           const salvar = async () => {
             await run('supplies', sb.from('supplies').update(campos).eq('id', updated.id));
-            if (mudouUnidadeCompra) {
-              await run(
-                'Atualizar unidade no histórico de compras',
-                sb.rpc('cascade_purchase_unit_change', {
-                  p_kind: 'supply',
-                  p_item_id: updated.id,
-                  p_new_unit: unidadeNova
-                })
-              );
-            }
           };
 
-          // Troca de unidade é estrutural: salva na hora e já percorre o histórico.
+          // A unidade padrão muda imediatamente, mas não reinterpreta notas antigas.
           if (immediate || mudouUnidadeCompra) {
             cancelScheduledWrite(key);
-            return write(mudouUnidadeCompra ? 'Atualizar unidade e histórico do insumo' : 'Atualizar insumo', salvar);
+            return write(mudouUnidadeCompra ? 'Atualizar unidade padrão do insumo' : 'Atualizar insumo', salvar);
           }
           writeSoon(key, 'Atualizar insumo', salvar);
           return Promise.resolve(null);
