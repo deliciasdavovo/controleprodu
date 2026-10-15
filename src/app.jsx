@@ -495,67 +495,85 @@ const { useState, useEffect, useMemo, useRef } = React;
         return qtd > 0 ? (Number(uc.cost) || 0) / qtd : 0;
       };
 
-      // A quantidade da linha da ficha, convertida para a unidade base do
-      // insumo. Sem isso, "2 latas" entraria na conta como 2 gramas.
+
+      // Um produto pode ter várias relações, como 1 un = 1800 g e 1 fatia = 30 g.
+      // Cada relação possui direção clara, mas o conversor a percorre nos dois sentidos.
+      // O cadastro antigo (variation_unit/factor) continua válido até ser editado.
+      const UNIDADES_PARA_EQUIVALENCIA = ['un', 'g', 'kg', 'ml', 'L', 'fatia', 'pacote', 'caixa', 'fardo', 'lata', 'pote', 'sachê', 'dose', 'porção', 'barra', 'bandeja'];
+      const regrasEquivalenciaDoInsumo = (supply) => {
+        if (!supply) return [];
+        const atuais = Array.isArray(supply.unitEquivalences)
+          ? supply.unitEquivalences.filter((r) => r && r.fromUnit && r.toUnit && Number(r.factor) > 0)
+              .map((r) => ({ fromUnit: String(r.fromUnit), toUnit: String(r.toUnit), factor: Number(r.factor) }))
+          : [];
+        const base = String(supply.unit || 'un');
+        const alternativa = String(supply.variationUnit || '').trim();
+        const fator = Number(supply.variationFactor) || 0;
+        if (alternativa && fator > 0 && alternativa !== base) {
+          const legada = base === 'un'
+            ? { fromUnit: 'un', toUnit: alternativa, factor: fator }
+            : { fromUnit: alternativa, toUnit: base, factor: fator };
+          const existe = atuais.some((r) =>
+            (r.fromUnit === legada.fromUnit && r.toUnit === legada.toUnit)
+            || (r.fromUnit === legada.toUnit && r.toUnit === legada.fromUnit));
+          // A versão nova tem precedência sem destruir o legado no banco.
+          if (!existe) atuais.unshift(legada);
+        }
+        return atuais;
+      };
+
+      // Grafo de conversões por produto. Não converte massa em volume sem
+      // uma regra específica e nunca presume que unidade = grama.
+      const converterQuantidadeEquivalente = (quantidade, origem, destino, supply) => {
+        const q = Number(quantidade);
+        const de = String(origem || '').trim();
+        const para = String(destino || '').trim();
+        if (!Number.isFinite(q) || !de || !para) return 0;
+        if (de === para) return q;
+        const arestas = new Map();
+        const ligar = (a, b, multiplicador) => {
+          if (!a || !b || a === b || !(multiplicador > 0) || !Number.isFinite(multiplicador)) return;
+          if (!arestas.has(a)) arestas.set(a, []);
+          if (!arestas.has(b)) arestas.set(b, []);
+          arestas.get(a).push({ destino: b, fator: multiplicador });
+          arestas.get(b).push({ destino: a, fator: 1 / multiplicador });
+        };
+        ligar('kg', 'g', 1000);
+        ligar('L', 'ml', 1000);
+        regrasEquivalenciaDoInsumo(supply).forEach((r) => ligar(r.fromUnit, r.toUnit, r.factor));
+        const visitados = new Set([de]);
+        const fila = [{ unidade: de, fator: 1 }];
+        while (fila.length) {
+          const atual = fila.shift();
+          for (const aresta of arestas.get(atual.unidade) || []) {
+            const fator = atual.fator * aresta.fator;
+            if (aresta.destino === para) return Number.isFinite(fator) ? q * fator : 0;
+            if (!visitados.has(aresta.destino)) {
+              visitados.add(aresta.destino);
+              fila.push({ unidade: aresta.destino, fator });
+            }
+          }
+        }
+        return 0;
+      };
+
       const qtdNaUnidadeBase = (item, supply) => {
         const qtd = Number(item?.qty) || 0;
-        const uso = item?.usageUnit || supply?.unit || '';
-        const base = supply?.unit || '';
-        if (!supply || !uso || !base || uso === base) return qtd;
-
-        // Conversões diretas entre unidades métricas equivalentes.
-        // Antes 1 kg numa ficha de um insumo-base g podia ser tratado como 1 g.
-        if ((uso === 'kg' && base === 'g') || (uso === 'g' && base === 'kg')
-          || (uso === 'L' && base === 'ml') || (uso === 'ml' && base === 'L')) {
-          return converterQuantidadeUnidade(qtd, uso, base);
-        }
-
-        const variacao = String(supply.variationUnit || '');
-        const fator = Number(supply.variationFactor) || 0;
-        if (!variacao || !(fator > 0)) return 0;
-
-        // Base un: ex. Nutella 3 kg -> 1 un = 3000 g.
-        // A ficha pode usar g OU kg; primeiro convertemos para a unidade
-        // alternativa cadastrada e só depois para unidades-base.
-        if (base === 'un') {
-          let qtdNaVariacao = qtd;
-          if (uso !== variacao) {
-            const conversaoMetrica =
-              (uso === 'kg' && variacao === 'g') || (uso === 'g' && variacao === 'kg')
-              || (uso === 'L' && variacao === 'ml') || (uso === 'ml' && variacao === 'L');
-            if (!conversaoMetrica) return 0;
-            qtdNaVariacao = converterQuantidadeUnidade(qtd, uso, variacao);
-          }
-          return qtdNaVariacao / fator;
-        }
-
-        // Base g/ml/unidade técnica: 1 variação = fator unidades-base.
-        if (uso === variacao) return qtd * fator;
-
-        return 0;
+        if (!supply) return 0;
+        return converterQuantidadeEquivalente(qtd, item?.usageUnit || supply.unit, supply.unit || 'un', supply);
       };
 
       const unidadesDaFichaParaInsumo = (supply) => {
         if (!supply) return [];
-        const unidades = [supply.unit || 'un'];
-        const adicionar = (u) => { if (u && !unidades.includes(u)) unidades.push(u); };
-
-        if (supply.unit === 'g') adicionar('kg');
-        if (supply.unit === 'kg') adicionar('g');
-        if (supply.unit === 'ml') adicionar('L');
-        if (supply.unit === 'L') adicionar('ml');
-
-        const variacao = String(supply.variationUnit || '');
-        const fator = Number(supply.variationFactor) || 0;
-        if (variacao && fator > 0) {
-          adicionar(variacao);
-          if (variacao === 'g') adicionar('kg');
-          if (variacao === 'kg') adicionar('g');
-          if (variacao === 'ml') adicionar('L');
-          if (variacao === 'L') adicionar('ml');
-        }
-
-        return unidades;
+        const base = supply.unit || 'un';
+        const candidatos = new Set([base]);
+        regrasEquivalenciaDoInsumo(supply).forEach((r) => {
+          candidatos.add(r.fromUnit);
+          candidatos.add(r.toUnit);
+        });
+        if (candidatos.has('g') || candidatos.has('kg')) { candidatos.add('g'); candidatos.add('kg'); }
+        if (candidatos.has('ml') || candidatos.has('L')) { candidatos.add('ml'); candidatos.add('L'); }
+        return [...candidatos].filter((u) => u === base || converterQuantidadeEquivalente(1, u, base, supply) > 0);
       };
 
       // Produto fabricado pela própria casa também pode ser ingrediente de outra
@@ -910,30 +928,8 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const base = String(insumo.unit || 'un');
         const venda = String(item.priceUnit || item.unitOfMeasure || 'un');
-
-        if (base === venda) return custoBase;
-        if (base === 'g' && venda === 'kg') return custoBase * 1000;
-        if (base === 'kg' && venda === 'g') return custoBase / 1000;
-        if (base === 'ml' && venda === 'L') return custoBase * 1000;
-        if (base === 'L' && venda === 'ml') return custoBase / 1000;
-
-        const alt = String(insumo.variationUnit || '');
-        const fator = Number(insumo.variationFactor) || 0;
-        if (fator > 0 && alt) {
-          // Base diferente de un: 1 unidade alternativa = fator unidades-base.
-          if (base !== 'un' && alt === venda) return custoBase * fator;
-
-          // Base un: 1 un = fator unidades alternativas.
-          if (base === 'un') {
-            if (alt === venda) return custoBase / fator;
-            if (alt === 'g' && venda === 'kg') return (custoBase / fator) * 1000;
-            if (alt === 'kg' && venda === 'g') return (custoBase / fator) / 1000;
-            if (alt === 'ml' && venda === 'L') return (custoBase / fator) * 1000;
-            if (alt === 'L' && venda === 'ml') return (custoBase / fator) / 1000;
-          }
-        }
-
-        return 0;
+        const qtdBase = converterQuantidadeEquivalente(1, venda, base, insumo);
+        return qtdBase > 0 ? custoBase * qtdBase : 0;
       };
 
       // Reúne a ficha de um produto num objeto só, com o custo já somado.
@@ -1013,15 +1009,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         return `1 ${nome} = ${numeroCurtoBR(fator)} un${custoUn}${origem}`;
       };
 
-      // Como a loja escreve a variação do insumo, para conferir de bate-pronto
-      const rotuloVariacao = (supply) => {
-        if (!supply?.variationUnit || !(Number(supply.variationFactor) > 0)) return '';
-        // Dados legados: quando a base é g/ml, o fator armazenado representa
-        // quantas unidades-base correspondem a 1 unidade alternativa.
-        return supply.unit === 'un'
-          ? `1 un = ${numeroCurtoBR(supply.variationFactor)} ${supply.variationUnit}`
-          : `1 ${supply.variationUnit} = ${numeroCurtoBR(supply.variationFactor)} ${supply.unit}`;
-      };
+      // Resumo sempre derivado do mesmo cadastro usado pelas compras e fichas.
+      const rotuloVariacao = (supply) => regrasEquivalenciaDoInsumo(supply)
+        .map((r) => `1 ${r.fromUnit} = ${numeroCurtoBR(r.factor)} ${r.toUnit}`).join(' · ');
 
       // ------------------------------------------
       // Vitrine = um móvel de verdade da loja (Salgada 1, Salgada 2, Doce…).
@@ -1461,6 +1451,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         unit: row.unit || 'g',
         variationUnit: row.variation_unit || '',
         variationFactor: row.variation_factor === null ? null : Number(row.variation_factor),
+        unitEquivalences: Array.isArray(row.unit_equivalences) ? row.unit_equivalences : [],
         supplyClass: row.supply_class || 'insumo',
         purchaseUnit: row.purchase_unit || unidadeCompraPadraoDaBase(row.unit || 'g'),
         packageType: row.package_type || '',
@@ -12047,7 +12038,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 
           if (anterior.supplyId) {
             const base = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(unidadeCompraCadastro);
-            return converterQuantidadeUnidade(qtdAnterior, base, unidadeCompraNestaCompra || unidadeCompraPadraoDaBase(base));
+            return converterQuantidadeEquivalente(qtdAnterior, base, unidadeCompraNestaCompra || unidadeCompraPadraoDaBase(base), supplyExistente);
           }
 
           const origem = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
@@ -12057,29 +12048,11 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const unidadeBaseDaRevenda = (unidade) => unidadeTecnicaDaCompra(unidade);
 
-        const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase) =>
-          converterQuantidadeUnidade(qtd, unidadeCompra, unidadeBase);
+        const qtdCompraNaBase = (qtd, unidadeCompra, unidadeBase, insumo = null) =>
+          converterQuantidadeEquivalente(qtd, unidadeCompra, unidadeBase, insumo);
 
-        const qtdUnidadesNaBaseDoInsumo = (qtdUnidades, insumo, unidadeConteudo = 'un') => {
-          const total = Number(qtdUnidades) || 0;
-          const base = String(insumo?.unit || 'un');
-          if (!(total > 0)) return 0;
-          if (base === 'un') return total;
-
-          const unidadeCompra = unidadeCompraEfetiva(unidadeConteudo || 'un');
-          if (unidadeTecnicaDaCompra(unidadeCompra) === base && unidadeCompra !== 'un') {
-            return converterQuantidadeUnidade(total, unidadeCompra, base);
-          }
-
-          const fator = Number(insumo?.variationFactor) || 0;
-          const alternativa = String(insumo?.variationUnit || '');
-          if (fator > 0 && (alternativa === base || alternativa === 'un')) {
-            return total * fator;
-          }
-
-          // Nunca trate 1 unidade/caixa como 1 g ou 1 ml por falta de equivalência.
-          return 0;
-        };
+        const qtdUnidadesNaBaseDoInsumo = (qtdUnidades, insumo, unidadeConteudo = 'un') =>
+          converterQuantidadeEquivalente(qtdUnidades, unidadeCompraEfetiva(unidadeConteudo), insumo?.unit || 'un', insumo);
 
         // ------------------------------------------
         // A SUGESTÃO DO VALOR PAGO
@@ -12115,7 +12088,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             const unidadeBase = supplyExistente?.unit || draft.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra);
             qtdAgoraComparavel = compraPorVolume
               ? qtdDigitada * unidadesPorVolumeCompra
-              : qtdCompraNaBase(qtdDigitada, unidadeCompraNestaCompra, unidadeBase);
+              : qtdCompraNaBase(qtdDigitada, unidadeCompraNestaCompra, unidadeBase, supplyExistente);
           } else {
             const unidadeAnterior = unidadeCompraEfetiva(anterior.purchaseUnit || 'un');
             const unidadeAgora = compraPorVolume ? 'un' : unidadeCompraEfetiva(unidadeCompraNestaCompra || 'un');
@@ -12496,9 +12469,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             const unidadeDuplicata = unidadeCompraEfetiva(unidadeCompraSalva);
             const baseDuplicata = supplyExistente?.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra);
             const qtyInsumoDuplicata = supplyExistente
-              ? (baseDuplicata !== 'un' && unidadeDuplicata === 'un'
-                  ? qtdUnidadesNaBaseDoInsumo(qty, supplyExistente, unidadeDuplicata)
-                  : qtdCompraNaBase(qty, unidadeDuplicata, baseDuplicata))
+              ? converterQuantidadeEquivalente(qty, unidadeDuplicata, baseDuplicata, supplyExistente)
               : qty;
             const podeLancar = await confirmarPossivelDuplicataCompra({
               supplier: fornecedorCompra,
@@ -12571,7 +12542,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             if (insumo?.id && qty > 0 && cost > 0) {
               const unidadeCompraEfetivaAtual = unidadeCompraEfetiva(unidadeCompraSalva);
               const baseInsumo = insumo.unit || unidadeTecnicaDaCompra(unidadeCompraNestaCompra);
-              const qtdBaseDireta = qtdCompraNaBase(qty, unidadeCompraEfetivaAtual, baseInsumo);
+              const qtdBaseDireta = qtdCompraNaBase(qty, unidadeCompraEfetivaAtual, baseInsumo, insumo);
               const qtdBase = (baseInsumo !== 'un' && unidadeCompraEfetivaAtual === 'un')
                 ? qtdUnidadesNaBaseDoInsumo(qty, insumo, unidadeCompraEfetivaAtual)
                 : qtdBaseDireta;
@@ -26040,6 +26011,7 @@ ${BARRA_ACOES_HTML}
               purchase_unit: supply.purchaseUnit || unidadeCompraPadraoDaBase(supply.unit),
               variation_unit: supply.variationUnit || null,
               variation_factor: supply.variationFactor || null,
+              unit_equivalences: Array.isArray(supply.unitEquivalences) ? supply.unitEquivalences : [],
               supply_class: supply.supplyClass || 'insumo',
               package_type: supply.packageType || null,
               package_units: Number(supply.packageUnits) > 0 ? Number(supply.packageUnits) : null,
@@ -26097,6 +26069,9 @@ ${BARRA_ACOES_HTML}
           if (temVariationUnit === temVariationFactor) {
             campos.variation_unit = temVariationUnit ? String(updated.variationUnit).trim() : null;
             campos.variation_factor = temVariationFactor ? Number(updated.variationFactor) : null;
+          }
+          if (Array.isArray(updated.unitEquivalences)) {
+            campos.unit_equivalences = updated.unitEquivalences;
           }
           const nome = (updated.name || '').trim();
           if (nome) campos.name = nome;
