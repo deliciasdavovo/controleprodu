@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/precompilar-jsx-para-abertura-rapida
+      - feat/embalagens-variacoes-por-produto-2026-10-14
     paths:
       - 'src/**'
       - 'index.html'
@@ -55,8 +56,23 @@ jobs:
               console.log('TEMPO_TELA_INICIAL_MS:', Date.now() - start);
               await page.getByRole('button', {name:/Entrar no CMV/i}).first().click();
               await page.getByRole('button', {name:/^Embalagens$/i}).first().click();
-              await page.getByText('2. Tabela por quantidade', {exact:true}).waitFor({state:'visible',timeout:20000});
-              await page.getByText('Embalagens cadastradas', {exact:false}).first().waitFor({state:'visible',timeout:12000});
+              await page.getByText('Guia de embalagens por produto', {exact:true}).waitFor({state:'visible',timeout:20000});
+              await page.getByText('Salgados', {exact:true}).first().waitFor({state:'visible',timeout:12000});
+              await page.getByText('Doces e sobremesas', {exact:true}).first().waitFor({state:'visible',timeout:12000});
+              console.log('AGRUPAMENTOS_CARREGADOS:', true);
+              await page.route('**/rest/v1/packaging_matrices**', route => {
+                if (['POST','PUT','PATCH','DELETE'].includes(route.request().method()))
+                  return route.fulfill({status:201, contentType:'application/json',body:''});
+                return route.continue();
+              });
+              await page.locator('.emb2-btn-nova').first().click();
+              await page.locator('.emb2-var-card').first().waitFor({state:'visible',timeout:12000});
+              console.log('VARIACAO_ADICIONADA_NA_LINHA:', true);
+              await page.locator('.emb2-botao-escolher').first().click();
+              await page.locator('.emb2-picker-opcao').first().waitFor({state:'visible',timeout:12000});
+              await page.locator('.emb2-picker-opcao').first().click();
+              await page.locator('.emb2-item').first().waitFor({state:'visible',timeout:12000});
+              console.log('EMBALAGEM_COM_FOTO_SELECIONAVEL:', true);
               console.log('NAVEGACAO_CMV_EMBALAGENS_OK:', true);
               console.log('ERROS_NAVEGADOR:', JSON.stringify(fatal));
               if (!response || response.status() >= 400 || fatal.length) {
