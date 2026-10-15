@@ -89,9 +89,13 @@ jobs:
               if ((await page.locator('body').innerText()).includes('Erro ao carregar:')) {
                 throw new Error('A aba Embalagens apresentou erro ao carregar.');
               }
-              if (!(await page.getByText('2. Tabela por quantidade', {exact:true}).count())) {
-                throw new Error('A planilha de embalagens nao apareceu.');
+              if (!(await page.getByText('Guia de embalagens por produto', {exact:true}).count()) ||
+                  !(await page.locator('.emb2-grupo').count()) ||
+                  !(await page.locator('.emb2-btn-nova').count())) {
+                throw new Error('O guia com produtos agrupados e variacoes nao apareceu.');
               }
+              console.log('GRUPOS_EMBALAGENS:', await page.locator('.emb2-grupo').count());
+              console.log('PRODUTOS_COM_VARIACAO:', await page.locator('.emb2-btn-nova').count());
               console.log('ABA_EMBALAGENS_ABRIU: SIM');
             } finally {
               await browser.close();
