@@ -125,18 +125,24 @@ function unit(p){return validPrice(p.priceKg)?'kg':(p.units||[]).includes('kg')?
 function choices(p){
  const result=[],base=priceFor(p),u=unit(p);
  const variants=p.variants&&typeof p.variants==='object'?Object.entries(p.variants):[];
- if(variants.length){
-  for(const [label,v] of variants){
-   if(!v||typeof v!=='object')continue;
-   const price=validPrice(v.price)?v.price:validPrice(v.priceKg)?v.priceKg:null;
-   result.push({key:p.id+'::var::'+label,name:p.name+' — '+label,category:p.category,price,unit:validPrice(v.priceKg)?'kg':u,product:p});
-  }
+ const flavors=Array.isArray(p.flavors)?p.flavors.filter(x=>typeof x==='string'&&x.trim()):[];
+ const names=new Set();
+ function addVariant(label,v,kind){
+  const clean=String(label||'').trim();if(!clean)return;
+  const normalized=clean.toLocaleLowerCase('pt-BR');
+  if(names.has(normalized))return;
+  names.add(normalized);
+  const price=v&&validPrice(v.price)?v.price:v&&validPrice(v.priceKg)?v.priceKg:base;
+  result.push({key:p.id+'::'+kind+'::'+clean,name:p.name+' — '+clean,category:p.category,price,unit:v&&validPrice(v.priceKg)?'kg':u,product:p,flavor:clean});
  }
+ for(const [label,v] of variants){if(v&&typeof v==='object')addVariant(label,v,'var');}
+ // O catálogo costuma usar flavors sem variants: cada sabor deve virar uma etiqueta.
+ for(const flavor of flavors)addVariant(flavor,p.variants?.[flavor]||null,'flavor');
  if(Array.isArray(p.sizes)&&p.sizes.length){
   for(let i=0;i<p.sizes.length;i++){
    const v=p.sizes[i];if(!v||typeof v!=='object')continue;
    const label=String(v.label||v.name||'Tamanho '+(i+1));
-   result.push({key:p.id+'::size::'+i,name:p.name+' — '+label,category:p.category,price:validPrice(v.price)?v.price:null,unit:'un',product:p});
+   result.push({key:p.id+'::size::'+i,name:p.name+' — '+label,category:p.category,price:validPrice(v.price)?v.price:base,unit:'un',product:p,sizeLabel:label});
   }
  }
  if(!result.length)result.push({key:p.id,name:p.name,category:p.category,price:base,unit:u,product:p});
@@ -155,8 +161,10 @@ function flavorFromName(name){
 function add(choice){
  const parsed=flavorFromName(choice.name);
  const p=choice.product||{};
- const explicit=[p.flavor,p.sabor,p.filling,p.recheio].find(x=>typeof x==='string'&&x.trim());
- selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName:parsed.productName,flavor:parsed.flavor||explicit||'',description:''});
+ const explicit=[choice.flavor,p.flavor,p.sabor,p.filling,p.recheio].find(x=>typeof x==='string'&&x.trim());
+ const descriptionIngredients=String(p.description||'').match(/^(?:torradas?\s+com|rechead[oa]s?\s+com)\s+(.+?)[.!]?$/i);
+ const inferred=descriptionIngredients?descriptionIngredients[1].replace(/[.]$/,'').trim():'';
+ selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName:parsed.productName,flavor:choice.flavor||(!choice.sizeLabel&&parsed.flavor)||explicit||inferred||'',description:''});
 }
 function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return allChoices().filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
 function render(){
