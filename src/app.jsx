@@ -15967,7 +15967,9 @@ const { useState, useEffect, useMemo, useRef } = React;
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <CmvCell cmv={cmv} calculavel={calculavel} natureza="fabricacao" />
+                            {ficha?.custoPendente
+                               ? <span className="t-nano text-amber-800 font-bold">Revisar conversão</span>
+                               : <CmvCell cmv={cmv} calculavel={calculavel} natureza="fabricacao" />}
                           </td>
                           <td className="py-2.5 px-3">
                             <NumeroBRField
@@ -15997,10 +15999,12 @@ const { useState, useEffect, useMemo, useRef } = React;
                               : <span className="t-body ink-quiet">—</span>}
                           </td>
                           <td className="py-2.5 px-3 text-right t-body tnum">
-                            {ficha && ficha.custo > 0 ? formatCurrencyBR(ficha.custo) : <span className="ink-quiet">—</span>}
+                            {ficha && !ficha.custoPendente && ficha.custo > 0 ? formatCurrencyBR(ficha.custo) : <span className="ink-quiet">—</span>}
                           </td>
                           <td className="py-2.5 px-3 text-right">
-                            {custoUn > 0 ? (
+                            {ficha?.custoPendente ? (
+                               <span className="t-nano text-amber-800">Equivalência pendente</span>
+                             ) : custoUn > 0 ? (
                               <span className="t-body tnum">{formatCurrencyBR(custoUn)}/{produto.priceUnit || 'un'}</span>
                             ) : (
                               <NumeroBRField
@@ -16033,7 +16037,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                               className="btn btn-secondary btn-sm"
                             >
                               <Icons.ClipboardList className="w-3.5 h-3.5" />
-                              {ficha && ficha.itens.length > 0 ? 'Abrir' : 'Montar'}
+                              {ficha?.custoPendente ? 'Revisar' : (ficha && ficha.itens.length > 0 ? 'Abrir' : 'Montar')}
                             </button>
                           </td>
                         </tr>
