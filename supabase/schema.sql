@@ -592,9 +592,10 @@ comment on column public.resale_purchases.previous_purchase_unit is
 comment on column public.resale_purchases.unit_review_required is
   'True quando a unidade foi alterada automaticamente pelo cadastro e a quantidade desta compra ainda precisa ser conferida.';
 
--- Quando a unidade de compra é alterada no cadastro, todo lançamento
--- histórico não-volume recebe a nova unidade. A unidade anterior fica guardada
--- e a linha é marcada para conferência manual da quantidade.
+-- A unidade de compra do cadastro é um PADRÃO para lançamentos futuros.
+-- Não reescrever compras históricas: cada nota mantém a unidade original,
+-- preservando o sentido da quantidade e do preço pago.
+-- A assinatura é mantida para compatibilidade com clientes antigos.
 create or replace function public.cascade_purchase_unit_change(
   p_kind text,
   p_item_id uuid,
@@ -604,47 +605,55 @@ returns integer
 language plpgsql
 security invoker
 set search_path = public
-as $
-declare
-  changed integer := 0;
+as $$
 begin
   if p_new_unit not in ('kg','g','L','ml','un') then
     raise exception 'Unidade de compra inválida: %', p_new_unit;
   end if;
-
-  if p_kind = 'supply' then
-    update public.supply_purchases
-       set previous_purchase_unit = case
-             when unit_review_required then coalesce(previous_purchase_unit, purchase_unit)
-             else purchase_unit
-           end,
-           purchase_unit = p_new_unit,
-           unit_review_required = true
-     where supply_id = p_item_id
-       and purchase_unit not like 'pack:%'
-       and purchase_unit is distinct from p_new_unit;
-    get diagnostics changed = row_count;
-  elsif p_kind = 'resale' then
-    update public.resale_purchases
-       set previous_purchase_unit = case
-             when unit_review_required then coalesce(previous_purchase_unit, purchase_unit)
-             else purchase_unit
-           end,
-           purchase_unit = p_new_unit,
-           unit_review_required = true
-     where separated_product_id = p_item_id
-       and purchase_unit not like 'pack:%'
-       and purchase_unit is distinct from p_new_unit;
-    get diagnostics changed = row_count;
-  else
+  if p_kind not in ('supply','resale') then
     raise exception 'Tipo inválido: %', p_kind;
   end if;
-
-  return changed;
+  -- Nenhuma compra passada é alterada.
+  return 0;
 end;
-$;
+$$;
 
 grant execute on function public.cascade_purchase_unit_change(text, uuid, text) to anon, authenticated;
+
+
+-- Quantidade equivalente à unidade de preço da revenda.
+-- Quando o formato não é convertível, retorna NULL em vez de assumir 1:1.
+-- pack:tipo:quantidade representa N unidades de venda por volume.
+create or replace function public.resale_qty_in_price_unit(
+  p_qty numeric,
+  p_purchase_unit text,
+  p_price_unit text
+)
+returns numeric
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  pack_count numeric;
+  raw_count text;
+begin
+  if p_qty is null or p_qty <= 0 then return null; end if;
+  if p_purchase_unit = p_price_unit then return p_qty; end if;
+  if p_purchase_unit = 'g' and p_price_unit = 'kg' then return p_qty / 1000; end if;
+  if p_purchase_unit = 'kg' and p_price_unit = 'g' then return p_qty * 1000; end if;
+  if p_purchase_unit = 'ml' and p_price_unit = 'L' then return p_qty / 1000; end if;
+  if p_purchase_unit = 'L' and p_price_unit = 'ml' then return p_qty * 1000; end if;
+  if p_purchase_unit like 'pack:%' and p_price_unit = 'un' then
+    raw_count := split_part(p_purchase_unit, ':', 3);
+    if raw_count ~ '^[0-9]+([.][0-9]+)?$' then
+      pack_count := raw_count::numeric;
+      if pack_count > 0 then return p_qty * pack_count; end if;
+    end if;
+  end if;
+  return null;
+end;
+$$;
 
 
 -- Mantém o custo mestre da revenda igual ao custo unitário da compra mais
@@ -662,50 +671,42 @@ begin
   target_id := case when tg_op = 'DELETE' then old.separated_product_id else new.separated_product_id end;
   old_target_id := case when tg_op = 'UPDATE' then old.separated_product_id else null end;
 
+  -- Só usar uma compra cujo formato seja convertível. Caso contrário,
+  -- não sobrescrever o custo com um número incorreto.
   update public.separated_products p
-  set cost = coalesce((
-    select rp.cost / nullif(
-      case
-        when (case when rp.purchase_unit like 'pack:%' then 'un' else rp.purchase_unit end) = p.price_unit
-          then rp.qty
-        when rp.purchase_unit = 'g' and p.price_unit = 'kg' then rp.qty / 1000
-        when rp.purchase_unit = 'kg' and p.price_unit = 'g' then rp.qty * 1000
-        else rp.qty
-      end,
-      0
-    )
-    from public.resale_purchases rp
-    where rp.separated_product_id = target_id
-      and rp.qty > 0
-      and rp.cost > 0
-    order by rp.purchase_date desc nulls last, rp.created_at desc
-    limit 1
-  ), 0)
-  where p.id = target_id;
+     set cost = (
+       select rp.cost / public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit)
+       from public.resale_purchases rp
+       where rp.separated_product_id = target_id
+         and rp.cost > 0
+         and public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit) > 0
+       order by rp.purchase_date desc nulls last, rp.created_at desc
+       limit 1
+     )
+   where p.id = target_id
+     and exists (
+       select 1 from public.resale_purchases rp
+       where rp.separated_product_id = target_id and rp.cost > 0
+         and public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit) > 0
+     );
 
   if old_target_id is not null and old_target_id <> target_id then
     update public.separated_products p
-    set cost = coalesce((
-      select rp.cost / nullif(
-        case
-          when (case when rp.purchase_unit like 'pack:%' then 'un' else rp.purchase_unit end) = p.price_unit
-            then rp.qty
-          when rp.purchase_unit = 'g' and p.price_unit = 'kg' then rp.qty / 1000
-          when rp.purchase_unit = 'kg' and p.price_unit = 'g' then rp.qty * 1000
-          else rp.qty
-        end,
-        0
-      )
-      from public.resale_purchases rp
-      where rp.separated_product_id = old_target_id
-        and rp.qty > 0
-        and rp.cost > 0
-      order by rp.purchase_date desc nulls last, rp.created_at desc
-      limit 1
-    ), 0)
-    where p.id = old_target_id;
+       set cost = (
+         select rp.cost / public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit)
+         from public.resale_purchases rp
+         where rp.separated_product_id = old_target_id and rp.cost > 0
+           and public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit) > 0
+         order by rp.purchase_date desc nulls last, rp.created_at desc
+         limit 1
+       )
+     where p.id = old_target_id
+       and exists (
+         select 1 from public.resale_purchases rp
+         where rp.separated_product_id = old_target_id and rp.cost > 0
+           and public.resale_qty_in_price_unit(rp.qty, rp.purchase_unit, p.price_unit) > 0
+       );
   end if;
-
   return case when tg_op = 'DELETE' then old else new end;
 end;
 $$;
