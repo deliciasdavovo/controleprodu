@@ -72,7 +72,7 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 </section>
 <section class="panel preview">
 <div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 6 × 4 cm · 3 por linha</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
-<div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. Nome, recheio e informações do produto podem ser ajustados individualmente para cada plaquinha, sem alterar o cadastro. O preço vem do produto ou da variação específica cadastrada no PedidosCardápio. Sem preço definido, a impressão será bloqueada. Alterações nesta tela são apenas para impressão; não alteram o CMV.</div>
+<div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. Nome, sabor/recheio e informações do produto podem ser ajustados individualmente para cada plaquinha, sem alterar o cadastro. O preço vem do produto ou da variação específica cadastrada no PedidosCardápio. Sem preço exato ou sem sabor/recheio, a impressão da plaquinha de vitrine será bloqueada. Alterações nesta tela são apenas para impressão; não alteram o CMV.</div>
 <div class="sheet" id="sheet"><div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div></div>
 <div class="footer-actions"><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div>
 </section>
@@ -143,14 +143,28 @@ function choices(p){
  return result;
 }
 function allChoices(){return products.flatMap(choices);}
-function add(choice){const parts=choice.name.split(/\s*[—–]\s*/);const productName=parts.shift()||choice.name;selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName,flavor:parts.join(' — '),description:''});}
+function flavorFromName(name){
+ const parts=String(name||'').split(/\s*[—–:]\s*/).map(x=>x.trim()).filter(Boolean);
+ if(parts.length>1)return {productName:parts[0],flavor:parts.slice(1).join(' — ')};
+ // Separar o tipo da preparação dos sabores escritos no próprio nome.
+ // Não inventar ingredientes quando o cadastro não informa o sabor.
+ const match=String(name||'').match(/^(brusquetas?|croissants?|p[aã]o\s+de\s+ervas|p[aã]es\s+de\s+ervas)\s+(?:de\s+|com\s+)?(.+)$/i);
+ if(match)return {productName:match[1],flavor:match[2].trim()};
+ return {productName:String(name||''),flavor:''};
+}
+function add(choice){
+ const parsed=flavorFromName(choice.name);
+ const p=choice.product||{};
+ const explicit=[p.flavor,p.sabor,p.filling,p.recheio].find(x=>typeof x==='string'&&x.trim());
+ selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName:parsed.productName,flavor:parsed.flavor||explicit||'',description:''});
+}
 function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return allChoices().filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
 function render(){
  const rows=visible();
  $('catalog').innerHTML=rows.length?rows.map(p=>'<label class="item"><input type="checkbox" data-id="'+escapeHTML(p.key)+'" '+(selected.has(p.key)?'checked':'')+'><span><strong>'+escapeHTML(p.name)+'</strong><small>'+escapeHTML(p.category)+' · '+escapeHTML(validPrice(p.price)?formatBRL(p.price):'Preço não definido')+'</small></span></label>').join(''):'<div class="empty">Nenhum produto encontrado.</div>';
  $('catalog').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{const p=allChoices().find(x=>x.key===el.dataset.id);if(el.checked&&p)add(p);else selected.delete(el.dataset.id);render();}));
  $('count').textContent=selected.size;
- $('selected').innerHTML=[...selected].map(([id,row])=>'<div class="selected-row"><strong>'+escapeHTML(row.choice.name)+'</strong><input type="number" step="0.01" min="0" placeholder="Preço exato" aria-label="Preço" data-price="'+escapeHTML(id)+'" value="'+(row.price??'')+'"><select aria-label="Unidade" data-unit="'+escapeHTML(id)+'">'+['un','kg','fatia','100 g','porção','pessoa'].map(v=>'<option value="'+v+'" '+(row.unit===v?'selected':'')+'>'+v+'</option>').join('')+'</select><button aria-label="Remover" data-remove="'+escapeHTML(id)+'">×</button><div class="detail-fields"><div><label>Nome na plaquinha</label><input data-product-name="'+escapeHTML(id)+'" value="'+escapeHTML(row.productName??row.choice.name)+'" placeholder="Produto"></div><div><label>Recheio / sabor (opcional)</label><input data-flavor="'+escapeHTML(id)+'" value="'+escapeHTML(row.flavor??'')+'" placeholder="Ex.: palmito"></div><div><label>Informações do produto (opcional)</label><input data-description="'+escapeHTML(id)+'" value="'+escapeHTML(row.description??'')+'" placeholder="Ex.: massa amanteigada"></div></div></div>').join('')||'<p class="muted">Selecione produtos acima.</p>';
+ $('selected').innerHTML=[...selected].map(([id,row])=>'<div class="selected-row"><strong>'+escapeHTML(row.choice.name)+'</strong><input type="number" step="0.01" min="0" placeholder="Preço exato" aria-label="Preço" data-price="'+escapeHTML(id)+'" value="'+(row.price??'')+'"><select aria-label="Unidade" data-unit="'+escapeHTML(id)+'">'+['un','kg','fatia','100 g','porção','pessoa'].map(v=>'<option value="'+v+'" '+(row.unit===v?'selected':'')+'>'+v+'</option>').join('')+'</select><button aria-label="Remover" data-remove="'+escapeHTML(id)+'">×</button><div class="detail-fields"><div><label>Nome na plaquinha</label><input data-product-name="'+escapeHTML(id)+'" value="'+escapeHTML(row.productName??row.choice.name)+'" placeholder="Produto"></div><div><label>Sabor / recheio (obrigatório na vitrine)</label><input data-flavor="'+escapeHTML(id)+'" value="'+escapeHTML(row.flavor??'')+'" placeholder="Ex.: tomate, manjericão e parmesão"></div><div><label>Informações do produto (opcional)</label><input data-description="'+escapeHTML(id)+'" value="'+escapeHTML(row.description??'')+'" placeholder="Ex.: massa amanteigada"></div></div></div>').join('')||'<p class="muted">Selecione produtos acima.</p>';
  $('selected').querySelectorAll('[data-price]').forEach(el=>el.addEventListener('input',()=>{const r=selected.get(el.dataset.price);r.price=el.value===''?null:Number(el.value);renderSheet();}));
  $('selected').querySelectorAll('[data-unit]').forEach(el=>el.addEventListener('change',()=>{selected.get(el.dataset.unit).unit=el.value;renderSheet();}));
  for(const [attr,prop] of [['data-product-name','productName'],['data-flavor','flavor'],['data-description','description']]){$('selected').querySelectorAll('['+attr+']').forEach(el=>el.addEventListener('input',()=>{selected.get(el.getAttribute(attr))[prop]=el.value;renderSheet();}));}
@@ -170,14 +184,14 @@ function renderSheet(){
  const body=mode==='producao'?'<div class="price">Fabricação: '+escapeHTML(dateBR(made))+'</div><div class="unit">Validade: '+escapeHTML(dateBR(expiry))+'</div>':(show?'<div class="price">'+escapeHTML(formatBRL(r.price))+'</div><div class="unit">por '+escapeHTML(r.unit)+'</div>':'');
  return '<div class="plaque '+(classic?'':'minimal')+' '+(mode==='producao'?'production':'')+'"><div class="name">'+escapeHTML(title)+'</div>'+(flavor?'<div class="flavor">'+escapeHTML(flavor.toLocaleUpperCase('pt-BR'))+'</div>':'')+(description?'<div class="description">'+escapeHTML(description)+'</div>':'')+'<div class="rule"></div>'+body+'</div>';
  }).join(''):'<div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div>';
- $('print').disabled=$('printBottom').disabled=!entries.length || (mode==='vitrine'&&show&&entries.some(r=>!validPrice(r.price)));
+ $('print').disabled=$('printBottom').disabled=!entries.length || (mode==='vitrine'&&entries.some(r=>!String(r.flavor||'').trim() || (show&&!validPrice(r.price))));
 }
 $('search').addEventListener('input',render);$('category').addEventListener('change',render);
 $('selectVisible').addEventListener('click',()=>{visible().forEach(p=>{if(!selected.has(p.key))add(p);});render();});
 $('clear').addEventListener('click',()=>{selected.clear();render();});
 $('reload').addEventListener('click',load);
 ['mode','style','priceToggle','copies','made','expiry'].forEach(id=>$(id).addEventListener('input',renderSheet));
-function print(){if(!selected.size)return;if($('mode').value==='vitrine'&&$('priceToggle').value==='yes'&&[...selected.values()].some(r=>!validPrice(r.price))){alert('Há produtos sem preço exato. Preencha o preço de cada variação antes de imprimir.');return;}if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
+function print(){if(!selected.size)return;if($('mode').value==='vitrine'&&[...selected.values()].some(r=>!String(r.flavor||'').trim())){alert('Preencha o sabor ou recheio de cada produto antes de imprimir as plaquinhas de preço.');return;}if($('mode').value==='vitrine'&&$('priceToggle').value==='yes'&&[...selected.values()].some(r=>!validPrice(r.price))){alert('Há produtos sem preço exato. Preencha o preço de cada variação antes de imprimir.');return;}if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
 $('print').addEventListener('click',print);$('printBottom').addEventListener('click',print);
 load();
 })();
