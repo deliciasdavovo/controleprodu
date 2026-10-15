@@ -13672,9 +13672,17 @@ const { useState, useEffect, useMemo, useRef } = React;
                                 <select
                                   autoFocus
                                   data-skip-enter="true"
-                                  value={unidadeCompraCadastro}
+                                  value={opcoesExtrasCadastro.volume && !volumeFixoCadastroExistente ? 'volume' : unidadeCompraCadastro}
                                   onChange={(e) => {
                                     const purchaseUnit = e.target.value;
+                                    if (purchaseUnit === 'volume') {
+                                      // Volume comercial: configurar a quantidade, sem gravar 'volume' como unidade técnica.
+                                      setOpcoesExtrasCadastro((atuais) => ({ ...atuais, volume: true }));
+                                      setDraft((d) => ({ ...d, packageType: d.packageType || 'outro' }));
+                                      setEditarUnidadePadrao(false);
+                                      return;
+                                    }
+                                    setOpcoesExtrasCadastro((atuais) => ({ ...atuais, volume: false }));
                                     setUnidadeCompraFoiEditada(true);
                                     setDraft((d) => ({
                                       ...d,
@@ -13689,6 +13697,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                                   className="field field-md field-select"
                                 >
                                   {PURCHASE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                                  {compraPorVolumeDisponivel && <option value="volume">Volume</option>}
                                 </select>
                               ) : (
                                 <button
