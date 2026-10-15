@@ -65,7 +65,7 @@
   );
   const ordemGrupo = ['Salgados', 'Doces e sobremesas', 'Pães', 'Cafeteria', 'Bebidas', 'Bomboniere', 'Outros'];
   const regraNova = (inicial = false) => ({
-    id: idNovo(), operador: inicial ? 'igual' : 'mais_de',
+    id: idNovo(), operador: inicial ? 'igual' : 'menos_de',
     quantidade: inicial ? 1 : 3, itens: []
   });
   const lerItens = (origem) => {
@@ -80,7 +80,7 @@
   };
   const regraNormal = (x) => ({
     id: String(x.id || idNovo()),
-    operador: ['igual', 'mais_de', 'a_partir', 'texto'].includes(x.operador) ? x.operador : 'igual',
+    operador: ['igual', 'menos_de', 'mais_de', 'a_partir', 'texto'].includes(x.operador) ? x.operador : 'igual',
     quantidade: intPositivo(x.quantidade),
     rotulo: String(x.rotulo || '').slice(0, 90),
     itens: lerItens(x.itens)
@@ -89,7 +89,7 @@
     if (r.operador === 'texto') return r.rotulo || 'Outra quantidade';
     const q = intPositivo(r.quantidade);
     if (r.operador === 'igual') return q + (q === 1 ? ' unidade' : ' unidades');
-    return (r.operador === 'a_partir' ? 'A partir de ' : 'Mais de ') + q + (q === 1 ? ' unidade' : ' unidades');
+    return (r.operador === 'menos_de' ? 'Menos de ' : r.operador === 'a_partir' ? 'A partir de ' : 'Mais de ') + q + (q === 1 ? ' unidade' : ' unidades');
   };
   const lerLayout = (bruto) => {
     const x = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto : {};
@@ -109,7 +109,8 @@
             const rotulo = String(faixa.rotulo || '').trim();
             const numeroMatch = rotulo.match(/\d+/);
             const q = numeroMatch ? intPositivo(numeroMatch[0]) : 1;
-            const op = /^mais\s+de/i.test(rotulo) && numeroMatch ? 'mais_de'
+            const op = /^menos\s+de/i.test(rotulo) && numeroMatch ? 'menos_de'
+              : /^mais\s+de/i.test(rotulo) && numeroMatch ? 'mais_de'
               : /^a\s+partir/i.test(rotulo) && numeroMatch ? 'a_partir'
               : /^\d+\s+un/i.test(rotulo) ? 'igual' : 'texto';
             return { id: String(faixa.id || idNovo()), operador: op, quantidade: q,
@@ -552,7 +553,7 @@ ${corpo}
       <div className="emb2-intro">
         <div className="emb2-passos">
           <div><b>1.</b> Escolha um grupo e abra o produto</div>
-          <div><b>2.</b> Adicione uma variação, como “Mais de 3”</div>
+          <div><b>2.</b> Adicione uma variação, como “Menos de 3”</div>
           <div><b>3.</b> Selecione saquinhos, bandejas e outras embalagens com foto</div>
         </div>
         <button type="button" className="emb2-galeria-toggle"
@@ -655,7 +656,8 @@ ${corpo}
                                 <select value={variante.operador} onChange={(e) =>
                                   atualizarVariacao(linha.id, variante.id, (v) => ({ ...v, operador: e.target.value }))}>
                                   <option value="igual">Exatamente</option>
-                                  <option value="mais_de">Mais de</option>
+                                  <option value="menos_de">Menos de</option>
+                                  <option value="mais_de" disabled>Mais de (antigo)</option>
                                   <option value="a_partir">A partir de</option>
                                   <option value="texto">Descrição personalizada</option>
                                 </select>
