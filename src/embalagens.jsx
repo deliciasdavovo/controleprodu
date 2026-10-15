@@ -141,6 +141,7 @@
     const [grupoAberto, setGrupoAberto] = useState({ 'Salgados': true, 'Doces e sobremesas': true });
     const [produtoAberto, setProdutoAberto] = useState({});
     const [selecionando, setSelecionando] = useState(null);
+    const [uploadEmCurso, setUploadEmCurso] = useState('');
     const leituraSeq = useRef(0);
     const fila = useRef(Promise.resolve());
     const salvoJson = useRef('');
@@ -303,6 +304,7 @@
       }));
     const uploadFoto = async (id, arq) => {
       if (!arq) return;
+      setUploadEmCurso(id);
       try {
         const foto = await fotoComprimida(arq);
         const item = embalagens.find((e) => e.id === id);
@@ -311,8 +313,21 @@
           : [...prev, { id, nome: item ? item.nome : 'Embalagem', foto }]);
         setErro('');
       } catch (e) { setErro(e.message); }
+      finally { setUploadEmCurso(''); }
     };
     const removerFoto = (id) => setFotos((prev) => prev.filter((e) => e.id !== id));
+    useEffect(() => {
+      if (!selecionando) return;
+      const anterior = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      const fechar = (e) => { if (e.key === 'Escape') setSelecionando(null); };
+      window.addEventListener('keydown', fechar);
+      return () => {
+        document.body.style.overflow = anterior;
+        window.removeEventListener('keydown', fechar);
+      };
+    }, [selecionando]);
+
     const descricaoItens = (v) => v.itens.filter((item) => indiceEmbalagem.has(item.embalagemId))
       .map((item) => item.quantidade + ' × ' + indiceEmbalagem.get(item.embalagemId).nome).join(' + ');
 
@@ -369,6 +384,11 @@
       win.document.close();
       win.focus();
     };
+
+    const linhaSelecionada = selecionando ? linhasCatalogo.find((l) => l.id === selecionando.linha) : null;
+    const regraSelecionada = linhaSelecionada && linhaSelecionada.variacoes.find((v) => v.id === selecionando.variacao);
+    const jaSelecionadas = new Set(regraSelecionada ? regraSelecionada.itens.map((item) => item.embalagemId) : []);
+    const opcoesFiltradas = embalagens.filter((e) => normalTexto(e.nome).includes(normalTexto(buscarNaCelula)));
 
     if (carregada !== currentUnit) return <section className="emb-area">
       <h1>Guia de embalagens</h1>
@@ -488,9 +508,6 @@
                     <div className="emb2-variacoes">
                       {linha.variacoes.map((variante, indice) => {
                         const ativa = !!selecionando && selecionando.linha === linha.id && selecionando.variacao === variante.id;
-                        const idsEscolhidos = new Set(variante.itens.map((x) => x.embalagemId));
-                        const disponiveis = embalagens.filter((x) => !idsEscolhidos.has(x.id) &&
-                          (!buscarNaCelula || normalTexto(x.nome).includes(normalTexto(buscarNaCelula))));
                         return <div key={variante.id} className="emb2-var-card">
                           <div className="emb2-var-topo">
                             <span className="emb2-var-numero">{indice + 1}</span>
@@ -565,30 +582,8 @@
                                 setSelecionando(ativa ? null : { linha: linha.id, variacao: variante.id });
                                 setBuscarNaCelula('');
                               }}>
-                              {ativa ? 'Fechar seleção' : '+ Escolher embalagem'}
+                              {ativa ? 'Fechar seleção' : '+ Escolher embalagem por foto'}
                             </button>
-                            {ativa && <div className="emb2-picker">
-                              <div className="emb2-picker-cabecalho">
-                                <strong>Selecione pelo nome ou pela foto</strong>
-                                <span>{disponiveis.length} disponíveis</span>
-                              </div>
-                              <input className="emb2-picker-busca" value={buscarNaCelula}
-                                placeholder="Buscar embalagem…"
-                                onChange={(e) => setBuscarNaCelula(e.target.value)}
-                                aria-label="Filtrar embalagens"/>
-                              <div className="emb2-picker-grid">
-                                {disponiveis.map((e) => <button type="button" className="emb2-picker-opcao"
-                                  key={e.id} onClick={() => adicionarItem(linha.id, variante.id, e.id)}>
-                                  <div className="emb2-picker-foto">
-                                    {e.foto ? <img src={imagemValida(e.foto)} alt=""/> : <span>Sem foto</span>}
-                                  </div>
-                                  <span>{e.nome}</span>
-                                  <b>+</b>
-                                </button>)}
-                                {!disponiveis.length && <p className="emb2-picker-vazio">Nenhuma outra embalagem encontrada.</p>}
-                              </div>
-                              <small>Para incluir uma foto, abra o Catálogo de embalagens no topo da página.</small>
-                            </div>}
                           </div>
                         </div>;
                       })}
@@ -604,6 +599,65 @@
         })}
         {!grupos.length && <div className="emb2-nenhum">Nenhum produto encontrado na Produção.</div>}
       </div>
+      {regraSelecionada && ReactDOM.createPortal(
+        <div className="emb2-modal-overlay" role="presentation">
+          <button type="button" className="emb2-modal-fundo" aria-label="Fechar escolha de embalagens"
+            onClick={() => setSelecionando(null)}/>
+          <div className="emb2-modal" role="dialog" aria-modal="true"
+            aria-label={'Selecionar embalagens para ' + linhaSelecionada.produto}>
+            <div className="emb2-modal-cabecalho">
+              <div>
+                <strong>Escolher embalagens</strong>
+                <span>{linhaSelecionada.produto} · {textoRegra(regraSelecionada)}</span>
+              </div>
+              <button type="button" className="emb2-modal-fechar" aria-label="Fechar seleção"
+                onClick={() => setSelecionando(null)}>×</button>
+            </div>
+            <div className="emb2-modal-busca">
+              <input className="emb2-picker-busca" value={buscarNaCelula}
+                placeholder="Buscar bandeja, saco, caixa…"
+                onChange={(e) => setBuscarNaCelula(e.target.value)}
+                aria-label="Buscar embalagens cadastradas"/>
+              <span>{regraSelecionada.itens.length} selecionada(s)</span>
+            </div>
+            <div className="emb2-modal-conteudo">
+              <p className="emb2-modal-ajuda">Toque em <b>Usar embalagem</b> para adicioná-la. Para colocar a foto, toque em <b>Enviar foto</b> no próprio cartão.</p>
+              <div className="emb2-modal-grid">
+                {opcoesFiltradas.map((e) =>
+                  <div className={'emb2-modal-cartao ' + (jaSelecionadas.has(e.id) ? 'selecionada' : '')} key={e.id}>
+                    <div className="emb2-modal-foto">
+                      {e.foto ? <img src={imagemValida(e.foto)} alt={e.nome}/> :
+                        <span>Sem foto</span>}
+                    </div>
+                    <strong title={e.nome}>{e.nome}</strong>
+                    <label className="emb2-modal-enviar">
+                      {uploadEmCurso === e.id ? 'Preparando foto…' : e.foto ? 'Trocar foto' : 'Enviar foto'}
+                      <input type="file" accept="image/jpeg,image/png,image/webp"
+                        aria-label={'Enviar foto de ' + e.nome}
+                        disabled={uploadEmCurso === e.id}
+                        onChange={(event) => {
+                          uploadFoto(e.id, event.target.files && event.target.files[0]);
+                          event.target.value = '';
+                        }}/>
+                    </label>
+                    <button type="button" className="emb2-modal-usar"
+                      disabled={jaSelecionadas.has(e.id)}
+                      onClick={() => adicionarItem(linhaSelecionada.id, regraSelecionada.id, e.id)}>
+                      {jaSelecionadas.has(e.id) ? '✓ Adicionada' : '+ Usar embalagem'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!opcoesFiltradas.length && <p className="emb2-picker-vazio">Nenhuma embalagem encontrada. Confira o nome no cadastro.</p>}
+            </div>
+            <div className="emb2-modal-rodape">
+              <span>{situacao}{erro ? ' — ' + erro : ''}</span>
+              <button type="button" onClick={() => setSelecionando(null)}>Concluir</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>;
   };
   window.PackagingMatrixView = PackagingMatrixView;

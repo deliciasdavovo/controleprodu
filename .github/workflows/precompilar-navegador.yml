@@ -6,6 +6,7 @@ on:
       - main
       - fix/precompilar-jsx-para-abertura-rapida
       - feat/embalagens-variacoes-por-produto-2026-10-14
+      - fix/mobile-menu-upload-embalagens-2026-10-14
     paths:
       - 'src/**'
       - 'index.html'
@@ -69,10 +70,64 @@ jobs:
               await page.locator('.emb2-var-card').first().waitFor({state:'visible',timeout:12000});
               console.log('VARIACAO_ADICIONADA_NA_LINHA:', true);
               await page.locator('.emb2-botao-escolher').first().click();
-              await page.locator('.emb2-picker-opcao').first().waitFor({state:'visible',timeout:12000});
-              await page.locator('.emb2-picker-opcao').first().click();
+              await page.locator('.emb2-modal-cartao').first().waitFor({state:'visible',timeout:12000});
+              const jpeg = await page.evaluate(() => {
+                const c = document.createElement('canvas'); c.width=32; c.height=32;
+                const ctx=c.getContext('2d'); ctx.fillStyle='#bdcfc1'; ctx.fillRect(0,0,32,32);
+                return c.toDataURL('image/jpeg',.8).split(',')[1];
+              });
+              const file = {name:'foto-embalagem.jpg',mimeType:'image/jpeg',buffer:Buffer.from(jpeg,'base64')};
+              await page.locator('.emb2-modal-enviar input[type=file]').first().setInputFiles(file);
+              await page.locator('.emb2-modal-cartao img').first().waitFor({state:'visible',timeout:12000});
+              console.log('UPLOAD_FOTO_NA_ESCOLHA_OK:', true);
+              await page.locator('.emb2-modal-usar').first().click();
+              await page.locator('.emb2-modal-rodape button').first().click();
               await page.locator('.emb2-item').first().waitFor({state:'visible',timeout:12000});
-              console.log('EMBALAGEM_COM_FOTO_SELECIONAVEL:', true);
+              console.log('SELECAO_EMBALAGEM_OK:', true);
+              // Navegação real de celular: tocar "Mais" não pode deslocar a tela
+              // ou prender a barra lateral dentro do cabeçalho sticky.
+              const mobile = await browser.newContext({viewport:{width:390,height:844},
+                deviceScaleFactor:1,isMobile:true,hasTouch:true});
+              const mpage = await mobile.newPage();
+              const mfatal=[];
+              mpage.on('pageerror',e=>mfatal.push(e.message));
+              await mpage.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
+              await mpage.getByRole('button',{name:/Entrar no CMV/i}).first().click();
+              await mpage.locator('.controle-mobile-bottom-link[aria-label="Todas as áreas"]').click();
+              await mpage.locator('.controle-mobile-drawer').waitFor({state:'visible',timeout:12000});
+              const drawer = await mpage.evaluate(() => {
+                const el=document.querySelector('.controle-mobile-drawer');
+                const overlay=document.querySelector('.controle-mobile-overlay');
+                const r=el.getBoundingClientRect();
+                return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,
+                  drawerLeft:r.left,drawerRight:r.right,
+                  z:Number(getComputedStyle(overlay).zIndex),
+                  parent:overlay.parentElement.tagName};
+              });
+              console.log('MENU_MOBILE_METRICAS:', JSON.stringify(drawer));
+              if(drawer.parent!=='BODY' || drawer.z<100 || drawer.drawerRight>390 ||
+                 drawer.scrollWidth>drawer.width+2) throw new Error('Menu mobile fora dos limites da tela');
+              await mpage.locator('.controle-mobile-drawer .controle-mobile-link').filter({hasText:'Embalagens'}).click();
+              await mpage.locator('.emb2-btn-nova').first().waitFor({state:'visible',timeout:15000});
+              await mpage.locator('.emb2-btn-nova').first().click();
+              await mpage.locator('.emb2-botao-escolher').first().click();
+              await mpage.locator('.emb2-modal-cartao').first().waitFor({state:'visible',timeout:12000});
+              const dialog=await mpage.evaluate(()=>{
+                const el=document.querySelector('.emb2-modal'),r=el.getBoundingClientRect();
+                return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,
+                  left:r.left,right:r.right,bottom:r.bottom,height:r.height};
+              });
+              console.log('SELETOR_MOBILE_METRICAS:',JSON.stringify(dialog));
+              if(dialog.left< -1||dialog.right>dialog.width+1||dialog.scrollWidth>dialog.width+2||
+                 dialog.bottom>844+2)throw new Error('Seletor de embalagens fora da tela mobile');
+              await mpage.locator('.emb2-modal-enviar input[type=file]').first().setInputFiles(file);
+              await mpage.locator('.emb2-modal-cartao img').first().waitFor({state:'visible',timeout:12000});
+              await mpage.locator('.emb2-modal-usar').first().click();
+              await mpage.getByRole('button',{name:'Concluir'}).click();
+              console.log('MENU_E_UPLOAD_MOBILE_OK:',true);
+              console.log('ERROS_MOBILE:',JSON.stringify(mfatal));
+              if(mfatal.length)throw new Error('Erros de JS no celular');
+              await mobile.close();
               console.log('NAVEGACAO_CMV_EMBALAGENS_OK:', true);
               console.log('ERROS_NAVEGADOR:', JSON.stringify(fatal));
               if (!response || response.status() >= 400 || fatal.length) {
