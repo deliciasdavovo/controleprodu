@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Etiquetas e Plaquinhas | ControleProdu</title>
-<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:wght@400;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--green:#233a29;--cream:#f7f4ed;--line:#e3e5e0;--text:#25312a}
 *{box-sizing:border-box}body{margin:0;background:#f5f6f4;color:var(--text);font-family:Manrope,Arial,sans-serif;font-size:13px}
@@ -17,13 +17,13 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 .toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.notice{padding:10px 12px;background:#f5f6f2;border:1px solid #e5e9e2;border-radius:9px;color:#59675b;font-size:11px;line-height:1.5;margin:10px 0}
 .list{border:1px solid var(--line);border-radius:10px;max-height:390px;overflow:auto}.item{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #edf0ed;cursor:pointer}.item:last-child{border:0}.item:hover{background:#f7f9f6}.item strong{display:block;font-size:12px}.item small{color:#798079}.preview-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:15px}
 .sheet{background:#fff;border:1px dashed #b8c2b9;border-radius:8px;padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start;min-height:220px}
-.plaque{aspect-ratio:1.65;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:#233a29;color:#fff;padding:12px;border:4px double #d4c9a9;border-radius:12px 12px 17px 17px;outline:2px solid #233a29;outline-offset:-1px;break-inside:avoid;overflow:hidden}
-.plaque.minimal{border:1px solid #c9bfa7;border-radius:5px}.plaque .decor{font-size:15px;color:#dfd1a6;margin-bottom:3px}.plaque .name{font:600 clamp(12px,1.7vw,20px)/1.18 Lora,Georgia,serif;overflow-wrap:anywhere;text-wrap:balance}.plaque .rule{font-size:12px;color:#d8c9a5;margin:4px 0}.plaque .price{font:600 clamp(15px,2.1vw,23px) Lora,Georgia,serif}.plaque .unit{font:italic 11px Lora,Georgia,serif}
+.plaque{aspect-ratio:1.65;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:#233a29;color:#fff;padding:14px;border:1px solid #d4c9a9;border-radius:9px;box-shadow:inset 0 0 0 5px #233a29,inset 0 0 0 6px #b5ad92;break-inside:avoid;overflow:hidden}
+.plaque.minimal{border:1px solid #c9bfa7;border-radius:5px}.plaque .decor{font-size:14px;color:#dfd1a6;margin-bottom:7px}.plaque .name{font:700 clamp(14px,1.9vw,21px)/1.17 'Libre Caslon Text',Georgia,serif;letter-spacing:.015em;overflow-wrap:anywhere;text-wrap:balance}.plaque .rule{font-size:10px;color:#d8c9a5;margin:8px 0 5px}.plaque .price{font:700 clamp(18px,2.5vw,27px) Manrope,Arial,sans-serif;letter-spacing:-.03em}.plaque .unit{font:500 11px Manrope,Arial,sans-serif;letter-spacing:.02em}
 .plaque.production{background:#fff;color:#233a29;border:1px solid #233a29;outline:none}.plaque.production .price{font:600 12px Manrope,Arial,sans-serif}.plaque.production .unit{font:11px Manrope,Arial,sans-serif}
 .selected-row{display:grid;grid-template-columns:1fr 100px 92px auto;align-items:center;gap:7px;border-bottom:1px solid #eee;padding:8px 0}.selected-row strong{font-size:11px}.selected-row input,.selected-row select{padding:7px;font-size:11px}.selected-row button{padding:7px}.muted{font-size:11px;color:#707b71}.empty{color:#858d86;padding:35px 10px;text-align:center}.footer-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 @media(max-width:850px){main{grid-template-columns:1fr;margin-top:12px}.sheet{gap:9px}.plaque .name{font-size:clamp(12px,3.3vw,20px)}.plaque .price{font-size:clamp(15px,4vw,22px)}.selected-row{grid-template-columns:1fr 76px 72px auto}header{padding:14px 18px}}
 @page{size:A4 portrait;margin:10mm}
-@media print{body{background:white}header,.settings,.preview-header,.footer-actions,.notice{display:none!important}main{display:block;max-width:none;margin:0;padding:0}.panel{border:0;padding:0}.preview{display:block}.sheet{border:0;padding:0;display:grid;grid-template-columns:repeat(2,90mm);gap:5mm;min-height:0;justify-content:center}.plaque{width:90mm;height:55mm;aspect-ratio:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact;outline:none;border:2px double #d4c9a9}.plaque .name{font-size:17pt}.plaque .price{font-size:20pt}.plaque .unit{font-size:9pt}.plaque .decor{font-size:14pt}}
+@media print{body{background:white}header,.settings,.preview-header,.footer-actions,.notice{display:none!important}main{display:block;max-width:none;margin:0;padding:0}.panel{border:0;padding:0}.preview{display:block}.sheet{border:0;padding:0;display:grid;grid-template-columns:repeat(2,90mm);gap:5mm;min-height:0;justify-content:center}.plaque{width:90mm;height:55mm;aspect-ratio:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact;outline:none;border:1px solid #d4c9a9}.plaque .name{font-size:17pt}.plaque .price{font-size:20pt}.plaque .unit{font-size:9pt}.plaque .decor{font-size:14pt}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/acorn@8.14.0/dist/acorn.js"></script>
 </head>
@@ -42,7 +42,7 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 <div style="margin-top:16px"><h2>2. Configurar impressão</h2></div>
 <div class="controls">
 <div><label for="mode">Tipo</label><select id="mode"><option value="vitrine">Plaquinha de vitrine</option><option value="producao">Etiqueta de produção (interna)</option></select></div>
-<div><label for="style">Estilo</label><select id="style"><option value="classic">Clássico ornamentado</option><option value="minimal">Minimalista</option></select></div>
+<div><label for="style">Estilo</label><select id="style"><option value="classic">Clássico refinado</option><option value="minimal">Minimalista</option></select></div>
 <div><label for="priceToggle">Exibir preço</label><select id="priceToggle"><option value="yes">Sim</option><option value="no">Não</option></select></div>
 <div><label for="copies">Cópias por produto</label><input id="copies" type="number" min="1" max="20" value="1"></div>
 <div id="productionFields" class="wide" style="display:none"><div class="controls"><div><label for="made">Fabricação</label><input id="made" type="date"></div><div><label for="expiry">Validade</label><input id="expiry" type="date"></div></div><p class="muted">Datas preenchidas manualmente. A validade deve seguir a ficha técnica e as condições reais de conservação. Esta etiqueta interna não substitui o rótulo legal de venda.</p></div>
@@ -52,7 +52,7 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 </section>
 <section class="panel preview">
 <div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 9 × 5,5 cm · verde e branco</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
-<div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. Preços editados aqui são apenas para esta impressão; não alteram o cadastro nem o CMV. Confirme preços, unidade e informações obrigatórias antes de expor.</div>
+<div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. O preço vem do produto ou da variação específica cadastrada no PedidosCardápio. Sem preço definido, a impressão será bloqueada. Alterações nesta tela são apenas para impressão; não alteram o CMV.</div>
 <div class="sheet" id="sheet"><div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div></div>
 <div class="footer-actions"><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div>
 </section>
@@ -94,21 +94,18 @@ async function load(){
   const categories=[...new Set(products.map(p=>p.category))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   $('category').innerHTML='<option value="">Todas as categorias</option>'+categories.map(c=>'<option value="'+escapeHTML(c)+'">'+escapeHTML(c)+'</option>').join('');
   // Keep selected products linked to the refreshed catalog by their stable IDs.
-  for(const [id,row] of selected){const fresh=products.find(p=>p.id===id);if(fresh)selected.set(id,{...row,product:fresh});else selected.delete(id);}
+  for(const [id,row] of selected){const fresh=products.find(p=>p.id===id);if(fresh){const c=choices(fresh).find(x=>x.key===id);if(c)selected.set(id,{...row,choice:c,price:row.price===row.choice.price?c.price:row.price});else selected.delete(id);}else selected.delete(id);}
   $('status').textContent=products.length+' produtos carregados do PedidosCardápio · leitura sem modificar os cadastros.';
   render();
  }catch(e){$('status').textContent='Não foi possível carregar o catálogo: '+e.message+' Tente Atualizar catálogo. Nenhum cadastro foi modificado.';$('catalog').innerHTML='<div class="empty">Catálogo indisponível.</div>';render();}
 }
-function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return products.filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
-function basePrice(p){if(typeof p.price==='number')return p.price;if(typeof p.priceKg==='number')return p.priceKg;return null;}
-function unit(p){return typeof p.priceKg==='number'?'kg':(p.units||[]).includes('kg')?'kg':(p.units||[]).includes('pessoas')?'pessoa':'un';}
-function add(p){selected.set(p.id,{product:p,price:basePrice(p),unit:unit(p)});}
+function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return allChoices().filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
 function render(){
  const rows=visible();
- $('catalog').innerHTML=rows.length?rows.map(p=>'<label class="item"><input type="checkbox" data-id="'+escapeHTML(p.id)+'" '+(selected.has(p.id)?'checked':'')+'><span><strong>'+escapeHTML(p.name)+'</strong><small>'+escapeHTML(p.category)+' · '+escapeHTML(formatBRL(basePrice(p)))+'</small></span></label>').join(''):'<div class="empty">Nenhum produto encontrado.</div>';
- $('catalog').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{const p=products.find(x=>x.id===el.dataset.id);if(el.checked&&p)add(p);else selected.delete(el.dataset.id);render();}));
+ $('catalog').innerHTML=rows.length?rows.map(p=>'<label class="item"><input type="checkbox" data-id="'+escapeHTML(p.key)+'" '+(selected.has(p.key)?'checked':'')+'><span><strong>'+escapeHTML(p.name)+'</strong><small>'+escapeHTML(p.category)+' · '+escapeHTML(validPrice(p.price)?formatBRL(p.price):'Preço não definido')+'</small></span></label>').join(''):'<div class="empty">Nenhum produto encontrado.</div>';
+ $('catalog').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{const p=allChoices().find(x=>x.key===el.dataset.id);if(el.checked&&p)add(p);else selected.delete(el.dataset.id);render();}));
  $('count').textContent=selected.size;
- $('selected').innerHTML=[...selected].map(([id,row])=>'<div class="selected-row"><strong>'+escapeHTML(row.product.name)+'</strong><input type="number" step="0.01" min="0" placeholder="Preço" aria-label="Preço" data-price="'+escapeHTML(id)+'" value="'+(row.price??'')+'"><select aria-label="Unidade" data-unit="'+escapeHTML(id)+'">'+['un','kg','fatia','100 g','porção','pessoa'].map(v=>'<option value="'+v+'" '+(row.unit===v?'selected':'')+'>'+v+'</option>').join('')+'</select><button aria-label="Remover" data-remove="'+escapeHTML(id)+'">×</button></div>').join('')||'<p class="muted">Selecione produtos acima.</p>';
+ $('selected').innerHTML=[...selected].map(([id,row])=>'<div class="selected-row"><strong>'+escapeHTML(row.choice.name)+'</strong><input type="number" step="0.01" min="0" placeholder="Preço exato" aria-label="Preço" data-price="'+escapeHTML(id)+'" value="'+(row.price??'')+'"><select aria-label="Unidade" data-unit="'+escapeHTML(id)+'">'+['un','kg','fatia','100 g','porção','pessoa'].map(v=>'<option value="'+v+'" '+(row.unit===v?'selected':'')+'>'+v+'</option>').join('')+'</select><button aria-label="Remover" data-remove="'+escapeHTML(id)+'">×</button></div>').join('')||'<p class="muted">Selecione produtos acima.</p>';
  $('selected').querySelectorAll('[data-price]').forEach(el=>el.addEventListener('input',()=>{const r=selected.get(el.dataset.price);r.price=el.value===''?null:Number(el.value);renderSheet();}));
  $('selected').querySelectorAll('[data-unit]').forEach(el=>el.addEventListener('change',()=>{selected.get(el.dataset.unit).unit=el.value;renderSheet();}));
  $('selected').querySelectorAll('[data-remove]').forEach(el=>el.addEventListener('click',()=>{selected.delete(el.dataset.remove);render();}));
@@ -121,18 +118,18 @@ function renderSheet(){
  const dateBR=s=>s?s.split('-').reverse().join('/'):'Não informada';
  const entries=[...selected.values()].flatMap(r=>Array.from({length:copies},()=>r));
  $('sheet').innerHTML=entries.length?entries.map(r=>{
- const p=r.product;
+ const p=r.choice;
  const body=mode==='producao'?'<div class="price">Fabricação: '+escapeHTML(dateBR(made))+'</div><div class="unit">Validade: '+escapeHTML(dateBR(expiry))+'</div>':(show?'<div class="price">'+escapeHTML(formatBRL(r.price))+'</div><div class="unit">por '+escapeHTML(r.unit)+'</div>':'');
  return '<div class="plaque '+(classic?'':'minimal')+' '+(mode==='producao'?'production':'')+'">'+(classic?'<div class="decor">❦</div>':'')+'<div class="name">'+escapeHTML(p.name)+'</div>'+(classic?'<div class="rule">— ◇ —</div>':'')+body+'</div>';
  }).join(''):'<div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div>';
- $('print').disabled=$('printBottom').disabled=!entries.length;
+ $('print').disabled=$('printBottom').disabled=!entries.length || (mode==='vitrine'&&show&&entries.some(r=>!validPrice(r.price)));
 }
 $('search').addEventListener('input',render);$('category').addEventListener('change',render);
-$('selectVisible').addEventListener('click',()=>{visible().forEach(p=>{if(!selected.has(p.id))add(p);});render();});
+$('selectVisible').addEventListener('click',()=>{visible().forEach(p=>{if(!selected.has(p.key))add(p);});render();});
 $('clear').addEventListener('click',()=>{selected.clear();render();});
 $('reload').addEventListener('click',load);
 ['mode','style','priceToggle','copies','made','expiry'].forEach(id=>$(id).addEventListener('input',renderSheet));
-function print(){if(!selected.size)return;if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
+function print(){if(!selected.size)return;if($('mode').value==='vitrine'&&$('priceToggle').value==='yes'&&[...selected.values()].some(r=>!validPrice(r.price))){alert('Há produtos sem preço exato. Preencha o preço de cada variação antes de imprimir.');return;}if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
 $('print').addEventListener('click',print);$('printBottom').addEventListener('click',print);
 load();
 })();
