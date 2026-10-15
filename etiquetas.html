@@ -94,7 +94,7 @@ async function load(){
   const categories=[...new Set(products.map(p=>p.category))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   $('category').innerHTML='<option value="">Todas as categorias</option>'+categories.map(c=>'<option value="'+escapeHTML(c)+'">'+escapeHTML(c)+'</option>').join('');
   // Keep selected products linked to the refreshed catalog by their stable IDs.
-  for(const [id,row] of selected){const fresh=products.find(p=>p.id===id);if(fresh){const c=choices(fresh).find(x=>x.key===id);if(c)selected.set(id,{...row,choice:c,price:row.price===row.choice.price?c.price:row.price});else selected.delete(id);}else selected.delete(id);}
+  for(const [id,row] of selected){const fresh=products.find(p=>p.id===row.choice.product.id);if(fresh){const c=choices(fresh).find(x=>x.key===id);if(c)selected.set(id,{...row,choice:c,price:row.price===row.choice.price?c.price:row.price});else selected.delete(id);}else selected.delete(id);}
   $('status').textContent=products.length+' produtos carregados do PedidosCardápio · leitura sem modificar os cadastros.';
   render();
  }catch(e){$('status').textContent='Não foi possível carregar o catálogo: '+e.message+' Tente Atualizar catálogo. Nenhum cadastro foi modificado.';$('catalog').innerHTML='<div class="empty">Catálogo indisponível.</div>';render();}
