@@ -125,27 +125,35 @@ function unit(p){return validPrice(p.priceKg)?'kg':(p.units||[]).includes('kg')?
 function choices(p){
  const result=[],base=priceFor(p),u=unit(p);
  const variants=p.variants&&typeof p.variants==='object'?Object.entries(p.variants):[];
- const flavors=Array.isArray(p.flavors)?p.flavors.filter(x=>typeof x==='string'&&x.trim()):[];
- const names=new Set();
- function addVariant(label,v,kind){
+ const flavors=Array.isArray(p.flavors)?[...new Set(p.flavors.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()))]:[];
+ const sizes=Array.isArray(p.sizes)?p.sizes.filter(v=>v&&typeof v==='object'):[];
+ const used=new Set();
+ function append(label,variant,kind,flavor='',sizeLabel=''){
   const clean=String(label||'').trim();if(!clean)return;
-  const normalized=clean.toLocaleLowerCase('pt-BR');
-  if(names.has(normalized))return;
-  names.add(normalized);
-  const price=v&&validPrice(v.price)?v.price:v&&validPrice(v.priceKg)?v.priceKg:base;
-  result.push({key:p.id+'::'+kind+'::'+clean,name:p.name+' — '+clean,category:p.category,price,unit:v&&validPrice(v.priceKg)?'kg':u,product:p,flavor:clean});
+  const key=p.id+'::'+kind+'::'+clean;
+  if(used.has(key))return;used.add(key);
+  // O preço de tamanho/formato específico prevalece. Se não existir, usa o preço do produto.
+  const price=variant&&validPrice(variant.price)?variant.price:variant&&validPrice(variant.priceKg)?variant.priceKg:base;
+  const unitPrice=variant&&validPrice(variant.priceKg)?'kg':sizeLabel?'un':u;
+  result.push({key,name:p.name+' — '+clean,category:p.category,price,unit:unitPrice,product:p,flavor,sizeLabel});
  }
- for(const [label,v] of variants){if(v&&typeof v==='object')addVariant(label,v,'var');}
- // O catálogo costuma usar flavors sem variants: cada sabor deve virar uma etiqueta.
- for(const flavor of flavors)addVariant(flavor,p.variants?.[flavor]||null,'flavor');
- if(Array.isArray(p.sizes)&&p.sizes.length){
-  for(let i=0;i<p.sizes.length;i++){
-   const v=p.sizes[i];if(!v||typeof v!=='object')continue;
-   const label=String(v.label||v.name||'Tamanho '+(i+1));
-   result.push({key:p.id+'::size::'+i,name:p.name+' — '+label,category:p.category,price:validPrice(v.price)?v.price:base,unit:'un',product:p,sizeLabel:label});
+ if(sizes.length){
+  for(let i=0;i<sizes.length;i++){
+   const v=sizes[i],label=String(v.label||v.name||'Tamanho '+(i+1));
+   if(flavors.length){
+    for(const flavor of flavors)append(label+' — '+flavor,v,'sizeflavor',flavor,label);
+   }else append(label,v,'size','',label);
+  }
+ }else{
+  for(const [label,v] of variants){
+   if(v&&typeof v==='object')append(label,v,'var',label);
+  }
+  for(const flavor of flavors){
+   const already=result.some(x=>x.flavor.toLocaleLowerCase('pt-BR')===flavor.toLocaleLowerCase('pt-BR'));
+   if(!already)append(flavor,p.variants?.[flavor]||null,'flavor',flavor);
   }
  }
- if(!result.length)result.push({key:p.id,name:p.name,category:p.category,price:base,unit:u,product:p});
+ if(!result.length)result.push({key:p.id,name:p.name,category:p.category,price:base,unit:u,product:p,flavor:''});
  return result;
 }
 function allChoices(){return products.flatMap(choices);}
@@ -164,7 +172,7 @@ function add(choice){
  const explicit=[choice.flavor,p.flavor,p.sabor,p.filling,p.recheio].find(x=>typeof x==='string'&&x.trim());
  const descriptionIngredients=String(p.description||'').match(/^(?:torradas?\s+com|rechead[oa]s?\s+com)\s+(.+?)[.!]?$/i);
  const inferred=descriptionIngredients?descriptionIngredients[1].replace(/[.]$/,'').trim():'';
- selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName:parsed.productName,flavor:choice.flavor||(!choice.sizeLabel&&parsed.flavor)||explicit||inferred||'',description:''});
+ selected.set(choice.key,{choice,price:choice.price,unit:choice.unit,productName:choice.sizeLabel ? parsed.productName+' — '+choice.sizeLabel : parsed.productName,flavor:choice.flavor||(!choice.sizeLabel&&parsed.flavor)||explicit||inferred||'',description:''});
 }
 function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return allChoices().filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
 function render(){
