@@ -13467,7 +13467,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                                           : 'Definir volume de compra')}
                                   </button>
                                 )}
-                                {temInsumo && (
+                                {temInsumo && !supplyExistente && (
                                   <button
                                     type="button"
                                     onClick={() => alternarOpcaoExtraCadastro('equivalencia')}
@@ -13526,7 +13526,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                             </div>
                           )}
 
-                          {temInsumo && opcoesExtrasCadastro.equivalencia && (
+                          {temInsumo && !supplyExistente && opcoesExtrasCadastro.equivalencia && (
                             <div className="col-span-12 rounded-xl bg-black/[0.03] p-3">
                               <div className="t-overline-sm mb-1">Equivalência técnica</div>
                               <p className="t-nano ink-quiet mb-2">Equivalência do cadastro: 1 unidade padrão corresponde a X unidades de medida. Volume de caixa/fardo é configurado separadamente.</p>
@@ -13584,6 +13584,12 @@ const { useState, useEffect, useMemo, useRef } = React;
                                   </>
                                 )}
                               </div>
+                            </div>
+                          )}
+
+                          {temInsumo && supplyExistente && (
+                            <div className="col-span-12">
+                              <SupplyEquivalencesEditor supply={supplyExistente} onUpdateSupply={onUpdateSupply} />
                             </div>
                           )}
 
