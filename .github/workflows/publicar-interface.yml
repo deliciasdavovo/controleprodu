@@ -1,0 +1,45 @@
+name: Compilar e publicar interface
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/app.jsx'
+      - 'src/embalagens.jsx'
+      - '.github/workflows/publicar-interface.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Compilar React e validar JSX
+        run: |
+          npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --minify --target=es2020 --outfile=compiled/app.js
+          npx --yes esbuild@0.25.12 src/embalagens.jsx --loader:.jsx=jsx --minify --target=es2020 --outfile=compiled/embalagens.js
+      - name: Atualizar versão dos scripts
+        run: |
+          python3 - <<'PY'
+          import re, pathlib, os
+          path = pathlib.Path('index.html')
+          html = path.read_text()
+          sha = os.environ['GITHUB_SHA'][:12]
+          for script in ('app', 'embalagens'):
+              html, count = re.subn(r'(\./compiled/'+script+r'\.js\?v=)[^"\']+', lambda m: m.group(1)+sha, html)
+              if count != 1:
+                  raise RuntimeError(f'Script {script}: esperado um link no index.html; encontrado {count}')
+          path.write_text(html)
+          PY
+      - name: Registrar versão publicada
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add compiled/app.js compiled/embalagens.js index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Publica interface compilada do Controle Produ"
+            git push
+          fi
