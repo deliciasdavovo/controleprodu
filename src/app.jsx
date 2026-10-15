@@ -12352,7 +12352,8 @@ const { useState, useEffect, useMemo, useRef } = React;
               priceUnit: x.priceUnit || 'un',
               purchaseUnit: ins
                 ? (
-                    unidadeCompraCompativelComBase(ins.purchaseUnit, ins.unit || 'g')
+                    (unidadeCompraCompativelComBase(ins.purchaseUnit, ins.unit || 'g')
+                      || converterQuantidadeEquivalente(1, ins.purchaseUnit, ins.unit || 'g', ins) > 0)
                       ? ins.purchaseUnit
                       : unidadeCompraPadraoDaBase(ins.unit || 'g')
                   )
@@ -24254,14 +24255,10 @@ ${BARRA_ACOES_HTML}
         const nome = tipo === 'insumo' ? (supply.name || '') : (resale.productName || '');
         const unidadeBase = tipo === 'insumo' ? (supply.unit || 'un') : (resale.priceUnit || 'un');
         const unidadeCompraAtual = item.purchaseUnit || (tipo === 'insumo' ? unidadeCompraPadraoDaBase(unidadeBase) : 'un');
-        const unidadeCompraCompativel = unidadeBase === 'g'
-          ? ['g', 'kg'].includes(unidadeCompraAtual)
-          : unidadeBase === 'ml'
-            ? ['ml', 'L'].includes(unidadeCompraAtual)
-            : unidadeBase === 'un' ? unidadeCompraAtual === 'un' : true;
-        const fatorConversaoCompra = unidadeBase === 'g' && unidadeCompraAtual === 'kg' ? 1000
-          : unidadeBase === 'ml' && unidadeCompraAtual === 'L' ? 1000
-          : unidadeCompraAtual === unidadeBase ? 1 : null;
+        const fatorConversaoCompra = converterQuantidadeEquivalente(
+          1, unidadeCompraAtual, unidadeBase, supply || resale
+        );
+        const unidadeCompraCompativel = fatorConversaoCompra > 0;
         const unidadeCompraRecomendada = unidadeCompraPadraoDaBase(unidadeBase);
         // Volume é uma embalagem que CONTÉM unidades, nunca a equivalência técnica.
         const volumeTipoCadastro = String(item.packageType || '').trim();
