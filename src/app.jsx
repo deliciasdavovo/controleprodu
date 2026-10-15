@@ -14197,76 +14197,12 @@ const { useState, useEffect, useMemo, useRef } = React;
                               </td>
                               <td className="py-2.5 px-3">
                                 {ehSupply ? (
-                                  <div className="min-w-[230px]">
-                                    {x.unit === 'un' ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="t-micro whitespace-nowrap">1 un =</span>
-                                        <NumeroBRField
-                                          value={x.variationFactor || ''}
-                                          decimals={3}
-                                          onValueChange={(variationFactor) => onUpdateSupply({
-                                            ...x,
-                                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
-                                          })}
-                                          placeholder="qtd."
-                                          className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
-                                        />
-                                        <PickerField
-                                          value={x.variationUnit || ''}
-                                          options={UNIDADES_EQUIVALENCIA}
-                                          onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
-                                          placeholder="g"
-                                          className="field h-8 pl-2 text-[12px] w-20"
-                                          panelMinWidth={120}
-                                        />
-                                        {(x.variationUnit || Number(x.variationFactor) > 0) && (
-                                          <button
-                                            type="button"
-                                            title="Remover equivalência"
-                                            onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
-                                            className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
-                                          >
-                                            <Icons.X className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="t-micro whitespace-nowrap">1</span>
-                                        <PickerField
-                                          value={x.variationUnit || ''}
-                                          options={UNIDADES_EQUIVALENCIA}
-                                          onPick={(opt) => onUpdateSupply({ ...x, variationUnit: opt.value })}
-                                          placeholder="un"
-                                          className="field h-8 pl-2 text-[12px] w-20"
-                                          panelMinWidth={120}
-                                        />
-                                        <span className="t-micro">=</span>
-                                        <NumeroBRField
-                                          value={x.variationFactor || ''}
-                                          decimals={3}
-                                          onValueChange={(variationFactor) => onUpdateSupply({
-                                            ...x,
-                                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
-                                          })}
-                                          placeholder="qtd."
-                                          className="field h-8 px-2 text-[12px] text-right tnum no-spin w-20"
-                                        />
-                                        <span className="t-micro whitespace-nowrap">{x.unit}</span>
-                                        {(x.variationUnit || Number(x.variationFactor) > 0) && (
-                                          <button
-                                            type="button"
-                                            title="Remover equivalência"
-                                            onClick={() => onUpdateSupply({ ...x, variationUnit: '', variationFactor: null }, true)}
-                                            className="w-7 h-7 rounded-full bg-black/[0.04] hover:bg-black/[0.08] flex items-center justify-center shrink-0"
-                                          >
-                                            <Icons.X className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                    {x.variationUnit && Number(x.variationFactor) > 0 && (
-                                      <span className="t-nano block mt-1">{rotuloVariacao(x)}</span>
+                                  <div className="flex items-center gap-2 min-w-[195px] max-w-[310px]">
+                                    <span className="t-nano leading-snug min-w-0 flex-1">{rotuloVariacao(x) || 'Sem equivalências'}</span>
+                                    {onRequestEditCatalog && (
+                                      <button type="button" className="btn btn-secondary btn-sm shrink-0"
+                                        onClick={() => onRequestEditCatalog('insumo:' + x.id)}
+                                        title="Editar todas as equivalências">Editar</button>
                                     )}
                                   </div>
                                 ) : <span className="t-empty">—</span>}
@@ -24170,6 +24106,108 @@ ${BARRA_ACOES_HTML}
       };
 
 
+
+      // Editor central: uma linha por equivalência, sem salvar a cada tecla.
+      const SupplyEquivalencesEditor = ({ supply, onUpdateSupply }) => {
+        const inicial = () => regrasEquivalenciaDoInsumo(supply).map((r) => ({ ...r, factor: String(r.factor) }));
+        const [linhas, setLinhas] = useState(inicial);
+        const [erro, setErro] = useState('');
+        const [salvando, setSalvando] = useState(false);
+        const [sucesso, setSucesso] = useState(false);
+        useEffect(() => { setLinhas(inicial()); setErro(''); setSucesso(false); }, [supply.id]);
+        const alterar = (i, dados) => {
+          setLinhas((p) => p.map((r, j) => i === j ? { ...r, ...dados } : r));
+          setErro(''); setSucesso(false);
+        };
+        const normalizadas = () => linhas.map((r) => ({
+          fromUnit: String(r.fromUnit || ''),
+          toUnit: String(r.toUnit || ''),
+          factor: Number(String(r.factor ?? '').replace(',', '.'))
+        }));
+        const salvar = async () => {
+          const regras = normalizadas();
+          if (regras.some((r) => !r.fromUnit || !r.toUnit || r.fromUnit === r.toUnit ||
+            !Number.isFinite(r.factor) || r.factor <= 0)) {
+            setErro('Selecione duas unidades diferentes e informe uma quantidade maior que zero em cada linha.');
+            return;
+          }
+          for (let i = 0; i < regras.length; i++) {
+            const r = regras[i];
+            const outras = regras.filter((_, j) => i !== j);
+            const repetida = outras.some((o) => (o.fromUnit === r.fromUnit && o.toUnit === r.toUnit) ||
+              (o.fromUnit === r.toUnit && o.toUnit === r.fromUnit));
+            if (repetida) { setErro('Há duas regras para o mesmo par de unidades.'); return; }
+            const inferida = converterQuantidadeEquivalente(1, r.fromUnit, r.toUnit, {
+              unit: supply.unit, unitEquivalences: outras, variationUnit: '', variationFactor: null
+            });
+            if (inferida > 0 && Math.abs(inferida - r.factor) / Math.max(inferida, r.factor) > 0.00001) {
+              setErro(`Conversão incoerente: 1 ${r.fromUnit} já corresponde a ${numeroCurtoBR(inferida)} ${r.toUnit}.`);
+              return;
+            }
+          }
+          setSalvando(true); setErro(''); setSucesso(false);
+          try {
+            await onUpdateSupply({ ...supply, unitEquivalences: regras, variationUnit: '', variationFactor: null }, true);
+            setSucesso(true);
+          } catch (e) {
+            setErro(e?.message || 'Não foi possível salvar.');
+          } finally { setSalvando(false); }
+        };
+        const regrasTemporarias = {
+          unit: supply.unit, unitEquivalences: normalizadas().filter((r) => r.factor > 0),
+          variationUnit: '', variationFactor: null
+        };
+        const fatias = converterQuantidadeEquivalente(1, 'un', 'fatia', regrasTemporarias);
+        return (
+          <div className="rounded-xl border hairline bg-white p-3 sm:p-4 space-y-3">
+            <div className="flex flex-wrap justify-between gap-2 items-start">
+              <div><div className="font-bold text-sm">Unidades e equivalências</div>
+                <p className="t-nano ink-quiet">Base de estoque/custo: <strong>{supply.unit || 'un'}</strong></p>
+              </div>
+              <span className="pill tone-quiet">Por produto</span>
+            </div>
+            {linhas.map((r, i) => (
+              <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <select aria-label={`Unidade de origem ${i+1}`} value={r.fromUnit}
+                  onChange={(e) => alterar(i, { fromUnit: e.target.value })}
+                  className="field field-md field-select w-[112px]">
+                  {UNIDADES_PARA_EQUIVALENCIA.map((u) => <option value={u} key={u}>1 {u}</option>)}
+                </select>
+                <span className="t-caption font-bold">=</span>
+                <input value={r.factor} type="text" inputMode="decimal"
+                  onChange={(e) => alterar(i, { factor: e.target.value })}
+                  aria-label={`Quantidade equivalente ${i+1}`} placeholder="Ex.: 1800"
+                  className="field field-md text-right tnum w-[112px] flex-1 min-w-[88px]" />
+                <select aria-label={`Unidade de destino ${i+1}`} value={r.toUnit}
+                  onChange={(e) => alterar(i, { toUnit: e.target.value })}
+                  className="field field-md field-select w-[104px]">
+                  {UNIDADES_PARA_EQUIVALENCIA.map((u) => <option value={u} key={u}>{u}</option>)}
+                </select>
+                <button type="button" aria-label="Remover equivalência" title="Remover esta equivalência"
+                  className="btn btn-secondary btn-sm" onClick={() => { setLinhas((p) => p.filter((_,j) => j !== i)); setSucesso(false); }}>
+                  <Icons.X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2 items-center">
+              <button type="button" className="btn btn-secondary btn-sm"
+                onClick={() => { setLinhas((p) => [...p, {
+                  fromUnit: p.length ? 'fatia' : 'un', toUnit: supply.unit === 'un' ? 'g' : (supply.unit || 'g'), factor: ''
+                }]); setSucesso(false); }}>+ Adicionar equivalência</button>
+              {fatias > 0 && <span className="t-nano ink-quiet">Calculado: 1 un = {numeroCurtoBR(fatias)} fatias</span>}
+            </div>
+            {erro && <p role="alert" className="t-caption text-red-700">{erro}</p>}
+            {sucesso && <p role="status" className="t-caption text-[#20563c]">Equivalências salvas.</p>}
+            <div className="flex flex-wrap justify-between gap-2 items-center">
+              <p className="t-nano ink-quiet">Ex.: 1 un = 1800 g; 1 fatia = 30 g. Não altera compras antigas.</p>
+              <button type="button" disabled={salvando} onClick={salvar} className="btn btn-primary btn-sm">
+                {salvando ? 'Salvando…' : 'Salvar equivalências'}
+              </button>
+            </div>
+          </div>
+        );
+      };
+
       // Edição rápida do cadastro aberta por cima de Compras/Fornecedores.
       // Fechar devolve a pessoa exatamente ao ponto da análise em que estava.
       const QuickCatalogEditModal = ({
@@ -24388,64 +24426,7 @@ ${BARRA_ACOES_HTML}
 
                   {tipo === 'insumo' && (
                     <div className="sm:col-span-2">
-                      <label className="t-overline-sm block mb-1.5">Equivalência técnica</label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {supply.unit === 'un' ? (
-                          <>
-                            <span className="t-micro">1 un =</span>
-                        <NumeroBRField
-                          value={supply.variationFactor || ''}
-                          decimals={3}
-                          onValueChange={(variationFactor) => atualizar({
-                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
-                          })}
-                          placeholder="qtd."
-                          className="field field-md w-28 text-right tnum no-spin"
-                        />
-                        <PickerField
-                          value={supply.variationUnit || ''}
-                          options={UNIDADES_EQUIVALENCIA_MODAL}
-                          onPick={(opt) => atualizar({ variationUnit: opt.value })}
-                          placeholder="g"
-                          className="field field-md w-28"
-                          panelMinWidth={140}
-                        />
-                          </>
-                        ) : (
-                          <>
-                            <span className="t-micro">1</span>
-                        <PickerField
-                          value={supply.variationUnit || ''}
-                          options={UNIDADES_EQUIVALENCIA_MODAL}
-                          onPick={(opt) => atualizar({ variationUnit: opt.value })}
-                          placeholder="fatia"
-                          className="field field-md w-28"
-                          panelMinWidth={140}
-                        />
-                            <span className="t-micro">=</span>
-                        <NumeroBRField
-                          value={supply.variationFactor || ''}
-                          decimals={3}
-                          onValueChange={(variationFactor) => atualizar({
-                            variationFactor: Number(variationFactor) > 0 ? Number(variationFactor) : null
-                          })}
-                          placeholder="qtd."
-                          className="field field-md w-28 text-right tnum no-spin"
-                        />
-                            <span className="t-micro">{supply.unit || 'g'}</span>
-                          </>
-                        )}
-                        {(supply.variationUnit || Number(supply.variationFactor) > 0) && (
-                          <button
-                            type="button"
-                            onClick={() => atualizar({ variationUnit: '', variationFactor: null })}
-                            className="btn btn-secondary btn-sm"
-                          >
-                            Remover equivalência
-                          </button>
-                        )}
-                      </div>
-                      <p className="t-nano mt-1.5">Usada na ficha técnica/CMV; não altera a unidade base do cadastro.</p>
+                      <SupplyEquivalencesEditor supply={supply} onUpdateSupply={onUpdateSupply} />
                     </div>
                   )}
 
