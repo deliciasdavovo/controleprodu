@@ -2200,6 +2200,25 @@ const { useState, useEffect, useMemo, useRef } = React;
         const mobileTabsRef = useRef(null);
         const [menuMobileAberto, setMenuMobileAberto] = useState(false);
 
+        // Drawer fora do header sticky/glass: filtros de backdrop, z-index e
+        // overflow da barra não podem prender o menu dentro do cabeçalho.
+        useEffect(() => {
+          if (!menuMobileAberto) return;
+          const anterior = document.body.style.overflow;
+          document.body.style.overflow = 'hidden';
+          const fecharTecla = (e) => { if (e.key === 'Escape') setMenuMobileAberto(false); };
+          const fecharDesktop = () => {
+            if (window.innerWidth >= 1024) setMenuMobileAberto(false);
+          };
+          window.addEventListener('keydown', fecharTecla);
+          window.addEventListener('resize', fecharDesktop);
+          return () => {
+            document.body.style.overflow = anterior;
+            window.removeEventListener('keydown', fecharTecla);
+            window.removeEventListener('resize', fecharDesktop);
+          };
+        }, [menuMobileAberto]);
+
         const abrirAba = (tabId) => {
           setMenuMobileAberto(false);
           onTabChange(tabId);
@@ -2318,11 +2337,11 @@ const { useState, useEffect, useMemo, useRef } = React;
                 Início
               </button>
             </div>
-            {menuMobileAberto && (
-              <div className="controle-mobile-overlay lg:hidden">
+            {menuMobileAberto && ReactDOM.createPortal(
+              <div className="controle-mobile-overlay lg:hidden" role="presentation">
                 <button type="button" className="controle-mobile-backdrop" aria-label="Fechar menu"
                   onClick={() => setMenuMobileAberto(false)} />
-                <nav className="controle-mobile-drawer" aria-label="Todas as áreas">
+                <nav className="controle-mobile-drawer" aria-label="Todas as áreas" role="dialog" aria-modal="true">
                   <div className="controle-mobile-drawer-head">
                     <strong>Áreas do sistema</strong>
                     <button type="button" aria-label="Fechar menu" onClick={() => setMenuMobileAberto(false)}>✕</button>
@@ -2342,7 +2361,8 @@ const { useState, useEffect, useMemo, useRef } = React;
                     </div>
                   ))}
                 </nav>
-              </div>
+              </div>,
+              document.body
             )}
             <nav className="controle-mobile-bottom lg:hidden" aria-label="Acesso rápido">
               {[
