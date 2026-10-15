@@ -21991,7 +21991,12 @@ ${BARRA_ACOES_HTML}
                     </div>
                   </div>
                 </div>
- if (modoFornecedores === 'planilha') {
+              )}
+            </div>
+          );
+        }
+
+        if (modoFornecedores === 'planilha') {
           return (
             <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
