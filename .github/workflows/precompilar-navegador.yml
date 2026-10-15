@@ -7,6 +7,7 @@ on:
       - fix/precompilar-jsx-para-abertura-rapida
       - feat/embalagens-variacoes-por-produto-2026-10-14
       - fix/mobile-menu-upload-embalagens-2026-10-14
+      - feat/manual-pdf-embalagens-com-fotos-2026-10-15
     paths:
       - 'src/**'
       - 'index.html'
@@ -84,6 +85,32 @@ jobs:
               await page.locator('.emb2-modal-rodape button').first().click();
               await page.locator('.emb2-item').first().waitFor({state:'visible',timeout:12000});
               console.log('SELECAO_EMBALAGEM_OK:', true);
+              // O PDF de manual deve carregar a foto incorporada no próprio arquivo.
+              const [manual] = await Promise.all([
+                page.waitForEvent('popup',{timeout:15000}),
+                page.getByRole('button',{name:'Manual com fotos (PDF)'}).click()
+              ]);
+              await manual.waitForLoadState('domcontentloaded');
+              await manual.locator('.embalagem-foto').first().waitFor({state:'visible',timeout:12000});
+              const sample = await manual.locator('.embalagem-foto').first().evaluate(img=>({
+                src:img.getAttribute('src'),w:img.naturalWidth,h:img.naturalHeight
+              }));
+              if(!sample.src.startsWith('data:image/jpeg;base64,') || sample.w<=0 || sample.h<=0)
+                throw new Error('Manual sem foto JPEG integrada no HTML');
+              if(!await manual.locator('.grupo-cabecalho').count() ||
+                 !await manual.locator('.produto-cabecalho').count() ||
+                 !await manual.locator('.variacao-titulo').count())
+                throw new Error('Manual sem grupos, produtos ou variações');
+              const pdf = await manual.pdf({format:'A4',printBackground:true});
+              const imagensNoPDF = (pdf.toString('latin1').match(/\/Subtype\s*\/Image/g)||[]).length;
+              if(pdf.length<4000 || imagensNoPDF<1)
+                throw new Error('O PDF salvo não incorporou as imagens: bytes='+pdf.length+', imagens='+imagensNoPDF);
+              console.log('MANUAL_PDF_TESTADO:',JSON.stringify({
+                arquivoBytes:pdf.length, imagensNoPDF,
+                produtos:await manual.locator('.produto').count(),
+                variacoes:await manual.locator('.variacao').count()
+              }));
+              await manual.close();
               // Navegação real de celular: tocar "Mais" não pode deslocar a tela
               // ou prender a barra lateral dentro do cabeçalho sticky.
               const mobile = await browser.newContext({viewport:{width:390,height:844},
