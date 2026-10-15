@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Etiquetas e Plaquinhas | ControleProdu</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--green:#233a29;--cream:#f7f4ed;--line:#e3e5e0;--text:#25312a}
+*{box-sizing:border-box}body{margin:0;background:#f5f6f4;color:var(--text);font-family:Manrope,Arial,sans-serif;font-size:13px}
+header{background:white;border-bottom:1px solid var(--line);padding:17px max(18px,calc((100vw - 1320px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{font-size:21px;margin:0 0 3px}h2{font-size:15px;margin:0 0 13px}p{margin:0;color:#6d746f;line-height:1.5}.back{color:var(--green);font-weight:700;text-decoration:none}
+main{max-width:1320px;margin:24px auto;padding:0 18px;display:grid;grid-template-columns:minmax(290px,440px) minmax(0,1fr);gap:20px}
+.panel{background:white;border:1px solid var(--line);border-radius:15px;padding:18px;min-width:0}.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0}.wide{grid-column:1/-1}
+label{font-size:11px;font-weight:700;display:block;margin:0 0 5px;color:#5c675e}input,select{border:1px solid #dce2dc;border-radius:8px;padding:10px;width:100%;font:inherit;background:#fff;min-width:0}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--green)}button{cursor:pointer;font:inherit;border-radius:9px;padding:10px 13px;border:1px solid #cfd8d0;background:white;color:var(--green);font-weight:700}
+button.primary{background:var(--green);color:white;border-color:var(--green)}button:disabled{opacity:.5;cursor:not-allowed}
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.notice{padding:10px 12px;background:#f5f6f2;border:1px solid #e5e9e2;border-radius:9px;color:#59675b;font-size:11px;line-height:1.5;margin:10px 0}
+.list{border:1px solid var(--line);border-radius:10px;max-height:390px;overflow:auto}.item{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #edf0ed;cursor:pointer}.item:last-child{border:0}.item:hover{background:#f7f9f6}.item strong{display:block;font-size:12px}.item small{color:#798079}.preview-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:15px}
+.sheet{background:#fff;border:1px dashed #b8c2b9;border-radius:8px;padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start;min-height:220px}
+.plaque{aspect-ratio:1.65;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;background:#233a29;color:#fff;padding:12px;border:4px double #d4c9a9;border-radius:12px 12px 17px 17px;outline:2px solid #233a29;outline-offset:-1px;break-inside:avoid;overflow:hidden}
+.plaque.minimal{border:1px solid #c9bfa7;border-radius:5px}.plaque .decor{font-size:15px;color:#dfd1a6;margin-bottom:3px}.plaque .name{font:600 clamp(12px,1.7vw,20px)/1.18 Lora,Georgia,serif;overflow-wrap:anywhere;text-wrap:balance}.plaque .rule{font-size:12px;color:#d8c9a5;margin:4px 0}.plaque .price{font:600 clamp(15px,2.1vw,23px) Lora,Georgia,serif}.plaque .unit{font:italic 11px Lora,Georgia,serif}
+.plaque.production{background:#fff;color:#233a29;border:1px solid #233a29;outline:none}.plaque.production .price{font:600 12px Manrope,Arial,sans-serif}.plaque.production .unit{font:11px Manrope,Arial,sans-serif}
+.selected-row{display:grid;grid-template-columns:1fr 100px 92px auto;align-items:center;gap:7px;border-bottom:1px solid #eee;padding:8px 0}.selected-row strong{font-size:11px}.selected-row input,.selected-row select{padding:7px;font-size:11px}.selected-row button{padding:7px}.muted{font-size:11px;color:#707b71}.empty{color:#858d86;padding:35px 10px;text-align:center}.footer-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+@media(max-width:850px){main{grid-template-columns:1fr;margin-top:12px}.sheet{gap:9px}.plaque .name{font-size:clamp(12px,3.3vw,20px)}.plaque .price{font-size:clamp(15px,4vw,22px)}.selected-row{grid-template-columns:1fr 76px 72px auto}header{padding:14px 18px}}
+@page{size:A4 portrait;margin:10mm}
+@media print{body{background:white}header,.settings,.preview-header,.footer-actions,.notice{display:none!important}main{display:block;max-width:none;margin:0;padding:0}.panel{border:0;padding:0}.preview{display:block}.sheet{border:0;padding:0;display:grid;grid-template-columns:repeat(2,90mm);gap:5mm;min-height:0;justify-content:center}.plaque{width:90mm;height:55mm;aspect-ratio:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact;outline:none;border:2px double #d4c9a9}.plaque .name{font-size:17pt}.plaque .price{font-size:20pt}.plaque .unit{font-size:9pt}.plaque .decor{font-size:14pt}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/acorn@8.14.0/dist/acorn.js"></script>
+</head>
+<body>
+<header><div><h1>Etiquetas e Plaquinhas</h1><p>Delícias da Vovó · ControleProdu</p></div><a class="back" href="./index.html">← Voltar ao ControleProdu</a></header>
+<main>
+<section class="panel settings">
+<h2>1. Escolher produtos</h2>
+<div id="status" class="notice">Carregando o catálogo do PedidosCardápio…</div>
+<div class="controls">
+<div class="wide"><label for="search">Buscar produto</label><input id="search" placeholder="Nome do produto"></div>
+<div class="wide"><label for="category">Categoria</label><select id="category"><option value="">Todas as categorias</option></select></div>
+</div>
+<div class="toolbar"><button id="selectVisible">Selecionar exibidos</button><button id="clear">Limpar seleção</button><button id="reload">Atualizar catálogo</button></div>
+<div class="list" id="catalog" aria-label="Produtos disponíveis"><div class="empty">Carregando…</div></div>
+<div style="margin-top:16px"><h2>2. Configurar impressão</h2></div>
+<div class="controls">
+<div><label for="mode">Tipo</label><select id="mode"><option value="vitrine">Plaquinha de vitrine</option><option value="producao">Etiqueta de produção (interna)</option></select></div>
+<div><label for="style">Estilo</label><select id="style"><option value="classic">Clássico ornamentado</option><option value="minimal">Minimalista</option></select></div>
+<div><label for="priceToggle">Exibir preço</label><select id="priceToggle"><option value="yes">Sim</option><option value="no">Não</option></select></div>
+<div><label for="copies">Cópias por produto</label><input id="copies" type="number" min="1" max="20" value="1"></div>
+<div id="productionFields" class="wide" style="display:none"><div class="controls"><div><label for="made">Fabricação</label><input id="made" type="date"></div><div><label for="expiry">Validade</label><input id="expiry" type="date"></div></div><p class="muted">Datas preenchidas manualmente. A validade deve seguir a ficha técnica e as condições reais de conservação. Esta etiqueta interna não substitui o rótulo legal de venda.</p></div>
+</div>
+<h2>3. Conferir os selecionados (<span id="count">0</span>)</h2>
+<div id="selected"><p class="muted">Selecione produtos acima.</p></div>
+</section>
+<section class="panel preview">
+<div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 9 × 5,5 cm · verde e branco</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
+<div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. Preços editados aqui são apenas para esta impressão; não alteram o cadastro nem o CMV. Confirme preços, unidade e informações obrigatórias antes de expor.</div>
+<div class="sheet" id="sheet"><div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div></div>
+<div class="footer-actions"><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div>
+</section>
+</main>
+<script>
+(function(){
+'use strict';
+const SOURCE='https://raw.githubusercontent.com/deliciasdavovo/pedidoscardapio/main/index.html';
+const $=id=>document.getElementById(id);
+let products=[],selected=new Map();
+const formatBRL=n=>Number.isFinite(n)?n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço não cadastrado';
+const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function literal(node){
+ if(!node)return undefined;
+ switch(node.type){
+ case 'Literal':return node.value;
+ case 'TemplateLiteral':return node.expressions.length?undefined:node.quasis.map(q=>q.value.cooked).join('');
+ case 'UnaryExpression':if(node.operator==='-'||node.operator==='+'){const v=literal(node.argument);return typeof v==='number'?(node.operator==='-'?-v:v):undefined;}return undefined;
+ case 'BinaryExpression':{const a=literal(node.left),b=literal(node.right);if(typeof a==='number'&&typeof b==='number'){if(node.operator==='+')return a+b;if(node.operator==='*')return a*b;}return undefined;}
+ case 'ArrayExpression':return node.elements.map(literal);
+ case 'ObjectExpression':{const obj={};for(const p of node.properties){if(p.type!=='Property'||p.computed||p.kind!=='init')continue;const k=p.key.name??p.key.value;if(typeof k==='string')obj[k]=literal(p.value);}return obj;}
+ default:return undefined;
+ }
+}
+async function load(){
+ $('status').textContent='Atualizando catálogo do PedidosCardápio…';
+ try{
+  if(!window.acorn)throw Error('Biblioteca de leitura do catálogo indisponível.');
+  const res=await fetch(SOURCE+'?v='+Date.now(),{cache:'no-store'});
+  if(!res.ok)throw Error('HTTP '+res.status);
+  const html=await res.text(),mark='const MENU_ITEMS =',start=html.indexOf(mark);
+  if(start<0)throw Error('Lista MENU_ITEMS não encontrada no catálogo.');
+  const bracket=html.indexOf('[',start+mark.length);
+  const ast=acorn.parseExpressionAt(html,bracket,{ecmaVersion:'latest'});
+  if(ast.type!=='ArrayExpression')throw Error('Formato de produtos não reconhecido.');
+  const rows=literal(ast);
+  products=rows.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string').map(p=>({...p,category:p.category||'Sem categoria'}));
+  if(!products.length)throw Error('Nenhum produto válido encontrado.');
+  const categories=[...new Set(products.map(p=>p.category))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  $('category').innerHTML='<option value="">Todas as categorias</option>'+categories.map(c=>'<option value="'+escapeHTML(c)+'">'+escapeHTML(c)+'</option>').join('');
+  // Keep selected products linked to the refreshed catalog by their stable IDs.
+  for(const [id,row] of selected){const fresh=products.find(p=>p.id===id);if(fresh)selected.set(id,{...row,product:fresh});else selected.delete(id);}
+  $('status').textContent=products.length+' produtos carregados do PedidosCardápio · leitura sem modificar os cadastros.';
+  render();
+ }catch(e){$('status').textContent='Não foi possível carregar o catálogo: '+e.message+' Tente Atualizar catálogo. Nenhum cadastro foi modificado.';$('catalog').innerHTML='<div class="empty">Catálogo indisponível.</div>';render();}
+}
+function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return products.filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
+function basePrice(p){if(typeof p.price==='number')return p.price;if(typeof p.priceKg==='number')return p.priceKg;return null;}
+function unit(p){return typeof p.priceKg==='number'?'kg':(p.units||[]).includes('kg')?'kg':(p.units||[]).includes('pessoas')?'pessoa':'un';}
+function add(p){selected.set(p.id,{product:p,price:basePrice(p),unit:unit(p)});}
+function render(){
+ const rows=visible();
+ $('catalog').innerHTML=rows.length?rows.map(p=>'<label class="item"><input type="checkbox" data-id="'+escapeHTML(p.id)+'" '+(selected.has(p.id)?'checked':'')+'><span><strong>'+escapeHTML(p.name)+'</strong><small>'+escapeHTML(p.category)+' · '+escapeHTML(formatBRL(basePrice(p)))+'</small></span></label>').join(''):'<div class="empty">Nenhum produto encontrado.</div>';
+ $('catalog').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{const p=products.find(x=>x.id===el.dataset.id);if(el.checked&&p)add(p);else selected.delete(el.dataset.id);render();}));
+ $('count').textContent=selected.size;
+ $('selected').innerHTML=[...selected].map(([id,row])=>'<div class="selected-row"><strong>'+escapeHTML(row.product.name)+'</strong><input type="number" step="0.01" min="0" placeholder="Preço" aria-label="Preço" data-price="'+escapeHTML(id)+'" value="'+(row.price??'')+'"><select aria-label="Unidade" data-unit="'+escapeHTML(id)+'">'+['un','kg','fatia','100 g','porção','pessoa'].map(v=>'<option value="'+v+'" '+(row.unit===v?'selected':'')+'>'+v+'</option>').join('')+'</select><button aria-label="Remover" data-remove="'+escapeHTML(id)+'">×</button></div>').join('')||'<p class="muted">Selecione produtos acima.</p>';
+ $('selected').querySelectorAll('[data-price]').forEach(el=>el.addEventListener('input',()=>{const r=selected.get(el.dataset.price);r.price=el.value===''?null:Number(el.value);renderSheet();}));
+ $('selected').querySelectorAll('[data-unit]').forEach(el=>el.addEventListener('change',()=>{selected.get(el.dataset.unit).unit=el.value;renderSheet();}));
+ $('selected').querySelectorAll('[data-remove]').forEach(el=>el.addEventListener('click',()=>{selected.delete(el.dataset.remove);render();}));
+ renderSheet();
+}
+function renderSheet(){
+ const mode=$('mode').value,classic=$('style').value==='classic',show=$('priceToggle').value==='yes',copies=Math.max(1,Math.min(20,Number($('copies').value)||1));
+ $('productionFields').style.display=mode==='producao'?'block':'none';
+ const made=$('made').value,expiry=$('expiry').value;
+ const dateBR=s=>s?s.split('-').reverse().join('/'):'Não informada';
+ const entries=[...selected.values()].flatMap(r=>Array.from({length:copies},()=>r));
+ $('sheet').innerHTML=entries.length?entries.map(r=>{
+ const p=r.product;
+ const body=mode==='producao'?'<div class="price">Fabricação: '+escapeHTML(dateBR(made))+'</div><div class="unit">Validade: '+escapeHTML(dateBR(expiry))+'</div>':(show?'<div class="price">'+escapeHTML(formatBRL(r.price))+'</div><div class="unit">por '+escapeHTML(r.unit)+'</div>':'');
+ return '<div class="plaque '+(classic?'':'minimal')+' '+(mode==='producao'?'production':'')+'">'+(classic?'<div class="decor">❦</div>':'')+'<div class="name">'+escapeHTML(p.name)+'</div>'+(classic?'<div class="rule">— ◇ —</div>':'')+body+'</div>';
+ }).join(''):'<div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div>';
+ $('print').disabled=$('printBottom').disabled=!entries.length;
+}
+$('search').addEventListener('input',render);$('category').addEventListener('change',render);
+$('selectVisible').addEventListener('click',()=>{visible().forEach(p=>{if(!selected.has(p.id))add(p);});render();});
+$('clear').addEventListener('click',()=>{selected.clear();render();});
+$('reload').addEventListener('click',load);
+['mode','style','priceToggle','copies','made','expiry'].forEach(id=>$(id).addEventListener('input',renderSheet));
+function print(){if(!selected.size)return;if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
+$('print').addEventListener('click',print);$('printBottom').addEventListener('click',print);
+load();
+})();
+</script>
+</body></html>
