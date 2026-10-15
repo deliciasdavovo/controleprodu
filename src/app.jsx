@@ -509,10 +509,14 @@ const { useState, useEffect, useMemo, useRef } = React;
         const base = String(supply.unit || 'un');
         const alternativa = String(supply.variationUnit || '').trim();
         const fator = Number(supply.variationFactor) || 0;
-        if (alternativa && fator > 0 && alternativa !== base) {
+        if (alternativa && fator > 0 && (alternativa !== base || base !== 'un')) {
+          // Legado especial: em alguns cadastros g/g significava
+          // '1 unidade comprada = X gramas', não 1 g = X g.
           const legada = base === 'un'
             ? { fromUnit: 'un', toUnit: alternativa, factor: fator }
-            : { fromUnit: alternativa, toUnit: base, factor: fator };
+            : alternativa === base
+              ? { fromUnit: 'un', toUnit: base, factor: fator }
+              : { fromUnit: alternativa, toUnit: base, factor: fator };
           const existe = atuais.some((r) =>
             (r.fromUnit === legada.fromUnit && r.toUnit === legada.toUnit)
             || (r.fromUnit === legada.toUnit && r.toUnit === legada.fromUnit));
