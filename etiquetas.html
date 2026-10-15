@@ -99,6 +99,31 @@ async function load(){
   render();
  }catch(e){$('status').textContent='Não foi possível carregar o catálogo: '+e.message+' Tente Atualizar catálogo. Nenhum cadastro foi modificado.';$('catalog').innerHTML='<div class="empty">Catálogo indisponível.</div>';render();}
 }
+function validPrice(n){return typeof n==='number'&&Number.isFinite(n)&&n>=0;}
+function priceFor(p){if(validPrice(p.priceKg))return p.priceKg;if(validPrice(p.price))return p.price;return null;}
+function unit(p){return validPrice(p.priceKg)?'kg':(p.units||[]).includes('kg')?'kg':(p.units||[]).includes('pessoas')?'pessoa':'un';}
+function choices(p){
+ const result=[],base=priceFor(p),u=unit(p);
+ const variants=p.variants&&typeof p.variants==='object'?Object.entries(p.variants):[];
+ if(variants.length){
+  for(const [label,v] of variants){
+   if(!v||typeof v!=='object')continue;
+   const price=validPrice(v.price)?v.price:validPrice(v.priceKg)?v.priceKg:null;
+   result.push({key:p.id+'::var::'+label,name:p.name+' — '+label,category:p.category,price,unit:validPrice(v.priceKg)?'kg':u,product:p});
+  }
+ }
+ if(Array.isArray(p.sizes)&&p.sizes.length){
+  for(let i=0;i<p.sizes.length;i++){
+   const v=p.sizes[i];if(!v||typeof v!=='object')continue;
+   const label=String(v.label||v.name||'Tamanho '+(i+1));
+   result.push({key:p.id+'::size::'+i,name:p.name+' — '+label,category:p.category,price:validPrice(v.price)?v.price:null,unit:'un',product:p});
+  }
+ }
+ if(!result.length)result.push({key:p.id,name:p.name,category:p.category,price:base,unit:u,product:p});
+ return result;
+}
+function allChoices(){return products.flatMap(choices);}
+function add(choice){selected.set(choice.key,{choice,price:choice.price,unit:choice.unit});}
 function visible(){const q=$('search').value.toLocaleLowerCase('pt-BR').trim(),c=$('category').value;return allChoices().filter(p=>(!c||p.category===c)&&(!q||(p.name+' '+p.category).toLocaleLowerCase('pt-BR').includes(q)));}
 function render(){
  const rows=visible();
