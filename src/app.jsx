@@ -19155,7 +19155,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [fornecedorDestinoUniao, setFornecedorDestinoUniao] = useState('');
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
         const [buscaBanco, setBuscaBanco] = useState('');
-        const [abaBanco, setAbaBanco] = useState('fornecedores');
+        const [abaBanco, setAbaBanco] = useState('insumos');
+        const [itemBancoSelecionado, setItemBancoSelecionado] = useState(null);
         const [nomeFornecedorEditando, setNomeFornecedorEditando] = useState(null);
         const ITEM_COTACAO_NAO_EXISTE = '__nao_existe__';
         const [cotacaoNome, setCotacaoNome] = useState('');
@@ -21784,8 +21785,27 @@ ${BARRA_ACOES_HTML}
                     Editar o nome altera o histórico inteiro. Se o novo nome já existir, os dois fornecedores são unidos.
                   </div>
                 </div>
+              ) : abaBanco === 'tipos' ? (
+                <div className="lark-sheet p-4 sm:p-5">
+                  <h3 className="font-semibold mb-1">Tipos e categorias</h3>
+                  <p className="t-micro mb-4">Categorias utilizadas nos cadastros. Para alterar uma categoria, abra o produto na seção correspondente.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <section className="rounded-lg border hairline overflow-hidden">
+                      <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Insumos</div>
+                      {opcoesCategoriaInsumoBanco.filter(c => !buscaBanco || normalizeName(c.label).includes(normalizeName(buscaBanco))).map(c => (
+                        <div key={c.value} className="px-3 py-2 text-sm border-t hairline">{c.label}</div>
+                      ))}
+                    </section>
+                    <section className="rounded-lg border hairline overflow-hidden">
+                      <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Produtos de revenda</div>
+                      {opcoesCategoriaRevendaBanco.filter(c => !buscaBanco || normalizeName(c.label).includes(normalizeName(buscaBanco))).map(c => (
+                        <div key={c.value} className="px-3 py-2 text-sm border-t hairline">{c.label}</div>
+                      ))}
+                    </section>
+                  </div>
+                </div>
               ) : (
-                <div className="lark-sheet overflow-hidden">
+               <div className="lark-sheet overflow-hidden">
                   <div className="overflow-auto">
                     <table className="excel-densa lark-table lark-items-table w-full text-left">
                       <thead>
@@ -21890,7 +21910,88 @@ ${BARRA_ACOES_HTML}
           );
         }
 
-        if (modoFornecedores === 'planilha') {
+                       <div className="lark-sheet overflow-hidden">
+                  <div className="flex flex-col lg:flex-row min-h-[360px]">
+                    <aside className="lg:w-[280px] lg:min-w-[280px] lg:border-r border-b lg:border-b-0 hairline bg-[#fbfcfa]">
+                      <div className="px-3 py-3 border-b hairline flex justify-between items-center">
+                        <span className="text-sm font-semibold">{abaBanco === 'insumos' ? 'Insumos' : abaBanco === 'revenda' ? 'Revenda' : 'Unidades e equivalências'}</span>
+                        <span className="t-micro">{itensBanco.filter(linha => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).length} itens</span>
+                      </div>
+                      <div className="max-h-[260px] lg:max-h-[580px] overflow-auto">
+                        {itensBanco.filter(linha => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).map(linha => (
+                          <button key={linha.key} type="button" onClick={() => setItemBancoSelecionado(linha.key)}
+                            className={`w-full text-left px-3 py-2.5 border-b hairline hover:bg-[#eef3ed] ${itemBancoSelecionado === linha.key ? 'bg-[#eaf1e8] border-l-4 border-l-[#315b3c]' : ''}`}>
+                            <span className="block text-sm font-medium truncate">{linha.nome}</span>
+                            <span className="block t-micro truncate">{linha.tipo} · {linha.categoriaInsumo || linha.categoriaRevenda || 'Sem categoria'}</span>
+                          </button>
+                        ))}
+                        {itensBanco.length === 0 && <p className="px-3 py-5 t-micro">Nenhum item encontrado.</p>}
+                      </div>
+                    </aside>
+                    <div className="flex-1 min-w-0 p-3 sm:p-5">
+                      {(() => {
+                        const visiveis = itensBanco.filter(linha => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true);
+                        const linha = visiveis.find(item => item.key === itemBancoSelecionado) || visiveis[0];
+                        if (!linha) return <div className="text-sm ink-quiet py-12 text-center">Nenhum produto nesta seção.</div>;
+                        return (
+                          <div className="space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3 border-b hairline pb-4">
+                              <div className="min-w-0">
+                                <p className="t-micro mb-1">Cadastro do produto</p>
+                                <h3 className="text-lg font-semibold break-words">{linha.nome}</h3>
+                                <p className="t-micro mt-1">{linha.tipo}</p>
+                              </div>
+                              <button type="button" className="btn btn-primary btn-sm" onClick={() => {
+                                if (linha.supply) onRequestEditCatalog && onRequestEditCatalog('insumo:' + linha.supply.id);
+                                else if (linha.revenda) onRequestEditCatalog && onRequestEditCatalog('revenda:' + linha.revenda.id);
+                              }}>Abrir cadastro completo</button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block t-micro mb-1">Tipo de cadastro</label>
+                                <PickerField value={valorTipoBanco(linha)}
+                                  options={[{value:'insumo',label:'Insumo'},{value:'revenda',label:'Revenda'},{value:'insumo_revenda',label:'Insumo + revenda'}]}
+                                  onPick={opt => alterarTipoBanco(linha,opt.value)}
+                                  className="field h-9 w-full text-sm" />
+                              </div>
+                              <div>
+                                <label className="block t-micro mb-1">Unidade base</label>
+                                <div className="field h-9 flex items-center text-sm">{linha.unidadeBase || '—'}</div>
+                              </div>
+                              {linha.supply && <div>
+                                <label className="block t-micro mb-1">Categoria do insumo</label>
+                                <PickerField value={linha.supply.supplyClass || 'insumo'} options={opcoesCategoriaInsumoBanco}
+                                  onType={texto => onUpdateSupply && onUpdateSupply({...linha.supply,supplyClass:texto})}
+                                  onPick={opt => onUpdateSupply && onUpdateSupply({...linha.supply,supplyClass:opt.value},true)}
+                                  placeholder="Escolha ou crie uma categoria" emptyLabel="Usar como nova categoria" className="field h-9 w-full text-sm" />
+                              </div>}
+                              {linha.revenda && <div>
+                                <label className="block t-micro mb-1">Categoria da revenda</label>
+                                <PickerField value={linha.revenda.category || 'revenda'} options={opcoesCategoriaRevendaBanco}
+                                  onType={texto => onUpdateSeparatedProduct && onUpdateSeparatedProduct({...linha.revenda,category:texto})}
+                                  onPick={opt => onUpdateSeparatedProduct && onUpdateSeparatedProduct({...linha.revenda,category:opt.value},true)}
+                                  placeholder="Escolha ou crie uma categoria" emptyLabel="Usar como nova categoria" className="field h-9 w-full text-sm" />
+                              </div>}
+                              {linha.revenda && <div>
+                                <label className="block t-micro mb-1">Unidade de venda</label>
+                                <PickerField value={linha.revenda.priceUnit || 'un'}
+                                  options={[{value:'un',label:'un'},{value:'kg',label:'kg'},{value:'g',label:'g'}]}
+                                  onPick={opt => onUpdateSeparatedProduct && onUpdateSeparatedProduct({...linha.revenda,priceUnit:opt.value,unitOfMeasure:opt.value},true)}
+                                  className="field h-9 w-full text-sm" />
+                              </div>}
+                              <div>
+                                <label className="block t-micro mb-1">Unidade de compra</label>
+                                <div className="field h-9 flex items-center text-sm">{linha.supply?.purchaseUnit || linha.revenda?.purchaseUnit || 'Consultar cadastro'}</div>
+                              </div>
+                            </div>
+                            {abaBanco === 'unidades' && <p className="t-micro border-t hairline pt-3">Para conferir ou editar equivalências, abra o cadastro completo. As compras anteriores permanecem no histórico.</p>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+ if (modoFornecedores === 'planilha') {
           return (
             <div className="space-y-4 sm:space-y-5 compras-planilha-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
