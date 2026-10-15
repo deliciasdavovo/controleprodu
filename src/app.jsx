@@ -21671,8 +21671,8 @@ ${BARRA_ACOES_HTML}
             <div className="space-y-4 sm:space-y-5 compras-planilha-ui lark-base-ui">
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 sm:gap-4">
                 <div>
-                  <h2 className="t-display">Banco de dados</h2>
-                  <p className="t-body mt-1">{unitName} · cadastros mestres de fornecedores, insumos e revenda.</p>
+                  <h2 className="t-display">Banco de Dados</h2>
+                  <p className="t-body mt-1">{unitName} · cadastros organizados em uma única área, com filtros e edição direta.</p>
                 </div>
                 <div className="segmented w-full sm:w-auto sm:inline-flex overflow-x-auto">
                   <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="shrink-0 h-9 px-4">Análise</button>
@@ -21684,23 +21684,26 @@ ${BARRA_ACOES_HTML}
               </div>
 
               <div className="lark-toolbar">
-                <div className="flex flex-col md:flex-row md:items-center gap-3">
-                  <div className="lark-view-tabs w-full md:w-auto md:inline-flex">
-                    <button type="button" onClick={() => setAbaBanco('fornecedores')} data-active={abaBanco === 'fornecedores'} className="flex-1 md:flex-none h-9 px-4">
-                      Fornecedores
-                    </button>
-                    <button type="button" onClick={() => setAbaBanco('itens')} data-active={abaBanco === 'itens'} className="flex-1 md:flex-none h-9 px-4">
-                      Insumos e revenda
-                    </button>
-                  </div>
-                  <div className="relative flex-1">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                  <nav className="flex gap-1.5 overflow-x-auto pb-1 lg:pb-0" aria-label="Seções do banco de dados">
+                    {[
+                      { id: 'insumos', label: 'Insumos' },
+                      { id: 'revenda', label: 'Produtos de revenda' },
+                      { id: 'fornecedores', label: 'Fornecedores' },
+                      { id: 'tipos', label: 'Tipos e categorias' },
+                      { id: 'unidades', label: 'Unidades e equivalências' }
+                    ].map((secao) => (
+                      <button key={secao.id} type="button" onClick={() => { setAbaBanco(secao.id); setBuscaBanco(''); }}
+                        data-active={abaBanco === secao.id} className="shrink-0 h-9 px-3 rounded-md border hairline text-sm font-medium"
+                        aria-current={abaBanco === secao.id ? 'page' : undefined}>
+                        {secao.label}
+                      </button>
+                    ))}
+                  </nav>
+                  <div className="relative flex-1 min-w-[180px]">
                     <Icons.Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-[11px]" />
-                    <input
-                      value={buscaBanco}
-                      onChange={(e) => setBuscaBanco(e.target.value)}
-                      placeholder={abaBanco === 'fornecedores' ? 'Buscar fornecedor ou item…' : 'Buscar item, tipo ou categoria…'}
-                      className="field field-sm field-search lark-search"
-                    />
+                    <input value={buscaBanco} onChange={(e) => setBuscaBanco(e.target.value)}
+                      placeholder="Buscar nesta seção…" className="field field-sm field-search lark-search" />
                   </div>
                 </div>
               </div>
@@ -21791,13 +21794,13 @@ ${BARRA_ACOES_HTML}
                           <th>Tipo</th>
                           <th className="min-w-[170px]">Categoria do insumo</th>
                           <th className="min-w-[180px]">Categoria da revenda</th>
-                          <th>Base</th>
+                          <th>Base</th>\n                          {abaBanco === 'unidades' && <th>Un. compra</th>}
                           <th>Venda</th>
                           <th className="text-center">Editar</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {itensBanco.map((linha) => (
+                        {itensBanco.filter((linha) => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).map((linha) => (
                           <tr key={linha.key}>
                             <td className="sticky left-0 z-[2] bg-white font-semibold" title={linha.nome}>{linha.nome}</td>
                             <td>
@@ -21841,7 +21844,7 @@ ${BARRA_ACOES_HTML}
                                 />
                               ) : <span className="ink-quiet">—</span>}
                             </td>
-                            <td className="tnum">{linha.unidadeBase || '—'}</td>
+                            <td className="tnum">{linha.unidadeBase || '—'}</td>\n                            {abaBanco === 'unidades' && <td className="tnum">{linha.supply?.purchaseUnit || linha.revenda?.purchaseUnit || '—'}</td>}
                             <td>
                               {linha.revenda ? (
                                 <PickerField
@@ -21875,8 +21878,8 @@ ${BARRA_ACOES_HTML}
                             </td>
                           </tr>
                         ))}
-                        {itensBanco.length === 0 && (
-                          <tr><td colSpan={7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
+                        {itensBanco.filter((linha) => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).length === 0 && (
+                          <tr><td colSpan={abaBanco === 'unidades' ? 8 : 7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
                         )}
                       </tbody>
                     </table>
