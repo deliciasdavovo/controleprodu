@@ -487,13 +487,29 @@ const { useState, useEffect, useMemo, useRef } = React;
 
       const ultimaCompra = (compras) => comprasOrdenadas(compras)[0] || null;
 
-      // Custo de uma unidade base do insumo (um grama, um ml, uma unidade)
-      const custoUnitarioInsumo = (supplyId, purchases) => {
-        const uc = ultimaCompra((purchases || []).filter((c) => c.supplyId === supplyId));
-        if (!uc) return 0;
-        const qtd = Number(uc.qty) || 0;
-        return qtd > 0 ? (Number(uc.cost) || 0) / qtd : 0;
+      // Quantidades históricas podem estar em unidade-base (g, ml, un) ou
+      // na unidade comercial (kg, un, caixa). Nunca trate 1 un como 1 g.
+      const diagnosticoCustoInsumo = (supplyId, purchases, supply) => {
+        const compra = ultimaCompra((purchases || []).filter((c) => c.supplyId === supplyId));
+        if (!compra) return { custo: 0, pendente: false, motivo: 'Sem compra', compra: null };
+        const valor = Number(compra.cost) || 0;
+        const quantidade = Number(compra.qty) || 0;
+        if (!(quantidade > 0 && valor > 0))
+          return { custo: 0, pendente: false, motivo: 'Compra sem quantidade ou valor', compra };
+        if (compra.quantityBasis === 'review' || compra.unitReviewRequired)
+          return { custo: 0, pendente: true, motivo: 'Revise a unidade desta compra antiga.', compra };
+        let qtdBase = quantidade;
+        if (compra.quantityBasis === 'purchase') {
+          const base = supply?.unit || '';
+          const unidade = unidadeCompraEfetiva(compra.purchaseUnit || supply?.purchaseUnit || 'un');
+          qtdBase = converterQuantidadeEquivalente(quantidade, unidade, base, supply);
+          if (!(qtdBase > 0))
+            return { custo: 0, pendente: true, motivo: `Defina a equivalência de 1 ${unidade} em ${base} para calcular o custo.`, compra };
+        }
+        return { custo: valor / qtdBase, pendente: false, motivo: '', compra, qtdBase };
       };
+      const custoUnitarioInsumo = (supplyId, purchases, supply = null) =>
+        diagnosticoCustoInsumo(supplyId, purchases, supply).custo;
 
 
       // Um produto pode ter várias relações, como 1 un = 1800 g e 1 fatia = 30 g.
@@ -659,7 +675,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const supply = supplies.find((s) => s.id === item?.supplyId);
         if (!supply) return 0;
-        return custoUnitarioInsumo(supply.id, purchases) * qtdNaUnidadeBase(item, supply);
+        return custoUnitarioInsumo(supply.id, purchases, supply) * qtdNaUnidadeBase(item, supply);
       };
 
       // Custo da receita inteira, do jeito que ela é produzida.
@@ -927,7 +943,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         );
         if (!insumo) return 0;
 
-        const custoBase = custoUnitarioInsumo(insumo.id, supplyPurchases);
+        const custoBase = custoUnitarioInsumo(insumo.id, supplyPurchases, insumo);
         if (!(custoBase > 0)) return 0;
 
         const base = String(insumo.unit || 'un');
@@ -1472,6 +1488,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         purchaseUnit: row.purchase_unit || '',
         previousPurchaseUnit: row.previous_purchase_unit || '',
         unitReviewRequired: !!row.unit_review_required,
+        quantityBasis: row.quantity_basis || 'base',
         cost: Number(row.cost) || 0,
         criadoEm: row.created_at
       });
@@ -12966,12 +12983,12 @@ const { useState, useEffect, useMemo, useRef } = React;
                 qtdCompra,
                 custoCompra,
                 compra: compraInsumo, compraOrigem: 'insumo',
-                custo: custoUnitarioInsumo(x.id, supplyPurchases)
+                custo: custoUnitarioInsumo(x.id, supplyPurchases, x)
               };
             }
 
             const compraRevenda = ultimaCompra(comprasDaRevenda(rev.id));
-            const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases);
+            const custoInsumo = custoUnitarioInsumo(x.id, supplyPurchases, x);
             const custoDaRevenda = custoRevendaComHistoricoCompartilhado(rev, resalePurchases, supplies, supplyPurchases);
             const compraLinha = compraInsumo || compraRevenda;
             const origemInsumo = !!compraInsumo;
@@ -13155,7 +13172,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
-          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
+          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
         }));
 
         const PAINEIS = [
@@ -15323,7 +15340,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                       : `insumo:${item.supplyId || ''}`;
                     const rendimentoComponente = Number(componentFicha?.yieldQty) || 0;
                     const custoOrigem = supply
-                      ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases), supply.unit)
+                      ? formatPrecoInsumo(custoUnitarioInsumo(supply.id, supplyPurchases, supply), supply.unit)
                       : (componentFicha && rendimentoComponente > 0 && componentFicha.custo > 0
                         ? `${formatCurrencyBR(componentFicha.custo / rendimentoComponente)}/${unidadeBase}`
                         : '—');
@@ -15475,7 +15492,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const supplyOptions = supplies.filter((s) => s.supplyClass !== 'outros').map((s) => ({
           value: s.id,
           label: s.name,
-          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases), s.unit)
+          hint: formatPrecoInsumo(custoUnitarioInsumo(s.id, supplyPurchases, s), s.unit)
         }));
 
         const linhasRevenda = useMemo(() => separatedProducts
@@ -26127,6 +26144,7 @@ ${BARRA_ACOES_HTML}
               purchase_date: compra.purchaseDate || null,
               qty: compra.qty || 0,
               purchase_unit: compra.purchaseUnit || '',
+              quantity_basis: compra.quantityBasis || 'base',
               cost: compra.cost || 0
             }).select());
             setSupplyPurchases((prev) => [...prev, fromSupplyPurchase(linhas[0])]);
@@ -26142,6 +26160,7 @@ ${BARRA_ACOES_HTML}
               purchase_date: updated.purchaseDate || null,
               qty: updated.qty || 0,
               purchase_unit: updated.purchaseUnit || '',
+              quantity_basis: updated.quantityBasis || 'base',
               previous_purchase_unit: null,
               unit_review_required: false,
               cost: updated.cost || 0
