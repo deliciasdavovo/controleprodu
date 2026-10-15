@@ -74,7 +74,7 @@ button.primary{background:var(--green);color:white;border-color:var(--green)}but
 <div class="preview-header"><div><h2 style="margin-bottom:3px">Pré-visualização</h2><p class="muted">Folha A4 · plaquinhas de 6 × 4 cm · 3 por linha</p></div><button class="primary" id="print" disabled>Imprimir / Salvar PDF</button></div>
 <div class="notice">Os produtos vêm do catálogo público do PedidosCardápio. Nome, sabor/recheio e informações do produto podem ser ajustados individualmente para cada plaquinha, sem alterar o cadastro. O preço vem do produto ou da variação específica cadastrada no PedidosCardápio. Produtos vendidos por kg exibem o valor equivalente a 100 g. O sabor/recheio pode ser corrigido abaixo; a falta dele não bloqueia a impressão. Confira os preços antes de imprimir. Alterações nesta tela são apenas para impressão; não alteram o CMV.</div>
 <div class="sheet" id="sheet"><div class="empty" style="grid-column:1/-1">Escolha os produtos para visualizar as plaquinhas.</div></div>
-<div class="footer-actions"><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div>
+<div class="footer-actions"><button id="copyPrices" type="button">Copiar alterações de preço para o catálogo</button><button class="primary" id="printBottom" disabled>Imprimir / Salvar PDF</button></div><p id="priceSyncStatus" class="muted" aria-live="polite">Os preços editados aqui não alteram automaticamente o PedidosCardápio.</p>
 </section>
 </main>
 <script>
@@ -210,6 +210,27 @@ $('clear').addEventListener('click',()=>{selected.clear();render();});
 $('reload').addEventListener('click',load);
 ['mode','style','priceToggle','copies','made','expiry'].forEach(id=>$(id).addEventListener('input',renderSheet));
 function print(){if(!selected.size)return;if($('mode').value==='vitrine'&&$('priceToggle').value==='yes'&&[...selected.values()].some(r=>!validPrice(r.price))){alert('Há produtos sem preço exato. Preencha o preço de cada variação antes de imprimir.');return;}if($('mode').value==='producao'&&(!$('made').value||!$('expiry').value)){alert('Preencha fabricação e validade antes de imprimir etiquetas de produção.');return;}window.print();}
+$('copyPrices').addEventListener('click',async()=>{
+ const changes=[...selected.values()].filter(row=>validPrice(row.price)&&row.price!==row.choice.price).map(row=>({
+   productId:row.choice.product.id,
+   productName:row.choice.product.name,
+   selection:row.choice.name,
+   selectionKey:row.choice.key,
+   unit:row.unit,
+   currentCatalogPrice:row.choice.price,
+   newCatalogPrice:row.price
+ }));
+ const status=$('priceSyncStatus');
+ if(!changes.length){status.textContent='Nenhuma alteração de preço identificada. Edite o preço de uma etiqueta primeiro.';return;}
+ const report='Atualize os preços no repositório deliciasdavovo/pedidoscardapio, preservando as demais informações do catálogo. Confira a unidade e a variação antes de gravar:\\n'+JSON.stringify(changes,null,2);
+ try{
+   await navigator.clipboard.writeText(report);
+   status.textContent=changes.length+' alteração(ões) copiada(s). Cole o texto no ChatGPT para atualizar o repositório PedidosCardápio com confirmação.';
+ }catch(e){
+   status.textContent='Não foi possível copiar automaticamente. Selecione e copie a lista abaixo.';
+   const area=document.createElement('textarea');area.value=report;area.rows=9;area.readOnly=true;area.style.width='100%';status.after(area);area.focus();area.select();
+ }
+});
 $('print').addEventListener('click',print);$('printBottom').addEventListener('click',print);
 load();
 })();
