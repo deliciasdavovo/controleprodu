@@ -1105,9 +1105,26 @@ if(aba==="fornecedores"){
 }else if(aba==="unidades"){
  content=h("div",{className:"lark-sheet p-4"},h("p",{className:"t-body mb-3"},"Consulte as unidades e abra o cadastro para ajustar equivalências e volumes."),h("div",{className:"overflow-auto"},h("table",{className:"excel-densa lark-table w-full text-left"},h("thead",null,h("tr",null,...["Produto","Unidade-base","Unidade de venda","Ação"].map(x=>h("th",{key:x},x)))),h("tbody",null,...vo.map(t=>h("tr",{key:t.key},h("td",null,t.nome),h("td",null,t.unidadeBase||"—"),h("td",null,t.revenda?t.revenda.priceUnit||"un":"—"),h("td",null,h("button",{type:"button",className:"btn btn-secondary btn-sm",onClick:()=>open(t)},"Abrir"))))))));
 }else{
- const listing=h("div",{className:"lark-sheet banco-v2-list"},h("div",{className:"banco-v2-list-title"},h("strong",null,aba==="insumos"?"Insumos":"Produtos de revenda"),h("span",null,list.length+" itens")),h("div",{className:"banco-v2-list-scroll"},...list.map(t=>h("button",{key:t.key,type:"button",className:"banco-v2-item"+(item&&item.key===t.key?" is-active":""),onClick:()=>setSel(t.key)},h("span",{className:"banco-v2-item-name"},t.nome),h("small",null,t.unidadeBase||"Sem unidade-base")))));
- const details=item?h("div",{className:"lark-sheet banco-v2-details"},h("div",{className:"banco-v2-details-head"},h("div",null,h("span",{className:"banco-v2-label"},"Cadastro selecionado"),h("h3",null,item.nome)),h("button",{type:"button",className:"btn btn-primary btn-sm",onClick:()=>open(item)},"Abrir cadastro")),h("div",{className:"banco-v2-fields"},field("Tipo",editType(item)),field("Categoria do insumo",editSupply(item)),field("Categoria da revenda",editResale(item)),field("Unidade-base",value(item.unidadeBase)),field("Unidade de venda",editUnit(item))),h("p",{className:"banco-v2-help"},"Para alterar equivalências, abra o cadastro. As informações permanecem vinculadas ao registro original.")):h("div",{className:"lark-sheet p-5"},"Nenhum produto encontrado.");
- content=h("div",{className:"banco-v2-layout"},listing,details);
+ const headers=["Produto","Tipo","Categoria do insumo","Categoria da revenda","Unidade de compra / venda","Ação"];
+ const cell=(node,cls)=>h("td",{className:cls||""},node);
+ const unit=t=>t.supply?(t.supply.purchaseUnit||t.supply.unitOfMeasure||t.supply.unit||t.unidadeBase||"un"):(t.revenda?(t.revenda.priceUnit||t.revenda.unitOfMeasure||t.unidadeBase||"un"):"un");
+ const changeUnit=(t,newUnit)=>{
+   if(t.supply&&P)P({...t.supply,purchaseUnit:newUnit,unitOfMeasure:newUnit},true);
+   if(t.revenda&&y)y({...t.revenda,priceUnit:newUnit,unitOfMeasure:newUnit},true);
+ };
+ const unitOptions=[{value:"un",label:"un"},{value:"kg",label:"kg"},{value:"g",label:"g"},{value:"L",label:"L"},{value:"ml",label:"ml"},{value:"pct",label:"pct"},{value:"cx",label:"cx"}];
+ const rows=list.map(t=>h("tr",{key:t.key},
+ cell(h("button",{type:"button",className:"banco-v2-product",onClick:()=>open(t),title:"Abrir cadastro"},t.nome),"sticky left-0 z-10 bg-white font-semibold"),
+ cell(editType(t)),
+ cell(editSupply(t)),
+ cell(editResale(t)),
+ cell(h(vt,{value:unit(t),options:unitOptions,onPick:o=>changeUnit(t,o.value),className:"field h-8 w-full",title:"Unidade de compra e venda unificada"})),
+ cell(h("button",{type:"button",className:"btn btn-secondary btn-sm",onClick:()=>open(t)},"Abrir"))
+ ));
+ content=h("div",{className:"lark-sheet overflow-hidden"},
+ h("div",{className:"banco-v2-table-meta"},h("strong",null,aba==="insumos"?"Insumos":"Revenda"),h("span",null,list.length+" produtos · clique na célula para editar")),
+ h("div",{className:"overflow-auto"},h("table",{className:"excel-densa lark-table banco-v2-table text-left"},h("thead",null,h("tr",null,...headers.map(x=>h("th",{key:x},x)))),h("tbody",null,...rows))));
+
 }
 return h("div",{className:"space-y-4 compras-planilha-ui lark-base-ui banco-v2"},h("div",{className:"flex flex-wrap items-center justify-between gap-3"},h("div",null,h("h2",{className:"t-display"},"Banco de Dados"),h("p",{className:"t-body mt-1"},"Cadastros organizados com lista e detalhes do produto.")),h("button",{type:"button",className:"btn btn-secondary btn-sm",onClick:()=>v("planilha")},"Histórico de compras")),h("div",{className:"banco-v2-tabs"},...tabs.map(([id,label])=>h("button",{key:id,type:"button",className:"banco-v2-tab"+(aba===id?" is-active":""),onClick:()=>{setAba(id);setSel("")}},label))),content);
 }
