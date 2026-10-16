@@ -393,7 +393,8 @@ const { useState, useEffect, useMemo, useRef } = React;
       const SUPPLY_CLASSES = [
         { value: 'insumo', label: 'Ingrediente' },
         { value: 'embalagem', label: 'Embalagem' },
-        { value: 'limpeza', label: 'Limpeza' }
+        { value: 'limpeza', label: 'Limpeza' },
+        { value: 'material_obra', label: 'Construção / Reforma' }
       ];
 
       const SUPPLY_UNITS = ['g', 'ml', 'un'];
