@@ -156,18 +156,36 @@
       (async () => {
         try {
           const { data, error } = await sb.from('supply_purchases')
-            .select('supply_id,purchase_date,created_at,qty,cost,purchase_unit,quantity_basis')
-            .eq('unit_code', currentUnit)
+            .select('supply_id,purchase_date,qty,cost,purchase_unit,quantity_basis,unit_review_required')
             .order('purchase_date', { ascending: false })
-            .limit(2000);
+            .limit(10000);
           if (error) throw error;
           const valores = {};
           for (const p of data || []) {
             const id = String(p.supply_id || '');
             if (!id || valores[id] || !(Number(p.qty) > 0) || !(Number(p.cost) > 0)) continue;
-            const unidade = String(p.purchase_unit || '').toLowerCase();
-            if (p.quantity_basis === 'base' && !['un','unidade','unidades'].includes(unidade)) continue;
-            valores[id] = Number(p.cost) / Number(p.qty);
+            const supply = supplies.find((x) => String(x.id) === id);
+            if (!supply || p.quantity_basis === 'review' || p.unit_review_required) continue;
+            const base = String(supply.unit || 'un').toLowerCase();
+            const unidade = String(p.purchase_unit || supply.purchaseUnit || base).toLowerCase();
+            let qtd = Number(p.qty);
+            if (p.quantity_basis === 'purchase' && unidade !== base) {
+              const equivalencias = supply.unitEquivalences || [];
+              const eq = equivalencias.find((e) => String(e.fromUnit).toLowerCase() === unidade
+                && String(e.toUnit).toLowerCase() === base && Number(e.factor) > 0);
+              const inversa = equivalencias.find((e) => String(e.fromUnit).toLowerCase() === base
+                && String(e.toUnit).toLowerCase() === unidade && Number(e.factor) > 0);
+              if (eq) qtd *= Number(eq.factor);
+              else if (inversa) qtd /= Number(inversa.factor);
+              else if (Number(supply.packageUnits) > 0
+                && ['cx', 'caixa', 'pct', 'pacote', 'fardo'].includes(unidade) && base === 'un')
+                qtd *= Number(supply.packageUnits);
+              else if (unidade === 'kg' && base === 'g') qtd *= 1000;
+              else if (unidade === 'l' && base === 'ml') qtd *= 1000;
+              else continue;
+            }
+            if (!['un', 'unidade', 'unidades'].includes(base)) continue;
+            valores[id] = Number(p.cost) / qtd;
           }
           if (!cancelado) setPrecosEmbalagem(valores);
         } catch (err) {
@@ -176,7 +194,7 @@
         }
       })();
       return () => { cancelado = true; };
-    }, [sb, currentUnit]);
+    }, [sb, currentUnit, supplies]);
     const formatarPrecoEmbalagem = (valor) => Number.isFinite(Number(valor)) && Number(valor) > 0
       ? Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 }) + '/un'
       : 'Preço não cadastrado';
