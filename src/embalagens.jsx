@@ -149,17 +149,49 @@
     const unidadeVigente = useRef(currentUnit);
     unidadeVigente.current = currentUnit;
 
+    const [precosEmbalagem, setPrecosEmbalagem] = useState({});
+    useEffect(() => {
+      let cancelado = false;
+      if (!sb || !currentUnit) { setPrecosEmbalagem({}); return; }
+      (async () => {
+        try {
+          const { data, error } = await sb.from('supply_purchases')
+            .select('supply_id,purchase_date,created_at,qty,cost,purchase_unit,quantity_basis')
+            .eq('unit_code', currentUnit)
+            .order('purchase_date', { ascending: false })
+            .limit(2000);
+          if (error) throw error;
+          const valores = {};
+          for (const p of data || []) {
+            const id = String(p.supply_id || '');
+            if (!id || valores[id] || !(Number(p.qty) > 0) || !(Number(p.cost) > 0)) continue;
+            const unidade = String(p.purchase_unit || '').toLowerCase();
+            if (p.quantity_basis === 'base' && !['un','unidade','unidades'].includes(unidade)) continue;
+            valores[id] = Number(p.cost) / Number(p.qty);
+          }
+          if (!cancelado) setPrecosEmbalagem(valores);
+        } catch (err) {
+          if (!cancelado) setPrecosEmbalagem({});
+          console.warn('Preços de embalagens indisponíveis:', err);
+        }
+      })();
+      return () => { cancelado = true; };
+    }, [sb, currentUnit]);
+    const formatarPrecoEmbalagem = (valor) => Number.isFinite(Number(valor)) && Number(valor) > 0
+      ? Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 }) + '/un'
+      : 'Preço não cadastrado';
+
     const embalagens = useMemo(() => {
       const imagens = new Map(fotos.map((e) => [e.id, e.foto]));
       const existentes = supplies.filter((s) => s && s.id &&
         normalTexto(s.supplyClass) === 'embalagem').map((s) => ({
         id: String(s.id), nome: String(s.name || 'Embalagem'),
-        foto: imagemValida(imagens.get(String(s.id)))
+        foto: imagemValida(imagens.get(String(s.id))), precoUnitario: precosEmbalagem[String(s.id)] || null
       }));
       const ids = new Set(existentes.map((e) => e.id));
       return [...existentes, ...fotos.filter((e) => !ids.has(e.id))]
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-    }, [supplies, fotos]);
+    }, [supplies, fotos, precosEmbalagem]);
     const indiceEmbalagem = useMemo(() => new Map(embalagens.map((x) => [x.id, x])), [embalagens]);
     const fotosListadas = useMemo(() => {
       const filtro = normalTexto(buscaEmbalagem);
@@ -374,7 +406,7 @@
           '<div class="embalagem-imagem">' + foto + '</div>' +
           '<div class="embalagem-info"><b class="embalagem-quantidade">' + numero(item.quantidade) +
           ' <small>×</small></b><div class="embalagem-nome">' + esc(nome) +
-          '</div></div></article>';
+          '</div><div class="embalagem-preco">' + esc(formatarPrecoEmbalagem(emb && emb.precoUnitario)) + '</div></div></article>';
       };
       const produtoHTML = (linha, indice) => {
         const variacoes = linha.variacoes.filter((v) => v.itens.length);
@@ -452,6 +484,7 @@
   .embalagem-quantidade{font-size:23px;line-height:1;color:#2c6844}
   .embalagem-quantidade small{font-size:12px;color:#719582}
   .embalagem-nome{font-size:12px;font-weight:700;line-height:1.35;margin-top:6px;overflow-wrap:anywhere;color:#385441}
+  .embalagem-preco{font-size:11px;font-weight:700;color:#2f5d45;margin-top:5px}
   .rodape{margin-top:20px;padding-top:12px;border-top:1px solid #e1ece3;color:#859889;font-size:10px}
   @page{size:A4 portrait;margin:12mm 11mm 15mm}
   @media print{
@@ -575,6 +608,7 @@ ${corpo}
                   : <span>Sem foto</span>}
               </div>
               <div className="emb2-foto-nome" title={e.nome}>{e.nome}</div>
+              <div className="emb2-preco-unitario">{formatarPrecoEmbalagem(e.precoUnitario)}</div>
               <label className="emb2-upload">
                 {e.foto ? 'Trocar foto' : '+ Enviar foto'}
                 <input type="file" accept="image/jpeg,image/png,image/webp"
@@ -770,6 +804,7 @@ ${corpo}
                         <span>Sem foto</span>}
                     </div>
                     <strong title={e.nome}>{e.nome}</strong>
+                    <span className="emb2-preco-unitario">{formatarPrecoEmbalagem(e.precoUnitario)}</span>
                     <label className="emb2-modal-enviar">
                       {uploadEmCurso === e.id ? 'Preparando foto…' : e.foto ? 'Trocar foto' : 'Enviar foto'}
                       <input type="file" accept="image/jpeg,image/png,image/webp"
