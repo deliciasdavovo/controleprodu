@@ -82,12 +82,28 @@
 .banco-v2-tag{padding:7px 10px;border:1px solid #dce5dd;border-radius:7px;background:#f5f8f5;color:#2f5d45;font-size:12px}
 @media(max-width:740px){.banco-v2-layout{grid-template-columns:minmax(0,1fr)}.banco-v2-list-scroll{max-height:230px}.banco-v2-fields{grid-template-columns:minmax(0,1fr);padding:15px}.banco-v2-details-head{padding:15px;flex-wrap:wrap}.banco-v2-help{margin:0 15px 15px}.banco-v2-tab{padding:9px 12px;font-size:11px}}
 </style>
+  <style id="banco-v2-table-css">
+.banco-v2-table{width:100%;min-width:950px;border-collapse:collapse;font-size:12px}
+.banco-v2-table th{white-space:nowrap;background:#f5f6f3;padding:11px 12px;border-bottom:1px solid #dfe4df;font-weight:650}
+.banco-v2-table td{padding:7px 10px;border-bottom:1px solid #ecefea;vertical-align:middle}
+.banco-v2-table tbody tr:nth-child(even){background:#fbfcfa}
+.banco-v2-table tbody tr:hover{background:#f1f6f1}
+.banco-v2-table tbody tr:nth-child(even) td.sticky{background:#fbfcfa}
+.banco-v2-table tbody tr:hover td.sticky{background:#f1f6f1}
+.banco-v2-table th:first-child{position:sticky;left:0;z-index:12;min-width:220px}
+.banco-v2-table .field{font-size:12px;min-width:120px}
+.banco-v2-table-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid #e5eae5;font-size:12px}
+.banco-v2-table-meta span{font-size:11px;color:#77837a}
+.banco-v2-product{text-align:left;border:0;background:transparent;color:#294734;font-weight:650;font-size:12px;cursor:pointer}
+.banco-v2-product:hover{text-decoration:underline}
+@media(max-width:740px){.banco-v2-table-meta{flex-wrap:wrap}.banco-v2-table th:first-child{min-width:180px}}
+</style>
   </head>
   <body>
     <div id="root"><div id="startup-message" style="font-family:Arial,sans-serif;padding:40px 20px;text-align:center;color:#294734"><strong>Carregando Controle Produ...</strong><p style="font-size:13px">Se o sistema não abrir, atualize a página.</p></div></div>
 
     <a href="./etiquetas.html" title="Gerar etiquetas e plaquinhas" style="position:fixed;right:18px;bottom:18px;z-index:9999;background:#233a29;color:#fff;border:1px solid #d4c9a9;border-radius:12px;padding:12px 16px;font:700 13px Manrope,Arial,sans-serif;text-decoration:none;box-shadow:0 5px 22px #0002">✦ Etiquetas e Plaquinhas</a>
     <script defer src="./compiled/embalagens.js?v=20261015-regras-menos-de-01"></script>
-    <script defer src="./compiled/app.js?v=banco-v2-20261016-01"></script>
+    <script defer src="./compiled/app.js?v=banco-tabela-20261016-02"></script>
   </body>
 </html>
