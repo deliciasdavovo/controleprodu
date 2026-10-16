@@ -10511,7 +10511,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               ? lidos.flatMap((item) => {
                   if (!item.catalogValue) return [];
                   const tipo = item.purchaseKind || 'revenda';
-                  const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
+                  const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros', 'material_obra'].includes(tipo);
                   const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
                   const supplyId = String(item.catalogValue).startsWith('insumo:')
                     ? String(item.catalogValue).slice(7)
@@ -10865,6 +10865,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                                     <option value="embalagem">Embalagem</option>
                                     <option value="limpeza">Limpeza</option>
                                     <option value="outros">Outros</option>
+                                    <option value="material_obra">Materiais de construção</option>
                                   </select>
                                 </td>
                                 <td className="py-2 px-3">
@@ -11312,6 +11313,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                                 <option value="embalagem">Embalagem</option>
                                 <option value="limpeza">Limpeza</option>
                                 <option value="outros">Outros</option>
+                                    <option value="material_obra">Materiais de construção</option>
                               </select>
                             </td>
                             <td className="p-2.5">
@@ -11627,6 +11629,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                                   <td className="py-2 px-3">
                                     <select value={item.purchaseKind} onChange={(e) => alterar(item.id, { purchaseKind: e.target.value })} className="field field-select h-9 text-[12px] w-36">
                                       <option value="revenda">Revenda</option><option value="insumo">Insumo</option><option value="insumo_revenda">Insumo + revenda</option><option value="embalagem">Embalagem</option><option value="limpeza">Limpeza</option><option value="outros">Outros</option>
+                                    <option value="material_obra">Materiais de construção</option>
                                     </select>
                                   </td>
                                   <td className="py-2 px-3"><select value={item.unit} onChange={(e) => alterar(item.id, { unit: e.target.value })} className="field field-select h-9 text-[12px] w-20"><option value="un">un</option><option value="g">g</option><option value="ml">ml</option></select></td>
@@ -11744,6 +11747,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           { value: 'embalagem', label: 'Embalagem' },
           { value: 'limpeza', label: 'Limpeza' },
           { value: 'outros', label: 'Outros' },
+          { value: 'material_obra', label: 'Materiais de construção' },
           { value: 'producao', label: 'Produção' }
         ];
         const TIPOS_TABELA = [
@@ -11753,6 +11757,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           { value: 'embalagem', label: 'Embalagem' },
           { value: 'limpeza', label: 'Limpeza' },
           { value: 'outros', label: 'Outros' },
+          { value: 'material_obra', label: 'Materiais de construção' },
           { value: 'producao', label: 'Produção' }
         ];
         const UNIDADES_EQUIVALENCIA = [
@@ -11893,7 +11898,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         );
         const modoProducao = draft.type === 'producao';
         const tipoCompra = draft.purchaseKind || (draft.resaleAlso ? 'insumo_revenda' : 'insumo');
-        const classeInterna = ['embalagem', 'limpeza', 'outros'].includes(draft.supplyClass);
+        const classeInterna = ['embalagem', 'limpeza', 'outros', 'material_obra'].includes(draft.supplyClass);
         const temInsumo = !modoProducao && (tipoCompra === 'insumo' || tipoCompra === 'insumo_revenda');
         const temRevenda = !modoProducao && (tipoCompra === 'revenda' || tipoCompra === 'insumo_revenda');
         // Volume e equivalência são opcionais. Para item novo, o volume ainda
@@ -12181,7 +12186,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               hint: [x.productCode ? `Cód. ${x.productCode}` : '', rev
                 ? `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))} · revenda também`
                 : `Insumo · compra em ${x.packageUnits ? (x.packageType || 'volume') : (x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit))}`].filter(Boolean).join(' · '),
-              purchaseKind: ['embalagem', 'limpeza', 'outros'].includes(x.supplyClass) ? x.supplyClass : (rev ? 'insumo_revenda' : 'insumo'),
+              purchaseKind: ['embalagem', 'limpeza', 'outros', 'material_obra'].includes(x.supplyClass) ? x.supplyClass : (rev ? 'insumo_revenda' : 'insumo'),
               unit: x.unit || 'un',
               purchaseUnit: x.purchaseUnit || unidadeCompraPadraoDaBase(x.unit),
               packageType: x.packageType || '',
@@ -12264,7 +12269,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 resaleAlso: false
               };
             }
-            if (tipo === 'embalagem' || tipo === 'limpeza' || tipo === 'outros') {
+            if (tipo === 'embalagem' || tipo === 'limpeza' || tipo === 'outros' || tipo === 'material_obra') {
               return {
                 ...d,
                 type: 'insumo',
@@ -12658,8 +12663,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           setDraft((d) => ({
             ...BLANK_ENTRY,
             type: 'insumo',
-            purchaseKind: ['embalagem', 'limpeza', 'outros'].includes(d.supplyClass) ? 'insumo' : (d.purchaseKind || 'insumo'),
-            resaleAlso: ['embalagem', 'limpeza', 'outros'].includes(d.supplyClass) ? false : (d.purchaseKind || 'insumo') === 'insumo_revenda',
+            purchaseKind: ['embalagem', 'limpeza', 'outros', 'material_obra'].includes(d.supplyClass) ? 'insumo' : (d.purchaseKind || 'insumo'),
+            resaleAlso: ['embalagem', 'limpeza', 'outros', 'material_obra'].includes(d.supplyClass) ? false : (d.purchaseKind || 'insumo') === 'insumo_revenda',
             unit: unidadeTecnicaDaCompra(d.purchaseUnit),
             supplyClass: d.supplyClass,
             priceUnit: d.priceUnit,
@@ -12741,7 +12746,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 
             const nome = String(item.name || '').trim();
             const tipo = item.purchaseKind || 'revenda';
-            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
+            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros', 'material_obra'].includes(tipo);
             const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
             const volumes = Number(item.volumes) || 0;
             const unidadesPorVolume = Number(item.unitsPerPackage) || 0;
@@ -12799,7 +12804,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             const item = itens[indice];
             const nome = String(item.name || '').trim();
             const tipo = item.purchaseKind || 'revenda';
-            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros'].includes(tipo);
+            const temFaceInsumo = ['insumo', 'insumo_revenda', 'embalagem', 'limpeza', 'outros', 'material_obra'].includes(tipo);
             const temFaceRevenda = tipo === 'revenda' || tipo === 'insumo_revenda';
             const volumes = Number(item.volumes) || 0;
             const unidadesPorVolume = Number(item.unitsPerPackage) || 0;
@@ -12817,7 +12822,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               : revendaDaUnidade.find((r) => normalizeName(r.productName) === normalizeName(nome));
 
             if (temFaceInsumo) {
-              const classe = ['embalagem', 'limpeza', 'outros'].includes(tipo) ? tipo : 'insumo';
+              const classe = ['embalagem', 'limpeza', 'outros', 'material_obra'].includes(tipo) ? tipo : 'insumo';
               if (!insumo) {
                 insumo = await onAddSupply({
                   name: nome,
