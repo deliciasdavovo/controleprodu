@@ -12977,20 +12977,21 @@ const { useState, useEffect, useMemo, useRef } = React;
           const miolo = linhas.map(({ produto, ficha }, ix) => {
             const categoria = PRODUCT_CATEGORIES.find(c => c.value === produto.category)?.label || 'Outros';
             const ingredientes = ficha.itens.map(item => {
-              const insumo = supplies.find(s => String(s.id) === String(item.supplyId));
-              const componente = products.find(p => String(p.id) === String(item.componentProductId));
+              const insumo = item.supplyId != null ? supplies.find(s => String(s.id) === String(item.supplyId)) : null;
+              const componente = item.componentProductId != null ? products.find(p => String(p.id) === String(item.componentProductId)) : null;
               const nome = insumo?.name || componente?.name || 'Ingrediente não identificado';
-              const unidade = item.usageUnit || insumo?.unit || componente?.priceUnit || 'un';
+              const fichaComponente = componente ? fichaDoProduto(componente.id, recipes, recipeItems, supplies, supplyPurchases, products) : null;
+              const unidade = item.usageUnit || insumo?.unit || fichaComponente?.yieldUnit || componente?.priceUnit || 'un';
               return '<tr><td>' + esc(nome) + '</td><td class="q">' + esc(numeroCurtoBR(item.qty)) + ' ' + esc(unidade) + '</td></tr>';
             }).join('');
             return '<section class="receita"><div class="cat">' + esc(categoria) + '</div><h2>' + esc(produto.name) +
               '</h2><p>Rendimento: <b>' + esc(numeroCurtoBR(ficha.yieldQty || 1)) + ' ' + esc(ficha.yieldUnit || produto.priceUnit || 'un') +
-              '</b></p><h3>Ingredientes</h3><table>' + ingredientes + '</table><footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></section>';
+              '</b></p><h3>Ingredientes (' + ficha.itens.length + ')</h3><table><tbody>' + ingredientes + '</tbody></table>' + (ficha.notes?.trim() ? '<h3>Modo de preparo / observações</h3><div class="notes">' + esc(ficha.notes).replace(/\\n/g, '<br>') + '</div>' : '') + '<footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></section>';
           }).join('');
           const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Livro de receitas — Delícias da Vovó</title><style>' +
             '@page{size:A4;margin:17mm}body{font-family:Georgia,serif;color:#3c332d;margin:0}.capa{text-align:center;padding:38mm 0 26mm;border-bottom:2px solid #335840;break-after:page}' +
             '.marca{color:#335840;font:bold 12px Arial;letter-spacing:3px}h1{font-size:39px;font-weight:normal;margin:25px 0 8px}' +
-            '.sub{color:#777;font-size:14px}.receita{break-inside:avoid;border-bottom:1px solid #ddd8cc;padding:10px 0 18px;margin:0 0 20px}' +
+            '.sub{color:#777;font-size:14px}.notes{white-space:pre-wrap;font:12px/1.6 Arial;margin:12px 0}.receita{break-inside:avoid;border-bottom:1px solid #ddd8cc;padding:10px 0 18px;margin:0 0 20px}' +
             '.cat{font:bold 10px Arial;letter-spacing:2px;text-transform:uppercase;color:#927a54}h2{color:#335840;font-size:24px;font-weight:normal;margin:9px 0}p{font:12px Arial;color:#666}' +
             'h3{color:#335840;font:bold 11px Arial;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:7px}' +
             'table{width:100%;border-collapse:collapse;font:12px Arial}td{border-bottom:1px solid #eee;padding:8px 4px}.q{text-align:right;white-space:nowrap;font-weight:bold}' +
@@ -13000,7 +13001,15 @@ const { useState, useEffect, useMemo, useRef } = React;
           const aba = window.open('', '_blank');
           if (!aba) { window.alert('Permita pop-ups para abrir o livro e salvar em PDF.'); return; }
           aba.document.open(); aba.document.write(html); aba.document.close();
-          aba.focus(); aba.setTimeout(() => aba.print(), 400);
+          aba.focus();
+          // Prévia conferível antes de salvar; evita abrir a impressão antes do carregamento.
+          const barra = aba.document.createElement('div');
+          barra.className = 'barra-exportacao';
+          barra.innerHTML = '<strong>Prévia do livro · ' + linhas.length + ' receitas</strong><button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>';
+          aba.document.body.insertBefore(barra, aba.document.body.firstChild);
+          const estilos = aba.document.createElement('style');
+          estilos.textContent = '.barra-exportacao{position:sticky;top:0;padding:12px 20px;background:#f5f3ed;display:flex;justify-content:space-between;align-items:center;font:14px Arial;color:#34563e;z-index:5}.barra-exportacao button{background:#34563e;color:white;border:0;border-radius:8px;padding:11px 15px;cursor:pointer}@media print{.barra-exportacao{display:none}}';
+          aba.document.head.appendChild(estilos);
         };
 
         const fichaAberta = produtosComFicha.find((x) => String(x.produto.id) === String(fichaProdutoId)) || null;
