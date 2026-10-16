@@ -19226,6 +19226,16 @@ const { useState, useEffect, useMemo, useRef } = React;
               .filter((item) => item.unit === currentUnit)
               .map((item) => [normalizeName(item.productName), item])
           );
+          // Relaciona fornecedores aos produtos pelo historico de compras,
+          // permitindo localizar e editar itens ao buscar por fornecedor.
+          const fornecedoresPorItem = new Map();
+          todas.forEach((compra) => {
+            const chave = normalizeName(String(compra.item || ''));
+            const fornecedor = normalizeName(String(compra.fornecedor || ''));
+            if (!chave || !fornecedor || fornecedor === normalizeName('Sem fornecedor')) return;
+            if (!fornecedoresPorItem.has(chave)) fornecedoresPorItem.set(chave, new Set());
+            fornecedoresPorItem.get(chave).add(fornecedor);
+          });
           const usadosRevenda = new Set();
           const linhas = [];
 
@@ -19264,9 +19274,11 @@ const { useState, useEffect, useMemo, useRef } = React;
               || normalizeName(linha.nome).includes(termo)
               || normalizeName(linha.tipo).includes(termo)
               || normalizeName(linha.categoriaInsumo).includes(termo)
-              || normalizeName(linha.categoriaRevenda).includes(termo))
+              || normalizeName(linha.categoriaRevenda).includes(termo)
+              || Array.from(fornecedoresPorItem.get(normalizeName(linha.nome)) || [])
+                .some((fornecedor) => fornecedor.includes(termo)))
             .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-        }, [supplies, separatedProducts, currentUnit, buscaBanco]);
+        }, [supplies, separatedProducts, currentUnit, buscaBanco, todas]);
 
         const categoriasInsumoBanco = useMemo(() => Array.from(new Set(
           supplies
