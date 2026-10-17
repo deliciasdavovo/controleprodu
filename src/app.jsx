@@ -12993,10 +12993,18 @@ const { useState, useEffect, useMemo, useRef } = React;
               const unidade = item.usageUnit || insumo?.unit || fichaComponente?.yieldUnit || componente?.priceUnit || 'un';
               return '<tr><td>' + esc(nome) + '</td><td class="q">' + esc(numeroCurtoBR(item.qty)) + ' ' + esc(unidade) + '</td></tr>';
             }).join('');
-            return divisoria + '<section class="receita"><div class="cat">' + esc(categoria) + '</div><h2>' + esc(produto.name) +
-              '</h2><p>Rendimento: <b>' + esc(numeroCurtoBR(ficha.yieldQty || 1)) + ' ' + esc(ficha.yieldUnit || produto.priceUnit || 'un') +
-              '</b></p><h3>Ingredientes (' + ficha.itens.length + ')</h3><table><tbody>' + ingredientes + '</tbody></table>' + (ficha.notes?.trim() ? '<h3>Modo de preparo / observações</h3><div class="notes">' + esc(ficha.notes).replace(/\\n/g, '<br>') + '</div>' : '') + '<footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></section>';
+            const foto = produto.imageUrl || produto.image_url || produto.photoUrl || produto.photo_url || ficha.imageUrl || '';
+            const imagem = /^https:\/\//i.test(foto) ? '<img class="foto-produto" src="' + esc(foto) + '" alt="' + esc(produto.name) + '">' : '<div class="sem-foto">Foto real ainda não cadastrada</div>';
+            const passos = String(ficha.notes || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+            const preparo = passos.length ? '<ol class="passos">' + passos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '<p>Modo de preparo não cadastrado</p>';
+            return divisoria + '<section class="receita"><div class="pagina-foto"><div class="titulo-livro">RECEITAS DA DELÍCIAS DA VOVÓ</div><div class="cat">' + esc(categoria) + '</div><h2>' + esc(produto.name) + '</h2><div class="foto-wrapper">' + imagem + '</div><p class="assinatura">Feito com carinho ♡</p></div><div class="pagina-texto"><div class="titulo-livro">RECEITA Nº ' + String(ix + 1).padStart(2, '0') + '</div><div class="dados"><span><b>RENDIMENTO</b><br>' + esc(numeroCurtoBR(ficha.yieldQty || 1)) + ' ' + esc(ficha.yieldUnit || produto.priceUnit || 'un') + '</span>' + (produto.shelfLifeDays ? '<span><b>VALIDADE</b><br>' + esc(produto.shelfLifeDays) + ' dias</span>' : '') + '</div><h3>Ingredientes</h3><table><tbody>' + ingredientes + '</tbody></table><h3>Modo de preparo</h3>' + preparo + '<footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></div></section>';
           }).join('');
+          const estiloEditorial = '.receita{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0;min-height:235mm;break-inside:avoid;background:#fffdf7;border:1px solid #ddd5c4;margin-bottom:15mm}' +
+            '.pagina-foto,.pagina-texto{padding:13mm 10mm;min-width:0}.pagina-foto{display:flex;flex-direction:column;border-right:1px solid #ddd5c4}.titulo-livro{font-size:9px;letter-spacing:2px;border-bottom:1px solid #718772;padding-bottom:9px;margin-bottom:25px;color:#29402d}' +
+            '.pagina-foto .cat{letter-spacing:3px}.pagina-foto h2{font-size:35px;line-height:1.16;color:#1f3d2a}.foto-wrapper{flex:1;min-height:100mm;display:flex;align-items:center;justify-content:center}.foto-produto{max-width:100%;max-height:135mm;object-fit:contain}.sem-foto{font-size:12px;color:#888;border:1px dashed #d4cbbb;padding:24px;text-align:center}' +
+            '.assinatura{font-size:20px!important;font-style:italic;color:#6d886c!important}.dados{display:flex;justify-content:space-around;gap:12px;padding-bottom:15px;border-bottom:1px solid #e2dacc;margin-bottom:25px;text-align:center;font-size:12px}.dados b{font-size:9px;letter-spacing:2px;color:#31513b}' +
+            '.pagina-texto h3{text-transform:uppercase;letter-spacing:3px;font-size:12px}.pagina-texto table td{font-size:11px;padding:7px 2px}.passos{list-style:none;counter-reset:passo;padding:0}.passos li{counter-increment:passo;position:relative;padding:0 0 12px 28px;font-size:11px;line-height:1.65}.passos li:before{content:counter(passo);position:absolute;left:0;background:#819478;color:white;border-radius:50%;width:19px;height:19px;text-align:center;line-height:19px}' +
+            '@media(max-width:700px){.receita{grid-template-columns:1fr}.pagina-foto{border-right:0;border-bottom:1px solid #ddd5c4}}@media print{.receita{grid-template-columns:1fr 1fr}.pagina-foto{border-right:1px solid #ddd5c4;border-bottom:0}}';
           const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Livro de receitas — Delícias da Vovó</title>' +
             '<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet"><style>' +
             '@page{size:A4;margin:17mm}body{font-family:Lora,Georgia,serif;color:#3c332d;margin:0}.capa{text-align:center;padding:38mm 0 26mm;border-bottom:2px solid #335840;break-after:page}' +
@@ -13006,7 +13014,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             'h3{color:#335840;font:bold 11px Lora,Georgia,serif;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:7px}' +
             'table{width:100%;border-collapse:collapse;font:12px Lora,Georgia,serif}td{border-bottom:1px solid #eee;padding:8px 4px}.q{text-align:right;white-space:nowrap;font-weight:bold}' +
             'footer{display:flex;justify-content:space-between;font:9px Lora,Georgia,serif;letter-spacing:1px;color:#aaa;margin-top:12px}' +
-            '</style></head><body><div class="capa"><div class="marca">DELÍCIAS DA VOVÓ · DESDE 2005</div><h1>Nosso livro de receitas</h1>' +
+            '</style><style>' + estiloEditorial + '</style></head><body><div class="capa"><div class="marca">DELÍCIAS DA VOVÓ · DESDE 2005</div><h1>Nosso livro de receitas</h1>' +
             '<div class="sub">' + esc(titulo) + ' · ' + linhas.length + ' receitas</div></div>' + miolo + '</body></html>';
           const aba = window.open('', '_blank');
           if (!aba) { window.alert('Permita pop-ups para abrir o livro e salvar em PDF.'); return; }
