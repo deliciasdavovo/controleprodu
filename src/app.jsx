@@ -1517,7 +1517,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         yieldQty: Number(row.yield_qty) || 1,
         yieldUnit: row.yield_unit || 'un',
         weightPerUnit: row.weight_per_unit === null ? null : Number(row.weight_per_unit),
-        notes: row.notes || ''
+        notes: row.notes || '',
+        imageUrl: row.image_url || ''
       });
 
       const fromRecipeItem = (row) => ({
@@ -12993,7 +12994,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               const unidade = item.usageUnit || insumo?.unit || fichaComponente?.yieldUnit || componente?.priceUnit || 'un';
               return '<tr><td>' + esc(nome) + '</td><td class="q">' + esc(numeroCurtoBR(item.qty)) + ' ' + esc(unidade) + '</td></tr>';
             }).join('');
-            const foto = produto.imageUrl || produto.image_url || produto.photoUrl || produto.photo_url || ficha.imageUrl || '';
+            const foto = ficha.imageUrl || '';
             const imagem = /^https:\/\//i.test(foto) ? '<img class="foto-produto" src="' + esc(foto) + '" alt="' + esc(produto.name) + '">' : '<div class="sem-foto">Foto real ainda não cadastrada</div>';
             const passos = String(ficha.notes || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
             const preparo = passos.length ? '<ol class="passos">' + passos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '<p>Modo de preparo não cadastrado</p>';
@@ -15191,6 +15192,23 @@ const { useState, useEffect, useMemo, useRef } = React;
         onChangeProductType
       }) => {
         const [novoComponente, setNovoComponente] = useState('');
+        const [enviandoFoto, setEnviandoFoto] = useState(false);
+        const enviarFotoReceita = async (arquivo) => {
+          if (!arquivo || !sb) return;
+          if (!arquivo.type.startsWith('image/')) { window.alert('Selecione uma imagem.'); return; }
+          if (arquivo.size > 8 * 1024 * 1024) { window.alert('A foto deve ter até 8 MB.'); return; }
+          setEnviandoFoto(true);
+          try {
+            const nome = String(produto.id) + '-' + Date.now() + '.' + (arquivo.type === 'image/png' ? 'png' : arquivo.type === 'image/webp' ? 'webp' : 'jpg');
+            const { error } = await sb.storage.from('recipe-photos').upload(nome, arquivo, { contentType: arquivo.type, upsert: false });
+            if (error) throw error;
+            const { data } = sb.storage.from('recipe-photos').getPublicUrl(nome);
+            if (!data?.publicUrl) throw new Error('Não foi possível obter a URL da imagem.');
+            onUpdateRecipe({ imageUrl: data.publicUrl });
+          } catch (e) { window.alert('Não foi possível enviar a foto: ' + (e.message || e)); }
+          finally { setEnviandoFoto(false); }
+        };
+
 
         const itens = ficha?.itens || [];
         const custoTotal = ficha?.custo || 0;
@@ -15329,6 +15347,23 @@ const { useState, useEffect, useMemo, useRef } = React;
                 className="field w-full p-3 text-[13px] leading-relaxed"
               />
               <p className="t-nano mt-2">Salva automaticamente ao sair do campo. Cada linha vira um passo numerado no livro.</p>
+            </div>
+            <div className="mt-4 rounded-xl border hairline bg-[#fcfbf7] p-4">
+              <label className="t-caption block mb-2 font-semibold">Foto real do produto para o livro</label>
+              {ficha?.imageUrl && <img src={ficha.imageUrl} alt={produto.name} className="w-full max-w-[260px] max-h-48 object-contain rounded-lg mb-3" />}
+              <div className="flex flex-wrap gap-2 items-center">
+                <label className="btn btn-secondary btn-sm cursor-pointer">
+                  {enviandoFoto ? 'Enviando…' : 'Enviar foto'}
+                  <input type="file" accept="image/*" className="hidden" disabled={enviandoFoto} onChange={(e) => { enviarFotoReceita(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+                {ficha?.imageUrl && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onUpdateRecipe({ imageUrl: '' })}>Remover foto</button>}
+              </div>
+              <label className="t-nano block mt-3 mb-1">Ou cole o link direto de uma foto já publicada no Pedidos Cardápio</label>
+              <input key={'foto-' + (ficha?.id || produto.id)} type="url" defaultValue={ficha?.imageUrl || ''} placeholder="https://..." className="field field-sm w-full" onBlur={(e) => {
+                const url = e.target.value.trim();
+                if (url && !/^https:\/\//i.test(url)) { window.alert('Use um link HTTPS de imagem.'); return; }
+                if (url !== (ficha?.imageUrl || '')) onUpdateRecipe({ imageUrl: url });
+              }} />
             </div>
             {/* O rendimento usa a mesma unidade em que o produto é vendido.
                 Não existe mais uma segunda unidade solta dentro da ficha. */}
@@ -26473,6 +26508,7 @@ ${BARRA_ACOES_HTML}
           if (campos.yieldUnit !== undefined) paraBanco.yield_unit = campos.yieldUnit || 'un';
           if (campos.weightPerUnit !== undefined) paraBanco.weight_per_unit = campos.weightPerUnit || null;
           if (campos.notes !== undefined) paraBanco.notes = campos.notes || '';
+          if (campos.imageUrl !== undefined) paraBanco.image_url = campos.imageUrl || null;
 
           writeSoon(`ficha:${productId}`, 'Atualizar ficha técnica', async () => {
             const ficha = await garantirFicha(productId);
