@@ -11718,6 +11718,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [busca, setBusca] = useState('');
         const [classeFiltro, setClasseFiltro] = useState('todos');
         const [categoriaFichaFiltro, setCategoriaFichaFiltro] = useState('todos');
+        const [buscaFicha, setBuscaFicha] = useState('');
+        const [agruparFichas, setAgruparFichas] = useState(false);
         const [paginaCadastros, setPaginaCadastros] = useState(1);
         // Qual histórico está aberto: { tipo: 'insumo' | 'revenda', id }
         const [historico, setHistorico] = useState(null);
@@ -12959,12 +12961,20 @@ const { useState, useEffect, useMemo, useRef } = React;
           return { produto: p, ficha, custoUn: custoPorUnidadeDeVenda(p, ficha) };
         }), [products, recipes, recipeItems, supplies, supplyPurchases, separatedProducts]);
 
-        const fichasFiltradas = useMemo(() => (
-          categoriaFichaFiltro === 'todos'
-            ? produtosComFicha
-            : produtosComFicha.filter(({ produto }) => (produto.category || 'outro') === categoriaFichaFiltro)
-        ), [produtosComFicha, categoriaFichaFiltro]);
-
+        const fichasFiltradas = useMemo(() => {
+          const termo = normalizeName(buscaFicha);
+          return produtosComFicha.filter(({ produto }) =>
+            (categoriaFichaFiltro === 'todos' || (produto.category || 'outro') === categoriaFichaFiltro)
+            && (!termo || normalizeName(produto.name).includes(termo))
+          ).sort((a, b) => {
+            if (agruparFichas) {
+              const catA = PRODUCT_CATEGORIES.findIndex(c => c.value === (a.produto.category || 'outro'));
+              const catB = PRODUCT_CATEGORIES.findIndex(c => c.value === (b.produto.category || 'outro'));
+              if (catA !== catB) return catA - catB;
+            }
+            return String(a.produto.name).localeCompare(String(b.produto.name), 'pt-BR');
+          });
+        }, [produtosComFicha, categoriaFichaFiltro, buscaFicha, agruparFichas]);
 
         const exportarLivroReceitas = (apenasCategoria) => {
           const linhas = (apenasCategoria && categoriaFichaFiltro !== 'todos' ? fichasFiltradas : produtosComFicha)
@@ -14672,6 +14682,16 @@ const { useState, useEffect, useMemo, useRef } = React;
                         Livro completo · PDF
                       </button>
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <input type="search" value={buscaFicha} onChange={(e) => setBuscaFicha(e.target.value)}
+                      placeholder="Buscar produto pelo nome…" aria-label="Buscar ficha técnica"
+                      className="field field-sm flex-1 min-w-[190px]" />
+                    <label className="flex items-center gap-2 text-[12px] cursor-pointer">
+                      <input type="checkbox" checked={agruparFichas} onChange={(e) => setAgruparFichas(e.target.checked)} />
+                      Agrupar por categoria
+                    </label>
+                    <span className="t-micro">{fichasFiltradas.length} produtos</span>
                   </div>
                   <div className="rola-x">
                     <table className="w-full text-left min-w-[1120px]">
