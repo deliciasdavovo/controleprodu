@@ -15316,6 +15316,20 @@ const { useState, useEffect, useMemo, useRef } = React;
               </button>
             </div>
 
+            <div className="mt-4 rounded-xl border hairline bg-[#fcfbf7] p-4">
+              <label className="t-caption block mb-2 font-semibold">Modo de preparo e observações para o livro</label>
+              <textarea
+                key={ficha?.id || produto.id}
+                defaultValue={ficha?.notes || ''}
+                onBlur={(e) => {
+                  if (e.target.value !== (ficha?.notes || '')) onUpdateRecipe({ notes: e.target.value });
+                }}
+                placeholder="Descreva o preparo passo a passo. Separe cada etapa com Enter. O conteúdo será salvo no banco quando sair do campo."
+                rows={5}
+                className="field w-full p-3 text-[13px] leading-relaxed"
+              />
+              <p className="t-nano mt-2">Salva automaticamente ao sair do campo. Cada linha vira um passo numerado no livro.</p>
+            </div>
             {/* O rendimento usa a mesma unidade em que o produto é vendido.
                 Não existe mais uma segunda unidade solta dentro da ficha. */}
             <div className="grid grid-cols-12 gap-2 sm:gap-3 items-end py-4 border-b hairline">
