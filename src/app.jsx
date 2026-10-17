@@ -12968,14 +12968,23 @@ const { useState, useEffect, useMemo, useRef } = React;
         const exportarLivroReceitas = (apenasCategoria) => {
           const linhas = (apenasCategoria && categoriaFichaFiltro !== 'todos' ? fichasFiltradas : produtosComFicha)
             .filter(({ ficha }) => ficha?.itens?.length)
-            .sort((a, b) => String(a.produto.name).localeCompare(String(b.produto.name), 'pt-BR'));
+            .sort((a, b) => {
+              const ia = PRODUCT_CATEGORIES.findIndex(c => c.value === (a.produto.category || 'outro'));
+              const ib = PRODUCT_CATEGORIES.findIndex(c => c.value === (b.produto.category || 'outro'));
+              return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) ||
+                String(a.produto.name).localeCompare(String(b.produto.name), 'pt-BR');
+            });
           if (!linhas.length) { window.alert('Nenhuma receita preenchida nesta seleção.'); return; }
           const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
           const titulo = apenasCategoria && categoriaFichaFiltro !== 'todos'
             ? PRODUCT_CATEGORIES.find(c => c.value === categoriaFichaFiltro)?.label || 'Categoria'
             : 'Todas as categorias';
+          let categoriaAnterior = null;
           const miolo = linhas.map(({ produto, ficha }, ix) => {
             const categoria = PRODUCT_CATEGORIES.find(c => c.value === produto.category)?.label || 'Outros';
+            const divisoria = categoria !== categoriaAnterior
+              ? '<div class="abertura-categoria"><span>DELÍCIAS DA VOVÓ · RECEITAS</span><h2>' + esc(categoria) + '</h2></div>' : '';
+            categoriaAnterior = categoria;
             const ingredientes = ficha.itens.map(item => {
               const insumo = item.supplyId != null ? supplies.find(s => String(s.id) === String(item.supplyId)) : null;
               const componente = item.componentProductId != null ? products.find(p => String(p.id) === String(item.componentProductId)) : null;
@@ -12984,18 +12993,18 @@ const { useState, useEffect, useMemo, useRef } = React;
               const unidade = item.usageUnit || insumo?.unit || fichaComponente?.yieldUnit || componente?.priceUnit || 'un';
               return '<tr><td>' + esc(nome) + '</td><td class="q">' + esc(numeroCurtoBR(item.qty)) + ' ' + esc(unidade) + '</td></tr>';
             }).join('');
-            return '<section class="receita"><div class="cat">' + esc(categoria) + '</div><h2>' + esc(produto.name) +
+            return divisoria + '<section class="receita"><div class="cat">' + esc(categoria) + '</div><h2>' + esc(produto.name) +
               '</h2><p>Rendimento: <b>' + esc(numeroCurtoBR(ficha.yieldQty || 1)) + ' ' + esc(ficha.yieldUnit || produto.priceUnit || 'un') +
               '</b></p><h3>Ingredientes (' + ficha.itens.length + ')</h3><table><tbody>' + ingredientes + '</tbody></table>' + (ficha.notes?.trim() ? '<h3>Modo de preparo / observações</h3><div class="notes">' + esc(ficha.notes).replace(/\\n/g, '<br>') + '</div>' : '') + '<footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></section>';
           }).join('');
           const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Livro de receitas — Delícias da Vovó</title><style>' +
-            '@page{size:A4;margin:17mm}body{font-family:Georgia,serif;color:#3c332d;margin:0}.capa{text-align:center;padding:38mm 0 26mm;border-bottom:2px solid #335840;break-after:page}' +
-            '.marca{color:#335840;font:bold 12px Arial;letter-spacing:3px}h1{font-size:39px;font-weight:normal;margin:25px 0 8px}' +
-            '.sub{color:#777;font-size:14px}.notes{white-space:pre-wrap;font:12px/1.6 Arial;margin:12px 0}.receita{break-inside:avoid;border-bottom:1px solid #ddd8cc;padding:10px 0 18px;margin:0 0 20px}' +
-            '.cat{font:bold 10px Arial;letter-spacing:2px;text-transform:uppercase;color:#927a54}h2{color:#335840;font-size:24px;font-weight:normal;margin:9px 0}p{font:12px Arial;color:#666}' +
-            'h3{color:#335840;font:bold 11px Arial;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:7px}' +
-            'table{width:100%;border-collapse:collapse;font:12px Arial}td{border-bottom:1px solid #eee;padding:8px 4px}.q{text-align:right;white-space:nowrap;font-weight:bold}' +
-            'footer{display:flex;justify-content:space-between;font:9px Arial;letter-spacing:1px;color:#aaa;margin-top:12px}' +
+            '@page{size:A4;margin:17mm}body{font-family:Lora,Georgia,serif;color:#3c332d;margin:0}.capa{text-align:center;padding:38mm 0 26mm;border-bottom:2px solid #335840;break-after:page}' +
+            '.marca{color:#335840;font:bold 12px Lora,Georgia,serif;letter-spacing:3px}h1{font-size:39px;font-weight:normal;margin:25px 0 8px}' +
+            '.abertura-categoria{break-before:page;page-break-before:always;padding:32mm 0 20mm;border-bottom:2px solid #335840;margin-bottom:15mm}.abertura-categoria span{letter-spacing:2px;color:#927a54;font-size:11px}.abertura-categoria h2{font-size:36px;font-weight:400;color:#335840}.sub{color:#777;font-size:14px}.notes{white-space:pre-wrap;font:12px/1.6 Lora,Georgia,serif;margin:12px 0}.receita{break-inside:avoid;border-bottom:1px solid #ddd8cc;padding:10px 0 18px;margin:0 0 20px}' +
+            '.cat{font:bold 10px Lora,Georgia,serif;letter-spacing:2px;text-transform:uppercase;color:#927a54}h2{color:#335840;font-size:24px;font-weight:normal;margin:9px 0}p{font:12px Lora,Georgia,serif;color:#666}' +
+            'h3{color:#335840;font:bold 11px Lora,Georgia,serif;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #ddd;padding-bottom:7px}' +
+            'table{width:100%;border-collapse:collapse;font:12px Lora,Georgia,serif}td{border-bottom:1px solid #eee;padding:8px 4px}.q{text-align:right;white-space:nowrap;font-weight:bold}' +
+            'footer{display:flex;justify-content:space-between;font:9px Lora,Georgia,serif;letter-spacing:1px;color:#aaa;margin-top:12px}' +
             '</style></head><body><div class="capa"><div class="marca">DELÍCIAS DA VOVÓ · DESDE 2005</div><h1>Nosso livro de receitas</h1>' +
             '<div class="sub">' + esc(titulo) + ' · ' + linhas.length + ' receitas</div></div>' + miolo + '</body></html>';
           const aba = window.open('', '_blank');
@@ -13008,7 +13017,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           barra.innerHTML = '<strong>Prévia do livro · ' + linhas.length + ' receitas</strong><button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>';
           aba.document.body.insertBefore(barra, aba.document.body.firstChild);
           const estilos = aba.document.createElement('style');
-          estilos.textContent = '.barra-exportacao{position:sticky;top:0;padding:12px 20px;background:#f5f3ed;display:flex;justify-content:space-between;align-items:center;font:14px Arial;color:#34563e;z-index:5}.barra-exportacao button{background:#34563e;color:white;border:0;border-radius:8px;padding:11px 15px;cursor:pointer}@media print{.barra-exportacao{display:none}}';
+          estilos.textContent = '.barra-exportacao{position:sticky;top:0;padding:12px 20px;background:#f5f3ed;display:flex;justify-content:space-between;align-items:center;font:14px Lora,Georgia,serif;color:#34563e;z-index:5}.barra-exportacao button{background:#34563e;color:white;border:0;border-radius:8px;padding:11px 15px;cursor:pointer}@media print{.barra-exportacao{display:none}}';
           aba.document.head.appendChild(estilos);
         };
 
