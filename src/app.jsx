@@ -12997,7 +12997,8 @@ const { useState, useEffect, useMemo, useRef } = React;
               '</h2><p>Rendimento: <b>' + esc(numeroCurtoBR(ficha.yieldQty || 1)) + ' ' + esc(ficha.yieldUnit || produto.priceUnit || 'un') +
               '</b></p><h3>Ingredientes (' + ficha.itens.length + ')</h3><table><tbody>' + ingredientes + '</tbody></table>' + (ficha.notes?.trim() ? '<h3>Modo de preparo / observações</h3><div class="notes">' + esc(ficha.notes).replace(/\\n/g, '<br>') + '</div>' : '') + '<footer>DELÍCIAS DA VOVÓ <span>' + (ix+1) + '</span></footer></section>';
           }).join('');
-          const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Livro de receitas — Delícias da Vovó</title><style>' +
+          const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Livro de receitas — Delícias da Vovó</title>' +
+            '<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet"><style>' +
             '@page{size:A4;margin:17mm}body{font-family:Lora,Georgia,serif;color:#3c332d;margin:0}.capa{text-align:center;padding:38mm 0 26mm;border-bottom:2px solid #335840;break-after:page}' +
             '.marca{color:#335840;font:bold 12px Lora,Georgia,serif;letter-spacing:3px}h1{font-size:39px;font-weight:normal;margin:25px 0 8px}' +
             '.abertura-categoria{break-before:page;page-break-before:always;padding:32mm 0 20mm;border-bottom:2px solid #335840;margin-bottom:15mm}.abertura-categoria span{letter-spacing:2px;color:#927a54;font-size:11px}.abertura-categoria h2{font-size:36px;font-weight:400;color:#335840}.sub{color:#777;font-size:14px}.notes{white-space:pre-wrap;font:12px/1.6 Lora,Georgia,serif;margin:12px 0}.receita{break-inside:avoid;border-bottom:1px solid #ddd8cc;padding:10px 0 18px;margin:0 0 20px}' +
