@@ -33,7 +33,7 @@
           const ca=Object.keys(categorias).indexOf(a.cells[1]?.querySelector('select')?.value||'outro');
           const cb=Object.keys(categorias).indexOf(b.cells[1]?.querySelector('select')?.value||'outro');
           return ca-cb||a.cells[0].textContent.localeCompare(b.cells[0].textContent,'pt-BR');
-        }).forEach(row=>body.appendChild(row));
+        }).forEach((row,index)=>{if(body.rows[index]!==row)body.insertBefore(row,body.rows[index]||null)});
         count.textContent=rows.filter(r=>!r.hidden).length+' produtos';
       };
       input.addEventListener('input',render);chk.addEventListener('change',render);
