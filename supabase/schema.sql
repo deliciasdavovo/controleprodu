@@ -495,6 +495,7 @@ create table if not exists public.recipes (
   yield_unit       text not null default 'un',
   weight_per_unit  numeric(12,3),
   notes            text not null default '',
+  image_url        text,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
   constraint recipes_yield_check check (yield_qty > 0),
