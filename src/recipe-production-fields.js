@@ -59,6 +59,15 @@
               '<button data-menu-toggle type="button" style="background:#f4f6f2;color:#31513d;border:1px solid #c9d5c7;border-radius:7px;padding:9px 12px;cursor:pointer;font-size:12px">Escolher do Pedidos Cardápio</button>',
               '<button data-remove type="button" style="background:#fff;border:1px solid #ddd;border-radius:7px;padding:9px 12px;cursor:pointer;font-size:12px">Remover foto</button>',
             '</div>',
+            '<form data-photo-auth hidden autocomplete="on" style="margin-top:12px;padding:12px;background:#f7f9f5;border:1px solid #bfd0bf;border-radius:9px">',
+              '<p style="margin:0 0 9px;font-size:12px;color:#35553d">Para enviar fotos, entre com sua conta do Supabase. Isso protege o armazenamento contra uploads de visitantes.</p>',
+              '<label style="display:block;font-size:12px;margin-bottom:4px">E-mail da conta</label>',
+              '<input data-auth-email type="email" autocomplete="username" required placeholder="seu@email.com" style="box-sizing:border-box;width:100%;padding:9px;border:1px solid #cbd6cb;border-radius:7px;margin-bottom:9px">',
+              '<label style="display:block;font-size:12px;margin-bottom:4px">Senha da conta</label>',
+              '<input data-auth-password type="password" autocomplete="current-password" required style="box-sizing:border-box;width:100%;padding:9px;border:1px solid #cbd6cb;border-radius:7px;margin-bottom:9px">',
+              '<button data-auth-submit type="submit" style="background:#31513d;color:#fff;border:0;padding:9px 13px;border-radius:7px;cursor:pointer">Entrar e enviar foto</button>',
+              '<p data-auth-message role="status" style="font-size:11px;color:#6a766d;margin:8px 0 0"></p>',
+            '</form>',
           '</div>',
           '<div style="flex:1 1 265px;min-width:0">',
             '<label for="recipe-production-notes" style="display:block;font-weight:600;margin-bottom:7px">Modo de preparo</label>',
@@ -96,6 +105,11 @@
     const search = el('[data-catalog-search]');
     const results = el('[data-results]');
     const catalogStatus = el('[data-catalog-status]');
+    const authPanel = el('[data-photo-auth]');
+    const authEmail = el('[data-auth-email]');
+    const authPassword = el('[data-auth-password]');
+    const authMessage = el('[data-auth-message]');
+    let pendingPhoto = null;
     let productId = null;
     let recipeId = null;
     let savedNotes = '';
@@ -207,26 +221,83 @@
     });
     search.addEventListener('input', () => { if (catalog) renderPhotos(catalog); });
 
-    el('[data-upload]').addEventListener('change', async event => {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-      if (!file) return;
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { say('Envie JPG, PNG ou WebP.', true); return; }
-      if (file.size > 8 * 1024 * 1024) { say('O limite por foto é 8 MB.', true); return; }
+    async function uploadPhoto(file) {
+      if (!productId) { say('Aguarde carregar a ficha técnica e tente novamente.', true); return; }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        say('Envie uma foto JPG, PNG ou WebP.', true); return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        say('O limite por foto é 8 MB.', true); return;
+      }
       try {
         const sb = getClient();
+        const { data, error: authError } = await sb.auth.getUser();
+        if (authError || !data?.user) {
+          pendingPhoto = file;
+          authPanel.hidden = false;
+          say('Faça login para enviar a foto. A imagem já está selecionada e será enviada após entrar.');
+          authEmail.focus();
+          return;
+        }
+        authPanel.hidden = true;
         say('Enviando foto…');
         const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
         const id = window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now());
         const path = productId + '/' + id + '.' + ext;
-        const { error } = await sb.storage.from('recipe-photos').upload(path, file, { contentType: file.type, upsert: false });
+        const { error } = await sb.storage.from('recipe-photos').upload(path, file, {
+          contentType: file.type, upsert: false
+        });
         if (error) throw error;
-        const { data } = sb.storage.from('recipe-photos').getPublicUrl(path);
-        if (!data?.publicUrl) throw new Error('O armazenamento não retornou a URL.');
-        urlField.value = data.publicUrl;
-        showImage(data.publicUrl);
-        await persist({ image_url: data.publicUrl });
-      } catch (error) { say('Erro ao enviar foto: ' + (error.message || error), true); }
+        const { data: photo } = sb.storage.from('recipe-photos').getPublicUrl(path);
+        if (!photo?.publicUrl) throw new Error('O armazenamento não retornou o link da foto.');
+        urlField.value = photo.publicUrl;
+        showImage(photo.publicUrl);
+        await persist({ image_url: photo.publicUrl });
+        pendingPhoto = null;
+      } catch (error) {
+        if (/row.level.security|unauthorized|jwt|not.authenticated/i.test(error.message || '')) {
+          pendingPhoto = file;
+          authPanel.hidden = false;
+          say('Sua autenticação não permitiu o envio. Entre novamente com a conta autorizada.', true);
+        } else {
+          say('Erro ao enviar foto: ' + (error.message || error), true);
+        }
+      }
+    }
+
+    authPanel.addEventListener('submit', async event => {
+      event.preventDefault();
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
+      if (!email || !password) return;
+      const button = el('[data-auth-submit]');
+      button.disabled = true;
+      authMessage.textContent = 'Entrando com segurança…';
+      try {
+        const { data, error } = await getClient().auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (!data?.user) throw new Error('Não foi possível confirmar o usuário.');
+        authPassword.value = '';
+        authPanel.hidden = true;
+        authMessage.textContent = '';
+        say('Autenticação confirmada. Preparando envio da foto…');
+        if (pendingPhoto) {
+          const file = pendingPhoto;
+          pendingPhoto = null;
+          await uploadPhoto(file);
+        }
+      } catch (error) {
+        authMessage.textContent = 'Não foi possível entrar: ' + (error.message || error);
+        say('Confira o e-mail e a senha da sua conta do Supabase.', true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    el('[data-upload]').addEventListener('change', event => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (file) uploadPhoto(file);
     });
 
     (async () => {
