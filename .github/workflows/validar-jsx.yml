@@ -19,3 +19,10 @@ jobs:
         run: |
           npx --yes esbuild@0.25.12 src/embalagens.jsx --loader:.jsx=jsx --outfile=/tmp/embalagens-validado.js
           npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --outfile=/tmp/controleprodu-validado.js
+
+      - name: Validar scripts do livro e das fichas de receita
+        run: |
+          node --check src/recipe-production-fields.js
+          node --check src/recipe-book.js
+          node --check src/recipe-book-bulk.js
+          node -e "const x=require('./src/pedidos-cardapio-photos.json');if(!Array.isArray(x.photos)||!x.photos.length)process.exit(1)"
