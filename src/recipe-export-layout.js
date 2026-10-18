@@ -57,53 +57,56 @@ function prepare(r){
  return steps+obs;
 }
 const RETURN_URL = new URL('./', window.location.href).href;
-const CSS="\n@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');\n@page{size:A4 portrait;margin:0}\n*{box-sizing:border-box}\nhtml{background:#eeefec}\nbody{margin:0;background:transparent;font-family:Lora,Georgia,serif;color:#282b28}\n.toolbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:white;border-bottom:1px solid #dbe0d9;padding:13px 23px;font-size:12px}\n.toolbar-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}\n.toolbar .return-app{display:inline-flex;align-items:center;justify-content:center;min-height:43px;text-decoration:none;color:#294b38;border:1px solid #bacabb;background:#fff;border-radius:7px;padding:10px 13px;font:600 12px Lora,Georgia,serif}\n.toolbar strong{color:#294b38}\n.toolbar button{background:#294b38;color:white;min-height:43px;padding:11px 16px;border:0;border-radius:7px;cursor:pointer;font:600 12px Lora,Georgia,serif}\n@media screen and (max-width:600px){.toolbar{padding:12px 14px;align-items:flex-start}.toolbar-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}.toolbar .return-app,.toolbar button{width:100%;padding:10px 7px;font-size:11px}}\n.recipe{width:210mm;min-height:297mm;margin:22px auto;padding:19mm 17mm 16mm;background:white;box-shadow:0 12px 36px #0002;break-before:page;page-break-before:always}\n.recipe:first-of-type{break-before:auto;page-break-before:auto}\n.recipe-head{text-align:center;margin-bottom:8mm}\n.kicker{font-size:8pt;text-transform:uppercase;color:#637664;letter-spacing:1.8px;margin:0 0 4mm}\n.recipe-head h1{font-size:24pt;line-height:1.25;font-weight:500;letter-spacing:1.1px;text-transform:uppercase;overflow-wrap:anywhere;color:#26372b;margin:0}\n.head-rule{width:30mm;height:1px;background:#bdc9bc;margin:5mm auto 0}\n.intro{display:grid;grid-template-columns:37% 63%;height:61mm;margin:0 0 10mm;break-inside:avoid}\n.intro.no-photo{grid-template-columns:1fr;height:auto}\n.quick-facts{background:#f5f4f1;padding:6mm 6.5mm;display:flex;flex-direction:column;justify-content:center;gap:4mm}\n.intro.no-photo .quick-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:5mm;min-height:28mm}\n.fact{display:grid;grid-template-columns:9mm 1fr;align-items:center;gap:3mm;min-width:0}\n.fact svg{width:8mm;height:8mm;stroke:#5b665b;fill:none;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round}\n.fact .fact-label{display:block;font-size:8pt;line-height:1.3;color:#3f5041;font-weight:600}\n.fact .fact-value{display:block;font-size:10pt;line-height:1.4;margin-top:1mm;font-weight:400}\n.hero-photo{min-width:0;min-height:0;overflow:hidden;background:#f2f3f0}\n.hero-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}\n.content{display:grid;grid-template-columns:39% 61%;gap:10mm;align-items:start}\n.content>section{min-width:0}\n.content h2{font-size:14pt;font-weight:600;line-height:1.3;letter-spacing:0;margin:0 0 5mm;color:#263b2d}\n.ingredient{display:flex;justify-content:space-between;gap:3mm;align-items:baseline;font-size:10.5pt;line-height:1.55;margin-bottom:2.3mm;break-inside:avoid}\n.ingredient span{flex:1;overflow-wrap:anywhere}\n.ingredient strong{flex-shrink:0;white-space:nowrap;text-align:right;font-size:10pt;font-weight:500}\n.steps{padding:0;list-style:none;counter-reset:step;margin:0}\n.steps li{position:relative;padding-left:7mm;font-size:10.5pt;line-height:1.65;margin-bottom:5mm;overflow-wrap:anywhere;break-inside:avoid}\n.steps li:before{counter-increment:step;content:counter(step)'.';position:absolute;top:0;left:0;color:#667d69;font-weight:600;font-size:10pt}\n.observations{margin-top:7mm;border-top:1px solid #e3e8e1;padding-top:4mm}\n.observations h3{font-size:10pt;color:#354d39;font-weight:600;font-style:italic;margin:0 0 3mm}\n.observations p{font-size:10pt;line-height:1.6;margin:0}\n.missing{font-size:10pt;color:#78857a;font-style:italic}\n.footer{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid #e6e9e4;margin-top:12mm;padding-top:3mm;font-size:8pt;color:#7b897e;letter-spacing:.8px;break-inside:avoid}\n@media print{\n html{background:white}\n .toolbar{display:none}\n .recipe{width:210mm;min-height:297mm;padding:19mm 17mm 16mm;margin:0;box-shadow:none;break-before:page;page-break-before:always}\n .recipe:first-of-type{break-before:auto;page-break-before:auto}\n .recipe:last-of-type{break-after:auto;page-break-after:auto}\n .intro{break-inside:avoid}\n .content,.content>section{break-inside:auto}\n .content h2{break-after:avoid}\n}\n@media screen and (max-width:800px){.recipe{width:210mm}}\n";
+const CSS="\n@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');\n@page{size:A4 landscape;margin:0}\n*{box-sizing:border-box}html{background:#edf0eb}body{margin:0;font-family:Lora,Georgia,serif;color:#26352a}\n.toolbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #dce4da;padding:12px 24px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;font-size:12px}\n.toolbar strong{color:#294b38}.toolbar-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}\n.toolbar .return-app{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#fff;color:#294b38;border:1px solid #bacabb;border-radius:7px;padding:10px 13px;font:600 12px Lora,Georgia,serif;min-height:42px}\n.toolbar button{background:#294b38;border:0;border-radius:7px;color:#fff;padding:11px 15px;cursor:pointer;font:600 12px Lora,Georgia,serif;min-height:42px}\n.sheet{width:297mm;height:210mm;margin:22px auto;background:#fff;box-shadow:0 12px 32px #0002;display:grid;grid-template-columns:1fr 1fr;break-before:page;page-break-before:always;break-inside:avoid}\n.sheet:first-of-type{break-before:auto;page-break-before:auto}\n.half{position:relative;min-width:0;width:148.5mm;height:210mm;overflow:hidden;border-right:1px solid #dfe5dc;background:#fff}\n.half:last-child{border:0}.half.empty{background:#fff}\n.bg-photo{position:absolute;inset:0;z-index:0;pointer-events:none}\n.bg-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;opacity:.20}\n.recipe-content{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:11mm 9mm 8mm}\n.category{text-align:center;font-size:8pt;letter-spacing:1.7px;text-transform:uppercase;color:#5e7662;margin-bottom:2.5mm}\n.recipe-title{text-align:center;text-transform:uppercase;color:#263c2c;font-size:18pt;font-weight:500;line-height:1.2;margin:0;overflow-wrap:anywhere}\n.rule{height:1px;width:26mm;background:#aac0aa;margin:4mm auto 5mm;flex-shrink:0}\n.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2.5mm;margin-bottom:5mm;flex-shrink:0}\n.fact{background:rgba(255,255,255,.72);padding:2.5mm 3mm;border:1px solid #dce6dc}\n.fact-label{display:block;color:#5a705e;font-size:8pt}.fact-value{display:block;font-size:10pt;font-weight:600;color:#294b38;margin-top:1mm}\n.cols{display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);gap:5.5mm;min-height:0;align-items:start}.cols>section{min-width:0}\n.cols h2{font-size:11pt;color:#294b38;font-weight:600;margin:0 0 3mm}\n.ingredient{display:flex;justify-content:space-between;align-items:baseline;gap:1.5mm;margin-bottom:1.7mm;font-size:8.7pt;line-height:1.47;break-inside:avoid}\n.ingredient span{flex:1;min-width:0;overflow-wrap:anywhere}.ingredient strong{font-size:8.3pt;white-space:nowrap;font-weight:600}\n.steps{list-style:none;counter-reset:step;padding:0;margin:0}\n.steps li{counter-increment:step;position:relative;padding-left:5mm;margin:0 0 2.5mm;font-size:8.7pt;line-height:1.53;overflow-wrap:anywhere;break-inside:avoid}\n.steps li:before{content:counter(step) \".\";position:absolute;left:0;font-weight:600;color:#4d7653}\n.observations{margin-top:4mm;padding-top:3mm;border-top:1px solid #bccdbc}.observations h3{font-size:9pt;color:#294b38;margin:0 0 2mm}\n.observations p{margin:0;font-size:8.5pt;line-height:1.48}.missing{font-size:8pt;color:#768877;font-style:italic}\n.footer{margin-top:auto;padding-top:3mm;border-top:1px solid #dce5d9;display:flex;justify-content:space-between;gap:6px;color:#748475;letter-spacing:.6px;font-size:7.1pt;flex-shrink:0}\n.half.compact .recipe-content{padding:8mm 7mm 6mm}.half.compact .recipe-title{font-size:16pt}.half.compact .rule{margin:3mm auto}\n.half.compact .facts{gap:1mm;margin-bottom:3mm}.half.compact .fact{padding:1.5mm}\n.half.compact .cols{gap:4mm}.half.compact .ingredient{font-size:8pt;line-height:1.38;margin-bottom:1mm}\n.half.compact .ingredient strong{font-size:7.7pt}.half.compact .steps li{font-size:8pt;line-height:1.4;margin-bottom:1.8mm}\n.half.dense .recipe-content{padding:7mm 6mm 5mm}.half.dense .recipe-title{font-size:14pt}\n.half.dense .facts{gap:1mm;margin-bottom:2mm}.half.dense .fact{padding:1mm}\n.half.dense .cols h2{font-size:9.5pt;margin-bottom:2mm}\n.half.dense .ingredient,.half.dense .steps li{font-size:7.3pt;line-height:1.27;margin-bottom:1mm}\n.half.dense .ingredient strong{font-size:7pt}.half.dense .observations{margin-top:2mm;padding-top:1.5mm}\n@media screen and (max-width:600px){.toolbar{padding:12px 14px;align-items:flex-start}.toolbar-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}.toolbar .return-app,.toolbar button{width:100%;padding:10px 7px;font-size:11px}}\n@media print{html{background:#fff}.toolbar{display:none}.sheet{width:297mm;height:210mm;margin:0;box-shadow:none;break-before:page;page-break-before:always}.sheet:first-of-type{break-before:auto;page-break-before:auto}.sheet:last-of-type{break-after:auto;page-break-after:auto}.bg-photo img{print-color-adjust:exact;-webkit-print-color-adjust:exact}}\n";
 
-function factIcon(label){
-  const paths={
-    'Porções':'<path d="M4 2v8M7 2v8M10 2v8M4 7h6M7 10v12M17 2v20M17 2c5 3 5 10 0 12"/>',
-    'Rendimento':'<path d="M12 3v18M4 7h16M6 7l-4 7h8l-4-7M18 7l-4 7h8l-4-7M7 21h10"/>',
-    'Preparo':'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 3"/>',
-    'Validade':'<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M7 3v4M17 3v4M3 10h18M7 14h2M12 14h2"/>'
-  };
-  return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(paths[label]||paths['Preparo'])+'</svg>';
-}
-function article(r,p,data,index,first){
- const category=names[p.category]||p.category||'Outros';
+function recipeCard(r,p,data,index){
  const parent=inheritedRecipe(r,p,data);
+ const category=names[p.category]||p.category||'Outros';
  const photo=safeImage(r.image_url||parent?.image_url||p.image_url||p.photo_url||'');
- const amounts=yieldInfo(r),stats=[];
- if(amounts.portions!==null)stats.push(['Porções',fmt(amounts.portions)+' un']);
- if(amounts.kg!==null)stats.push(['Rendimento',fmt(amounts.kg)+' kg']);
- const minutes=positive(r.preparation_time_minutes||r.prep_time_minutes||r.prep_minutes);
- if(minutes)stats.push(['Preparo',fmt(minutes)+' min']);
- const shelf=positive(p.shelf_life_days);
- if(shelf)stats.push(['Validade',fmt(shelf)+(shelf===1?' dia':' dias')]);
- const facts=stats.length?stats.map(([label,value])=>'<div class="fact">'+factIcon(label)+
-   '<div><span class="fact-label">'+esc(label)+'</span><span class="fact-value">'+esc(value)+'</span></div></div>').join(''):
-   '<div class="fact"><div></div><span class="missing">Informações adicionais não cadastradas</span></div>';
- const intro='<div class="intro'+(photo?'':' no-photo')+'"><div class="quick-facts">'+facts+'</div>'+
-   (photo?'<div class="hero-photo"><img src="'+esc(photo)+'" alt="Foto real de '+esc(p.name)+'"></div>':'')+'</div>';
- return '<article class="recipe"><header class="recipe-head"><p class="kicker">Delícias da Vovó · '+esc(category)+'</p>'+
-   '<h1>'+esc(p.name)+'</h1><div class="head-rule"></div></header>'+intro+
-   '<main class="content"><section><h2>Ingredientes</h2>'+ingredients(r,p,data)+'</section>'+
-   '<section><h2>Modo de preparo</h2>'+prepare(r)+'</section></main>'+
-   '<footer class="footer"><span>DELÍCIAS DA VOVÓ</span><span>RECEITA Nº '+String(index+1).padStart(2,'0')+'</span></footer></article>';
+ const amounts=yieldInfo(r),facts=[];
+ if(amounts.portions!==null)facts.push(['Porções',fmt(amounts.portions)+' un']);
+ if(amounts.kg!==null)facts.push(['Rendimento',fmt(amounts.kg)+' kg']);
+ const mins=positive(r.preparation_time_minutes||r.prep_time_minutes||r.prep_minutes);
+ if(mins)facts.push(['Preparo',fmt(mins)+' min']);
+ const valid=positive(p.shelf_life_days);
+ if(valid)facts.push(['Validade',fmt(valid)+(valid===1?' dia':' dias')]);
+ const factHtml=facts.length?'<div class="facts">'+facts.map(([label,value])=>
+  '<div class="fact"><span class="fact-label">'+esc(label)+'</span><strong class="fact-value">'+esc(value)+'</strong></div>').join('')+'</div>':'';
+ const ingr=ingredients(r,p,data);
+ const size=(ingr.match(/class="ingredient"/g)||[]).length;
+ const prepLength=String(r.preparation_method||r.instructions||r.notes||'').length;
+ const density=size>=22||prepLength>1250?' compact dense':size>=13||prepLength>750?' compact':'';
+ return '<section class="half'+density+'">'+
+  (photo?'<div class="bg-photo"><img src="'+esc(photo)+'" alt="" aria-hidden="true"></div>':'')+
+  '<div class="recipe-content"><div class="category">'+esc(category)+'</div>'+
+  '<h1 class="recipe-title">'+esc(p.name)+'</h1><div class="rule"></div>'+factHtml+
+  '<div class="cols"><section><h2>Ingredientes</h2>'+ingr+'</section>'+
+  '<section><h2>Modo de preparo</h2>'+prepare(r)+'</section></div>'+
+  '<footer class="footer"><span>DELÍCIAS DA VOVÓ</span>'+
+  '<span>RECEITA Nº '+String(index+1).padStart(2,'0')+'</span></footer></div></section>';
+}
+function pagesHtml(selection,data){
+ let html='';
+ for(let i=0;i<selection.length;i+=2){
+  const left=selection[i],right=selection[i+1];
+  html+='<article class="sheet">'+recipeCard(left.recipe,left.product,data,i)+
+    (right?recipeCard(right.recipe,right.product,data,i+1):'<section class="half empty"></section>')+'</article>';
+ }
+ return html;
 }
 function backControl(){
  return '<a class="return-app" data-preview-back href="'+esc(RETURN_URL)+'" '+
   'onclick="try{if(window.opener&&!window.opener.closed){window.opener.focus();window.close();if(window.closed)return false}}catch(e){}">← Voltar ao Controle Produ</a>';
 }
 function buildHtml(selection,data,title){
- let previous=null;
- const html=selection.map(({recipe,product},i)=>{
-  const category=product.category||'outro';const first=category!==previous;previous=category;
-  return article(recipe,product,data,i,first);
- }).join('');
- return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1">'+
   '<title>'+esc(title)+' · Delícias da Vovó</title><style>'+CSS+'</style></head><body>'+
-  '<div class="toolbar"><div><strong>'+esc(title)+'</strong><div>'+selection.length+' receitas</div></div>'+
-  '<div class="toolbar-actions">'+backControl()+'<button type="button" onclick="window.print()">Imprimir / Salvar PDF</button></div></div>'+html+'</body></html>';
+  '<div class="toolbar"><div><strong>'+esc(title)+'</strong><div>'+selection.length+
+  (selection.length===1?' receita':' receitas')+' · duas por folha</div></div>'+
+  '<div class="toolbar-actions">'+backControl()+
+  '<button type="button" onclick="window.print()">Imprimir / Salvar PDF</button></div></div>'+
+  pagesHtml(selection,data)+'</body></html>';
 }
 async function openBook(opts={}){
  const pop=window.open('','_blank');
