@@ -19281,7 +19281,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         onUpdateSeparatedProduct,
         onSetSupplyResale,
         onAddSupply,
-        onChangeCatalogType
+        onChangeCatalogType,
+        products = [],
+        recipes = []
       }) => {
         const [modoFornecedores, setModoFornecedores] = useState('analise');
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
@@ -19322,6 +19324,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [cotacaoFornecedor, setCotacaoFornecedor] = useState('');
         const [cotacaoTexto, setCotacaoTexto] = useState('');
         const [cotacoesComparacao, setCotacoesComparacao] = useState([]);
+        const [incluirFotosCotacao, setIncluirFotosCotacao] = useState(false);
+        const [fotosEmbalagensCotacao, setFotosEmbalagensCotacao] = useState({});
         const limiteAtual = limite === 'todos' ? Number.POSITIVE_INFINITY : (Number(limite) || 10);
 
         const identificarCadastroDoItem = (itemId) => {
@@ -19577,6 +19581,49 @@ const { useState, useEffect, useMemo, useRef } = React;
           });
           return Object.values(mapa).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
         }, [todas]);
+
+        // Fotos cadastradas no catálogo de embalagens, vinculadas ao insumo por ID.
+        useEffect(() => {
+          let ativo = true;
+          setFotosEmbalagensCotacao({});
+          if (!sb || !currentUnit) return () => { ativo = false; };
+          sb.from('packaging_matrices').select('layout').eq('unit_code', currentUnit).maybeSingle()
+            .then(({ data, error }) => {
+              if (error) throw error;
+              if (!ativo) return;
+              const mapa = {};
+              const embalagens = data?.layout?.embalagens;
+              if (Array.isArray(embalagens)) embalagens.forEach((item) => {
+                const id = String(item?.id || '');
+                const foto = String(item?.foto || '');
+                if (id && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(foto)) {
+                  mapa['s' + id] = foto;
+                }
+              });
+              setFotosEmbalagensCotacao(mapa);
+            })
+            .catch(() => { if (ativo) setFotosEmbalagensCotacao({}); });
+          return () => { ativo = false; };
+        }, [currentUnit]);
+
+        // Quando uma ficha técnica tem foto, ela também pode ser usada na cotação.
+        const fotosReceitasPorNomeCotacao = useMemo(() => {
+          const nomes = new Map(products.map((p) => [String(p.id), p.name]));
+          const mapa = new Map();
+          recipes.forEach((ficha) => {
+            const nome = nomes.get(String(ficha.productId));
+            const foto = String(ficha.imageUrl || '').trim();
+            if (nome && /^https:\/\//i.test(foto)) mapa.set(normalizeName(nome), foto);
+          });
+          return mapa;
+        }, [products, recipes]);
+
+        const fotoParaLinhaCotacao = (linha) => {
+          const imagemEmbalagem = fotosEmbalagensCotacao[String(linha.itemId || '')];
+          if (imagemEmbalagem) return imagemEmbalagem;
+          const nome = linha.item?.nome || linha.descricao || '';
+          return fotosReceitasPorNomeCotacao.get(normalizeName(nome)) || '';
+        };
 
         const numeroCotacao = (texto) => {
           const limpo = String(texto || '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
@@ -19860,14 +19907,16 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const htmlRelatorioCotacoes = () => {
           const linhas = cotacoesAnalisadas.map((x) => {
+            const foto = incluirFotosCotacao ? fotoParaLinhaCotacao(x) : '';
+            const imagem = foto ? '<img class="produto-foto" src="' + escaparHtml(foto) + '" alt="Foto do produto" loading="eager">' : '';
             const cotado = x.precoComparavel > 0 ? formatCurrencyBR(x.precoComparavel) : '—';
             const atual = x.atual?.precoComparavel > 0 ? formatCurrencyBR(x.atual.precoComparavel) : '—';
             const diferenca = x.diferencaPct !== null ? (x.diferencaPct > 0 ? '+' : '') + x.diferencaPct.toFixed(1).replace('.', ',') + '%' : '—';
             const tom = x.diferencaPct === null ? '' : x.diferencaPct < 0 ? ' economia' : x.diferencaPct > 0 ? ' alta' : '';
             const unidade = x.unidade ? ' / ' + x.unidade : '';
             return '<tr>'
-              + '<td class="produto"><b>' + escaparHtml(x.descricao) + '</b>'
-              + (x.item?.nome && x.item.nome !== x.descricao ? '<small>Cadastro: ' + escaparHtml(x.item.nome) + '</small>' : '') + '</td>'
+              + '<td class="produto"><div class="produto-linha">' + imagem + '<div class="produto-texto"><b>' + escaparHtml(x.descricao) + '</b>'
+              + (x.item?.nome && x.item.nome !== x.descricao ? '<small>Cadastro: ' + escaparHtml(x.item.nome) + '</small>' : '') + '</div></div></td>'
               + '<td class="num"><b>' + escaparHtml(cotado) + '</b><small>' + escaparHtml(x.fornecedor || 'Cotação') + escaparHtml(unidade) + '</small></td>'
               + '<td class="num"><b>' + escaparHtml(atual) + '</b><small>' + (x.atual ? escaparHtml(x.atual.fornecedor || 'Fornecedor não informado') + escaparHtml(unidade) : 'Sem preço anterior') + '</small></td>'
               + '<td class="num' + tom + '"><b>' + escaparHtml(diferenca) + '</b></td>'
@@ -19878,6 +19927,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           const maisBaratos = comReferencia.filter((x) => x.diferencaPct < 0).length;
           const maisCaros = comReferencia.filter((x) => x.diferencaPct > 0).length;
           const semReferencia = cotacoesAnalisadas.length - comReferencia.length;
+          const quantidadeFotos = incluirFotosCotacao ? cotacoesAnalisadas.filter((x) => !!fotoParaLinhaCotacao(x)).length : 0;
           const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
           const tituloCotacao = String(cotacaoNome || '').trim() || 'Comparativo de cotações';
           const dataCotacaoTexto = cotacaoData ? formatDateBR(cotacaoData) : '';
@@ -19905,14 +19955,14 @@ const { useState, useEffect, useMemo, useRef } = React;
             + '@media screen and (max-width:600px){body{width:auto;max-width:430px;padding:14px 12px 30px;font-size:14px;line-height:1.4}header{padding-bottom:12px;margin-bottom:14px}h1{font-size:24px}.sub{font-size:12px;line-height:1.4}.placar{grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}.metrica{padding:10px;border-radius:10px}.metrica span{font-size:9px}.metrica b{font-size:19px}.nota{font-size:11px;line-height:1.45;margin-bottom:12px}.tabela-wrap{border:0;overflow:visible}table,tbody{display:block;width:100%}colgroup,thead{display:none}tbody tr{display:block;width:100%;border:1px solid #d7d7d2;border-radius:14px;margin:0 0 12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.04)}tbody td{display:grid;grid-template-columns:100px minmax(0,1fr);gap:9px;width:100%;padding:8px 10px;border:0;border-bottom:1px solid #ededeb;text-align:left!important;font-size:12.5px;line-height:1.35}tbody td:last-child{border-bottom:0}tbody td:before{font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.045em;text-transform:uppercase;color:#777;padding-top:2px}tbody td:nth-child(1){display:block;background:#f7f7f5;padding:11px 12px}tbody td:nth-child(1):before{display:none}tbody td:nth-child(1)>b{font-size:14px}tbody td:nth-child(2):before{content:"No sistema"}tbody td:nth-child(3):before{content:"Base"}tbody td:nth-child(4):before{content:"Cotação"}tbody td:nth-child(5):before{content:"Seu atual"}tbody td:nth-child(6):before{content:"Diferença"}tbody td:nth-child(7):before{content:"Menor preço"}tbody td:nth-child(8):before{content:"Decisão"}td.decisao{display:block!important;text-align:left!important;padding:10px 12px!important}td.decisao:before{display:block;margin-bottom:5px}.decisao-icone{display:inline-block;font-size:18px;margin:0 5px 0 0}.decisao span{display:inline-block;font-size:11px}.decisao small{display:block;font-size:10px;margin:4px 0 0 25px}footer{font-size:10px;line-height:1.45}.acoes{position:static}.acoes button{flex:1 1 150px}}'
             + CSS_RELATORIO_PLANILHA
             + '.jpeg-tabela{width:900px!important;max-width:900px!important;margin:0 auto!important;padding:16px!important}'
-            + '.resumo{font-size:8pt;color:#555;margin:11px 0 8px}.tabela-wrap{border:1px solid #cdd3ce;border-radius:3px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th{background:#165540;color:#fff;text-align:left;font-size:7.2pt;font-weight:700;padding:10px 9px}td{padding:9px;border-bottom:1px solid #dfe4df;vertical-align:middle;font-size:8.4pt;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f6f9f7}tbody tr:last-child td{border-bottom:0}.num{text-align:right;font-variant-numeric:tabular-nums}.num b{white-space:nowrap}.num small,td small{display:block;color:#737b76;font-size:6.8pt;font-weight:400;margin-top:3px}.economia{color:#1e6b44}.alta{color:#943b43}.produto b{font-weight:700}tbody tr{break-inside:avoid}body.jpeg-mobile .tabela-wrap{border:0!important}body.jpeg-mobile table,body.jpeg-mobile tbody{display:block!important}body.jpeg-mobile colgroup,body.jpeg-mobile thead{display:none!important}body.jpeg-mobile tbody tr{display:block!important;border:1px solid #dfe4df!important;border-radius:8px!important;margin-bottom:10px!important;overflow:hidden!important}body.jpeg-mobile tbody td{display:grid!important;grid-template-columns:90px minmax(0,1fr)!important;text-align:left!important;padding:8px 10px!important}body.jpeg-mobile tbody td:first-child{display:block!important;background:#f4f7f5!important}body.jpeg-mobile tbody td:nth-child(2):before{content:"Cotado"!important}body.jpeg-mobile tbody td:nth-child(3):before{content:"Atual / fornecedor"!important}body.jpeg-mobile tbody td:nth-child(4):before{content:"Diferença"!important}@media screen and (max-width:600px){.resumo{font-size:11px;line-height:1.5}.tabela-wrap{border:0}table,tbody{display:block}colgroup,thead{display:none}tbody tr{display:block;border:1px solid #dfe4df;border-radius:8px;margin-bottom:10px;overflow:hidden}tbody td{display:grid;grid-template-columns:90px minmax(0,1fr);text-align:left!important;padding:8px 10px}tbody td:first-child{display:block;background:#f4f7f5}tbody td:nth-child(2):before{content:"Cotado"}tbody td:nth-child(3):before{content:"Atual / fornecedor"}tbody td:nth-child(4):before{content:"Diferença"}}'
+            + '.produto-linha{display:flex;gap:8px;align-items:center;min-width:0}.produto-texto{min-width:0;flex:1}.produto-foto{display:block;width:54px;height:54px;min-width:54px;object-fit:contain;background:#fff;border:1px solid #e1e6e0;border-radius:5px}.jpeg-mobile .produto-foto{width:64px;height:64px;min-width:64px}.resumo{font-size:8pt;color:#555;margin:11px 0 8px}.tabela-wrap{border:1px solid #cdd3ce;border-radius:3px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th{background:#165540;color:#fff;text-align:left;font-size:7.2pt;font-weight:700;padding:10px 9px}td{padding:9px;border-bottom:1px solid #dfe4df;vertical-align:middle;font-size:8.4pt;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f6f9f7}tbody tr:last-child td{border-bottom:0}.num{text-align:right;font-variant-numeric:tabular-nums}.num b{white-space:nowrap}.num small,td small{display:block;color:#737b76;font-size:6.8pt;font-weight:400;margin-top:3px}.economia{color:#1e6b44}.alta{color:#943b43}.produto b{font-weight:700}tbody tr{break-inside:avoid}body.jpeg-mobile .tabela-wrap{border:0!important}body.jpeg-mobile table,body.jpeg-mobile tbody{display:block!important}body.jpeg-mobile colgroup,body.jpeg-mobile thead{display:none!important}body.jpeg-mobile tbody tr{display:block!important;border:1px solid #dfe4df!important;border-radius:8px!important;margin-bottom:10px!important;overflow:hidden!important}body.jpeg-mobile tbody td{display:grid!important;grid-template-columns:90px minmax(0,1fr)!important;text-align:left!important;padding:8px 10px!important}body.jpeg-mobile tbody td:first-child{display:block!important;background:#f4f7f5!important}body.jpeg-mobile tbody td:nth-child(2):before{content:"Cotado"!important}body.jpeg-mobile tbody td:nth-child(3):before{content:"Atual / fornecedor"!important}body.jpeg-mobile tbody td:nth-child(4):before{content:"Diferença"!important}@media screen and (max-width:600px){.resumo{font-size:11px;line-height:1.5}.tabela-wrap{border:0}table,tbody{display:block}colgroup,thead{display:none}tbody tr{display:block;border:1px solid #dfe4df;border-radius:8px;margin-bottom:10px;overflow:hidden}tbody td{display:grid;grid-template-columns:90px minmax(0,1fr);text-align:left!important;padding:8px 10px}tbody td:first-child{display:block;background:#f4f7f5}tbody td:nth-child(2):before{content:"Cotado"}tbody td:nth-child(3):before{content:"Atual / fornecedor"}tbody td:nth-child(4):before{content:"Diferença"}}'
             + '</style></head><body>'
             + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG para celular</button></div>'
             + '<header><h1>' + escaparHtml(tituloCotacao) + '</h1><div class="sub">' + escaparHtml(unitName) + (dataCotacaoTexto ? ' · cotação de ' + escaparHtml(dataCotacaoTexto) : '') + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
-            + '<p class="resumo">' + cotacoesAnalisadas.length + ' produtos · ' + maisBaratos + ' mais baratos · ' + maisCaros + ' mais caros · ' + semReferencia + ' sem comparação</p>'
+            + '<p class="resumo">' + cotacoesAnalisadas.length + ' produtos · ' + maisBaratos + ' mais baratos · ' + maisCaros + ' mais caros · ' + semReferencia + ' sem comparação' + (incluirFotosCotacao ? ' · ' + quantidadeFotos + ' com foto' : '') + '</p>'
             + '<div class="tabela-wrap"><table><colgroup><col style="width:43%"><col style="width:21%"><col style="width:24%"><col style="width:12%"></colgroup>'
             + '<thead><tr><th>Produto</th><th class="num">Cotado (R$)</th><th class="num">Atual (R$) / Fornecedor</th><th class="num">Dif.</th></tr></thead><tbody>'
-            + '</tbody></table></div>'
+            + linhas + '</tbody></table></div>'
             + '<footer>Relatório gerado a partir das cotações exibidas na tela. Ajustes de item, quantidade e base feitos no comparativo são refletidos aqui.</footer>'
             + '<script>'
             + 'async function baixarJPEG(botao){'
@@ -22481,6 +22531,10 @@ ${BARRA_ACOES_HTML}
                       {cotacoesComparacao.length > 0 && (
                         <>
                           <button type="button" onClick={exportarCotacaoComparada} className="btn btn-secondary btn-md">Baixar planilha</button>
+                          <label className="inline-flex items-center gap-2 rounded-lg border border-[#dce5dd] px-3 py-2 text-sm text-[#294734] cursor-pointer select-none">
+                            <input type="checkbox" checked={incluirFotosCotacao} onChange={(e) => setIncluirFotosCotacao(e.target.checked)} className="accent-[#2f5d45] w-4 h-4" />
+                            Incluir fotos (PDF/JPEG)
+                          </label>
                           <button type="button" onClick={() => abrirRelatorioCotacoes('pdf')} className="btn btn-secondary btn-md">Relatório PDF</button>
                           <button type="button" onClick={() => abrirRelatorioCotacoes('jpeg')} className="btn btn-secondary btn-md">Relatório JPEG</button>
                           <button type="button" onClick={() => setCotacoesComparacao([])} className="btn btn-secondary btn-md">Limpar</button>
@@ -27643,6 +27697,8 @@ ${BARRA_ACOES_HTML}
                     onSetSupplyResale={handleSetSupplyResale}
                     onAddSupply={handleAddSupply}
                     onChangeCatalogType={handleChangeCatalogType}
+                    products={products}
+                    recipes={recipes}
                     onRequestEditCatalog={(value) => {
                       setCatalogQuickEditTarget({ id: Date.now(), value });
                     }}
