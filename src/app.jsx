@@ -15213,6 +15213,51 @@ const { useState, useEffect, useMemo, useRef } = React;
       }) => {
         const [novoComponente, setNovoComponente] = useState('');
         const [enviandoFoto, setEnviandoFoto] = useState(false);
+        const [seletorFotosCardapio, setSeletorFotosCardapio] = useState(false);
+        const [fotosCardapio, setFotosCardapio] = useState(null);
+        const [pesquisaFotosCardapio, setPesquisaFotosCardapio] = useState('');
+        const [erroFotosCardapio, setErroFotosCardapio] = useState('');
+        const [carregandoFotosCardapio, setCarregandoFotosCardapio] = useState(false);
+        const [mensagemFotoCardapio, setMensagemFotoCardapio] = useState('');
+        const normalizarFotoCardapio = (valor) => String(valor || '')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]+/g, ' ').trim();
+        const fotosCardapioVisiveis = useMemo(() => {
+          if (!fotosCardapio) return [];
+          const termos = normalizarFotoCardapio(pesquisaFotosCardapio).split(' ').filter(Boolean);
+          return fotosCardapio.filter((foto) => {
+            const nome = normalizarFotoCardapio(foto.name);
+            return termos.every((termo) => nome.includes(termo));
+          }).slice(0, 80);
+        }, [fotosCardapio, pesquisaFotosCardapio]);
+        const alternarFotosCardapio = async () => {
+          if (seletorFotosCardapio) { setSeletorFotosCardapio(false); return; }
+          setSeletorFotosCardapio(true);
+          setPesquisaFotosCardapio('');
+          setErroFotosCardapio('');
+          if (fotosCardapio) return;
+          setCarregandoFotosCardapio(true);
+          try {
+            const resposta = await fetch('./src/pedidos-cardapio-photos.json?v=20261019-vinculo-fotos-02', { cache: 'no-store' });
+            if (!resposta.ok) throw new Error('O catálogo não foi encontrado (HTTP ' + resposta.status + ').');
+            const dados = await resposta.json();
+            if (!Array.isArray(dados.photos)) throw new Error('Formato de catálogo inválido.');
+            const fotos = dados.photos.filter((foto) =>
+              foto.name && /^https:\/\//i.test(String(foto.url || '')));
+            if (!fotos.length) throw new Error('Nenhuma foto disponível no catálogo.');
+            setFotosCardapio(fotos);
+          } catch (erro) {
+            setErroFotosCardapio('Não foi possível carregar as fotos: ' + (erro.message || erro));
+          } finally {
+            setCarregandoFotosCardapio(false);
+          }
+        };
+        const vincularFotoCardapio = (foto) => {
+          if (!foto?.url) return;
+          onUpdateRecipe({ imageUrl: foto.url });
+          setMensagemFotoCardapio('Foto vinculada à ficha. Aguarde a confirmação de salvamento do Controle Produ.');
+          setSeletorFotosCardapio(false);
+        };
         const enviarFotoReceita = async (arquivo) => {
           if (!arquivo || !sb) return;
           if (!arquivo.type.startsWith('image/')) { window.alert('Selecione uma imagem.'); return; }
@@ -15376,8 +15421,53 @@ const { useState, useEffect, useMemo, useRef } = React;
                   {enviandoFoto ? 'Enviando…' : 'Enviar foto'}
                   <input type="file" accept="image/*" className="hidden" disabled={enviandoFoto} onChange={(e) => { enviarFotoReceita(e.target.files?.[0]); e.target.value = ''; }} />
                 </label>
-                {ficha?.imageUrl && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onUpdateRecipe({ imageUrl: '' })}>Remover foto</button>}
+                <button type="button" onClick={alternarFotosCardapio}
+                  aria-expanded={seletorFotosCardapio}
+                  className="btn btn-secondary btn-sm">
+                  {seletorFotosCardapio ? 'Fechar fotos do cardápio' : 'Escolher do Pedidos Cardápio'}
+                </button>
+                {ficha?.imageUrl && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { onUpdateRecipe({ imageUrl: '' }); setMensagemFotoCardapio(''); }}>Remover foto</button>}
               </div>
+              {mensagemFotoCardapio && <p role="status" className="t-micro mt-2 ink-quiet">{mensagemFotoCardapio}</p>}
+              {seletorFotosCardapio && (
+                <div className="mt-3 border border-[#d7e3d9] rounded-xl bg-white p-3 sm:p-4">
+                  <div className="t-caption font-semibold mb-2">Fotos do repositório Pedidos Cardápio</div>
+                  <input type="search" value={pesquisaFotosCardapio}
+                    onChange={(e) => setPesquisaFotosCardapio(e.target.value)}
+                    placeholder="Buscar por produto, por exemplo brownie ou quiche"
+                    aria-label="Buscar fotos no Pedidos Cardápio"
+                    className="field field-sm w-full mb-2" />
+                  {carregandoFotosCardapio && <p className="t-micro ink-quiet py-3">Carregando fotos do cardápio…</p>}
+                  {erroFotosCardapio && (
+                    <div className="py-2">
+                      <p role="alert" className="t-micro text-red-700">{erroFotosCardapio}</p>
+                      <button type="button" onClick={() => { setSeletorFotosCardapio(false); setFotosCardapio(null); setErroFotosCardapio(''); }}
+                        className="btn btn-secondary btn-sm mt-2">Fechar e tentar novamente</button>
+                    </div>
+                  )}
+                  {fotosCardapio && !carregandoFotosCardapio && (
+                    <>
+                      <p className="t-nano mb-2">{fotosCardapioVisiveis.length} fotos exibidas
+                        {fotosCardapioVisiveis.length === 80 ? ' (digite o nome para refinar)' : ''}.
+                        Selecione uma para vincular à receita.</p>
+                      {fotosCardapioVisiveis.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[340px] overflow-y-auto p-0.5">
+                          {fotosCardapioVisiveis.map((foto) => (
+                            <button key={foto.id || foto.url} type="button"
+                              onClick={() => vincularFotoCardapio(foto)}
+                              className="text-left rounded-lg border border-[#dce6de] bg-white hover:bg-[#f3f8f3] p-1.5 flex flex-col gap-1.5"
+                              title={'Vincular ' + foto.name}>
+                              <img src={foto.url} alt={foto.name} loading="lazy"
+                                className="w-full h-24 object-contain rounded-md bg-[#f7f7f4]" />
+                              <span className="t-nano leading-snug line-clamp-2">{foto.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : <p className="t-micro ink-quiet py-3">Nenhuma foto encontrada. Tente outro termo.</p>}
+                    </>
+                  )}
+                </div>
+              )}
               <label className="t-nano block mt-3 mb-1">Ou cole o link direto de uma foto já publicada no Pedidos Cardápio</label>
               <input key={'foto-' + (ficha?.id || produto.id)} type="url" defaultValue={ficha?.imageUrl || ''} placeholder="https://..." className="field field-sm w-full" onBlur={(e) => {
                 const url = e.target.value.trim();
