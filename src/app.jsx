@@ -22448,8 +22448,8 @@ ${BARRA_ACOES_HTML}
                         <tr>
                           <th className="sticky left-0 z-10 min-w-[260px]">Item</th>
                           <th>Tipo</th>
-                          <th className="min-w-[170px]">Categoria do insumo</th>
-                          <th className="min-w-[180px]">Categoria da revenda</th>
+                          {abaBanco !== 'producao' && <th className="min-w-[170px]">Categoria do insumo</th>}
+                          {abaBanco !== 'producao' && <th className="min-w-[180px]">Categoria da revenda</th>}
                           {(abaBanco === 'producao' || abaBanco === 'unidades') && <th className="min-w-[180px]">Categoria da produção</th>}
                           <th>Base</th>\n                          {abaBanco === 'unidades' && <th>Un. compra</th>}
                           <th>Venda</th>
@@ -22477,7 +22477,7 @@ ${BARRA_ACOES_HTML}
                               />
                               )}
                             </td>
-                            <td>
+                            {abaBanco !== 'producao' && <td>
                               {linha.supply ? (
                                 <PickerField
                                   value={linha.supply.supplyClass || 'insumo'}
@@ -22490,8 +22490,8 @@ ${BARRA_ACOES_HTML}
                                   className="field h-7 min-w-[170px] text-[12px]"
                                 />
                               ) : <span className="ink-quiet">—</span>}
-                            </td>
-                            <td>
+                            </td>}
+                            {abaBanco !== 'producao' && <td>
                               {linha.revenda ? (
                                 <PickerField
                                   value={linha.revenda.category || 'revenda'}
@@ -22504,7 +22504,7 @@ ${BARRA_ACOES_HTML}
                                   className="field h-7 min-w-[180px] text-[12px]"
                                 />
                               ) : <span className="ink-quiet">—</span>}
-                            </td>
+                            </td>}
                             {(abaBanco === 'producao' || abaBanco === 'unidades') && (
                               <td>
                                 {linha.produto ? (
@@ -22562,7 +22562,7 @@ ${BARRA_ACOES_HTML}
                           </tr>
                         ))}
                         {itensVisiveisBanco.length === 0 && (
-                          <tr><td colSpan={abaBanco === 'unidades' ? 9 : abaBanco === 'producao' ? 8 : 7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
+                          <tr><td colSpan={abaBanco === 'unidades' ? 9 : abaBanco === 'producao' ? 6 : 7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
                         )}
                       </tbody>
                     </table>
