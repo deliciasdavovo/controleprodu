@@ -22598,7 +22598,7 @@ ${BARRA_ACOES_HTML}
                                 { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
                                 ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
                               ]}
-                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })
+                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })}
                               placeholder="Vincular item"
                               emptyLabel="Nenhum item"
                               className="field field-sm"
@@ -22744,7 +22744,7 @@ ${BARRA_ACOES_HTML}
                                 { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
                                 ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
                               ]}
-                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })
+                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })}
                               placeholder="Vincular ao item do sistema"
                               emptyLabel="Nenhum item"
                               className="field field-md"
