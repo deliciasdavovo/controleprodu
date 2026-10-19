@@ -15219,6 +15219,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [erroFotosCardapio, setErroFotosCardapio] = useState('');
         const [carregandoFotosCardapio, setCarregandoFotosCardapio] = useState(false);
         const [mensagemFotoCardapio, setMensagemFotoCardapio] = useState('');
+        const [fotoUrlDigitada, setFotoUrlDigitada] = useState(ficha?.imageUrl || '');
+        useEffect(() => { setFotoUrlDigitada(ficha?.imageUrl || ''); }, [ficha?.imageUrl, produto.id]);
         const normalizarFotoCardapio = (valor) => String(valor || '')
           .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           .toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -15254,6 +15256,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         };
         const vincularFotoCardapio = (foto) => {
           if (!foto?.url) return;
+          setFotoUrlDigitada(foto.url);
           onUpdateRecipe({ imageUrl: foto.url });
           setMensagemFotoCardapio('Foto vinculada à ficha. Aguarde a confirmação de salvamento do Controle Produ.');
           setSeletorFotosCardapio(false);
@@ -15269,6 +15272,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             if (error) throw error;
             const { data } = sb.storage.from('recipe-photos').getPublicUrl(nome);
             if (!data?.publicUrl) throw new Error('Não foi possível obter a URL da imagem.');
+            setFotoUrlDigitada(data.publicUrl);
             onUpdateRecipe({ imageUrl: data.publicUrl });
           } catch (e) { window.alert('Não foi possível enviar a foto: ' + (e.message || e)); }
           finally { setEnviandoFoto(false); }
@@ -15426,7 +15430,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                   className="btn btn-secondary btn-sm">
                   {seletorFotosCardapio ? 'Fechar fotos do cardápio' : 'Escolher do Pedidos Cardápio'}
                 </button>
-                {ficha?.imageUrl && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { onUpdateRecipe({ imageUrl: '' }); setMensagemFotoCardapio(''); }}>Remover foto</button>}
+                {ficha?.imageUrl && <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setFotoUrlDigitada(''); onUpdateRecipe({ imageUrl: '' }); setMensagemFotoCardapio(''); }}>Remover foto</button>}
               </div>
               {mensagemFotoCardapio && <p role="status" className="t-micro mt-2 ink-quiet">{mensagemFotoCardapio}</p>}
               {seletorFotosCardapio && (
@@ -15469,7 +15473,8 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </div>
               )}
               <label className="t-nano block mt-3 mb-1">Ou cole o link direto de uma foto já publicada no Pedidos Cardápio</label>
-              <input key={'foto-' + (ficha?.id || produto.id)} type="url" defaultValue={ficha?.imageUrl || ''} placeholder="https://..." className="field field-sm w-full" onBlur={(e) => {
+              <input type="url" value={fotoUrlDigitada} onChange={(e) => setFotoUrlDigitada(e.target.value)}
+                placeholder="https://..." className="field field-sm w-full" onBlur={(e) => {
                 const url = e.target.value.trim();
                 if (url && !/^https:\/\//i.test(url)) { window.alert('Use um link HTTPS de imagem.'); return; }
                 if (url !== (ficha?.imageUrl || '')) onUpdateRecipe({ imageUrl: url });
