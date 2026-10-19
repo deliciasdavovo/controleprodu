@@ -19982,78 +19982,241 @@ const { useState, useEffect, useMemo, useRef } = React;
         };
 
 
+        // Relatório entregue a supervisores: leitura por resultado, sem mexer
+        // nas fórmulas de comparação ou na planilha de cotações da tela.
         const htmlRelatorioCotacoes = () => {
-          const linhas = cotacoesAnalisadas.map((x) => {
-            const foto = incluirFotosCotacao ? fotoParaLinhaCotacao(x) : '';
-            const imagem = foto ? '<img class="produto-foto" src="' + escaparHtml(foto) + '" alt="Foto do produto" loading="eager">' : '';
-            const cotado = x.precoComparavel > 0 ? formatCurrencyBR(x.precoComparavel) : '—';
-            const atual = x.atual?.precoComparavel > 0 ? formatCurrencyBR(x.atual.precoComparavel) : '—';
-            const diferenca = x.diferencaPct !== null ? (x.diferencaPct > 0 ? '+' : '') + x.diferencaPct.toFixed(1).replace('.', ',') + '%' : '—';
-            const tom = x.diferencaPct === null ? '' : x.diferencaPct < 0 ? ' economia' : x.diferencaPct > 0 ? ' alta' : '';
-            const unidade = x.unidade ? ' / ' + x.unidade : '';
-            return '<tr>'
-              + '<td class="produto"><div class="produto-linha">' + imagem + '<div class="produto-texto"><b>' + escaparHtml(x.descricao) + '</b>'
-              + (x.itensVinculados?.length ? '<small>Cadastro: ' + escaparHtml(x.itensVinculados.map((item) => item.nome).join(' + ')) + (x.conjunto ? ' · 1 un de cada' : '') + '</small>' : '') + '</div></div></td>'
-              + '<td class="num"><b>' + escaparHtml(cotado) + '</b><small>' + escaparHtml(x.fornecedor || 'Cotação') + escaparHtml(unidade) + '</small></td>'
-              + '<td class="num"><b>' + escaparHtml(atual) + '</b><small>' + (x.atual ? escaparHtml(x.atual.fornecedor || 'Fornecedor não informado') + escaparHtml(unidade) : 'Sem preço anterior') + '</small></td>'
-              + '<td class="num' + tom + '"><b>' + escaparHtml(diferenca) + '</b></td>'
-              + '</tr>';
-          }).join('');
-
-          const comReferencia = cotacoesAnalisadas.filter((x) => x.diferencaPct !== null);
-          const maisBaratos = comReferencia.filter((x) => x.diferencaPct < 0).length;
-          const maisCaros = comReferencia.filter((x) => x.diferencaPct > 0).length;
-          const semReferencia = cotacoesAnalisadas.length - comReferencia.length;
-          const quantidadeFotos = incluirFotosCotacao ? cotacoesAnalisadas.filter((x) => !!fotoParaLinhaCotacao(x)).length : 0;
-          const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+          const grupos = [
+            {
+              titulo: 'Cotações abaixo da referência',
+              descricao: 'Verificar a oferta: o preço cotado é menor que o preço atual de referência.',
+              classe: 'abaixo',
+              itens: cotacoesAnalisadas.filter((x) => Number.isFinite(x.diferencaPct) && x.diferencaPct < -0.05)
+                .sort((a, b) => a.diferencaPct - b.diferencaPct)
+            },
+            {
+              titulo: 'Cotações acima da referência',
+              descricao: 'O preço cotado é maior. Conferir fornecedor e condições antes de comprar.',
+              classe: 'acima',
+              itens: cotacoesAnalisadas.filter((x) => Number.isFinite(x.diferencaPct) && x.diferencaPct > 0.05)
+                .sort((a, b) => b.diferencaPct - a.diferencaPct)
+            },
+            {
+              titulo: 'Preços praticamente iguais',
+              descricao: 'Diferença de até 0,05% em relação à referência.',
+              classe: 'igual',
+              itens: cotacoesAnalisadas.filter((x) => Number.isFinite(x.diferencaPct) && Math.abs(x.diferencaPct) <= 0.05)
+            },
+            {
+              titulo: 'Sem comparação',
+              descricao: 'Não há referência completa e compatível na mesma unidade/base.',
+              classe: 'sem-referencia',
+              itens: cotacoesAnalisadas.filter((x) => !Number.isFinite(x.diferencaPct))
+            }
+          ];
           const tituloCotacao = String(cotacaoNome || '').trim() || 'Comparativo de cotações';
           const dataCotacaoTexto = cotacaoData ? formatDateBR(cotacaoData) : '';
+          const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+          const quantidadeFotos = incluirFotosCotacao
+            ? cotacoesAnalisadas.filter((x) => !!fotoParaLinhaCotacao(x)).length : 0;
+          const numeroComVirgula = (valor) => Math.abs(valor).toFixed(1).replace('.', ',');
+          const rodapeDaBase = (x) => x.unidade ? '/' + escaparHtml(x.unidade) : ' · base não informada';
+
+          const linhaHtml = (x) => {
+            const foto = incluirFotosCotacao ? fotoParaLinhaCotacao(x) : '';
+            const imagem = foto
+              ? '<img class="produto-foto" src="' + escaparHtml(foto) + '" alt="Foto de ' + escaparHtml(x.descricao) + '" loading="eager">'
+              : '';
+            const itensCadastro = (x.itensVinculados || []).map((item) => item.nome).join(' + ');
+            const composicao = itensCadastro
+              ? '<small class="identificacao">Cadastro: ' + escaparHtml(itensCadastro)
+                + (x.conjunto ? ' · 1 unidade de cada peça por conjunto' : '') + '</small>'
+              : '';
+            const cotado = x.precoComparavel > 0 ? formatCurrencyBR(x.precoComparavel) : '—';
+            const atual = x.atual?.precoComparavel > 0 ? formatCurrencyBR(x.atual.precoComparavel) : '—';
+            const podeComparar = Number.isFinite(x.diferencaPct);
+            let resultado = '<strong class="sem-valor">Sem comparação</strong>'
+              + '<small>' + (x.conjunto && x.referenciaIncompleta
+                ? 'Falta referência de alguma peça do conjunto'
+                : 'Sem preço anterior na mesma base') + '</small>';
+            if (podeComparar) {
+              const direcao = x.diferencaPct < -0.05 ? 'abaixo'
+                : x.diferencaPct > 0.05 ? 'acima' : 'igual';
+              const percentual = (x.diferencaPct > 0 ? '+' : x.diferencaPct < 0 ? '−' : '')
+                + numeroComVirgula(x.diferencaPct) + '%';
+              const valor = Number.isFinite(x.diferencaAtual)
+                ? formatCurrencyBR(Math.abs(x.diferencaAtual)) : '';
+              const rotulo = direcao === 'igual' ? 'Valor equivalente'
+                : valor + (direcao === 'abaixo' ? ' abaixo' : ' acima') + (x.unidade ? ' / ' + escaparHtml(x.unidade) : '');
+              resultado = '<strong class="percentual ' + direcao + '">' + percentual + '</strong>'
+                + '<small>' + rotulo + '</small>';
+            }
+            return '<tr class="linha-produto">'
+              + '<td class="produto"><div class="produto-linha">' + imagem
+              + '<div class="produto-texto"><strong>' + escaparHtml(x.descricao) + '</strong>'
+              + composicao + '</div></div></td>'
+              + '<td class="num col-cotado"><strong class="preco">' + escaparHtml(cotado) + '</strong>'
+              + '<small>' + escaparHtml(x.fornecedor || 'Cotação') + '</small>'
+              + '<small class="base">' + rodapeDaBase(x) + '</small></td>'
+              + '<td class="num col-atual"><strong class="preco">' + escaparHtml(atual) + '</strong>'
+              + '<small>' + (x.atual ? escaparHtml(x.atual.fornecedor || 'Fornecedor não informado') : 'Sem referência') + '</small>'
+              + '<small class="base">' + (x.atual ? rodapeDaBase(x) : '—') + '</small></td>'
+              + '<td class="num col-resultado">' + resultado + '</td>'
+              + '</tr>';
+          };
+          const secaoHtml = (grupo, indice) => {
+            if (!grupo.itens.length) return '';
+            return '<section class="grupo grupo-' + grupo.classe + '">'
+              + '<div class="grupo-cabecalho"><div><h2><span class="grupo-indice">'
+              + String(indice + 1).padStart(2, '0') + '</span>' + escaparHtml(grupo.titulo) + '</h2>'
+              + '<p>' + escaparHtml(grupo.descricao) + '</p></div>'
+              + '<strong class="quantidade-grupo">' + grupo.itens.length + ' '
+              + (grupo.itens.length === 1 ? 'item' : 'itens') + '</strong></div>'
+              + '<div class="tabela-wrap"><table><colgroup>'
+              + '<col style="width:39%"><col style="width:21%"><col style="width:23%"><col style="width:17%">'
+              + '</colgroup><thead><tr>'
+              + '<th>Produto</th><th class="num">Preço cotado</th><th class="num">Preço de referência</th>'
+              + '<th class="num">Diferença</th></tr></thead><tbody>'
+              + grupo.itens.map(linhaHtml).join('')
+              + '</tbody></table></div></section>';
+          };
 
           return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
             + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-            + '<title>' + escaparHtml(tituloCotacao) + (dataCotacaoTexto ? ' — ' + escaparHtml(dataCotacaoTexto) : '') + ' — ' + escaparHtml(unitName) + '</title>'
+            + '<title>' + escaparHtml(tituloCotacao) + ' — ' + escaparHtml(unitName) + '</title>'
             + '<link rel="preconnect" href="https://fonts.googleapis.com">'
             + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             + '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
             + '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></scr' + 'ipt>'
             + '<style>'
-            + '@page{size:A4 landscape;margin:9mm 10mm;}*{box-sizing:border-box;}'
-            + 'body{font-family:Manrope,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#171717;margin:0 auto;padding:0 3vw 40px;max-width:1080px;font-size:9.4pt;background:#fff;}'
-            + '@media print{body{padding:0;max-width:none;width:100%!important;font-size:9.4pt}.acoes{display:none!important;}}'
-            + '.acoes{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;padding:10px 0 12px;margin-bottom:8px;background:#fff;border-bottom:1px solid #ddd;}'
-            + '.acoes button{font:inherit;font-size:10pt;font-weight:700;border-radius:8px;padding:10px 16px;min-height:42px;cursor:pointer;}'
-            + '.pdf{color:#fff;background:#0E0937;border:1px solid #0E0937}.jpeg{color:#0E0937;background:#fff;border:1px solid #0E0937}'
-            + 'header{border-bottom:2px solid #111;padding-bottom:9px;margin-bottom:10px}h1{font-size:18pt;line-height:1.1;margin:0}.sub{color:#666;margin-top:4px}'
-            + '.placar{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}.metrica{border:1px solid #ccc;border-radius:5px;padding:8px}.metrica span{display:block;color:#666;font-size:7pt;text-transform:uppercase}.metrica b{display:block;font-size:13pt;margin-top:2px}'
-            + '.nota{color:#666;margin:0 0 8px}.tabela-wrap{border:1px solid #aaa;border-radius:4px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:6px 5px;border-right:1px solid #cfcfcb;border-bottom:1px solid #cfcfcb;vertical-align:top;overflow-wrap:anywhere}th:last-child,td:last-child{border-right:0}tbody tr:last-child td{border-bottom:0}'
-            + 'th{font-size:6.8pt;text-transform:uppercase;letter-spacing:.025em;background:#ececea;text-align:left}.num{text-align:right;font-variant-numeric:tabular-nums}.num small,td small{display:block;color:#666;font-size:6.8pt;margin-top:2px}.menor-cotacao{background:#E8F2EB;color:#1E6B44;font-weight:800}.cotacao-valor b{display:block;white-space:nowrap;font-size:8.2pt;letter-spacing:-.01em}.selo-menor{color:#1E6B44!important;font-weight:800;letter-spacing:.025em;font-size:5.8pt!important;white-space:nowrap;margin-top:4px!important}.economia{color:#1E6B44}.alta{color:#7D2027}.decisao{text-align:center;font-weight:800}.decisao-icone{display:block;font-size:17pt;line-height:1;margin-bottom:3px}.decisao span{display:block;font-size:6.5pt;letter-spacing:.035em}.decisao small{font-weight:500;line-height:1.25}.decisao-sim{background:#E8F2EB;color:#1E6B44}.decisao-nao{background:#F8E9E9;color:#8A2530}.decisao-sem{background:#f2f2f2;color:#777}'
-            + 'footer{margin-top:14px;padding-top:7px;border-top:1px solid #bbb;color:#666;font-size:7.5pt}'
-            + 'body.jpeg-mobile{width:430px!important;max-width:430px!important;margin:0 auto!important;padding:18px 16px 34px!important;font-size:14px!important;line-height:1.4!important}.jpeg-mobile header{padding-bottom:12px!important;margin-bottom:14px!important}.jpeg-mobile h1{font-size:25px!important;line-height:1.08!important}.jpeg-mobile .sub{font-size:12px!important;line-height:1.4!important}.jpeg-mobile .placar{grid-template-columns:repeat(2,1fr)!important;gap:8px!important;margin:14px 0!important}.jpeg-mobile .metrica{padding:10px!important;border-radius:10px!important}.jpeg-mobile .metrica span{font-size:9px!important}.jpeg-mobile .metrica b{font-size:20px!important}.jpeg-mobile .nota{font-size:11px!important;line-height:1.45!important;margin-bottom:12px!important}.jpeg-mobile .tabela-wrap{border:0!important;overflow:visible!important}.jpeg-mobile table,.jpeg-mobile tbody{display:block!important;width:100%!important}.jpeg-mobile colgroup,.jpeg-mobile thead{display:none!important}.jpeg-mobile tbody tr{display:block!important;width:100%!important;border:1px solid #d7d7d2!important;border-radius:14px!important;margin:0 0 12px!important;overflow:hidden!important;background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.04)!important}.jpeg-mobile tbody td{display:grid!important;grid-template-columns:104px minmax(0,1fr)!important;gap:10px!important;width:100%!important;padding:8px 11px!important;border:0!important;border-bottom:1px solid #ededeb!important;text-align:left!important;font-size:12.5px!important;line-height:1.35!important;overflow-wrap:anywhere!important}.jpeg-mobile tbody td:last-child{border-bottom:0!important}.jpeg-mobile tbody td:before{font-size:9px!important;line-height:1.3!important;font-weight:800!important;letter-spacing:.045em!important;text-transform:uppercase!important;color:#777!important;padding-top:2px!important}.jpeg-mobile tbody td:nth-child(1){display:block!important;background:#f7f7f5!important;padding:11px 12px!important}.jpeg-mobile tbody td:nth-child(1):before{display:none!important}.jpeg-mobile tbody td:nth-child(1)>b{font-size:14px!important;line-height:1.25!important}.jpeg-mobile tbody td:nth-child(1) small{font-size:10px!important;margin-top:3px!important}.jpeg-mobile tbody td:nth-child(2):before{content:"No sistema"}.jpeg-mobile tbody td:nth-child(3):before{content:"Base"}.jpeg-mobile tbody td:nth-child(4):before{content:"Cotação"}.jpeg-mobile tbody td:nth-child(5):before{content:"Seu atual"}.jpeg-mobile tbody td:nth-child(6):before{content:"Diferença"}.jpeg-mobile tbody td:nth-child(7):before{content:"Menor preço"}.jpeg-mobile tbody td:nth-child(8):before{content:"Decisão"}.jpeg-mobile .num small,.jpeg-mobile td small{font-size:10px!important;margin-top:2px!important}.jpeg-mobile .cotacao-valor b{font-size:13px!important}.jpeg-mobile .selo-menor{font-size:8px!important;margin-top:3px!important}.jpeg-mobile td.decisao{display:block!important;text-align:left!important;padding:10px 12px!important}.jpeg-mobile td.decisao:before{display:block!important;margin-bottom:5px!important}.jpeg-mobile .decisao-icone{display:inline-block!important;font-size:18px!important;margin:0 5px 0 0!important;vertical-align:middle!important}.jpeg-mobile .decisao span{display:inline-block!important;font-size:11px!important;vertical-align:middle!important}.jpeg-mobile .decisao small{display:block!important;font-size:10px!important;margin:4px 0 0 25px!important}.jpeg-mobile footer{font-size:10px!important;line-height:1.45!important;margin-top:12px!important;padding-top:9px!important}'
-            + '@media screen and (max-width:600px){body{width:auto;max-width:430px;padding:14px 12px 30px;font-size:14px;line-height:1.4}header{padding-bottom:12px;margin-bottom:14px}h1{font-size:24px}.sub{font-size:12px;line-height:1.4}.placar{grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}.metrica{padding:10px;border-radius:10px}.metrica span{font-size:9px}.metrica b{font-size:19px}.nota{font-size:11px;line-height:1.45;margin-bottom:12px}.tabela-wrap{border:0;overflow:visible}table,tbody{display:block;width:100%}colgroup,thead{display:none}tbody tr{display:block;width:100%;border:1px solid #d7d7d2;border-radius:14px;margin:0 0 12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.04)}tbody td{display:grid;grid-template-columns:100px minmax(0,1fr);gap:9px;width:100%;padding:8px 10px;border:0;border-bottom:1px solid #ededeb;text-align:left!important;font-size:12.5px;line-height:1.35}tbody td:last-child{border-bottom:0}tbody td:before{font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.045em;text-transform:uppercase;color:#777;padding-top:2px}tbody td:nth-child(1){display:block;background:#f7f7f5;padding:11px 12px}tbody td:nth-child(1):before{display:none}tbody td:nth-child(1)>b{font-size:14px}tbody td:nth-child(2):before{content:"No sistema"}tbody td:nth-child(3):before{content:"Base"}tbody td:nth-child(4):before{content:"Cotação"}tbody td:nth-child(5):before{content:"Seu atual"}tbody td:nth-child(6):before{content:"Diferença"}tbody td:nth-child(7):before{content:"Menor preço"}tbody td:nth-child(8):before{content:"Decisão"}td.decisao{display:block!important;text-align:left!important;padding:10px 12px!important}td.decisao:before{display:block;margin-bottom:5px}.decisao-icone{display:inline-block;font-size:18px;margin:0 5px 0 0}.decisao span{display:inline-block;font-size:11px}.decisao small{display:block;font-size:10px;margin:4px 0 0 25px}footer{font-size:10px;line-height:1.45}.acoes{position:static}.acoes button{flex:1 1 150px}}'
-            + CSS_RELATORIO_PLANILHA
-            + 'body.jpeg-tabela{width:1120px!important;min-width:1120px!important;max-width:1120px!important;margin:0 auto!important;padding:24px!important;font-size:14px!important;line-height:1.35!important}body.jpeg-tabela table{display:table!important;table-layout:fixed!important;width:100%!important}body.jpeg-tabela colgroup{display:table-column-group!important}body.jpeg-tabela thead{display:table-header-group!important}body.jpeg-tabela tbody{display:table-row-group!important}body.jpeg-tabela tr{display:table-row!important;width:auto!important;border-radius:0!important;box-shadow:none!important}body.jpeg-tabela th,body.jpeg-tabela td{display:table-cell!important;width:auto!important;text-align:left;vertical-align:middle!important}body.jpeg-tabela td.num,body.jpeg-tabela th.num{text-align:right!important}body.jpeg-tabela tbody td:before{display:none!important;content:none!important}body.jpeg-tabela .tabela-wrap{border:1px solid #dfe4df!important;overflow:visible!important}body.jpeg-tabela .produto-foto{width:70px;height:70px;min-width:70px}'
-            + '.produto-linha{display:flex;gap:8px;align-items:center;min-width:0}.produto-texto{min-width:0;flex:1}.produto-foto{display:block;width:64px;height:64px;min-width:64px;object-fit:contain;background:#fff;border:1px solid #e1e6e0;border-radius:5px}.jpeg-mobile .produto-foto{width:64px;height:64px;min-width:64px}.resumo{font-size:8pt;color:#555;margin:11px 0 8px}.tabela-wrap{border:1px solid #cdd3ce;border-radius:3px;overflow:hidden}table{width:100%;border-collapse:collapse;table-layout:fixed}th{background:#165540;color:#fff;text-align:left;font-size:8.5pt;font-weight:700;padding:10px 9px}td{padding:9px;border-bottom:1px solid #dfe4df;vertical-align:middle;font-size:9.4pt;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f6f9f7}tbody tr:last-child td{border-bottom:0}.num{text-align:right;font-variant-numeric:tabular-nums}.num b{white-space:nowrap}.num small,td small{display:block;color:#737b76;font-size:7.8pt;font-weight:400;margin-top:3px}.economia{color:#1e6b44}.alta{color:#943b43}.produto b{font-weight:700}tbody tr{break-inside:avoid}body.jpeg-mobile .tabela-wrap{border:0!important}body.jpeg-mobile table,body.jpeg-mobile tbody{display:block!important}body.jpeg-mobile colgroup,body.jpeg-mobile thead{display:none!important}body.jpeg-mobile tbody tr{display:block!important;border:1px solid #dfe4df!important;border-radius:8px!important;margin-bottom:10px!important;overflow:hidden!important}body.jpeg-mobile tbody td{display:grid!important;grid-template-columns:90px minmax(0,1fr)!important;text-align:left!important;padding:8px 10px!important}body.jpeg-mobile tbody td:first-child{display:block!important;background:#f4f7f5!important}body.jpeg-mobile tbody td:nth-child(2):before{content:"Cotado"!important}body.jpeg-mobile tbody td:nth-child(3):before{content:"Atual / fornecedor"!important}body.jpeg-mobile tbody td:nth-child(4):before{content:"Diferença"!important}@media screen and (max-width:600px){.resumo{font-size:11px;line-height:1.5}.tabela-wrap{border:0}table,tbody{display:block}colgroup,thead{display:none}tbody tr{display:block;border:1px solid #dfe4df;border-radius:8px;margin-bottom:10px;overflow:hidden}tbody td{display:grid;grid-template-columns:90px minmax(0,1fr);text-align:left!important;padding:8px 10px}tbody td:first-child{display:block;background:#f4f7f5}tbody td:nth-child(2):before{content:"Cotado"}tbody td:nth-child(3):before{content:"Atual / fornecedor"}tbody td:nth-child(4):before{content:"Diferença"}}'
+            + '@page{size:A4 landscape;margin:10mm 10mm;}'
+            + '*{box-sizing:border-box;}html{background:#fff;}'
+            + 'body{font-family:Manrope,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#26352c;'
+            + 'width:100%;max-width:1100px;margin:0 auto;padding:0 22px 34px;font-size:10pt;line-height:1.42;background:white;}'
+            + '.acoes{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:8px;'
+            + 'padding:12px 0;background:white;border-bottom:1px solid #e2e8e2;}'
+            + '.acoes button{font:700 12px Manrope,sans-serif;border:1px solid #315b40;border-radius:7px;'
+            + 'background:white;color:#315b40;padding:10px 14px;min-height:40px;cursor:pointer;}'
+            + '.acoes .pdf{background:#244f37;color:white;}'
+            + 'header{padding:15px 0 13px;border-bottom:2px solid #315b40;margin:0 0 12px;}'
+            + '.marca{font-size:7.8pt;font-weight:800;letter-spacing:.13em;color:#47735a;margin-bottom:5px;}'
+            + 'h1{font-size:20pt;line-height:1.2;margin:0;color:#243d2c;font-weight:800;}'
+            + '.sub{font-size:8.8pt;color:#627168;margin-top:6px;}'
+            + '.placar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0 13px;}'
+            + '.metrica{padding:9px 11px;border:1px solid #dae5dc;background:#f7faf7;border-radius:6px;}'
+            + '.metrica span{font-size:8pt;color:#667a6b;display:block;margin-bottom:3px;}'
+            + '.metrica strong{font-size:17pt;font-variant-numeric:tabular-nums;line-height:1.15;display:block;color:#243d2c;}'
+            + '.metrica.total{background:#e9f1eb;border-color:#c9d9cd;}'
+            + '.orientacao{font-size:8.2pt;color:#67746a;margin:0 0 17px;}'
+            + '.grupo{margin-top:17px;break-inside:auto;}'
+            + '.grupo-cabecalho{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;'
+            + 'padding:0 0 7px;margin-bottom:5px;border-bottom:1px solid #cbd9ce;break-after:avoid;page-break-after:avoid;}'
+            + '.grupo h2{font-size:12.2pt;line-height:1.3;color:#244b34;margin:0;font-weight:800;}'
+            + '.grupo-indice{font-size:9pt;color:#6b8975;letter-spacing:.06em;margin-right:9px;}'
+            + '.grupo-cabecalho p{font-size:8.1pt;line-height:1.4;color:#6d7871;margin:4px 0 0;}'
+            + '.quantidade-grupo{color:#496b53;font-size:8pt;white-space:nowrap;font-weight:750;}'
+            + '.tabela-wrap{width:100%;border:1px solid #d8e3da;border-radius:4px;overflow-x:auto;}'
+            + 'table{width:100%;min-width:800px;border-collapse:collapse;table-layout:fixed;'
+            + 'margin:0!important;font-size:9.3pt;font-variant-numeric:tabular-nums;}'
+            + 'thead{display:table-header-group;}tr{break-inside:avoid;page-break-inside:avoid;}'
+            + 'th{font-size:8.1pt;letter-spacing:.015em;text-align:left;background:#2d6547;color:white;'
+            + 'padding:10px 10px;line-height:1.3;}'
+            + 'td{padding:10px 10px;border-bottom:1px solid #dfe8e0;vertical-align:middle;overflow-wrap:anywhere;}'
+            + 'tbody tr:nth-child(even){background:#f4f8f4;}'
+            + 'tbody tr:last-child td{border-bottom:0;}'
+            + '.produto-linha{display:flex;align-items:center;gap:10px;min-width:0;}'
+            + '.produto-foto{display:block;width:61px;height:61px;min-width:61px;object-fit:contain;'
+            + 'border-radius:4px;background:white;border:1px solid #e0e8e1;}'
+            + '.produto-texto{min-width:0;flex:1;}'
+            + '.produto-texto>strong{display:block;font-size:9.5pt;line-height:1.35;color:#263e2d;}'
+            + '.identificacao{color:#6a796f;margin-top:3px;}'
+            + '.num{text-align:right;font-variant-numeric:tabular-nums;}'
+            + '.preco{font-size:11.3pt;font-weight:800;color:#233c2c;white-space:nowrap;display:block;}'
+            + 'td small{font-size:8pt;color:#69756d;font-weight:400;display:block;line-height:1.4;margin-top:2px;}'
+            + '.base{color:#738075;}'
+            + '.percentual{font-size:11.8pt;font-weight:800;display:block;white-space:nowrap;}'
+            + '.percentual.abaixo{color:#19653c;}.percentual.acima{color:#943b43;}.percentual.igual{color:#456354;}'
+            + '.sem-valor{font-size:8.4pt;color:#5d6b60;display:block;}'
+            + 'footer{margin:19px 0 0;padding-top:10px;border-top:1px solid #d9e3db;'
+            + 'font-size:8pt;line-height:1.5;color:#69766c;}'
+            + '@media print{@page{size:A4 landscape;margin:10mm 10mm;}'
+            + '*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+            + 'body{padding:0!important;max-width:none!important;width:100%!important;font-size:10pt!important;}'
+            + '.acoes{display:none!important;}.tabela-wrap{overflow:visible!important;border-radius:0;}'
+            + 'table{width:100%!important;min-width:0!important;}thead{display:table-header-group!important;}'
+            + '.grupo-cabecalho{break-after:avoid;page-break-after:avoid;}.linha-produto{break-inside:avoid;page-break-inside:avoid;}}'
+            + '@media screen and (max-width:680px){body{padding:0 12px 30px;}h1{font-size:18pt;}'
+            + '.placar{grid-template-columns:repeat(2,minmax(0,1fr));}.orientacao{font-size:9pt;}'
+            + '.grupo-cabecalho{align-items:start;}.tabela-wrap{overflow-x:auto;}}'
+            + 'body.jpeg-tabela{width:1120px!important;min-width:1120px!important;max-width:1120px!important;'
+            + 'padding:22px 24px 32px!important;margin:0 auto!important;font-size:10pt!important;}'
+            + 'body.jpeg-tabela .placar{grid-template-columns:repeat(4,minmax(0,1fr))!important;}'
+            + 'body.jpeg-tabela .tabela-wrap{overflow:visible!important;}'
+            + 'body.jpeg-tabela table{width:100%!important;min-width:0!important;}'
             + '</style></head><body>'
-            + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar em PDF</button><button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG para celular</button></div>'
-            + '<header><h1>' + escaparHtml(tituloCotacao) + '</h1><div class="sub">' + escaparHtml(unitName) + (dataCotacaoTexto ? ' · cotação de ' + escaparHtml(dataCotacaoTexto) : '') + ' · gerado em ' + escaparHtml(geradoEm) + '</div></header>'
-            + '<p class="resumo">' + cotacoesAnalisadas.length + ' produtos · ' + maisBaratos + ' mais baratos · ' + maisCaros + ' mais caros · ' + semReferencia + ' sem comparação' + (incluirFotosCotacao ? ' · ' + quantidadeFotos + ' com foto' : '') + '</p>'
-            + '<div class="tabela-wrap"><table><colgroup><col style="width:43%"><col style="width:21%"><col style="width:24%"><col style="width:12%"></colgroup>'
-            + '<thead><tr><th>Produto</th><th class="num">Cotado (R$)</th><th class="num">Atual (R$) / Fornecedor</th><th class="num">Dif.</th></tr></thead><tbody>'
-            + linhas + '</tbody></table></div>'
-            + '<footer>Relatório gerado a partir das cotações exibidas na tela. Ajustes de item, quantidade e base feitos no comparativo são refletidos aqui.</footer>'
+            + '<div class="acoes"><button class="pdf" onclick="window.print()">Salvar PDF horizontal</button>'
+            + '<button class="jpeg" onclick="baixarJPEG(this)">Baixar JPEG horizontal</button></div>'
+            + '<header><div class="marca">DELÍCIAS DA VOVÓ · RELATÓRIO PARA CONFERÊNCIA</div>'
+            + '<h1>' + escaparHtml(tituloCotacao) + '</h1>'
+            + '<div class="sub">' + escaparHtml(unitName)
+            + (dataCotacaoTexto ? ' · Cotação de ' + escaparHtml(dataCotacaoTexto) : '')
+            + ' · Emitido em ' + escaparHtml(geradoEm) + '</div></header>'
+            + '<div class="placar">'
+            + '<div class="metrica total"><span>Produtos cotados</span><strong>' + cotacoesAnalisadas.length + '</strong></div>'
+            + '<div class="metrica"><span>Abaixo da referência</span><strong>' + grupos[0].itens.length + '</strong></div>'
+            + '<div class="metrica"><span>Acima da referência</span><strong>' + grupos[1].itens.length + '</strong></div>'
+            + '<div class="metrica"><span>Sem comparação</span><strong>' + grupos[3].itens.length + '</strong></div>'
+            + '</div><p class="orientacao">Cada preço é apresentado na base indicada. '
+            + 'Em conjuntos de embalagem + tampa, a referência só é calculada quando todas as peças têm preço compatível.'
+            + (incluirFotosCotacao ? ' · ' + quantidadeFotos + ' itens com foto.' : '') + '</p>'
+            + grupos.map(secaoHtml).join('')
+            + '<footer>Comparação informativa a partir das cotações e do histórico registrados no Controle Produ. '
+            + 'A diferença é por unidade/base, não representa economia total da compra. '
+            + 'Verifique quantidades, composição de conjuntos e condições comerciais antes da decisão.</footer>'
             + '<script>'
             + 'async function baixarJPEG(botao){'
-            + 'if(!window.html2canvas){alert("A ferramenta de imagem ainda está carregando. Tente novamente em um instante.");return;}'
-            + 'var barra=document.querySelector(".acoes");var antigo=barra.style.display;var txt=botao?botao.textContent:"";var escala=2.2;'
-            + 'try{if(botao){botao.disabled=true;botao.textContent="Gerando JPEG…";}if(document.fonts&&document.fonts.ready)await document.fonts.ready;barra.style.display="none";document.body.classList.add("jpeg-tabela");window.scrollTo(0,0);'
-            + 'await new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})});'
-            + 'var largura=Math.max(document.body.scrollWidth,430);var altura=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight);'
-            + 'var canvas=await html2canvas(document.body,{backgroundColor:"#ffffff",scale:escala,useCORS:true,logging:false,scrollX:0,scrollY:0,width:largura,height:altura,windowWidth:largura,windowHeight:altura});'
-            + 'var cortes=Array.prototype.slice.call(document.querySelectorAll("tbody tr")).map(function(tr){return Math.round((tr.getBoundingClientRect().bottom+window.scrollY)*escala)}).filter(function(y){return y>0&&y<canvas.height});'
-            + 'var alvo=Math.floor(canvas.width*(210/297));var partes=[];var inicio=0;while(inicio<canvas.height){var ideal=Math.min(canvas.height,inicio+alvo);var candidatos=cortes.filter(function(y){return y>inicio+Math.floor(30*escala)&&y<=ideal});var fim=candidatos.length?candidatos[candidatos.length-1]:ideal;if(fim<=inicio)fim=ideal;partes.push([inicio,fim]);inicio=fim;}'
-            + 'for(var p=0;p<partes.length;p++){var y=partes[p][0];var h=partes[p][1]-y;var parte=document.createElement("canvas");parte.width=canvas.width;parte.height=Math.max(h,alvo);var ctx=parte.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,parte.width,parte.height);ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);'
-            + 'await new Promise(function(resolve,reject){parte.toBlob(function(blob){if(!blob){reject(new Error("Falha ao gerar JPEG"));return;}var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download="comparativo-cotacoes-horizontal-' + getTodayDateString() + '"+(partes.length>1?"-"+(p+1):"")+".jpg";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);resolve()},180)},"image/jpeg",0.95)});}'
-            + '}catch(e){console.error(e);alert("Não consegui gerar o JPEG deste relatório.");}finally{document.body.classList.remove("jpeg-tabela");barra.style.display=antigo;if(botao){botao.disabled=false;botao.textContent=txt||"Baixar JPEG para celular";}}}'
+            + 'if(!window.html2canvas){alert("A geração da imagem está carregando. Tente novamente em um instante.");return;}'
+            + 'var barra=document.querySelector(".acoes");var anterior=barra.style.display;'
+            + 'var legenda=botao?botao.textContent:"";var escala=2.2;'
+            + 'try{if(botao){botao.disabled=true;botao.textContent="Gerando JPEG…";}'
+            + 'if(document.fonts&&document.fonts.ready)await document.fonts.ready;'
+            + 'barra.style.display="none";document.body.classList.add("jpeg-tabela");window.scrollTo(0,0);'
+            + 'await Promise.all(Array.prototype.slice.call(document.images).map(function(img){'
+            + 'if(img.complete)return Promise.resolve();return new Promise(function(ok){'
+            + 'var limite=setTimeout(ok,2500);img.onload=img.onerror=function(){clearTimeout(limite);ok();};});}));'
+            + 'await new Promise(function(ok){requestAnimationFrame(function(){requestAnimationFrame(ok);});});'
+            + 'var largura=Math.max(document.body.scrollWidth,1120);'
+            + 'var altura=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);'
+            + 'var canvas=await html2canvas(document.body,{backgroundColor:"#ffffff",scale:escala,'
+            + 'useCORS:true,logging:false,scrollX:0,scrollY:0,width:largura,height:altura,'
+            + 'windowWidth:largura,windowHeight:altura});'
+            + 'var cortes=Array.prototype.slice.call(document.querySelectorAll("tbody .linha-produto"))'
+            + '.map(function(tr){return Math.round((tr.getBoundingClientRect().bottom+window.scrollY)*escala);})'
+            + '.filter(function(y){return y>0&&y<canvas.height;});'
+            + 'var alvo=Math.floor(canvas.width*(210/297));var partes=[];var inicio=0;'
+            + 'while(inicio<canvas.height){var ideal=Math.min(canvas.height,inicio+alvo);'
+            + 'var candidatos=cortes.filter(function(y){return y>inicio+Math.floor(alvo*.6)&&y<=ideal;});'
+            + 'var fim=candidatos.length?candidatos[candidatos.length-1]:ideal;'
+            + 'if(fim<=inicio)fim=ideal;partes.push([inicio,fim]);inicio=fim;}'
+            + 'for(var p=0;p<partes.length;p++){var y=partes[p][0];var h=partes[p][1]-y;'
+            + 'var topo=p===0?0:56*escala;var parte=document.createElement("canvas");'
+            + 'parte.width=canvas.width;parte.height=Math.max(h+topo,alvo);'
+            + 'var ctx=parte.getContext("2d");ctx.fillStyle="#fff";'
+            + 'ctx.fillRect(0,0,parte.width,parte.height);'
+            + 'if(topo){ctx.fillStyle="#28563c";ctx.font="bold "+(16*escala)+"px sans-serif";'
+            + 'ctx.fillText("DELÍCIAS DA VOVÓ  ·  COMPARATIVO DE COTAÇÕES  ·  CONTINUAÇÃO",28*escala,30*escala);'
+            + 'ctx.fillStyle="#d8e4da";ctx.fillRect(24*escala,39*escala,parte.width-48*escala,2*escala);}'
+            + 'ctx.drawImage(canvas,0,y,canvas.width,h,0,topo,canvas.width,h);'
+            + 'await new Promise(function(resolve,reject){parte.toBlob(function(blob){'
+            + 'if(!blob){reject(new Error("Falha ao gerar JPEG"));return;}'
+            + 'var url=URL.createObjectURL(blob);var a=document.createElement("a");'
+            + 'a.href=url;a.download="comparativo-cotacoes-horizontal-' + getTodayDateString()
+            + '"+(partes.length>1?"-"+(p+1):"")+".jpg";'
+            + 'document.body.appendChild(a);a.click();a.remove();'
+            + 'setTimeout(function(){URL.revokeObjectURL(url);resolve();},180);'
+            + '},"image/jpeg",0.93);});}'
+            + '}catch(e){console.error(e);alert("Não foi possível gerar o JPEG deste relatório.");}'
+            + 'finally{document.body.classList.remove("jpeg-tabela");barra.style.display=anterior;'
+            + 'if(botao){botao.disabled=false;botao.textContent=legenda||"Baixar JPEG horizontal";}}}'
             + '</scr' + 'ipt>'
             + '</body></html>';
         };
