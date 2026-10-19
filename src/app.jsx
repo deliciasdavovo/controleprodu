@@ -19732,6 +19732,29 @@ const { useState, useEffect, useMemo, useRef } = React;
           setCotacaoFornecedor('');
         };
 
+        // A mesma linha pode representar um conjunto de produtos (pote + tampa).
+        // A quantidade corresponde ao número de conjuntos com 1 unidade de cada.
+        const idsDaLinhaCotacao = (linha) => [...new Set(
+          [linha.itemId, ...(Array.isArray(linha.itemIds) ? linha.itemIds : [])]
+            .filter((id) => id && id !== ITEM_COTACAO_NAO_EXISTE)
+        )];
+        const chaveComposicaoCotacao = (linha) => {
+          const ids = idsDaLinhaCotacao(linha);
+          return ids.length && linha.unidade ? ids.sort().join('+') + '|' + linha.unidade : '';
+        };
+        const adicionarItemCotacao = (linhaId, itemId) => {
+          if (!itemId || itemId === ITEM_COTACAO_NAO_EXISTE) return;
+          setCotacoesComparacao((linhas) => linhas.map((linha) => {
+            if (linha.id !== linhaId || !linha.itemId || linha.itemId === ITEM_COTACAO_NAO_EXISTE
+                || idsDaLinhaCotacao(linha).includes(itemId)) return linha;
+            return { ...linha, itemIds: [...(linha.itemIds || []), itemId] };
+          }));
+        };
+        const removerItemCotacao = (linhaId, itemId) =>
+          setCotacoesComparacao((linhas) => linhas.map((linha) => linha.id === linhaId
+            ? { ...linha, itemIds: (linha.itemIds || []).filter((id) => id !== itemId) }
+            : linha));
+
         const atualizarLinhaCotacao = (id, campos) =>
           setCotacoesComparacao((atual) => atual.map((x) => x.id === id ? { ...x, ...campos } : x));
 
@@ -19755,8 +19778,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const cotacoesAnalisadas = useMemo(() => {
           const menorCotacaoPorChave = {};
           cotacoesComparacao.forEach((linha) => {
-            if (!linha.itemId || !linha.unidade || !(linha.precoComparavel > 0)) return;
-            const chave = linha.itemId + '|' + linha.unidade;
+            if (!(linha.precoComparavel > 0)) return;
+            const chave = chaveComposicaoCotacao(linha);
+            if (!chave) return;
             const atual = menorCotacaoPorChave[chave];
             if (!atual || linha.precoComparavel < atual.preco) {
               menorCotacaoPorChave[chave] = {
@@ -19768,7 +19792,10 @@ const { useState, useEffect, useMemo, useRef } = React;
           });
 
           return cotacoesComparacao.map((linha) => {
-            const item = catalogoCotacao.find((x) => x.id === linha.itemId) || null;
+            const idsVinculados = idsDaLinhaCotacao(linha);
+            const itensVinculados = idsVinculados.map((id) => catalogoCotacao.find((x) => x.id === id)).filter(Boolean);
+            const conjunto = idsVinculados.length > 1;
+            const item = itensVinculados[0] || null;
             const ultimos = {};
             if (item) {
               todas
@@ -19815,53 +19842,100 @@ const { useState, useEffect, useMemo, useRef } = React;
               ((b.data || '') + '|' + (b.criadoEm || '')).localeCompare((a.data || '') + '|' + (a.criadoEm || ''))
             )[0] || null;
 
+            // Busca a referência de cada outra peça usando a mesma base da
+            // linha. Se a tampa não tiver preço equivalente, não calcula %
+            // nem apresenta uma economia fictícia.
+            const refsExtras = idsVinculados.slice(1).map((id) => todas
+              .filter((compra) => compra.itemId === id && compra.custoUnit > 0 && compra.fornecedor !== 'Sem fornecedor')
+              .map((compra) => {
+                const normal = precoNaUnidadeGrande(compra.custoUnit, compra.unidade);
+                const fatorVolume = Number(compra.unidadesPorVolume) > 0
+                  ? Number(compra.unidadesPorVolume) : Number(compra.volumeCadastroUnidades) || 0;
+                const precoVolume = fatorVolume > 0 && compra.unidade === 'un' ? compra.custoUnit * fatorVolume : 0;
+                const precoComparavel = normal.label === linha.unidade ? normal.valor
+                  : linha.unidade === 'volume' ? precoVolume : 0;
+                return { ...compra, precoComparavel, fatorVolume };
+              })
+              .filter((compra) => compra.precoComparavel > 0)
+              .sort((a, b) => ((b.data || '') + '|' + (b.criadoEm || ''))
+                .localeCompare((a.data || '') + '|' + (a.criadoEm || '')))[0] || null);
+            const referencias = [atual, ...refsExtras];
+            const referenciasCompletas = referencias.length === idsVinculados.length
+              && referencias.every(Boolean) && itensVinculados.length === idsVinculados.length;
+            const volumesIguais = linha.unidade !== 'volume' || (
+              referenciasCompletas && referencias.every((ref) =>
+                ref.fatorVolume > 0 && ref.fatorVolume === referencias[0].fatorVolume)
+            );
+            const atualComparavel = !conjunto ? atual
+              : referenciasCompletas && volumesIguais ? {
+                  precoComparavel: referencias.reduce((total, ref) => total + ref.precoComparavel, 0),
+                  fornecedor: 'Soma das peças',
+                  detalheBase: itensVinculados.map((produto, i) => produto.nome + ' — '
+                    + referencias[i].fornecedor + ' (' + formatCurrencyBR(referencias[i].precoComparavel) + ')').join(' + '),
+                  data: referencias.reduce((data, ref) => ref.data && ref.data > data ? ref.data : data, '')
+                } : null;
+            const historicosComparaveis = conjunto
+              ? (atualComparavel ? [atualComparavel] : []) : historicos;
+
             // Inclui todas as propostas do mesmo item/base no ranking, e não
             // apenas a linha atual. Assim o destaque realmente mostra a
             // cotação mais em conta entre fornecedores.
-            const cotacoesMesmoItem = cotacoesComparacao
-              .filter((outra) =>
-                outra.itemId
-                && outra.itemId === linha.itemId
-                && outra.unidade === linha.unidade
-                && outra.precoComparavel > 0
-              )
+            const chaveCotacao = chaveComposicaoCotacao(linha);
+            const cotacoesMesmoItem = chaveCotacao ? cotacoesComparacao
+              .filter((outra) => chaveComposicaoCotacao(outra) === chaveCotacao && outra.precoComparavel > 0)
               .map((outra) => ({
-                fornecedor: outra.fornecedor,
-                preco: outra.precoComparavel,
-                origem: 'cotacao',
-                cotacaoId: outra.id,
-                data: ''
-              }));
+                fornecedor: outra.fornecedor, preco: outra.precoComparavel,
+                origem: 'cotacao', cotacaoId: outra.id, data: ''
+              })) : [];
 
+            // Também compara um conjunto oferecido pronto com a soma das
+            // cotações de suas peças em separado, pelo mesmo fornecedor.
+            // Somente "un" permite essa composição sem ambiguidade de fardos.
+            const cotacoesEmPartes = [];
+            if (conjunto && linha.unidade === 'un') {
+              const porFornecedor = new Map();
+              cotacoesComparacao.forEach((outra) => {
+                if (outra.unidade !== 'un' || !(outra.precoComparavel > 0)) return;
+                const composicao = idsDaLinhaCotacao(outra);
+                if (composicao.length !== 1 || !idsVinculados.includes(composicao[0])) return;
+                const fornecedor = normalizeName(outra.fornecedor);
+                if (!fornecedor) return;
+                if (!porFornecedor.has(fornecedor)) {
+                  porFornecedor.set(fornecedor, { nome: outra.fornecedor, partes: new Map() });
+                }
+                const registro = porFornecedor.get(fornecedor);
+                const anterior = registro.partes.get(composicao[0]);
+                if (anterior === undefined || outra.precoComparavel < anterior) {
+                  registro.partes.set(composicao[0], outra.precoComparavel);
+                }
+              });
+              porFornecedor.forEach((registro) => {
+                if (idsVinculados.every((id) => registro.partes.has(id))) {
+                  cotacoesEmPartes.push({
+                    fornecedor: registro.nome + ' (peças separadas)',
+                    preco: idsVinculados.reduce((total, id) => total + registro.partes.get(id), 0),
+                    origem: 'cotacao', data: ''
+                  });
+                }
+              });
+            }
             const candidatos = [
-              ...historicos.map((compra) => ({
-                fornecedor: compra.fornecedor,
-                preco: compra.precoComparavel,
-                origem: 'historico',
-                data: compra.data
+              ...historicosComparaveis.map((compra) => ({
+                fornecedor: compra.fornecedor, preco: compra.precoComparavel,
+                origem: 'historico', data: compra.data
               })),
-              ...cotacoesMesmoItem
+              ...cotacoesMesmoItem, ...cotacoesEmPartes
             ].sort((a, b) => a.preco - b.preco);
 
-            const diferencaAtual = atual && linha.precoComparavel > 0
-              ? linha.precoComparavel - atual.precoComparavel
-              : null;
-            const diferencaPct = atual && atual.precoComparavel > 0 && diferencaAtual !== null
-              ? (diferencaAtual / atual.precoComparavel) * 100
-              : null;
+            const diferencaAtual = atualComparavel && linha.precoComparavel > 0
+              ? linha.precoComparavel - atualComparavel.precoComparavel : null;
+            const diferencaPct = atualComparavel && atualComparavel.precoComparavel > 0 && diferencaAtual !== null
+              ? (diferencaAtual / atualComparavel.precoComparavel) * 100 : null;
 
-            const chaveCotacao = linha.itemId && linha.unidade
-              ? linha.itemId + '|' + linha.unidade
-              : '';
             const menorCotacao = chaveCotacao ? menorCotacaoPorChave[chaveCotacao] : null;
             const melhorGeral = candidatos[0] || null;
-            // O verde não significa apenas "a menor das propostas novas".
-            // Para ser destaque, a cotação também precisa empatar ou vencer
-            // o melhor preço comparável que já existe no histórico.
             const ehMenorCotacao = !!(
-              menorCotacao
-              && melhorGeral
-              && linha.precoComparavel > 0
+              menorCotacao && melhorGeral && linha.precoComparavel > 0
               && Math.abs(linha.precoComparavel - menorCotacao.preco) < 0.000001
               && linha.precoComparavel <= melhorGeral.preco + 0.000001
             );
@@ -19869,8 +19943,11 @@ const { useState, useEffect, useMemo, useRef } = React;
             return {
               ...linha,
               item,
-              historicos,
-              atual,
+              itensVinculados,
+              conjunto,
+              referenciaIncompleta: conjunto && !atualComparavel,
+              historicos: historicosComparaveis,
+              atual: atualComparavel,
               melhor: melhorGeral,
               menorCotacao,
               ehMenorCotacao,
@@ -19891,7 +19968,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             cotacoesAnalisadas.map((x) => [
               x.descricao,
               x.fornecedor,
-              x.item?.nome || (x.itemId === ITEM_COTACAO_NAO_EXISTE ? 'Não existe no cadastro' : ''),
+              x.itensVinculados?.length ? x.itensVinculados.map((item) => item.nome).join(' + ') : (x.itemId === ITEM_COTACAO_NAO_EXISTE ? 'Não existe no cadastro' : ''),
               x.quantidade > 0 && x.unidade ? numeroCurtoBR(x.quantidade) + ' ' + x.unidade : '',
               csvNumero(x.total),
               x.precoComparavel > 0 ? csvNumero(x.precoComparavel) : '',
@@ -19916,7 +19993,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             const unidade = x.unidade ? ' / ' + x.unidade : '';
             return '<tr>'
               + '<td class="produto"><div class="produto-linha">' + imagem + '<div class="produto-texto"><b>' + escaparHtml(x.descricao) + '</b>'
-              + (x.item?.nome && x.item.nome !== x.descricao ? '<small>Cadastro: ' + escaparHtml(x.item.nome) + '</small>' : '') + '</div></div></td>'
+              + (x.itensVinculados?.length ? '<small>Cadastro: ' + escaparHtml(x.itensVinculados.map((item) => item.nome).join(' + ')) + (x.conjunto ? ' · 1 un de cada' : '') + '</small>' : '') + '</div></div></td>'
               + '<td class="num"><b>' + escaparHtml(cotado) + '</b><small>' + escaparHtml(x.fornecedor || 'Cotação') + escaparHtml(unidade) + '</small></td>'
               + '<td class="num"><b>' + escaparHtml(atual) + '</b><small>' + (x.atual ? escaparHtml(x.atual.fornecedor || 'Fornecedor não informado') + escaparHtml(unidade) : 'Sem preço anterior') + '</small></td>'
               + '<td class="num' + tom + '"><b>' + escaparHtml(diferenca) + '</b></td>'
@@ -22470,7 +22547,7 @@ ${BARRA_ACOES_HTML}
                     <div>
                       <div className="t-overline">Comparativo em planilha</div>
                       <p className="t-micro mt-1">
-                        Ajuste a quantidade e a base direto na linha até a cotação ficar comparável com o seu cadastro.
+                        Ajuste a quantidade e a base direto na linha até a cotação ficar comparável com o seu cadastro. Para cotação de embalagem com tampa, use “+ Outro produto”.
                       </p>
                     </div>
                   </div>
@@ -22521,12 +22598,29 @@ ${BARRA_ACOES_HTML}
                                 { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
                                 ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
                               ]}
-                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
+                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })
                               placeholder="Vincular item"
                               emptyLabel="Nenhum item"
                               className="field field-sm"
                               panelMinWidth={420}
                             />
+                            {linha.itemId && linha.itemId !== ITEM_COTACAO_NAO_EXISTE && (
+                              <div className="mt-2 space-y-1.5">
+                                {(linha.itemIds || []).map((id) => {
+                                  const produto = catalogoCotacao.find((x) => x.id === id);
+                                  return <div key={id} className="flex items-center gap-1 rounded-lg bg-[#edf3ee] px-2 py-1">
+                                    <span className="t-nano flex-1 min-w-0 truncate">{produto?.nome || 'Produto não encontrado'}</span>
+                                    <button type="button" aria-label="Remover peça" onClick={() => removerItemCotacao(linha.id, id)} className="p-1 rounded hover:bg-white/70"><Icons.X className="w-3.5 h-3.5" /></button>
+                                  </div>;
+                                })}
+                                <PickerField value="" options={catalogoCotacao.filter((x) => !idsDaLinhaCotacao(linha).includes(x.id))
+                                  .map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                                  onPick={(opt) => adicionarItemCotacao(linha.id, opt.value)}
+                                  placeholder="+ Outro produto" emptyLabel="Buscar produto"
+                                  className="field field-sm" panelMinWidth={420} />
+                                {linha.conjunto && <p className="t-nano">1 unidade de cada peça por conjunto. Qtd. = número de conjuntos.</p>}
+                              </div>
+                            )}
                           </div>
 
                           <div>
@@ -22567,12 +22661,14 @@ ${BARRA_ACOES_HTML}
                               <>
                                 <div className="t-callout font-semibold tnum">{formatCurrencyBR(linha.atual.precoComparavel)}</div>
                                 <div className="t-nano">/{linha.unidade}</div>
-                                <div className="t-nano truncate" title={linha.atual.fornecedor}>{linha.atual.fornecedor}</div>
+                                <div className="t-nano truncate" title={linha.atual.detalheBase || linha.atual.fornecedor}>{linha.atual.fornecedor}</div>
                               </>
                             ) : (
                               <div className="t-nano ink-quiet">
                                 {linha.itemId === ITEM_COTACAO_NAO_EXISTE
                                   ? 'não existe no cadastro'
+                                  : linha.referenciaIncompleta
+                                    ? 'falta preço comparável de alguma peça'
                                   : linha.item
                                     ? 'sem preço comparável'
                                     : 'vincule o item'}
@@ -22648,11 +22744,27 @@ ${BARRA_ACOES_HTML}
                                 { value: ITEM_COTACAO_NAO_EXISTE, label: 'Não existe no cadastro', hint: 'Sem histórico para comparar' },
                                 ...catalogoCotacao.map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))
                               ]}
-                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value })}
+                              onPick={(opt) => atualizarLinhaCotacao(linha.id, { itemId: opt.value, itemIds: [] })
                               placeholder="Vincular ao item do sistema"
                               emptyLabel="Nenhum item"
                               className="field field-md"
                             />
+                            {linha.itemId && linha.itemId !== ITEM_COTACAO_NAO_EXISTE && (
+                              <div className="mt-2 space-y-2">
+                                {(linha.itemIds || []).map((id) => {
+                                  const produto = catalogoCotacao.find((x) => x.id === id);
+                                  return <div key={id} className="flex items-center gap-2 rounded-lg bg-[#edf3ee] px-3 py-2">
+                                    <span className="text-sm flex-1 min-w-0 truncate">{produto?.nome || 'Produto não encontrado'}</span>
+                                    <button type="button" aria-label="Remover peça" onClick={() => removerItemCotacao(linha.id, id)} className="p-1"><Icons.X className="w-4 h-4" /></button>
+                                  </div>;
+                                })}
+                                <PickerField value="" options={catalogoCotacao.filter((x) => !idsDaLinhaCotacao(linha).includes(x.id))
+                                  .map((x) => ({ value: x.id, label: x.nome, hint: x.tipo }))}
+                                  onPick={(opt) => adicionarItemCotacao(linha.id, opt.value)}
+                                  placeholder="+ Outro produto" emptyLabel="Buscar produto" className="field field-md" />
+                                {linha.conjunto && <p className="t-micro">Um conjunto = 1 unidade de cada produto. Exemplo: 400 potes + 400 tampas = 400 conjuntos.</p>}
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-[1fr_110px] gap-2 mt-2">
