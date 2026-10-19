@@ -15246,6 +15246,45 @@ const { useState, useEffect, useMemo, useRef } = React;
             if (!Array.isArray(dados.photos)) throw new Error('Formato de catálogo inválido.');
             const fotos = dados.photos.filter((foto) =>
               foto.name && /^https:\/\//i.test(String(foto.url || '')));
+            // Busca também os novos arquivos adicionados ao repositório,
+            // mesmo que ainda não estejam no catálogo estático. Caso a API
+            // do GitHub não responda, a lista já publicada continua disponível.
+            try {
+              const respGitHub = await fetch(
+                'https://api.github.com/repos/deliciasdavovo/pedidoscardapio/git/trees/main?recursive=1',
+                { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } }
+              );
+              if (respGitHub.ok) {
+                const repoFotos = await respGitHub.json();
+                const prefixo = 'https://deliciasdavovo.github.io/pedidoscardapio/';
+                const conhecidos = new Set(fotos.map((foto) => foto.url));
+                const nomesDisponiveis = new Set((repoFotos.tree || [])
+                  .filter((arquivo) => arquivo.type === 'blob')
+                  .map((arquivo) => arquivo.path));
+                // Um arquivo apagado não deve continuar disponível para vínculo.
+                const fotosValidas = fotos.filter((foto) =>
+                  !foto.url.startsWith(prefixo) || nomesDisponiveis.has(foto.url.slice(prefixo.length)));
+                (repoFotos.tree || []).forEach((arquivo) => {
+                  if (arquivo.type !== 'blob' || !/^img\/.+\.(?:jpg|jpeg|png|webp)$/i.test(arquivo.path)) return;
+                  const url = prefixo + arquivo.path;
+                  if (conhecidos.has(url)) return;
+                  const arquivoNome = arquivo.path.split('/').pop().replace(/\.(jpg|jpeg|png|webp)$/i, '');
+                  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(arquivoNome)) return;
+                  const nome = arquivoNome.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+                  if (!nome) return;
+                  fotosValidas.push({ id: 'repo-' + arquivoNome,
+                    name: nome.charAt(0).toLocaleUpperCase('pt-BR') + nome.slice(1) + ' · foto do repositório',
+                    url });
+                  conhecidos.add(url);
+                });
+                if (fotosValidas.length) {
+                  setFotosCardapio(fotosValidas);
+                  return;
+                }
+              }
+            } catch (erroRepo) {
+              console.warn('Catálogo do Pedidos Cardápio: usando cópia local.', erroRepo);
+            }
             if (!fotos.length) throw new Error('Nenhuma foto disponível no catálogo.');
             setFotosCardapio(fotos);
           } catch (erro) {
