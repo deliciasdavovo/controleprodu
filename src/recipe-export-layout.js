@@ -30,6 +30,28 @@ function yieldInfo(r){
 function inheritedRecipe(r,p,data){
  return r.inherit_parent_recipe&&p.parent_product_id?data.recipes.find(item=>String(item.product_id)===String(p.parent_product_id)):null;
 }
+// O nome comercial do insumo continua no cadastro para compras e CMV.
+// No livro de produção, mostramos apenas o ingrediente culinário relevante.
+function nomeIngredienteNoLivro(nomeOriginal){
+ const nome=String(nomeOriginal||'').replace(/\s+/g,' ').trim();
+ const normalizado=clean(nome);
+ const chocolateEmPo=/\bchocolate\s+(?:em\s+)?po\b/.test(normalizado);
+ if(chocolateEmPo){
+  // Preserva a concentração: 33%, 50% e 70% não são intercambiáveis.
+  const concentracao=nome.match(/(?:^|[^\d])(\d{1,3})\s*(?:%|por\s*cento)\b/i)
+    || nome.match(/(?:^|[^\d])(\d{1,3})\s*%\b/i);
+  if(concentracao){
+   const percentual=Number(concentracao[1]);
+   if(percentual>0&&percentual<=100)return 'Chocolate em pó '+percentual+'%';
+  }
+  // Identificação solicitada para o chocolate em pó Melken de 2 kg.
+  // Não aplica 50% a outros chocolates quando a concentração é desconhecida.
+  if(/\bmelken\b/.test(normalizado)&&/\b2\s*(?:kg|quilo|quilos)\b/.test(normalizado)){
+   return 'Chocolate em pó 50%';
+  }
+ }
+ return nome;
+}
 function ingredients(r,p,data){
  const parent=inheritedRecipe(r,p,data);
  const own=data.items.filter(item=>String(item.recipe_id)===String(r.id));
@@ -41,7 +63,7 @@ function ingredients(r,p,data){
   const supply=i.supply_id?data.supplyById.get(String(i.supply_id)):null;
   const product=i.component_product_id?data.productById.get(String(i.component_product_id)):null;
   const recipe=product?data.recipes.find(x=>String(x.product_id)===String(product.id)):null;
-  const label=supply?.name||product?.name||'Ingrediente não identificado';
+  const label=nomeIngredienteNoLivro(supply?.name||product?.name||'Ingrediente não identificado');
   const unit=i.usage_unit||supply?.unit||recipe?.yield_unit||product?.price_unit||'un';
   return '<div class="ingredient"><span>'+esc(label)+'</span><strong>'+esc(fmt(Number(i.qty)||0))+' '+esc(unit)+'</strong></div>';
  }).join('');
