@@ -1,16 +1,11 @@
 {
   "source": "deliciasdavovo/pedidoscardapio",
-  "generated_from": "index.html / MENU_ITEMS",
+  "generated_from": "MENU_ITEMS and committed /img files (validated against main)",
   "photos": [
     {
       "id": "cst1",
       "name": "Cestas de café da manhã",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/cesta-de-cafe-da-manha.png"
-    },
-    {
-      "id": "cb1",
-      "name": "Coffee Simples",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/IMG_2877_fzpqwi.jpg"
     },
     {
       "id": "cb2",
@@ -33,11 +28,6 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/coffee-premium-ii.jpg"
     },
     {
-      "id": "suconatural",
-      "name": "Suco Natural",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/AA3FF404-C200-4A86-9007-40B5A16DAC07_nmdlvk.png"
-    },
-    {
       "id": "ms_fritos_variados",
       "name": "Fritos Variados",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/mini-salgados-fritos.jpeg"
@@ -53,11 +43,6 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pao-de-queijo-especial.png"
     },
     {
-      "id": "sa1",
-      "name": "Salgado Assado Grande",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-27_at_14.23.27_buojtj.jpg"
-    },
-    {
       "id": "ms_pao_mandioquinha",
       "name": "Pão de Mandioquinha",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pao-de-mandioquinha.png"
@@ -68,19 +53,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/folhados-recheados.jpeg"
     },
     {
-      "id": "ms_quiche",
-      "name": "Mini Quiche",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/D7F94978-1CCA-4284-BDCE-AB493DDFBAA4_h2lz2u.png"
-    },
-    {
       "id": "ms_pizza",
       "name": "Mini Pizza",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/mini-pizza.png"
-    },
-    {
-      "id": "ms_esfirra",
-      "name": "Mini Esfirra",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/C31DF2B9-B777-4778-A5AF-A3174A1DC4D4_zqeqzc.png"
     },
     {
       "id": "ms_empada_podre",
@@ -118,11 +93,6 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/esfirra-aberta.png"
     },
     {
-      "id": "sa_ciabatta",
-      "name": "Ciabatta Recheada",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/ChatGPT_Image_25_de_fev._de_2026_18_35_20_readnw.png"
-    },
-    {
       "id": "sa_folhados_grandes",
       "name": "Folhados Grandes",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/2E2F5179-ADCC-479F-BAC2-FDE22D0B3276_jihnsy.png"
@@ -131,11 +101,6 @@
       "id": "sa_pizza_enrolada",
       "name": "Pizza Enrolada",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pizza-enrolada.png"
-    },
-    {
-      "id": "sa_focaccia",
-      "name": "Focaccia",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-03-03_at_15.51.45_lt7khf.jpg"
     },
     {
       "id": "sa_hotdog_folhado",
@@ -203,11 +168,6 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/hungaro-doce.jpg"
     },
     {
-      "id": "dp_croissant_doce_mini",
-      "name": "Croissant Doce",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-03-19_at_18.09.35_1_nvhins.jpg"
-    },
-    {
       "id": "dp_cupcake",
       "name": "Cupcake",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/cupcake-novo.jpg"
@@ -216,16 +176,6 @@
       "id": "dp_brownie_artesanal_original",
       "name": "Brownie Artesanal Original",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/brownie-artesanal-original-cardapio.jpg"
-    },
-    {
-      "id": "dp_muffin",
-      "name": "Muffin",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/muffin_jyhpsq.png"
-    },
-    {
-      "id": "dp_catarina",
-      "name": "Catarina, Strudel Folhado",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/IMG_2570_eebal8.jpg"
     },
     {
       "id": "dp_mini_sonho",
@@ -243,34 +193,14 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pao-de-mel-novo.jpg"
     },
     {
-      "id": "dp_bolinho_chuva",
-      "name": "Bolinho de Chuva",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolinho_de_chuva_2_t8gcn5.png"
-    },
-    {
       "id": "dp_rosquinha_frita",
       "name": "Rosquinha Frita",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/rosquinha-frita.jpg"
     },
     {
-      "id": "dp_queijadinha",
-      "name": "Queijadinha",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/ChatGPT_Image_28_de_fev._de_2026_17_05_27_lmnvox.png"
-    },
-    {
       "id": "dp_samantha",
       "name": "Samantha & Carolinas Cristalizadas",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/samantha.jpg"
-    },
-    {
-      "id": "dp_bem_casado",
-      "name": "Bem Casado",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/B652D963-80FA-4B91-8D84-68129C28694C_dvaprm.png"
-    },
-    {
-      "id": "dp_donuts",
-      "name": "Donuts",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/donuts_q0ibc6.png"
     },
     {
       "id": "dp_palha_italiana",
@@ -308,11 +238,6 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-com-farofa.jpeg"
     },
     {
-      "id": "bc_rocambole",
-      "name": "Rocambole",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-26_at_15.46.55_cwajlr.jpg"
-    },
-    {
       "id": "bc_bolo_vulcao_ninho_nutella",
       "name": "Bolo Vulcão Ninho com Nutella",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-vulcao-ninho-cardapio.jpg"
@@ -323,24 +248,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-vulcao-cenoura.jpg"
     },
     {
-      "id": "df_camafeu",
-      "name": "Camafeu",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/camafeu_igvril.png"
-    },
-    {
       "id": "df_mini_docinhos",
       "name": "Mini Docinhos",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/mini-docinhos.svg"
-    },
-    {
-      "id": "df_brigadeiro",
-      "name": "Brigadeiro",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-26_at_15.46.55_2_lxsw4c.jpg"
-    },
-    {
-      "id": "bb_bolachinhas_artesanais",
-      "name": "Bolachinhas Artesanais",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/IMG_1467_a7evcw.jpg"
     },
     {
       "id": "bb_petit_four",
@@ -348,24 +258,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/petit-four.png"
     },
     {
-      "id": "bb_cookies",
-      "name": "Cookies",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-24_at_20.00.19_1_wfhrci.jpg"
-    },
-    {
-      "id": "bb_broinha_fuba",
-      "name": "Broinha de Fubá",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/ChatGPT_Image_14_de_fev._de_2026_17_23_26_yd2db5.png"
-    },
-    {
       "id": "en_panetones",
       "name": "Panetones Artesanais",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/chocotone.jpg"
-    },
-    {
-      "id": "en_rabanada",
-      "name": "Rabanada",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-27_at_14.23.25_1_dxzbct.jpg"
     },
     {
       "id": "en_guirlandadepistache",
@@ -383,24 +278,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/carolinas.jpg"
     },
     {
-      "id": "ms_mini_mousse",
-      "name": "Mini Mousse",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-02-27_at_14.23.25_2_fnqv2e.jpg"
-    },
-    {
-      "id": "sb_salada_frutas",
-      "name": "Salada de Fruta",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/IMG_2668_pbihrs.jpg"
-    },
-    {
       "id": "su_coxinhademorango",
       "name": "Coxinha de morango",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/coxinha-de-morango.png"
-    },
-    {
-      "id": "su_bomba",
-      "name": "Bomba",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/012DC3CB-5FA6-4525-9713-446F10A404A9_nalar0.png"
     },
     {
       "id": "su_doces_potinho",
@@ -413,19 +293,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/quindim.jpg"
     },
     {
-      "id": "su_doce_potinho_caseiro",
-      "name": "Doce Caseiro",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/953EA8C3-B8C2-4925-8521-E2263FB58A3E_bhtoh5.png"
-    },
-    {
       "id": "bg_milho_cremoso",
       "name": "Bolo Cremoso",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-milho-cremoso.jpg"
-    },
-    {
-      "id": "bg_gelado_embrulhado",
-      "name": "Bolo Gelado Embrulhado",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/C6457EF0-3370-4759-B6EB-D20FE28CA7B4_aslsh6.png"
     },
     {
       "id": "bg_confeitado",
@@ -468,19 +338,9 @@
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pudim.png"
     },
     {
-      "id": "sc_cacarola",
-      "name": "Caçarola",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/WhatsApp_Image_2026-03-23_at_16.59.20_yaplxx.jpg"
-    },
-    {
       "id": "sc_brigadeirao",
       "name": "Brigadeirão",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/brigadeirao.png"
-    },
-    {
-      "id": "sc_charlotte",
-      "name": "Charlotte",
-      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/ChatGPT_Image_28_de_fev._de_2026_17_05_23_jrr415.png"
     },
     {
       "id": "sc_banoffe",
@@ -491,6 +351,81 @@
       "id": "sc_cheesecake",
       "name": "Cheesecake",
       "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/cheesecake.png"
+    },
+    {
+      "id": "arquivo_banoffee",
+      "name": "Banoffee · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/banoffee.png"
+    },
+    {
+      "id": "arquivo_bolo-cenoura-cremoso",
+      "name": "Bolo cenoura cremoso · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-cenoura-cremoso.jpg"
+    },
+    {
+      "id": "arquivo_bolo-milho-cremoso-2",
+      "name": "Bolo milho cremoso · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-milho-cremoso-2.jpg"
+    },
+    {
+      "id": "arquivo_bolo-vulcao-ninho",
+      "name": "Bolo vulcao ninho · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/bolo-vulcao-ninho.jpg"
+    },
+    {
+      "id": "arquivo_brownie-artesanal-original",
+      "name": "Brownie artesanal original · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/brownie-artesanal-original.jpg"
+    },
+    {
+      "id": "arquivo_brusquetas",
+      "name": "Brusquetas · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/brusquetas.png"
+    },
+    {
+      "id": "arquivo_cortadinhos-folhados",
+      "name": "Cortadinhos folhados · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/cortadinhos-folhados.jpeg"
+    },
+    {
+      "id": "arquivo_cuscuz",
+      "name": "Cuscuz · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/cuscuz.jpg"
+    },
+    {
+      "id": "arquivo_lanchinho-pao-batata",
+      "name": "Lanchinho pao batata · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/lanchinho-pao-batata.webp"
+    },
+    {
+      "id": "arquivo_paes",
+      "name": "Paes · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/paes.jpg"
+    },
+    {
+      "id": "arquivo_pao-de-bolinha-doce-cardapio",
+      "name": "Pao de bolinha doce · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pao-de-bolinha-doce-cardapio.jpg"
+    },
+    {
+      "id": "arquivo_pao-de-bolinha-doce",
+      "name": "Pao de bolinha doce · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pao-de-bolinha-doce.jpg"
+    },
+    {
+      "id": "arquivo_pavlova",
+      "name": "Pavlova · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/pavlova.png"
+    },
+    {
+      "id": "arquivo_tortinha-limao",
+      "name": "Tortinha limao · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/tortinha-limao.jpg"
+    },
+    {
+      "id": "arquivo_tortinha-morango",
+      "name": "Tortinha morango · foto alternativa",
+      "url": "https://deliciasdavovo.github.io/pedidoscardapio/img/tortinha-morango.jpg"
     }
   ]
 }
