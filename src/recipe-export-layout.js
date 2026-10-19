@@ -38,8 +38,7 @@ function nomeIngredienteNoLivro(nomeOriginal){
  const chocolateEmPo=/\bchocolate\s+(?:em\s+)?po\b/.test(normalizado);
  if(chocolateEmPo){
   // Preserva a concentração: 33%, 50% e 70% não são intercambiáveis.
-  const concentracao=nome.match(/(?:^|[^\d])(\d{1,3})\s*(?:%|por\s*cento)\b/i)
-    || nome.match(/(?:^|[^\d])(\d{1,3})\s*%\b/i);
+  const concentracao=nome.match(/(?:^|[^\d])(\d{1,3})\s*(?:%|por\s*cento)/i);
   if(concentracao){
    const percentual=Number(concentracao[1]);
    if(percentual>0&&percentual<=100)return 'Chocolate em pó '+percentual+'%';
