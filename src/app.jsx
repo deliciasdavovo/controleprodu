@@ -19412,6 +19412,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         onDeletePurchaseGroup,
         onRequestEditCatalog,
         onUpdateSupply,
+        onUpdateProduct,
         onUpdateSeparatedProduct,
         onSetSupplyResale,
         onAddSupply,
@@ -19555,16 +19556,39 @@ const { useState, useEffect, useMemo, useRef } = React;
               unidadeVenda: revenda.priceUnit || 'un'
             }));
 
+          // Cadastro da produção: origem na tabela products, sem duplicar insumos ou revendas.
+          products.forEach((produto) => linhas.push({
+            key: 'p-' + produto.id,
+            nome: produto.name,
+            tipo: 'Produção própria',
+            supply: null,
+            revenda: null,
+            produto,
+            categoriaInsumo: '',
+            categoriaRevenda: '',
+            categoriaProducao: produto.category || 'outro',
+            unidadeBase: produto.defaultUnit || 'un',
+            unidadeVenda: produto.priceUnit || 'un'
+          }));
+
           return linhas
             .filter((linha) => !termo
               || normalizeName(linha.nome).includes(termo)
               || normalizeName(linha.tipo).includes(termo)
               || normalizeName(linha.categoriaInsumo).includes(termo)
               || normalizeName(linha.categoriaRevenda).includes(termo)
+              || normalizeName(linha.categoriaProducao).includes(termo)
               || Array.from(fornecedoresPorItem.get(normalizeName(linha.nome)) || [])
                 .some((fornecedor) => fornecedor.includes(termo)))
             .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-        }, [supplies, separatedProducts, currentUnit, buscaBanco, todas]);
+        }, [supplies, separatedProducts, products, currentUnit, buscaBanco, todas]);
+
+        const itensVisiveisBanco = itensBanco.filter((linha) => {
+          if (abaBanco === 'insumos') return Boolean(linha.supply);
+          if (abaBanco === 'revenda') return Boolean(linha.revenda);
+          if (abaBanco === 'producao') return Boolean(linha.produto);
+          return true;
+        });
 
         const categoriasInsumoBanco = useMemo(() => Array.from(new Set(
           supplies
@@ -19594,6 +19618,14 @@ const { useState, useEffect, useMemo, useRef } = React;
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .map((value) => ({ value, label: value }));
         }, [categoriasRevendaBanco]);
+
+        const opcoesCategoriaProducaoBanco = useMemo(() => {
+          const padrao = new Set(PRODUCT_CATEGORIES.map((item) => item.value));
+          const extras = Array.from(new Set(products.map((item) => String(item.category || '').trim())))
+            .filter((categoria) => categoria && !padrao.has(categoria))
+            .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+          return [...PRODUCT_CATEGORIES, ...extras.map((value) => ({ value, label: value }))];
+        }, [products]);
 
         const valorTipoBanco = (linha) => {
           if (linha.supply && linha.revenda) return 'insumo_revenda';
@@ -22244,7 +22276,7 @@ ${BARRA_ACOES_HTML}
           }
         };
 
-        if (todas.length === 0) {
+        if (todas.length === 0 && modoFornecedores !== 'banco') {
           return (
             <div className="space-y-5 compras-planilha-ui">
               <div>
@@ -22256,6 +22288,9 @@ ${BARRA_ACOES_HTML}
                   Nenhuma compra lançada ainda. Registre as compras no carrinho de cada insumo, em
                   {' '}<strong>Insumos &amp; fichas</strong> — elas aparecem aqui sozinhas, com a variação de preço já calculada.
                 </p>
+                <button type="button" className="btn btn-secondary btn-sm mt-4" onClick={() => setModoFornecedores('banco')}>
+                  Abrir Banco de Dados
+                </button>
               </div>
             </div>
           );
@@ -22284,6 +22319,7 @@ ${BARRA_ACOES_HTML}
                     {[
                       { id: 'insumos', label: 'Insumos' },
                       { id: 'revenda', label: 'Produtos de revenda' },
+                      { id: 'producao', label: 'Produção própria' },
                       { id: 'fornecedores', label: 'Fornecedores' },
                       { id: 'tipos', label: 'Tipos e categorias' },
                       { id: 'unidades', label: 'Unidades e equivalências' }
@@ -22383,7 +22419,7 @@ ${BARRA_ACOES_HTML}
                 <div className="lark-sheet p-4 sm:p-5">
                   <h3 className="font-semibold mb-1">Tipos e categorias</h3>
                   <p className="t-micro mb-4">Categorias utilizadas nos cadastros. Para alterar uma categoria, abra o produto na seção correspondente.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     <section className="rounded-lg border hairline overflow-hidden">
                       <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Insumos</div>
                       {opcoesCategoriaInsumoBanco.filter(c => !buscaBanco || normalizeName(c.label).includes(normalizeName(buscaBanco))).map(c => (
@@ -22393,6 +22429,12 @@ ${BARRA_ACOES_HTML}
                     <section className="rounded-lg border hairline overflow-hidden">
                       <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Produtos de revenda</div>
                       {opcoesCategoriaRevendaBanco.filter(c => !buscaBanco || normalizeName(c.label).includes(normalizeName(buscaBanco))).map(c => (
+                        <div key={c.value} className="px-3 py-2 text-sm border-t hairline">{c.label}</div>
+                      ))}
+                    </section>
+                    <section className="rounded-lg border hairline overflow-hidden">
+                      <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Produção própria</div>
+                      {opcoesCategoriaProducaoBanco.filter(c => !buscaBanco || normalizeName(c.label).includes(normalizeName(buscaBanco))).map(c => (
                         <div key={c.value} className="px-3 py-2 text-sm border-t hairline">{c.label}</div>
                       ))}
                     </section>
@@ -22408,16 +22450,20 @@ ${BARRA_ACOES_HTML}
                           <th>Tipo</th>
                           <th className="min-w-[170px]">Categoria do insumo</th>
                           <th className="min-w-[180px]">Categoria da revenda</th>
+                          {(abaBanco === 'producao' || abaBanco === 'unidades') && <th className="min-w-[180px]">Categoria da produção</th>}
                           <th>Base</th>\n                          {abaBanco === 'unidades' && <th>Un. compra</th>}
                           <th>Venda</th>
                           <th className="text-center">Editar</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {itensBanco.filter((linha) => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).map((linha) => (
+                        {itensVisiveisBanco.map((linha) => (
                           <tr key={linha.key}>
                             <td className="sticky left-0 z-[2] bg-white font-semibold" title={linha.nome}>{linha.nome}</td>
                             <td>
+                              {linha.produto ? (
+                                <span className="text-[12px] font-semibold">Produção própria</span>
+                              ) : (
                               <PickerField
                                 value={valorTipoBanco(linha)}
                                 options={[
@@ -22429,6 +22475,7 @@ ${BARRA_ACOES_HTML}
                                 title="Alterar tipo do cadastro"
                                 className="field h-7 min-w-[130px] text-[12px] font-semibold"
                               />
+                              )}
                             </td>
                             <td>
                               {linha.supply ? (
@@ -22458,6 +22505,19 @@ ${BARRA_ACOES_HTML}
                                 />
                               ) : <span className="ink-quiet">—</span>}
                             </td>
+                            {(abaBanco === 'producao' || abaBanco === 'unidades') && (
+                              <td>
+                                {linha.produto ? (
+                                  <PickerField
+                                    value={linha.produto.category || 'outro'}
+                                    options={opcoesCategoriaProducaoBanco}
+                                    onPick={(opt) => onUpdateProduct && onUpdateProduct({ ...linha.produto, category: opt.value })}
+                                    title="Categoria do produto de fabricação"
+                                    className="field h-7 min-w-[170px] text-[12px]"
+                                  />
+                                ) : <span className="ink-quiet">—</span>}
+                              </td>
+                            )}
                             <td className="tnum">{linha.unidadeBase || '—'}</td>\n                            {abaBanco === 'unidades' && <td className="tnum">{linha.supply?.purchaseUnit || linha.revenda?.purchaseUnit || '—'}</td>}
                             <td>
                               {linha.revenda ? (
@@ -22476,6 +22536,14 @@ ${BARRA_ACOES_HTML}
                                   title="Unidade de venda"
                                   className="field h-7 min-w-[72px] text-[12px] tnum"
                                 />
+                              ) : linha.produto ? (
+                                <PickerField
+                                  value={linha.produto.priceUnit || 'un'}
+                                  options={[{ value: 'un', label: 'un' }, { value: 'kg', label: 'kg' }]}
+                                  onPick={(opt) => onUpdateProduct && onUpdateProduct({ ...linha.produto, priceUnit: opt.value })}
+                                  title="Unidade de venda da produção"
+                                  className="field h-7 min-w-[72px] text-[12px] tnum"
+                                />
                               ) : <span className="ink-quiet">—</span>}
                             </td>
                             <td className="text-center">
@@ -22483,7 +22551,8 @@ ${BARRA_ACOES_HTML}
                                 type="button"
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => {
-                                  if (linha.supply) onRequestEditCatalog && onRequestEditCatalog('insumo:' + linha.supply.id);
+                                  if (linha.produto) onRequestEditCatalog && onRequestEditCatalog('producao:' + linha.produto.id);
+                                  else if (linha.supply) onRequestEditCatalog && onRequestEditCatalog('insumo:' + linha.supply.id);
                                   else if (linha.revenda) onRequestEditCatalog && onRequestEditCatalog('revenda:' + linha.revenda.id);
                                 }}
                               >
@@ -22492,8 +22561,8 @@ ${BARRA_ACOES_HTML}
                             </td>
                           </tr>
                         ))}
-                        {itensBanco.filter((linha) => abaBanco === 'insumos' ? Boolean(linha.supply) : abaBanco === 'revenda' ? Boolean(linha.revenda) : true).length === 0 && (
-                          <tr><td colSpan={abaBanco === 'unidades' ? 8 : 7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
+                        {itensVisiveisBanco.length === 0 && (
+                          <tr><td colSpan={abaBanco === 'unidades' ? 9 : abaBanco === 'producao' ? 8 : 7} className="text-center py-8 ink-quiet">Nenhum item encontrado.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -28017,6 +28086,7 @@ ${BARRA_ACOES_HTML}
                     onUnifySupplier={handleUnifySupplier}
                     onDeletePurchaseGroup={handleDeletePurchaseGroup}
                     onUpdateSupply={handleUpdateSupply}
+                    onUpdateProduct={handleUpdateProduct}
                     onUpdateSeparatedProduct={handleUpdateSeparatedProduct}
                     onSetSupplyResale={handleSetSupplyResale}
                     onAddSupply={handleAddSupply}
@@ -28024,7 +28094,12 @@ ${BARRA_ACOES_HTML}
                     products={products}
                     recipes={recipes}
                     onRequestEditCatalog={(value) => {
-                      setCatalogQuickEditTarget({ id: Date.now(), value });
+                      if (String(value).startsWith('producao:')) {
+                        setCatalogEditTarget({ id: Date.now(), value });
+                        setActiveTab('insumos');
+                      } else {
+                        setCatalogQuickEditTarget({ id: Date.now(), value });
+                      }
                     }}
                   />
                 ) : <CmvSetupNotice />
