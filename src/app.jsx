@@ -296,6 +296,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         { value: 'salgado', label: 'Salgados' },
         { value: 'sobremesa', label: 'Sobremesas' },
         { value: 'cafeteria', label: 'Cafeteria' },
+        { value: 'chapa', label: 'Chapa' },
         { value: 'pao', label: 'Pães' },
         { value: 'bomboniere', label: 'Bomboniere' },
         { value: 'bebida_revenda', label: 'Bebidas Revenda' },
