@@ -131,7 +131,7 @@ function backControl(){
   'onclick="try{if(window.opener&&!window.opener.closed){window.opener.focus();window.close();if(window.closed)return false}}catch(e){}">← Voltar ao Controle Produ</a>';
 }
 
-const PHOTO_ACCENTS = \`<script>
+const PHOTO_ACCENTS = `<script>
 (function(){
  'use strict';
  function apply(img){
@@ -174,7 +174,7 @@ const PHOTO_ACCENTS = \`<script>
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
-<\/script>\`;
+<\/script>`;
 
 function buildHtml(selection,data,title){
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
