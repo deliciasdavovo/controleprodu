@@ -290,6 +290,30 @@ const { useState, useEffect, useMemo, useRef } = React;
         }
       };
 
+
+      // Categorias personalizadas armazenadas neste navegador.
+      const CUSTOM_CATEGORY_KEY = 'controleprodu_custom_categories_v1';
+      const readCustomCategories = () => {
+        try {
+          const value = JSON.parse(localStorage.getItem(CUSTOM_CATEGORY_KEY) || '{}');
+          return Object.fromEntries(['producao', 'revenda', 'insumos'].map(k => [k, Array.isArray(value[k]) ? value[k] : []]));
+        } catch (_) { return { producao: [], revenda: [], insumos: [] }; }
+      };
+      const customCategories = readCustomCategories();
+      const categorySlug = (name) => String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const saveCustomCategory = (kind, name) => {
+        const label = String(name || '').trim(), value = categorySlug(label);
+        if (!label || !value || !['producao', 'revenda', 'insumos'].includes(kind)) return false;
+        const data = readCustomCategories();
+        if (kind === 'producao' && PRODUCT_CATEGORIES.some(c => c.value === value)) return false;
+        if (kind === 'revenda' && RESALE_CATEGORIES.some(c => c.value === value)) return false;
+        if (data[kind].some(c => c.value === value)) return false;
+        data[kind].push({ value, label });
+        localStorage.setItem(CUSTOM_CATEGORY_KEY, JSON.stringify(data));
+        return true;
+      };
+
       // Categorias do catálogo, na ordem em que aparecem nos menus
       const PRODUCT_CATEGORIES = [
         { value: 'doce', label: 'Doces' },
@@ -300,12 +324,14 @@ const { useState, useEffect, useMemo, useRef } = React;
         { value: 'pao', label: 'Pães' },
         { value: 'bomboniere', label: 'Bomboniere' },
         { value: 'bebida_revenda', label: 'Bebidas Revenda' },
-        { value: 'outro', label: 'Outros' }
+        { value: 'outro', label: 'Outros' },
+        ...customCategories.producao
       ];
       const RESALE_CATEGORIES = [
         { value: 'revenda', label: 'Revenda' },
         { value: 'cafeteria', label: 'Cafeteria' },
-        { value: 'encomenda', label: 'Encomenda' }
+        { value: 'encomenda', label: 'Encomenda' },
+        ...customCategories.revenda
       ];
 
       const normalizeName = (value) => (value || '').trim().toLowerCase();
@@ -2213,6 +2239,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             { id: 'insumos', label: 'Cadastros', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
             { id: 'embalagens', label: 'Embalagens', fullLabel: 'Organização de embalagens por produto', icon: Icons.Package },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
+            { id: 'banco', label: 'Banco de Dados', fullLabel: 'Banco de Dados e categorias', icon: Icons.Layers },
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart },
             { id: 'nfe', label: 'Notas NF-e', fullLabel: 'Notas fiscais recebidas', icon: Icons.ClipboardList }
           ]
@@ -19419,9 +19446,10 @@ const { useState, useEffect, useMemo, useRef } = React;
         onAddSupply,
         onChangeCatalogType,
         products = [],
-        recipes = []
+        recipes = [],
+        initialMode = 'analise'
       }) => {
-        const [modoFornecedores, setModoFornecedores] = useState('analise');
+        const [modoFornecedores, setModoFornecedores] = useState(initialMode);
         const [periodoGuiaCompra, setPeriodoGuiaCompra] = useState('3');
         const [buscaGuiaCompra, setBuscaGuiaCompra] = useState('');
         const [agruparPlanilhaCompras, setAgruparPlanilhaCompras] = useState('tipo');
@@ -19452,6 +19480,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [unificandoFornecedor, setUnificandoFornecedor] = useState(false);
         const [buscaBanco, setBuscaBanco] = useState('');
         const [abaBanco, setAbaBanco] = useState('insumos');
+        const [novaCategoriaBanco, setNovaCategoriaBanco] = useState('');
+        const [tipoNovaCategoriaBanco, setTipoNovaCategoriaBanco] = useState('producao');
+        const [erroCategoriaBanco, setErroCategoriaBanco] = useState('');
         const [itemBancoSelecionado, setItemBancoSelecionado] = useState(null);
         const [nomeFornecedorEditando, setNomeFornecedorEditando] = useState(null);
         const ITEM_COTACAO_NAO_EXISTE = '__nao_existe__';
@@ -19605,7 +19636,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         )).sort((a, b) => a.localeCompare(b, 'pt-BR')), [separatedProducts, currentUnit]);
 
         const opcoesCategoriaInsumoBanco = useMemo(() => {
-          const base = ['insumo', 'embalagem', 'limpeza', 'outros'];
+          const base = ['insumo', 'embalagem', 'limpeza', 'outros', ...customCategories.insumos.map(c => c.value)];
           return Array.from(new Set([...base, ...categoriasInsumoBanco]))
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -22419,7 +22450,32 @@ ${BARRA_ACOES_HTML}
               ) : abaBanco === 'tipos' ? (
                 <div className="lark-sheet p-4 sm:p-5">
                   <h3 className="font-semibold mb-1">Tipos e categorias</h3>
-                  <p className="t-micro mb-4">Categorias utilizadas nos cadastros. Para alterar uma categoria, abra o produto na seção correspondente.</p>
+                  <p className="t-micro mb-4">Crie novas categorias por aqui e depois atribua cada produto na tabela de cadastros.</p>
+                  <form className="flex flex-wrap items-end gap-2 mb-4" onSubmit={(e) => {
+                    e.preventDefault();
+                    try {
+                      if (!saveCustomCategory(tipoNovaCategoriaBanco, novaCategoriaBanco)) {
+                        setErroCategoriaBanco('Esta categoria já existe ou tem nome inválido.');
+                        return;
+                      }
+                      window.location.reload();
+                    } catch (_) { setErroCategoriaBanco('Não foi possível salvar neste navegador.'); }
+                  }}>
+                    <label className="text-xs font-medium">Grupo
+                      <select value={tipoNovaCategoriaBanco} onChange={(e) => setTipoNovaCategoriaBanco(e.target.value)} className="field field-sm block mt-1">
+                        <option value="producao">Produção própria</option>
+                        <option value="revenda">Produtos de revenda</option>
+                        <option value="insumos">Insumos</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium flex-1 min-w-[160px]">Nome da categoria
+                      <input value={novaCategoriaBanco} onChange={(e) => setNovaCategoriaBanco(e.target.value)}
+                        className="field field-sm block w-full mt-1" placeholder="Ex.: Chapa" maxLength={60} required />
+                    </label>
+                    <button type="submit" className="btn btn-primary btn-sm">+ Criar categoria</button>
+                  </form>
+                  {erroCategoriaBanco && <p role="alert" className="text-xs text-red-700 mb-3">{erroCategoriaBanco}</p>}
+                  <p className="t-micro mb-4">As categorias novas ficam guardadas neste navegador. A classificação dos produtos continua salva no banco de dados.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     <section className="rounded-lg border hairline overflow-hidden">
                       <div className="px-3 py-2 font-semibold text-sm bg-[#f7f8f6]">Insumos</div>
@@ -28075,9 +28131,11 @@ ${BARRA_ACOES_HTML}
                 ) : <CmvSetupNotice />
               )}
 
-              {activeTab === 'fornecedores' && (
+              {(activeTab === 'fornecedores' || activeTab === 'banco') && (
                 cmvReady ? (
                   <SuppliersView
+                    key={activeTab}
+                    initialMode={activeTab === 'banco' ? 'banco' : 'analise'}
                     supplies={supplies}
                     supplyPurchases={supplyPurchases}
                     separatedProducts={separatedProducts}
