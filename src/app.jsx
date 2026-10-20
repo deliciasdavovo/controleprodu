@@ -19483,6 +19483,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [novaCategoriaBanco, setNovaCategoriaBanco] = useState('');
         const [tipoNovaCategoriaBanco, setTipoNovaCategoriaBanco] = useState('producao');
         const [erroCategoriaBanco, setErroCategoriaBanco] = useState('');
+        const [versaoCategoriasBanco, setVersaoCategoriasBanco] = useState(0);
         const [itemBancoSelecionado, setItemBancoSelecionado] = useState(null);
         const [nomeFornecedorEditando, setNomeFornecedorEditando] = useState(null);
         const ITEM_COTACAO_NAO_EXISTE = '__nao_existe__';
@@ -19641,7 +19642,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .map((value) => ({ value, label: value }));
-        }, [categoriasInsumoBanco]);
+        }, [categoriasInsumoBanco, versaoCategoriasBanco]);
 
         const opcoesCategoriaRevendaBanco = useMemo(() => {
           const base = ['revenda', 'cafeteria', 'encomenda', 'bebidas', 'frios', 'bomboniere'];
@@ -19649,7 +19650,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             .filter(Boolean)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .map((value) => ({ value, label: value }));
-        }, [categoriasRevendaBanco]);
+        }, [categoriasRevendaBanco, versaoCategoriasBanco]);
 
         const opcoesCategoriaProducaoBanco = useMemo(() => {
           const padrao = new Set(PRODUCT_CATEGORIES.map((item) => item.value));
@@ -19657,7 +19658,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             .filter((categoria) => categoria && !padrao.has(categoria))
             .sort((a, b) => a.localeCompare(b, 'pt-BR'));
           return [...PRODUCT_CATEGORIES, ...extras.map((value) => ({ value, label: value }))];
-        }, [products]);
+        }, [products, versaoCategoriasBanco]);
 
         const valorTipoBanco = (linha) => {
           if (linha.supply && linha.revenda) return 'insumo_revenda';
@@ -22336,13 +22337,7 @@ ${BARRA_ACOES_HTML}
                   <h2 className="t-display">Banco de Dados</h2>
                   <p className="t-body mt-1">{unitName} · cadastros organizados em uma única área, com filtros e edição direta.</p>
                 </div>
-                <div className="segmented w-full sm:w-auto sm:inline-flex overflow-x-auto">
-                  <button type="button" onClick={() => setModoFornecedores('analise')} data-active={false} className="shrink-0 h-9 px-4">Análise</button>
-                  <button type="button" onClick={() => setModoFornecedores('guia')} data-active={false} className="shrink-0 h-9 px-4">Guia</button>
-                  <button type="button" onClick={() => setModoFornecedores('planilha')} data-active={false} className="shrink-0 h-9 px-4">Planilha</button>
-                  <button type="button" onClick={() => setModoFornecedores('banco')} data-active={true} className="shrink-0 h-9 px-4">Banco de dados</button>
-                  <button type="button" onClick={() => setModoFornecedores('cotacao')} data-active={false} className="shrink-0 h-9 px-4">Cotações</button>
-                </div>
+
               </div>
 
               <div className="lark-toolbar">
@@ -22458,7 +22453,13 @@ ${BARRA_ACOES_HTML}
                         setErroCategoriaBanco('Esta categoria já existe ou tem nome inválido.');
                         return;
                       }
-                      window.location.reload();
+                      const updated = readCustomCategories();
+                      const newest = updated[tipoNovaCategoriaBanco][updated[tipoNovaCategoriaBanco].length - 1];
+                      if (tipoNovaCategoriaBanco === 'producao') PRODUCT_CATEGORIES.push(newest);
+                      if (tipoNovaCategoriaBanco === 'revenda') RESALE_CATEGORIES.push(newest);
+                      setNovaCategoriaBanco('');
+                      setErroCategoriaBanco('');
+                      setVersaoCategoriasBanco(v => v + 1);
                     } catch (_) { setErroCategoriaBanco('Não foi possível salvar neste navegador.'); }
                   }}>
                     <label className="text-xs font-medium">Grupo
