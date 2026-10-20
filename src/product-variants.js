@@ -78,7 +78,7 @@ function editor(v){
  (!baseFicha||!ingredientes(currentId).length?'<p class="pv-alert">Cadastre primeiro os ingredientes da receita base na ficha técnica do produto principal.</p>':'')+
  (needsReview?'<div class="pv-alert"><strong>Ficha antiga independente</strong><p>Este produto já tem ingredientes cadastrados. Remova abaixo os itens da massa antes de vincular a receita base para evitar custo em dobro.</p><label class="pv-check"><input id="pv-review" type="checkbox"> Conferi os ingredientes e retirei a massa duplicada</label></div>':'')+
  '<form id="pv-form"><label>Sabor ou recheio<input name="variant" required maxlength="100" value="'+esc(flavor)+'" placeholder="Ex.: Doce de leite"></label>'+
- '<div class="pv-two"><label>Quantidade da base usada<input name="baseQty" type="number" required min="0.001" step="any" value="'+esc(baseItem?.qty??(baseUnit==="un"?1:""))+'"></label>'+
+ '<div class="pv-two"><label>Quantidade total da base nesta ficha<input name="baseQty" type="number" required min="0.001" step="any" value="'+esc(baseItem?.qty??(baseUnit==="un"?1:""))+'"></label>'+
  '<label>Unidade da base<input readonly value="'+esc(baseUnit)+'"></label></div>'+
  '<div class="pv-two"><label>Rendimento da ficha final<input name="yield" type="number" required min="0.001" step="any" value="'+esc(existing?.yield_qty||1)+'"></label>'+
  '<label>Unidade produzida<select name="yieldUnit">'+["un","kg","g","ml","L"].map(u=>'<option value="'+u+'" '+(u===(existing?.yield_unit||"un")?'selected':'')+'>'+u+'</option>').join("")+'</select></label></div>'+
@@ -94,6 +94,7 @@ function editor(v){
    const qtyBase=Number(fd.get("baseQty")),yieldQty=Number(fd.get("yield")),price=Number(fd.get("price"));
    if(!baseFicha||!ingredientes(currentId).length)return msg("A receita base ainda não tem ingredientes.",true);
    if(needsReview&&!host.querySelector("#pv-review")?.checked)return msg("Revise a ficha antiga antes de vincular a base.",true);
+   if(v&&evitarCircular(currentId,v.id))return msg("Esta receita criaria uma referência circular à base.",true);
    if(!variant||!(qtyBase>0)||!(yieldQty>0)||!Number.isFinite(price)||price<0)return msg("Confira sabor, quantidade, rendimento e preço.",true);
    if(!v&&!extrasDraft.length)return msg("Escolha ao menos um recheio ou complemento.",true);
    const refs=new Set();
@@ -158,7 +159,7 @@ function editor(v){
 function link(){
  const available=parents().filter(p=>p.id!==currentId); const host=document.getElementById("pv-editor");
  host.innerHTML='<h3>Vincular produto existente</h3><p>Preserva a ficha técnica e o histórico do produto selecionado.</p><form id="pv-link-form"><label>Produto já cadastrado<select name="product" required>'+available.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("")+'</select></label><label>Nome da variação<input name="variant" required placeholder="Ex.: Frango"></label><button class="pv-action" type="submit">Vincular</button></form>';
- host.querySelector("form").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);try{const {error}=await client().from("products").update({parent_product_id:currentId,variant_name:String(fd.get("variant")).trim()}).eq("id",fd.get("product"));if(error)throw error;await load();selectedId=String(fd.get("product"));render();msg("Produto vinculado sem apagar sua ficha e seu histórico.");}catch(err){msg(err.message,true)}};
+ host.querySelector("form").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);try{if(evitarCircular(currentId,String(fd.get("product"))))throw Error("Este vínculo criaria uma receita circular.");const {error}=await client().from("products").update({parent_product_id:currentId,variant_name:String(fd.get("variant")).trim()}).eq("id",fd.get("product"));if(error)throw error;await load();selectedId=String(fd.get("product"));render();msg("Produto vinculado sem apagar sua ficha e seu histórico.");}catch(err){msg(err.message,true)}};
 }
 async function open(){
  document.getElementById("pv-modal")?.remove();
