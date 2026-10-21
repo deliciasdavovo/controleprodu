@@ -405,7 +405,7 @@
     // Manual feito para quem está no balcão: capa com "como usar" em três
     // passos, índice colorido por grupo, e cada produto como um passo a passo
     // visual — quantidade do pedido → embalagens com foto e "×N" em cima.
-    // No fim, um guia rápido de uma página e o catálogo das embalagens.
+    // No fim, o catálogo das embalagens usadas.
     // Preço não aparece: o manual é da equipe, o preço fica no sistema.
     const CORES_GRUPO = {
       'Salgados': '#d9733a', 'Doces e sobremesas': '#cc4f86', 'Pães': '#b88a1e',
@@ -497,14 +497,6 @@
         '<div class="grupo-produtos">' + itens.map((l) => produtoHTML(l, corGrupo(nome))).join('') +
         '</div></section>').join('');
 
-      const guiaRapido = agrupados.map(([nome, itens]) => itens.map((linha) =>
-        variacoesDe(linha).map((v, k) => '<tr style="--cor:' + corGrupo(nome) + '">' +
-          (k === 0 ? '<td class="gr-prod" rowspan="' + variacoesDe(linha).length + '">' + esc(linha.produto) + '</td>' : '') +
-          '<td class="gr-qtd">' + esc(textoRegra(v)) + '</td><td>' +
-          v.itens.map((item) => '<b>' + numero(item.quantidade) + '×</b> ' +
-            esc(indiceEmbalagem.get(item.embalagemId)?.nome || 'Embalagem não encontrada')).join(' &nbsp;+&nbsp; ') +
-          '</td></tr>').join('')).join('')).join('');
-
       const catalogo = [...usoEmbalagem.entries()]
         .map(([id, produtos]) => ({ emb: indiceEmbalagem.get(id), produtos: [...produtos] }))
         .sort((a, b) => (a.emb?.nome || '').localeCompare(b.emb?.nome || '', 'pt-BR'))
@@ -521,8 +513,11 @@
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual de embalagens - ${esc(unitName)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{color-scheme:light;font-family:Manrope,Arial,Helvetica,sans-serif;color:#1f3328;--verde:#285c3e}
+  :root{color-scheme:light;font-family:Montserrat,Arial,Helvetica,sans-serif;color:#1f3328;--verde:#285c3e}
   *{box-sizing:border-box}
   body{margin:0;background:#e9efe9;font-size:12px;line-height:1.4}
   svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -594,15 +589,10 @@
   .embalagem-sem-foto svg{width:34px;height:34px}
   .embalagem-sem-foto small{font-size:9px;font-weight:700;text-transform:uppercase}
   .embalagem-nome{font-size:11.5px;font-weight:700;line-height:1.3;color:#2c4636;overflow-wrap:anywhere}
-  /* Guia rápido e catálogo */
+  /* Catálogo */
   .secao-final{margin-top:30px}
   .secao-final>h2{color:#1d4a30;margin-bottom:4px}
   .secao-final>p{margin:0 0 12px;color:#5d7366}
-  .guia{width:100%;border-collapse:collapse;font-size:11.5px}
-  .guia th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#6b7f72;border-bottom:2px solid #d5e2d8;padding:6px 8px}
-  .guia td{padding:6px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}
-  .guia .gr-prod{font-weight:800;border-left:4px solid var(--cor);color:#1d3326}
-  .guia .gr-qtd{white-space:nowrap;font-weight:700;color:#3d5a47}
   .catalogo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   .cat-card{border:1px solid #e0e9e2;border-radius:12px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:5px;align-items:center}
   .cat-foto{width:100%;height:96px;border-radius:9px;background:#f4f7f4;display:flex;align-items:center;justify-content:center}
@@ -624,7 +614,7 @@
     .produto{break-inside:avoid-page;page-break-inside:avoid;display:inline-block;width:100%;vertical-align:top}
     .variacao{break-inside:avoid-page;page-break-inside:avoid}
     .secao-final{break-before:page;margin-top:0}
-    .guia tr,.cat-card{break-inside:avoid}
+    .cat-card{break-inside:avoid}
     .indice-grupo{break-inside:avoid}
   }
   @media(max-width:640px){
@@ -665,11 +655,6 @@
 </header>
 ${corpo}
 <section class="secao-final">
-  <h2>Guia rápido de balcão</h2>
-  <p>Tudo numa folha só, para consulta rápida. Pode imprimir e deixar perto do caixa.</p>
-  <table class="guia"><thead><tr><th>Produto</th><th>Quantidade</th><th>Embalagens</th></tr></thead><tbody>${guiaRapido}</tbody></table>
-</section>
-<section class="secao-final">
   <h2>Catálogo das embalagens</h2>
   <p>Para reconhecer cada embalagem no estoque.</p>
   <div class="catalogo">${catalogo}</div>
@@ -681,6 +666,8 @@ ${corpo}
     const btn=document.getElementById('salvar-pdf');
     btn.disabled=true;btn.textContent='Preparando fotos…';
     try{
+      // A Montserrat vem do Google Fonts: espera carregar para o PDF não sair com a fonte reserva.
+      if (document.fonts && document.fonts.ready) await document.fonts.ready.catch(()=>{});
       await Promise.all(Array.from(document.querySelectorAll('img'))
         .map(img => img.decode ? img.decode().catch(()=>{}) :
           new Promise(resolve=>{if(img.complete)return resolve();
