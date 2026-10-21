@@ -20151,11 +20151,14 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [busca, setBusca] = useState('');
         const [tipoFiltro, setTipoFiltro] = useState('todos');
         const [ordem, setOrdem] = useState('variacao_desc');
-        const [limite, setLimite] = useState('10');
+        // Abre mostrando tudo; a escolha fica lembrada neste aparelho.
+        const [limite, setLimiteState] = useState(() => lerPreferencia('fornecedores-limite', 'todos'));
+        const setLimite = (valor) => { setLimiteState(valor); guardarPreferencia('fornecedores-limite', valor); };
         const [mesFiltro, setMesFiltro] = useState('');
         const [dataInicio, setDataInicio] = useState('');
         const [dataFim, setDataFim] = useState('');
-        const [periodoRelatorioPrecos, setPeriodoRelatorioPrecos] = useState('3');
+        const [periodoRelatorioPrecos, setPeriodoRelatorioPrecosState] = useState(() => lerPreferencia('fornecedores-periodo-precos', '3'));
+        const setPeriodoRelatorioPrecos = (valor) => { setPeriodoRelatorioPrecosState(valor); guardarPreferencia('fornecedores-periodo-precos', valor); };
         const [historicoFornecedor, setHistoricoFornecedor] = useState(null);
         // Fechado por padrão: com doze fornecedores e centenas de compras, a
         // lista aberta era uma parede. Quem quer conferir uma nota abre a dela.
@@ -22209,14 +22212,14 @@ ${BARRA_ACOES_HTML}
               { rotulo: 'Variação', valor: periodoRelatorioPrecos === '12' ? 'Último 1 ano' : `Últimos ${periodoRelatorioPrecos} meses` },
               { rotulo: 'Busca', valor: busca.trim() || 'Sem busca' },
               { rotulo: 'Ordenação', valor: rotuloOrdem },
-              { rotulo: 'Limite', valor: `Top ${limiteAtual}` },
+              { rotulo: 'Limite', valor: limite === 'todos' ? 'Sem limite' : `Top ${limiteAtual}` },
               ...(visao === 'valor' ? [{
                 rotulo: 'Agrupamento',
                 valor: modoValorComprado === 'individual' ? 'Compra individual' : 'Agrupado por produto'
               }] : []),
               ...(visao === 'compra' ? [{
                 rotulo: 'Compras exibidas',
-                valor: `Primeiras ${limiteAtual}`
+                valor: limite === 'todos' ? 'Todas' : `Primeiras ${limiteAtual}`
               }] : [])
             ]
           };

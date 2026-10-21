@@ -401,156 +401,287 @@
     };
     // O HTML da janela incorpora fotos JPEG já guardadas no Supabase. Ao
     // imprimir/salvar como PDF, não depende de links externos de imagens.
+    //
+    // Manual feito para quem está no balcão: capa com "como usar" em três
+    // passos, índice colorido por grupo, e cada produto como um passo a passo
+    // visual — quantidade do pedido → embalagens com foto e "×N" em cima.
+    // No fim, um guia rápido de uma página e o catálogo das embalagens.
+    // Preço não aparece: o manual é da equipe, o preço fica no sistema.
+    const CORES_GRUPO = {
+      'Salgados': '#d9733a', 'Doces e sobremesas': '#cc4f86', 'Pães': '#b88a1e',
+      'Cafeteria': '#86593b', 'Bebidas': '#2a78d6', 'Bomboniere': '#7451c9', 'Outros': '#4f7a62'
+    };
+    const corGrupo = (nome) => CORES_GRUPO[nome] || '#4f7a62';
+    const ordemVariacao = (v) => {
+      const peso = { menos_de: 0, igual: 1, a_partir: 2, mais_de: 3, texto: 9 }[v.operador] ?? 9;
+      return v.operador === 'texto' ? 1e9 : intPositivo(v.quantidade) * 10 + peso;
+    };
+    const etiquetaVariacao = (v) => {
+      if (v.operador === 'texto') return '<span class="qtd-texto">' + esc(v.rotulo || 'Outra quantidade') + '</span>';
+      const q = intPositivo(v.quantidade);
+      const antes = { menos_de: 'menos de', mais_de: 'mais de', a_partir: 'a partir de' }[v.operador] || '';
+      return (antes ? '<small>' + antes + '</small>' : '') + '<b>' + q + '</b><small>' +
+        (q === 1 ? 'unidade' : 'unidades') + '</small>';
+    };
+    const ICONES = {
+      buscar: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+      contar: '<svg viewBox="0 0 24 24"><rect x="3" y="12" width="7" height="8" rx="1.5"/><rect x="14" y="12" width="7" height="8" rx="1.5"/><rect x="8.5" y="3" width="7" height="8" rx="1.5"/></svg>',
+      caixa: '<svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
+      seta: '<svg viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></svg>'
+    };
     const construirManualHTML = (lista) => {
       const data = new Date().toLocaleDateString('pt-BR');
-      const agrupados = new Map();
+      const agrupadosMapa = new Map();
       lista.forEach((linha) => {
         const grupo = linha.grupo || 'Outros';
-        if (!agrupados.has(grupo)) agrupados.set(grupo, []);
-        agrupados.get(grupo).push(linha);
+        if (!agrupadosMapa.has(grupo)) agrupadosMapa.set(grupo, []);
+        agrupadosMapa.get(grupo).push(linha);
       });
-      const totalRegras = lista.reduce((n, l) => n + l.variacoes.filter((v) => v.itens.length).length, 0);
-      let semFoto = 0;
+      const agrupados = [...agrupadosMapa.entries()].sort(([a], [b]) => {
+        const na = ordemGrupo.indexOf(a), nb = ordemGrupo.indexOf(b);
+        return (na < 0 ? 999 : na) - (nb < 0 ? 999 : nb) || a.localeCompare(b, 'pt-BR');
+      }).map(([nome, itens]) => [nome, [...itens].sort((a, b) => a.produto.localeCompare(b.produto, 'pt-BR'))]);
+      const variacoesDe = (linha) => linha.variacoes.filter((v) => v.itens.length)
+        .slice().sort((a, b) => ordemVariacao(a) - ordemVariacao(b));
+      const totalRegras = lista.reduce((n, l) => n + variacoesDe(l).length, 0);
+      const ancora = (linha) => 'p-' + nomeArquivo(linha.id || linha.produto);
+
+      // Embalagens realmente usadas, com os produtos que pedem cada uma
+      const usoEmbalagem = new Map();
+      lista.forEach((linha) => variacoesDe(linha).forEach((v) => v.itens.forEach((item) => {
+        if (!usoEmbalagem.has(item.embalagemId)) usoEmbalagem.set(item.embalagemId, new Set());
+        usoEmbalagem.get(item.embalagemId).add(linha.produto);
+      })));
+      const semFoto = [...usoEmbalagem.keys()].filter((id) => {
+        const emb = indiceEmbalagem.get(id);
+        return !(emb && imagemValida(emb.foto));
+      }).length;
+
+      const fotoOuVazio = (emb, classe) => {
+        const nome = emb ? emb.nome : 'Embalagem não encontrada no cadastro';
+        const imagem = emb ? imagemValida(emb.foto) : '';
+        return imagem
+          ? '<img class="' + classe + '" loading="eager" src="' + imagem + '" alt="' + esc(nome) + '">'
+          : '<div class="embalagem-sem-foto">' + ICONES.caixa + '<small>sem foto</small></div>';
+      };
       const embalagemCard = (item) => {
         const emb = indiceEmbalagem.get(item.embalagemId);
         const nome = emb ? emb.nome : 'Embalagem não encontrada no cadastro';
-        const imagem = emb ? imagemValida(emb.foto) : '';
-        if (!imagem) semFoto++;
-        const foto = imagem
-          ? '<img class="embalagem-foto" loading="eager" src="' + imagem +
-              '" alt="' + esc(nome) + '">'
-          : '<div class="embalagem-sem-foto"><b>Sem foto</b><small>Cadastre no sistema</small></div>';
-        return '<article class="embalagem-card">' +
-          '<div class="embalagem-imagem">' + foto + '</div>' +
-          '<div class="embalagem-info"><b class="embalagem-quantidade">' + numero(item.quantidade) +
-          ' <small>×</small></b><div class="embalagem-nome">' + esc(nome) +
-          '</div><div class="embalagem-preco">' + esc(formatarPrecoEmbalagem(emb && emb.precoUnitario)) + '</div></div></article>';
+        return '<article class="embalagem-card"><div class="embalagem-imagem">' + fotoOuVazio(emb, 'embalagem-foto') +
+          '<span class="embalagem-quantidade">×' + numero(item.quantidade) + '</span></div>' +
+          '<div class="embalagem-nome">' + esc(nome) + '</div></article>';
       };
-      const produtoHTML = (linha, indice) => {
-        const variacoes = linha.variacoes.filter((v) => v.itens.length);
-        return '<article class="produto"><div class="produto-cabecalho"><span class="produto-indice">' +
-          String(indice).padStart(2, '0') + '</span><h3>' + esc(linha.produto) +
-          '</h3><span class="produto-contador">' + variacoes.length +
-          (variacoes.length === 1 ? ' variação' : ' variações') + '</span></div>' +
-          variacoes.map((v) => '<section class="variacao"><div class="variacao-titulo">' +
-            '<span class="variacao-sinal"></span><h4>' + esc(textoRegra(v)) +
-            '</h4><span class="variacao-legenda">Embalagens necessárias</span></div>' +
-            '<div class="embalagens">' + v.itens.map(embalagemCard).join('') +
-            '</div></section>').join('') + '</article>';
+      const produtoHTML = (linha, cor) => {
+        const variacoes = variacoesDe(linha);
+        return '<article class="produto" id="' + ancora(linha) + '" style="--cor:' + cor + '">' +
+          '<div class="produto-cabecalho"><h3>' + esc(linha.produto) + '</h3>' +
+          '<span class="produto-contador">' + variacoes.length + (variacoes.length === 1 ? ' situação' : ' situações') + '</span></div>' +
+          variacoes.map((v) => '<section class="variacao">' +
+            '<div class="variacao-titulo"><span class="variacao-legenda">Cliente levou</span>' +
+            '<div class="qtd">' + etiquetaVariacao(v) + '</div></div>' +
+            '<div class="variacao-seta">' + ICONES.seta + '<small>separe</small></div>' +
+            '<div class="embalagens">' + v.itens.map(embalagemCard).join('') + '</div></section>').join('') +
+          '</article>';
       };
-      let indice = 0;
-      const corpo = [...agrupados.entries()].map(([nome, grupo], i) =>
-        '<section class="grupo"><div class="grupo-cabecalho"><span class="grupo-numero">' +
-        String(i + 1).padStart(2, '0') + '</span><h2>' + esc(nome) +
-        '</h2><span class="grupo-quantidade">' + grupo.length +
-        (grupo.length === 1 ? ' produto' : ' produtos') + '</span></div>' +
-        '<div class="grupo-produtos">' + grupo.map((l) => produtoHTML(l, ++indice)).join('') +
+
+      const indiceHTML = agrupados.map(([nome, itens]) =>
+        '<div class="indice-grupo" style="--cor:' + corGrupo(nome) + '"><h3><i></i>' + esc(nome) +
+        '<small>' + itens.length + '</small></h3><ol>' +
+        itens.map((l) => '<li><a href="#' + ancora(l) + '">' + esc(l.produto) + '</a></li>').join('') +
+        '</ol></div>').join('');
+
+      const corpo = agrupados.map(([nome, itens], i) =>
+        '<section class="grupo" style="--cor:' + corGrupo(nome) + '"><div class="grupo-cabecalho">' +
+        '<span class="grupo-numero">' + String(i + 1).padStart(2, '0') + '</span><h2>' + esc(nome) + '</h2>' +
+        '<span class="grupo-quantidade">' + itens.length + (itens.length === 1 ? ' produto' : ' produtos') + '</span></div>' +
+        '<div class="grupo-produtos">' + itens.map((l) => produtoHTML(l, corGrupo(nome))).join('') +
         '</div></section>').join('');
+
+      const guiaRapido = agrupados.map(([nome, itens]) => itens.map((linha) =>
+        variacoesDe(linha).map((v, k) => '<tr style="--cor:' + corGrupo(nome) + '">' +
+          (k === 0 ? '<td class="gr-prod" rowspan="' + variacoesDe(linha).length + '">' + esc(linha.produto) + '</td>' : '') +
+          '<td class="gr-qtd">' + esc(textoRegra(v)) + '</td><td>' +
+          v.itens.map((item) => '<b>' + numero(item.quantidade) + '×</b> ' +
+            esc(indiceEmbalagem.get(item.embalagemId)?.nome || 'Embalagem não encontrada')).join(' &nbsp;+&nbsp; ') +
+          '</td></tr>').join('')).join('')).join('');
+
+      const catalogo = [...usoEmbalagem.entries()]
+        .map(([id, produtos]) => ({ emb: indiceEmbalagem.get(id), produtos: [...produtos] }))
+        .sort((a, b) => (a.emb?.nome || '').localeCompare(b.emb?.nome || '', 'pt-BR'))
+        .map(({ emb, produtos }) => '<article class="cat-card"><div class="cat-foto">' + fotoOuVazio(emb, 'catalogo-foto') +
+          '</div><b>' + esc(emb ? emb.nome : 'Embalagem não encontrada') + '</b><small>Usada em ' + produtos.length +
+          (produtos.length === 1 ? ' produto' : ' produtos') + '</small></article>').join('');
+
       const notaFotos = semFoto
-        ? '<div class="aviso-fotos"><strong>Atenção:</strong> ' + semFoto +
+        ? '<div class="aviso-fotos"><strong>Faltam fotos:</strong> ' + semFoto +
           (semFoto === 1 ? ' embalagem usada ainda não tem foto.' : ' embalagens usadas ainda não têm foto.') +
-          ' Para completar o manual, abra CMV → Embalagens e envie as imagens nos cartões.</div>'
-        : '<div class="aviso-ok">Todas as embalagens utilizadas possuem fotos cadastradas.</div>';
+          ' Envie em Produtos → Embalagens para o manual ficar completo.</div>'
+        : '';
       return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual de embalagens - ${esc(unitName)}</title>
 <style>
-  :root{color-scheme:light;font-family:Arial,Helvetica,sans-serif;color:#274733}
+  :root{color-scheme:light;font-family:Manrope,Arial,Helvetica,sans-serif;color:#1f3328;--verde:#285c3e}
   *{box-sizing:border-box}
-  body{margin:0;background:#edf2ee;font-size:12px;line-height:1.4}
-  .folha{max-width:900px;margin:20px auto;padding:28px 33px 36px;background:#fff;box-shadow:0 5px 28px #10291818}
-  .acoes{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px 16px;background:#e8f1e9;border-bottom:1px solid #d4e5d8}
+  body{margin:0;background:#e9efe9;font-size:12px;line-height:1.4}
+  svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .folha{max-width:880px;margin:20px auto;padding:30px 34px 36px;background:#fff;box-shadow:0 5px 28px #10291818}
+  .acoes{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 16px;background:#e3eee5;border-bottom:1px solid #cfe0d3}
   .acoes span{font-size:12px;color:#3a6247}
-  .acoes button{padding:11px 17px;border:0;border-radius:6px;background:#285c3e;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+  .acoes button{padding:11px 17px;border:0;border-radius:8px;background:var(--verde);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
   .acoes button:disabled{opacity:.6;cursor:wait}
-  .capa{border-bottom:3px solid #326447;padding-bottom:21px;margin-bottom:20px}
-  .assinatura{display:flex;gap:9px;align-items:center;font-size:10px;font-weight:700;letter-spacing:.13em;color:#51755e}
-  .marca{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;background:#285c3e;color:#fff;letter-spacing:0}
-  .tipo{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#799080;margin:20px 0 5px}
-  h1{font-size:29px;line-height:1.12;letter-spacing:-.02em;margin:0;color:#254c34}
-  .subtitulo{color:#63786a;margin:9px 0 0;font-size:12px}
-  .infos{display:flex;flex-wrap:wrap;gap:7px;margin-top:15px}
-  .infos span{padding:6px 10px;background:#edf4ef;border:1px solid #d9e8dc;border-radius:6px;font-size:11px;font-weight:650;color:#446950}
-  .aviso-fotos,.aviso-ok{padding:10px 13px;font-size:11px;border:1px solid #dfebdf;background:#fafcf7;border-radius:7px;margin:16px 0}
-  .aviso-fotos{background:#fff9ea;border-color:#eddfb7;color:#755b2d}
-  .aviso-ok{color:#42694d}
-  .grupo{margin:23px 0 25px}
-  .grupo-cabecalho{display:flex;align-items:center;gap:11px;background:#e6f0e8;color:#245438;padding:11px 13px;border-radius:8px;margin-bottom:12px}
-  .grupo-numero{font-weight:800;color:#70977b;font-size:12px}
-  h2{margin:0;font-size:16px;font-weight:800}
-  .grupo-quantidade{margin-left:auto;font-size:10px;font-weight:700;color:#668572;white-space:nowrap}
-  .grupo-produtos{display:flex;flex-direction:column;gap:13px}
-  .produto{border:1px solid #d8e5db;border-radius:9px;overflow:hidden;background:#fff}
-  .produto-cabecalho{display:flex;gap:10px;align-items:center;padding:12px 14px;background:#f5f9f6;border-bottom:1px solid #e4eee6}
-  .produto-indice{font-size:10px;color:#96a79a;min-width:22px}
-  h3{font-size:15px;line-height:1.25;margin:0;color:#294d37}
-  .produto-contador{margin-left:auto;font-size:10px;color:#738d7a;white-space:nowrap}
-  .variacao{padding:13px 14px 15px}
-  .variacao+.variacao{border-top:1px dashed #dce8de}
-  .variacao-titulo{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-  .variacao-sinal{width:4px;height:17px;background:#3e8659;border-radius:3px}
-  h4{font-size:12px;font-weight:800;margin:0;color:#305d42}
-  .variacao-legenda{color:#8b9c90;font-size:10px;margin-left:auto}
-  .embalagens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-  .embalagem-card{display:flex;gap:10px;align-items:center;min-height:100px;border:1px solid #e0e9e2;border-radius:7px;padding:8px;background:#fff}
-  .embalagem-imagem{width:89px;height:83px;flex:0 0 89px;border-radius:5px;background:#f3f6f3;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  .embalagem-foto{width:100%;height:100%;object-fit:contain}
-  .embalagem-sem-foto{text-align:center;color:#87998c;font-size:10px;display:flex;flex-direction:column;gap:3px}
-  .embalagem-sem-foto small{font-size:8px;color:#abb9ad}
-  .embalagem-info{min-width:0}
-  .embalagem-quantidade{font-size:23px;line-height:1;color:#2c6844}
-  .embalagem-quantidade small{font-size:12px;color:#719582}
-  .embalagem-nome{font-size:12px;font-weight:700;line-height:1.35;margin-top:6px;overflow-wrap:anywhere;color:#385441}
-  .embalagem-preco{font-size:11px;font-weight:700;color:#2f5d45;margin-top:5px}
-  .rodape{margin-top:20px;padding-top:12px;border-top:1px solid #e1ece3;color:#859889;font-size:10px}
-  @page{size:A4 portrait;margin:12mm 11mm 15mm}
+  /* Capa */
+  .capa{display:flex;flex-direction:column;gap:22px}
+  .assinatura{display:flex;gap:9px;align-items:center;font-size:10px;font-weight:800;letter-spacing:.14em;color:#51755e}
+  .marca{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--verde);color:#fff;letter-spacing:0}
+  h1{font-size:40px;line-height:1.05;letter-spacing:-.03em;margin:0;color:#1d4a30}
+  .subtitulo{color:#5d7366;margin:8px 0 0;font-size:13px}
+  .infos{display:flex;flex-wrap:wrap;gap:8px}
+  .infos span{padding:7px 11px;background:#eef5f0;border-radius:20px;font-size:11px;font-weight:700;color:#3d6549}
+  .como{border:2px solid #dbe8de;border-radius:14px;padding:16px 18px;background:#f8fbf8}
+  .como h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4c6f58;margin:0 0 12px}
+  .passos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .passo{display:flex;gap:10px;align-items:flex-start}
+  .passo-num{flex:none;width:34px;height:34px;border-radius:50%;background:var(--verde);color:#fff;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .passo-ic{width:26px;height:26px;color:#2f6a46;margin-bottom:4px}
+  .passo b{display:block;font-size:13px;color:#1f3d2b}
+  .passo small{font-size:11px;color:#5f7567}
+  .exemplo{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px dashed #d3e2d7;font-size:11px;color:#4f6a59}
+  .exemplo .mini{position:relative;width:46px;height:40px;border-radius:8px;background:#fff;border:1px solid #dce7df;display:flex;align-items:center;justify-content:center;color:#8aa293}
+  .exemplo .mini svg{width:22px;height:22px}
+  .exemplo .mini span{position:absolute;top:-8px;right:-10px;background:#1f3d2b;color:#fff;font-weight:800;font-size:11px;border-radius:12px;padding:2px 6px}
+  .indice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px}
+  .indice-titulo{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4c6f58;margin:0 0 -6px}
+  .indice-grupo h3{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 6px;color:#1f3328}
+  .indice-grupo h3 i{width:12px;height:12px;border-radius:4px;background:var(--cor)}
+  .indice-grupo h3 small{margin-left:auto;font-size:11px;color:#8a9a90}
+  .indice-grupo ol{margin:0;padding:0 0 0 20px;columns:1;font-size:12px;color:#33493b}
+  .indice-grupo li{padding:2px 0;border-bottom:1px dotted #e2ebe4}
+  .indice-grupo a{color:inherit;text-decoration:none}
+  .aviso-fotos{padding:10px 13px;font-size:11px;border:1px solid #eddfb7;background:#fff9ea;color:#755b2d;border-radius:8px}
+  /* Grupos e produtos */
+  .grupo{margin-top:28px}
+  .grupo-cabecalho{display:flex;align-items:center;gap:12px;background:var(--cor);color:#fff;padding:13px 16px;border-radius:12px;margin-bottom:14px}
+  .grupo-numero{font-weight:800;font-size:13px;opacity:.8}
+  h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .grupo-quantidade{margin-left:auto;font-size:11px;font-weight:700;opacity:.9;white-space:nowrap}
+  /* Bloco comum (não flex): o Chrome só respeita "não quebrar o produto
+     entre páginas" fora de flex/grid. */
+  .grupo-produtos{display:block}
+  .grupo-produtos>.produto+.produto{margin-top:14px}
+  .produto{border:1.5px solid #dce6df;border-left:6px solid var(--cor);border-radius:12px;background:#fff}
+  .produto-cabecalho{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid #edf1ee}
+  h3{font-size:18px;line-height:1.2;margin:0;color:#1d3326;letter-spacing:-.01em}
+  .produto-contador{margin-left:auto;font-size:10px;font-weight:700;color:#7c8f82;white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
+  .variacao{display:grid;grid-template-columns:118px 46px minmax(0,1fr);align-items:center;gap:6px;padding:12px 16px}
+  .variacao+.variacao{border-top:1px dashed #e0e9e3}
+  .variacao-titulo{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .variacao-legenda{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a9a90}
+  .qtd{width:108px;min-height:74px;border-radius:12px;background:color-mix(in srgb,var(--cor) 12%,#fff);border:2px solid color-mix(in srgb,var(--cor) 45%,#fff);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;text-align:center;color:#1d3326}
+  .qtd b{font-size:32px;line-height:1;font-weight:800}
+  .qtd small{font-size:10px;font-weight:700;color:#4e6457}
+  .qtd-texto{font-size:12px;font-weight:800}
+  .variacao-seta{display:flex;flex-direction:column;align-items:center;color:var(--cor)}
+  .variacao-seta svg{width:30px;height:30px;stroke-width:2.5}
+  .variacao-seta small{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#8a9a90}
+  .embalagens{display:flex;flex-wrap:wrap;gap:12px}
+  .embalagem-card{width:118px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+  .embalagem-imagem{position:relative;width:110px;height:100px;border-radius:12px;background:#f4f7f4;border:1px solid #e3ebe5;display:flex;align-items:center;justify-content:center}
+  .embalagem-foto{max-width:100%;max-height:100%;object-fit:contain;border-radius:11px}
+  .embalagem-quantidade{position:absolute;top:-9px;right:-9px;min-width:38px;height:30px;padding:0 8px;border-radius:15px;background:#1f3d2b;color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px #fff}
+  .embalagem-sem-foto{display:flex;flex-direction:column;align-items:center;gap:4px;color:#9fb0a5}
+  .embalagem-sem-foto svg{width:34px;height:34px}
+  .embalagem-sem-foto small{font-size:9px;font-weight:700;text-transform:uppercase}
+  .embalagem-nome{font-size:11.5px;font-weight:700;line-height:1.3;color:#2c4636;overflow-wrap:anywhere}
+  /* Guia rápido e catálogo */
+  .secao-final{margin-top:30px}
+  .secao-final>h2{color:#1d4a30;margin-bottom:4px}
+  .secao-final>p{margin:0 0 12px;color:#5d7366}
+  .guia{width:100%;border-collapse:collapse;font-size:11.5px}
+  .guia th{text-align:left;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#6b7f72;border-bottom:2px solid #d5e2d8;padding:6px 8px}
+  .guia td{padding:6px 8px;border-bottom:1px solid #e8eee9;vertical-align:top}
+  .guia .gr-prod{font-weight:800;border-left:4px solid var(--cor);color:#1d3326}
+  .guia .gr-qtd{white-space:nowrap;font-weight:700;color:#3d5a47}
+  .catalogo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .cat-card{border:1px solid #e0e9e2;border-radius:12px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:5px;align-items:center}
+  .cat-foto{width:100%;height:96px;border-radius:9px;background:#f4f7f4;display:flex;align-items:center;justify-content:center}
+  .catalogo-foto{max-width:100%;max-height:100%;object-fit:contain}
+  .cat-card b{font-size:11.5px;line-height:1.3}
+  .cat-card small{font-size:10px;color:#7c8f82}
+  .rodape{margin-top:22px;padding-top:12px;border-top:1px solid #e1ece3;color:#859889;font-size:10px}
+  @page{size:A4 portrait;margin:11mm 10mm 13mm}
   @media print{
     html,body{background:#fff!important}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .acoes{display:none!important}
     .folha{width:auto;max-width:none;margin:0;padding:0;box-shadow:none}
-    .capa{break-after:avoid-page}
+    .capa{break-after:page}
+    .grupo{margin-top:0;break-before:page}
     .grupo-cabecalho,.produto-cabecalho,.variacao-titulo{break-after:avoid-page}
-    .grupo,.grupo-produtos{break-inside:auto}
-    .produto{break-inside:avoid-page;page-break-inside:avoid}
+    /* inline-block é indivisível para o Chrome: o produto nunca fica com
+       o título numa página e as fotos na outra. */
+    .produto{break-inside:avoid-page;page-break-inside:avoid;display:inline-block;width:100%;vertical-align:top}
     .variacao{break-inside:avoid-page;page-break-inside:avoid}
-    .embalagem-card{break-inside:avoid;page-break-inside:avoid}
-    .grupo{margin:20px 0 21px}
-    .embalagens{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .embalagem-card{min-height:91px}
-    .embalagem-imagem{width:79px;height:73px;flex-basis:79px}
-    .rodape{break-before:avoid}
+    .secao-final{break-before:page;margin-top:0}
+    .guia tr,.cat-card{break-inside:avoid}
+    .indice-grupo{break-inside:avoid}
   }
-  @media(max-width:600px){
-    .folha{margin:0;padding:19px 15px;box-shadow:none}
+  @media(max-width:640px){
+    .folha{margin:0;padding:20px 14px;box-shadow:none}
     .acoes{flex-wrap:wrap}
-    .embalagens{grid-template-columns:1fr}
-    h1{font-size:25px}
+    h1{font-size:30px}
+    .passos,.indice{grid-template-columns:1fr}
+    .variacao{grid-template-columns:1fr;justify-items:start}
+    .variacao-titulo{flex-direction:row}
+    .variacao-seta{flex-direction:row;gap:6px}
+    .variacao-seta svg{transform:rotate(90deg);width:22px;height:22px}
+    .catalogo{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
 </style></head><body>
-<div class="acoes"><span>Pré-visualização do manual com fotos</span>
+<div class="acoes"><span>Pré-visualização do manual de embalagens</span>
 <button type="button" id="salvar-pdf" onclick="imprimirManual()">Imprimir / Salvar PDF</button></div>
 <main class="folha">
 <header class="capa">
-  <div class="assinatura"><span class="marca">DV</span> DELÍCIAS DA VOVÓ</div>
-  <div class="tipo">Manual prático para a equipe</div>
-  <h1>Manual de embalagens</h1>
-  <p class="subtitulo">${esc(titulo)} · Orientações por produto e quantidade do pedido</p>
-  <div class="infos"><span>Unidade: ${esc(unitName)}</span>
-    <span>Atualizado em: ${esc(data)}</span>
-    <span>${lista.length} produtos</span><span>${totalRegras} variações</span></div>
+  <div class="assinatura"><span class="marca">DV</span> DELÍCIAS DA VOVÓ · MANUAL DA EQUIPE</div>
+  <div>
+    <h1>Manual de embalagens</h1>
+    <p class="subtitulo">Qual embalagem usar em cada produto, conforme a quantidade do pedido.</p>
+  </div>
+  <div class="infos"><span>${esc(unitName)}</span><span>Atualizado em ${esc(data)}</span>
+    <span>${lista.length} produtos</span><span>${totalRegras} situações</span><span>${usoEmbalagem.size} embalagens</span></div>
+  <section class="como">
+    <h2>Como usar</h2>
+    <div class="passos">
+      <div class="passo"><span class="passo-num">1</span><div><div class="passo-ic">${ICONES.buscar}</div><b>Ache o produto</b><small>Pelo índice abaixo ou pela cor do grupo.</small></div></div>
+      <div class="passo"><span class="passo-num">2</span><div><div class="passo-ic">${ICONES.contar}</div><b>Veja quantas unidades</b><small>Encontre a linha com a quantidade que o cliente levou.</small></div></div>
+      <div class="passo"><span class="passo-num">3</span><div><div class="passo-ic">${ICONES.caixa}</div><b>Separe as embalagens</b><small>Pegue exatamente as da foto, na quantidade indicada.</small></div></div>
+    </div>
+    <div class="exemplo"><div class="mini">${ICONES.caixa}<span>×2</span></div><div><b>×2</b> em cima da foto = use <b>2 unidades</b> daquela embalagem.</div></div>
+  </section>
+  ${notaFotos}
+  <h2 class="indice-titulo">Índice</h2>
+  <nav class="indice">${indiceHTML}</nav>
 </header>
-${notaFotos}
 ${corpo}
-<footer class="rodape">Delícias da Vovó · Consulte a variação do produto e separe as embalagens indicadas antes de montar o pedido.</footer>
+<section class="secao-final">
+  <h2>Guia rápido de balcão</h2>
+  <p>Tudo numa folha só, para consulta rápida. Pode imprimir e deixar perto do caixa.</p>
+  <table class="guia"><thead><tr><th>Produto</th><th>Quantidade</th><th>Embalagens</th></tr></thead><tbody>${guiaRapido}</tbody></table>
+</section>
+<section class="secao-final">
+  <h2>Catálogo das embalagens</h2>
+  <p>Para reconhecer cada embalagem no estoque.</p>
+  <div class="catalogo">${catalogo}</div>
+</section>
+<footer class="rodape">Delícias da Vovó · ${esc(titulo)} · ${esc(unitName)} · ${esc(data)}</footer>
 </main>
 <script>
   async function imprimirManual(){
     const btn=document.getElementById('salvar-pdf');
     btn.disabled=true;btn.textContent='Preparando fotos…';
     try{
-      await Promise.all(Array.from(document.querySelectorAll('.embalagem-foto'))
+      await Promise.all(Array.from(document.querySelectorAll('img'))
         .map(img => img.decode ? img.decode().catch(()=>{}) :
           new Promise(resolve=>{if(img.complete)return resolve();
             img.onload=resolve;img.onerror=resolve;})));
