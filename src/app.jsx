@@ -591,6 +591,11 @@ const { useState, useEffect, useMemo, useRef } = React;
         ligar('kg', 'g', 1000);
         ligar('L', 'ml', 1000);
         regrasEquivalenciaDoInsumo(supply).forEach((r) => ligar(r.fromUnit, r.toUnit, r.factor));
+        // O volume padrão do cadastro (ex.: caixa com 12) também é uma
+        // equivalência: 1 caixa = 12 un — a mesma leitura da compra em volume
+        // (pack:caixa:12). Vem depois das regras digitadas, que valem primeiro.
+        const volume = volumeFixoDoCadastro(supply);
+        if (volume) ligar(volume.tipo, 'un', volume.unidades);
         const visitados = new Set([de]);
         const fila = [{ unidade: de, fator: 1 }];
         while (fila.length) {
@@ -937,20 +942,21 @@ const { useState, useEffect, useMemo, useRef } = React;
         return `${numeroCurtoBR(volumes)} ${pluralVolumeRevenda(pacote.tipo, volumes)} × ${numeroCurtoBR(pacote.unidades)} un = ${numeroCurtoBR(total)} un`;
       };
 
-      const converterQtdRevenda = (qtd, origem, destino) => {
+      // Quantidade comprada na unidade de venda. Usa o mesmo conversor do
+      // insumo (kg↔g, L↔ml, volume e equivalências do cadastro). Sem caminho
+      // entre as unidades devolve 0 — 1 kg nunca vira 1 un por falta de regra.
+      const converterQtdRevenda = (qtd, origem, destino, item = null) => {
         const n = Number(qtd) || 0;
         const de = unidadeCompraEfetiva(origem || 'un');
         const para = destino || 'un';
         if (!n || de === para) return n;
-        if (de === 'g' && para === 'kg') return n / 1000;
-        if (de === 'kg' && para === 'g') return n * 1000;
-        return n;
+        return converterQuantidadeEquivalente(n, de, para, item);
       };
 
       const custoRevenda = (item, purchases) => {
         const uc = ultimaCompra((purchases || []).filter((c) => c.separatedProductId === item.id));
         if (uc) {
-          const qtd = converterQtdRevenda(uc.qty, uc.purchaseUnit, item.priceUnit || 'un');
+          const qtd = converterQtdRevenda(uc.qty, uc.purchaseUnit, item.priceUnit || 'un', item);
           if (qtd > 0 && Number(uc.cost) > 0) return Number(uc.cost) / qtd;
         }
         return Number(item.cost) || 0;
@@ -995,19 +1001,33 @@ const { useState, useEffect, useMemo, useRef } = React;
         const proximaPilha = new Set(pilha);
         proximaPilha.add(productId);
         const pendencias = itens.flatMap((item) => {
+          const usada = Number(item.qty) || 0;
           if (item.supplyId) {
             const insumo = supplies.find((x) => x.id === item.supplyId);
             if (!insumo) return [];
             const d = diagnosticoCustoInsumo(insumo.id, purchases, insumo);
-            return d.pendente ? [{ nome: insumo.name, motivo: d.motivo }] : [];
+            if (d.pendente) return [{ nome: insumo.name, motivo: d.motivo }];
+            // Unidade da ficha sem caminho até a base (ex.: "colher" sem regra)
+            // daria custo zero sem ninguém perceber.
+            if (usada > 0 && !(qtdNaUnidadeBase(item, insumo) > 0)) {
+              return [{ nome: insumo.name, motivo: `Defina quanto 1 ${item.usageUnit || insumo.unit} vale em ${insumo.unit || 'un'} nas equivalências do insumo.` }];
+            }
+            return [];
           }
           if (item.componentProductId) {
             const produtoComponente = products.find((x) => x.id === item.componentProductId);
+            const nome = produtoComponente?.name || 'Produto da casa';
             const dependencia = fichaDoProduto(item.componentProductId, recipes, recipeItems,
               supplies, purchases, products, proximaPilha);
-            return dependencia?.custoPendente
-              ? [{ nome: produtoComponente?.name || 'Produto da casa', motivo: 'Ficha de origem com conversão pendente.' }]
-              : [];
+            if (dependencia?.custoPendente) return [{ nome, motivo: 'Ficha de origem com conversão pendente.' }];
+            if (dependencia && usada > 0) {
+              const saida = dependencia.yieldUnit || 'un';
+              const qtd = converterQtdComponente(usada, item.usageUnit || saida, saida, dependencia.weightPerUnit);
+              if (!(qtd > 0)) {
+                return [{ nome, motivo: `A ficha de ${nome} rende em ${saida}; informe o peso por unidade para usar em ${item.usageUnit}.` }];
+              }
+            }
+            return [];
           }
           return [];
         });
@@ -25780,7 +25800,8 @@ ${BARRA_ACOES_HTML}
         const volumeQtdCadastro = Number(item.packageUnits) || 0;
         const volumeValidoCadastro = !!volumeTipoCadastro && volumeQtdCadastro > 0;
         const nomeVolumeCadastro = TIPOS_VOLUME_REVENDA.find((v) => v.value === volumeTipoCadastro)?.label || volumeTipoCadastro;
-        const unidadeDentroVolume = unidadeBase === 'un' ? 'un' : unidadeBase;
+        // O volume conta unidades (caixa com 12 un), como a compra em volume.
+        const unidadeDentroVolume = 'un';
 
 
         // O histórico pode existir em um dos dois lados do cadastro. Isso
