@@ -405,7 +405,6 @@
     // Manual feito para quem está no balcão: capa com "como usar" em três
     // passos, índice colorido por grupo, e cada produto como um passo a passo
     // visual — quantidade do pedido → embalagens com foto e "×N" em cima.
-    // No fim, o catálogo das embalagens usadas.
     // Preço não aparece: o manual é da equipe, o preço fica no sistema.
     const CORES_GRUPO = {
       'Salgados': '#d9733a', 'Doces e sobremesas': '#cc4f86', 'Pães': '#b88a1e',
@@ -497,12 +496,6 @@
         '<div class="grupo-produtos">' + itens.map((l) => produtoHTML(l, corGrupo(nome))).join('') +
         '</div></section>').join('');
 
-      const catalogo = [...usoEmbalagem.entries()]
-        .map(([id, produtos]) => ({ emb: indiceEmbalagem.get(id), produtos: [...produtos] }))
-        .sort((a, b) => (a.emb?.nome || '').localeCompare(b.emb?.nome || '', 'pt-BR'))
-        .map(({ emb, produtos }) => '<article class="cat-card"><div class="cat-foto">' + fotoOuVazio(emb, 'catalogo-foto') +
-          '</div><b>' + esc(emb ? emb.nome : 'Embalagem não encontrada') + '</b><small>Usada em ' + produtos.length +
-          (produtos.length === 1 ? ' produto' : ' produtos') + '</small></article>').join('');
 
       const notaFotos = semFoto
         ? '<div class="aviso-fotos"><strong>Faltam fotos:</strong> ' + semFoto +
@@ -589,16 +582,6 @@
   .embalagem-sem-foto svg{width:34px;height:34px}
   .embalagem-sem-foto small{font-size:9px;font-weight:700;text-transform:uppercase}
   .embalagem-nome{font-size:11.5px;font-weight:700;line-height:1.3;color:#2c4636;overflow-wrap:anywhere}
-  /* Catálogo */
-  .secao-final{margin-top:30px}
-  .secao-final>h2{color:#1d4a30;margin-bottom:4px}
-  .secao-final>p{margin:0 0 12px;color:#5d7366}
-  .catalogo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-  .cat-card{border:1px solid #e0e9e2;border-radius:12px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:5px;align-items:center}
-  .cat-foto{width:100%;height:96px;border-radius:9px;background:#f4f7f4;display:flex;align-items:center;justify-content:center}
-  .catalogo-foto{max-width:100%;max-height:100%;object-fit:contain}
-  .cat-card b{font-size:11.5px;line-height:1.3}
-  .cat-card small{font-size:10px;color:#7c8f82}
   .rodape{margin-top:22px;padding-top:12px;border-top:1px solid #e1ece3;color:#859889;font-size:10px}
   @page{size:A4 portrait;margin:11mm 10mm 13mm}
   @media print{
@@ -613,8 +596,6 @@
        o título numa página e as fotos na outra. */
     .produto{break-inside:avoid-page;page-break-inside:avoid;display:inline-block;width:100%;vertical-align:top}
     .variacao{break-inside:avoid-page;page-break-inside:avoid}
-    .secao-final{break-before:page;margin-top:0}
-    .cat-card{break-inside:avoid}
     .indice-grupo{break-inside:avoid}
   }
   @media(max-width:640px){
@@ -626,7 +607,6 @@
     .variacao-titulo{flex-direction:row}
     .variacao-seta{flex-direction:row;gap:6px}
     .variacao-seta svg{transform:rotate(90deg);width:22px;height:22px}
-    .catalogo{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
 </style></head><body>
 <div class="acoes"><span>Pré-visualização do manual de embalagens</span>
@@ -654,11 +634,6 @@
   <nav class="indice">${indiceHTML}</nav>
 </header>
 ${corpo}
-<section class="secao-final">
-  <h2>Catálogo das embalagens</h2>
-  <p>Para reconhecer cada embalagem no estoque.</p>
-  <div class="catalogo">${catalogo}</div>
-</section>
 <footer class="rodape">Delícias da Vovó · ${esc(titulo)} · ${esc(unitName)} · ${esc(data)}</footer>
 </main>
 <script>
