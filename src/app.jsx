@@ -31,6 +31,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         CheckCircle2: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M9 12l2 2 4-4"]} {...props} />,
         Calendar: (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />,
         Clock: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 6v6l4 2"]} {...props} />,
+        Tag: (props) => <IconBase d={["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z", "M7 7h.01"]} {...props} />,
         Search: (props) => <IconBase d={["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]} {...props} />,
         TrendingUp: (props) => <IconBase d="M23 6l-9.5 9.5-5-5L1 18" {...props} />,
         AlertCircle: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 8v4", "M12 16h.01"]} {...props} />,
@@ -2220,48 +2221,81 @@ const { useState, useEffect, useMemo, useRef } = React;
       };
 
       // ==========================================
-      // AS ABAS, EM DOIS GRUPOS
+      // AS ÁREAS, AGRUPADAS PELO QUE SE FAZ NELAS
       //
-      // A vitrine é o dia a dia da loja; o CMV é a conta do negócio. São
-      // assuntos e horas do dia diferentes, e cada um tem a sua fileira de
-      // abas — juntas, as dez não caberiam na tela do celular.
+      // Antes eram dois mundos (Vitrine × CMV) com uma tela de escolha na
+      // entrada. Agora tudo fica num menu só, separado por tarefa: o dia a dia
+      // da loja, o cadastro dos produtos, as compras e os números do negócio.
+      // Ferramentas abrem outra página ou uma janela, não trocam a aba.
       // ==========================================
       const NAV_GROUPS = {
-        vitrine: {
-          label: 'Vitrine',
+        hoje: {
+          label: 'Hoje',
           title: 'O dia a dia da loja',
           tabs: [
             { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
             { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
             { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
             { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
-            { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History },
             { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee }
           ]
         },
-        cmv: {
-          label: 'CMV',
-          title: 'Custo, preço e fornecedores',
+        produtos: {
+          label: 'Produtos',
+          title: 'Cadastro, fichas, sabores e embalagens',
           tabs: [
-            { id: 'insumos', label: 'Cadastros', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
+            { id: 'insumos', label: 'Cadastros e fichas', fullLabel: 'Cadastros, compras e fichas', icon: Icons.Layers },
+            { id: 'sabores', label: 'Receitas e sabores', fullLabel: 'Sabores de cada produto base', icon: Icons.Copy, action: () => window.abrirVariacoesProdutos?.() },
             { id: 'embalagens', label: 'Embalagens', fullLabel: 'Organização de embalagens por produto', icon: Icons.Package },
-            { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
-            { id: 'banco', label: 'Banco de Dados', fullLabel: 'Banco de Dados e categorias', icon: Icons.Layers },
+            { id: 'banco', label: 'Banco de Dados', fullLabel: 'Banco de Dados e categorias', icon: Icons.Layers }
+          ]
+        },
+        compras: {
+          label: 'Compras',
+          title: 'Fornecedores, preços e notas',
+          tabs: [
             { id: 'fornecedores', label: 'Fornecedores', fullLabel: 'Fornecedores e preços', icon: Icons.ShoppingCart },
             { id: 'nfe', label: 'Notas NF-e', fullLabel: 'Notas fiscais recebidas', icon: Icons.ClipboardList }
+          ]
+        },
+        numeros: {
+          label: 'Números',
+          title: 'Custo, margem e histórico',
+          tabs: [
+            { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
+            { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History }
+          ]
+        },
+        ferramentas: {
+          label: 'Ferramentas',
+          title: 'Impressos',
+          tabs: [
+            { id: 'etiquetas', label: 'Etiquetas e plaquinhas', fullLabel: 'Gerar etiquetas e plaquinhas', icon: Icons.Tag, href: './etiquetas.html' }
           ]
         }
       };
 
+      const ALL_TABS = Object.values(NAV_GROUPS).flatMap((g) => g.tabs);
+      const tabById = (id) => ALL_TABS.find((t) => t.id === id);
+      const isScreenTab = (id) => { const t = tabById(id); return !!t && !t.href && !t.action; };
+
       // De qual grupo é uma aba. Vale para quem chega nela por um botão de
-      // dentro da tela, e não pela fileira de cima.
+      // dentro da tela, e não pelo menu.
       const groupOfTab = (tab) =>
-        NAV_GROUPS.cmv.tabs.some((t) => t.id === tab) ? 'cmv' : 'vitrine';
+        Object.keys(NAV_GROUPS).find((g) => NAV_GROUPS[g].tabs.some((t) => t.id === tab)) || 'hoje';
+
+      // Abre um item do menu: tela troca a aba; ferramenta abre página/janela.
+      const abrirItemDoMenu = (tab, onTabChange) => {
+        if (!tab) return;
+        if (tab.href) { window.location.href = tab.href; return; }
+        if (tab.action) { tab.action(); return; }
+        onTabChange(tab.id);
+      };
 
       // ==========================================
       // NAVBAR COMPONENT
       // ==========================================
-      const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts, onHome }) => {
+      const Navbar = ({ units, currentUnit, onUnitChange, activeTab, onTabChange, totalAlerts, onSearch }) => {
         const navItems = NAV_GROUPS[groupOfTab(activeTab)].tabs;
         const mobileTabsRef = useRef(null);
         const [menuMobileAberto, setMenuMobileAberto] = useState(false);
@@ -2287,7 +2321,9 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const abrirAba = (tabId) => {
           setMenuMobileAberto(false);
-          onTabChange(tabId);
+          const tab = tabById(tabId);
+          abrirItemDoMenu(tab, onTabChange);
+          if (!isScreenTab(tabId)) return;
           if (window.innerWidth < 1024) {
             requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
           }
@@ -2321,17 +2357,6 @@ const { useState, useEffect, useMemo, useRef } = React;
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={onHome}
-                    title="Voltar à tela inicial"
-                    aria-label="Voltar ao início"
-                    className="nav-home-mobile btn btn-secondary btn-sm shrink-0"
-                  >
-                    <Icons.ChevronLeft className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Início</span>
-                  </button>
-
                   <div className="h-5 w-px bg-black/10 hidden sm:block" />
 
                   <div className="nav-unit-switch segmented">
@@ -2348,7 +2373,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                       {Object.entries(NAV_GROUPS).map(([id, grupo]) => (
                         <button
                           key={id}
-                          onClick={() => abrirAba(grupo.tabs[0].id)}
+                          onClick={() => abrirAba((grupo.tabs.find((t) => isScreenTab(t.id)) || grupo.tabs[0]).id)}
                           data-active={groupOfTab(activeTab) === id}
                           title={grupo.title}
                         >
@@ -2399,8 +2424,9 @@ const { useState, useEffect, useMemo, useRef } = React;
               <span className="controle-mobile-page">
                 {NAV_GROUPS[groupOfTab(activeTab)].tabs.find((tab) => tab.id === activeTab)?.label || 'Controle Produ'}
               </span>
-              <button type="button" className="controle-mobile-menu-button" onClick={onHome}>
-                Início
+              <button type="button" className="controle-mobile-menu-button" onClick={onSearch} aria-label="Buscar">
+                <Icons.Search className="w-4 h-4" />
+                <span>Buscar</span>
               </button>
             </div>
             {menuMobileAberto && ReactDOM.createPortal(
@@ -2431,12 +2457,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               document.body
             )}
             <nav className="controle-mobile-bottom lg:hidden" aria-label="Acesso rápido">
-              {[
-                NAV_GROUPS.vitrine.tabs[0],
-                NAV_GROUPS.vitrine.tabs[2],
-                NAV_GROUPS.cmv.tabs[0],
-                NAV_GROUPS.cmv.tabs[2]
-              ].map((tab) => {
+              {['vitrine', 'producao', 'insumos', 'cmv'].map(tabById).map((tab) => {
                 const Icon = tab.icon;
                 return <button type="button" key={tab.id} onClick={() => abrirAba(tab.id)}
                   aria-current={activeTab === tab.id ? 'page' : undefined}
@@ -2454,9 +2475,13 @@ const { useState, useEffect, useMemo, useRef } = React;
       };
 
       // Navegação lateral persistente para desktop; no celular permanece a navegação existente.
-      const DesktopSidebar = ({ activeTab, onTabChange, onHome, totalAlerts }) => (
+      const DesktopSidebar = ({ activeTab, onTabChange, onSearch, totalAlerts }) => (
         <aside className="controle-side" aria-label="Navegação principal">
-          <div className="controle-side-top">ÁREAS DO SISTEMA</div>
+          <button type="button" className="controle-side-search" onClick={onSearch}>
+            <Icons.Search className="w-4 h-4 shrink-0" />
+            <span>Buscar…</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           {Object.entries(NAV_GROUPS).map(([groupId, group]) => (
             <section key={groupId} className="controle-side-group" aria-label={group.title}>
               <h2>{group.label}</h2>
@@ -2466,7 +2491,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 return (
                   <button key={tab.id} type="button" className="controle-side-link"
                     data-active={selected} aria-current={selected ? 'page' : undefined}
-                    title={tab.fullLabel} onClick={() => onTabChange(tab.id)}>
+                    title={tab.fullLabel} onClick={() => abrirItemDoMenu(tab, onTabChange)}>
                     <Icon className="w-4 h-4 shrink-0" />
                     <span>{tab.label}</span>
                     {tab.id === 'vitrine' && totalAlerts > 0 && <span className="controle-side-count">{totalAlerts}</span>}
@@ -2475,9 +2500,97 @@ const { useState, useEffect, useMemo, useRef } = React;
               })}
             </section>
           ))}
-          <button type="button" className="controle-side-home" onClick={onHome}>← Tela inicial</button>
         </aside>
       );
+
+      // ==========================================
+      // BUSCA RÁPIDA (Ctrl+K)
+      //
+      // Um campo só para chegar em qualquer tela, produto, insumo ou revenda
+      // sem saber em qual aba ele mora. Setas escolhem, Enter abre.
+      // ==========================================
+      const semAcento = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+      const CommandPalette = ({ onClose, products, supplies, separatedProducts, onTabChange, onEditCatalog }) => {
+        const [busca, setBusca] = useState('');
+        const [indice, setIndice] = useState(0);
+        const inputRef = useRef(null);
+        const listaRef = useRef(null);
+
+        const resultados = useMemo(() => {
+          const q = semAcento(busca).trim();
+          const casa = (texto) => !q || q.split(/\s+/).every((parte) => semAcento(texto).includes(parte));
+          const telas = ALL_TABS.filter((t) => casa(`${t.label} ${t.fullLabel}`)).map((t) => ({
+            key: `tela:${t.id}`, grupo: t.href || t.action ? 'Ferramentas' : 'Telas', label: t.label, detalhe: t.fullLabel, icon: t.icon,
+            abrir: () => abrirItemDoMenu(t, onTabChange)
+          }));
+          if (!q) return telas;
+          const limite = 8;
+          const itens = [
+            ...(products || []).filter((p) => casa(p.name)).slice(0, limite).map((p) => ({
+              key: `producao:${p.id}`, grupo: 'Produtos', label: p.name, detalhe: 'Abrir em Cadastros e fichas', icon: Icons.ChefHat,
+              abrir: () => onEditCatalog(`producao:${p.id}`)
+            })),
+            ...(supplies || []).filter((x) => casa(x.name)).slice(0, limite).map((x) => ({
+              key: `insumo:${x.id}`, grupo: 'Insumos', label: x.name, detalhe: 'Editar cadastro e compras', icon: Icons.Package,
+              abrir: () => onEditCatalog(`insumo:${x.id}`)
+            })),
+            ...(separatedProducts || []).filter((x) => casa(x.name)).slice(0, limite).map((x) => ({
+              key: `revenda:${x.id}`, grupo: 'Revenda', label: x.name, detalhe: 'Editar cadastro e compras', icon: Icons.ShoppingCart,
+              abrir: () => onEditCatalog(`revenda:${x.id}`)
+            }))
+          ];
+          return [...telas, ...itens];
+        }, [busca, products, supplies, separatedProducts]);
+
+        useEffect(() => { setIndice(0); }, [busca]);
+        useEffect(() => {
+          listaRef.current?.querySelector('[data-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+        }, [indice]);
+
+        const escolher = (item) => { if (!item) return; onClose(); item.abrir(); };
+        const teclas = (e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setIndice((i) => Math.min(i + 1, resultados.length - 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setIndice((i) => Math.max(i - 1, 0)); }
+          else if (e.key === 'Enter') { e.preventDefault(); escolher(resultados[indice]); }
+          else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+        };
+
+        let grupoAnterior = '';
+        return ReactDOM.createPortal(
+          <div className="cmdk-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+            <div className="cmdk" role="dialog" aria-modal="true" aria-label="Busca rápida">
+              <div className="cmdk-input">
+                <Icons.Search className="w-4 h-4 shrink-0" />
+                <input ref={inputRef} autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={teclas}
+                  placeholder="Buscar tela, produto, insumo ou revenda…" aria-label="Buscar" />
+                <kbd>Esc</kbd>
+              </div>
+              <div className="cmdk-list" ref={listaRef} role="listbox">
+                {resultados.length === 0 && <p className="cmdk-empty">Nada encontrado para “{busca}”.</p>}
+                {resultados.map((item, i) => {
+                  const Icon = item.icon;
+                  const cabecalho = item.grupo !== grupoAnterior ? item.grupo : null;
+                  grupoAnterior = item.grupo;
+                  return (
+                    <React.Fragment key={item.key}>
+                      {cabecalho && <div className="cmdk-group">{cabecalho}</div>}
+                      <button type="button" role="option" aria-selected={i === indice} data-selected={i === indice}
+                        className="cmdk-item" onMouseMove={() => setIndice(i)} onClick={() => escolher(item)}>
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="cmdk-label">{item.label}</span>
+                        <span className="cmdk-detail">{item.detalhe}</span>
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <div className="cmdk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir</span></div>
+            </div>
+          </div>,
+          document.body
+        );
+      };
 
       // ==========================================
       // CAMPO DA CONTAGEM
@@ -25477,64 +25590,21 @@ ${BARRA_ACOES_HTML}
       // qual assunto veio resolver. Isso separa o balcão (Vitrine) da gestão
       // de custo (CMV) e reduz a quantidade de informação na primeira tela.
       // ==========================================
-      const EntryScreen = ({ onChoose }) => (
-        <div className="min-h-screen bg-[var(--bg-canvas)] flex items-center justify-center px-4 py-10">
-          <div className="w-full max-w-4xl">
-            <div className="text-center mb-8 sm:mb-10">
-              <div className="w-14 h-14 rounded-[18px] bg-[#0E0937] text-white flex items-center justify-center mx-auto text-[20px] font-extrabold tracking-tight shadow-apple">
-                DV
-              </div>
-              <p className="t-overline mt-4">Delícias da Vovó</p>
-              <h1 className="t-display mt-2">Onde você quer entrar?</h1>
-              <p className="t-body mt-2">Escolha uma área para começar.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <button
-                type="button"
-                onClick={() => onChoose('vitrine')}
-                className="card group text-left p-6 sm:p-8 min-h-[220px] sm:min-h-[260px] flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-apple-lg transition-all"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#0E0937] text-white flex items-center justify-center">
-                  <Icons.LayoutGrid className="w-6 h-6" />
-                </div>
-                <div className="mt-8">
-                  <h2 className="text-[28px] sm:text-[32px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">Vitrine</h2>
-                  <p className="t-body mt-3">Operação da loja, padrão, produção, perdas e histórico.</p>
-                  <span className="inline-flex items-center gap-1.5 mt-5 text-[13px] font-bold text-[#0E0937]">
-                    Entrar na Vitrine <Icons.ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onChoose('cmv')}
-                className="card group text-left p-6 sm:p-8 min-h-[220px] sm:min-h-[260px] flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-apple-lg transition-all"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#274133] text-white flex items-center justify-center">
-                  <Icons.TrendingUp className="w-6 h-6" />
-                </div>
-                <div className="mt-8">
-                  <h2 className="text-[28px] sm:text-[32px] leading-none font-extrabold tracking-[-0.03em] text-[#1d1d1f]">CMV</h2>
-                  <p className="t-body mt-3">Produtos, insumos, fichas técnicas, custos e fornecedores.</p>
-                  <span className="inline-flex items-center gap-1.5 mt-5 text-[13px] font-bold text-[#274133]">
-                    Entrar no CMV <Icons.ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-
       // ==========================================
       // MAIN APP COMPONENT
       // ==========================================
       function App() {
         const [currentUnit, setCurrentUnit] = useState('');
-        const [entryMode, setEntryMode] = useState(null);
-        const [activeTab, setActiveTab] = useState('vitrine');
+        // Abre na última tela usada neste aparelho, sem passar por uma escolha.
+        const [activeTab, setActiveTabState] = useState(() => {
+          const salva = lerPreferencia('aba', 'vitrine');
+          return isScreenTab(salva) ? salva : 'vitrine';
+        });
+        const setActiveTab = (tab) => {
+          setActiveTabState(tab);
+          if (isScreenTab(tab)) guardarPreferencia('aba', tab);
+        };
+        const [buscaAberta, setBuscaAberta] = useState(false);
         const [catalogEditTarget, setCatalogEditTarget] = useState(null);
         const [catalogQuickEditTarget, setCatalogQuickEditTarget] = useState(null);
         const [selectedDay, setSelectedDay] = useState('segunda');
@@ -25681,6 +25751,18 @@ ${BARRA_ACOES_HTML}
         };
 
         useEffect(() => { reload(); }, []);
+
+        // Ctrl+K (ou ⌘K) abre a busca rápida de qualquer tela.
+        useEffect(() => {
+          const atalho = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+              e.preventDefault();
+              setBuscaAberta((aberta) => !aberta);
+            }
+          };
+          window.addEventListener('keydown', atalho);
+          return () => window.removeEventListener('keydown', atalho);
+        }, []);
 
         // Telas de fora do React (ex.: grade de sabores) pedem a atualização
         // depois de gravar, para a tela principal não ficar desatualizada.
@@ -27856,17 +27938,6 @@ ${BARRA_ACOES_HTML}
         if (loadState === 'loading') return <LoadingScreen />;
         if (loadState === 'error') return <ConnectionErrorScreen message={errorMsg} onRetry={() => { setLoadState('loading'); reload(); }} />;
 
-        if (!entryMode) {
-          return (
-            <EntryScreen
-              onChoose={(mode) => {
-                setEntryMode(mode);
-                setActiveTab(mode === 'cmv' ? 'cmv' : 'vitrine');
-              }}
-            />
-          );
-        }
-
         return (
           <div className="min-h-screen flex flex-col font-sans">
             <Navbar
@@ -27876,10 +27947,26 @@ ${BARRA_ACOES_HTML}
               activeTab={activeTab}
               onTabChange={setActiveTab}
               totalAlerts={totalAlerts}
-              onHome={() => setEntryMode(null)}
+              onSearch={() => setBuscaAberta(true)}
             />
 
-            <DesktopSidebar activeTab={activeTab} onTabChange={setActiveTab} onHome={() => setEntryMode(null)} totalAlerts={totalAlerts} />
+            <DesktopSidebar activeTab={activeTab} onTabChange={setActiveTab} onSearch={() => setBuscaAberta(true)} totalAlerts={totalAlerts} />
+
+            {buscaAberta && <CommandPalette
+              onClose={() => setBuscaAberta(false)}
+              products={products}
+              supplies={supplies}
+              separatedProducts={separatedProducts}
+              onTabChange={setActiveTab}
+              onEditCatalog={(value) => {
+                if (value.startsWith('producao:')) {
+                  setCatalogEditTarget({ id: Date.now(), value });
+                  setActiveTab('insumos');
+                } else {
+                  setCatalogQuickEditTarget({ id: Date.now(), value });
+                }
+              }}
+            />}
 
             {errorMsg && (
               <div className="banner-error">
