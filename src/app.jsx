@@ -28073,7 +28073,11 @@ ${BARRA_ACOES_HTML}
           new Error(
             error.code === '23505'
               ? 'já existe um produto com esse nome'
-              : error.message
+              : String(error.message || '').includes('products_category_check')
+                // O banco ainda tem a lista fechada de categorias: falta rodar
+                // supabase/migrations/20261021_categorias_livres_produtos.sql
+                ? 'o banco de dados ainda não aceita esta categoria. Peça para liberar as categorias de produtos no Supabase (migração 20261021_categorias_livres_produtos).'
+                : error.message
           );
 
         const handleAddProduct = (prod) => {
