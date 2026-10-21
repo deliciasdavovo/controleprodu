@@ -318,12 +318,15 @@ function close(){
  document.getElementById("pv-modal")?.remove();document.removeEventListener("keydown",onKey);
 }
 function onKey(e){if(e.key==="Escape"&&!e.target.closest?.("#pv-panel"))close();}
-async function open(){
+async function open(productId){
  document.getElementById("pv-modal")?.remove();rows=[];
  const root=document.createElement("div");root.id="pv-modal";root.innerHTML='<div class="pv-shade" data-close></div><section class="pv-dialog" role="dialog" aria-modal="true" aria-label="Receitas e sabores"><header><div><small>DELÍCIAS DA VOVÓ · BANCO DE DADOS</small><h2>Receitas e sabores</h2></div><button type="button" data-close aria-label="Fechar">×</button></header><div id="pv-root">Carregando produtos…</div></section>';
  document.body.appendChild(root);root.querySelectorAll("[data-close]").forEach(b=>b.onclick=close);
  document.addEventListener("keydown",onKey);
- try{await load();render()}catch(err){root.querySelector("#pv-root").textContent="Não foi possível acessar o cadastro: "+err.message;}
+ try{await load();
+  // Aberta a partir de um produto: mostra a grade da base dele.
+  const alvo=typeof productId==="string"&&byId(productId);if(alvo)currentId=alvo.parent_product_id||alvo.id;
+  render()}catch(err){root.querySelector("#pv-root").textContent="Não foi possível acessar o cadastro: "+err.message;}
 }
 window.abrirVariacoesProdutos=open;
 function attachBanco(){
@@ -331,7 +334,7 @@ function attachBanco(){
   if(h.textContent?.trim()!=="Banco de Dados"||h.parentElement?.querySelector("[data-receitas-sabores]"))return;
   const b=document.createElement("button");
   b.dataset.receitasSabores="true";b.type="button";b.className="pv-inline-entry";b.textContent="Receitas e sabores";
-  b.onclick=open;h.parentElement.appendChild(b);
+  b.onclick=()=>open();h.parentElement.appendChild(b);
  });
 }
 document.addEventListener("DOMContentLoaded",()=>{

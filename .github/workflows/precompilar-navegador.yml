@@ -80,7 +80,10 @@ jobs:
               await page.locator('.emb2-modal-enviar input[type=file]').first().setInputFiles(file);
               await page.locator('.emb2-modal-cartao img').first().waitFor({state:'visible',timeout:12000});
               console.log('UPLOAD_FOTO_NA_ESCOLHA_OK:', true);
-              await page.locator('.emb2-modal-usar').first().click();
+              // A primeira embalagem pode já estar na regra (botão "✓ Adicionada"):
+              // usa a primeira ainda disponível, se houver.
+              const usarP = page.locator('.emb2-modal-usar:not([disabled])').first();
+              if (await usarP.count()) await usarP.click();
               await page.locator('.emb2-modal-rodape button').first().click();
               await page.locator('.emb2-item').first().waitFor({state:'visible',timeout:12000});
               console.log('SELECAO_EMBALAGEM_OK:', true);
@@ -147,7 +150,10 @@ jobs:
                  dialog.bottom>844+2)throw new Error('Seletor de embalagens fora da tela mobile');
               await mpage.locator('.emb2-modal-enviar input[type=file]').first().setInputFiles(file);
               await mpage.locator('.emb2-modal-cartao img').first().waitFor({state:'visible',timeout:12000});
-              await mpage.locator('.emb2-modal-usar').first().click();
+              // A primeira embalagem pode já estar na regra (botão "✓ Adicionada"):
+              // usa a primeira ainda disponível, se houver.
+              const usarM = mpage.locator('.emb2-modal-usar:not([disabled])').first();
+              if (await usarM.count()) await usarM.click();
               await mpage.getByRole('button',{name:'Concluir'}).click();
               console.log('MENU_E_UPLOAD_MOBILE_OK:',true);
               console.log('ERROS_MOBILE:',JSON.stringify(mfatal));
