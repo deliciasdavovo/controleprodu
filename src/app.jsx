@@ -32,6 +32,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         Calendar: (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />,
         Clock: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 6v6l4 2"]} {...props} />,
         Tag: (props) => <IconBase d={["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z", "M7 7h.01"]} {...props} />,
+        BarChart: (props) => <IconBase d={["M3 3v18h18", "M8 17v-5", "M13 17V8", "M18 17v-8"]} {...props} />,
         Search: (props) => <IconBase d={["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]} {...props} />,
         TrendingUp: (props) => <IconBase d="M23 6l-9.5 9.5-5-5L1 18" {...props} />,
         AlertCircle: (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z", "M12 8v4", "M12 16h.01"]} {...props} />,
@@ -2264,6 +2265,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           label: 'Números',
           title: 'Custo, margem e histórico',
           tabs: [
+            { id: 'relatorios', label: 'Relatórios', fullLabel: 'Relatórios de vendas, perdas e faturamento', icon: Icons.BarChart },
             { id: 'cmv', label: 'CMV', fullLabel: 'CMV — Custo da Mercadoria Vendida', icon: Icons.TrendingUp },
             { id: 'historico', label: 'Histórico', fullLabel: 'Produção, Vendas e Perdas', icon: Icons.History }
           ]
@@ -7665,6 +7667,309 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </table>
               </div>
             </div>
+          </div>
+        );
+      };
+
+      // ==========================================
+      // RELATÓRIOS — A VISÃO DO PERÍODO
+      //
+      // O Histórico e as Perdas são o livro de lançamentos, linha a linha.
+      // Aqui é a leitura: quanto se vendeu e perdeu no período, em unidades
+      // e em reais, como foi dia a dia, por que se perdeu e quais produtos
+      // puxam o resultado para cima ou para baixo.
+      // ==========================================
+      const PERIODOS_RELATORIO = [
+        { id: '7', label: '7 dias' },
+        { id: '30', label: '30 dias' },
+        { id: 'mes', label: 'Este mês' },
+        { id: 'mesPassado', label: 'Mês passado' }
+      ];
+
+      const intervaloDoPeriodo = (periodo, hoje = getTodayDateString()) => {
+        if (periodo === 'mes' || periodo === 'mesPassado') {
+          const d = dateFromKey(hoje);
+          const desloc = periodo === 'mesPassado' ? 1 : 0;
+          const ini = new Date(d.getFullYear(), d.getMonth() - desloc, 1);
+          const fimMes = new Date(d.getFullYear(), d.getMonth() - desloc + 1, 0);
+          const inicio = keyFromDate(ini);
+          const fim = periodo === 'mes' ? hoje : keyFromDate(fimMes);
+          const iniAnt = new Date(ini.getFullYear(), ini.getMonth() - 1, 1);
+          // Compara com o mesmo número de dias do mês anterior
+          const dias = Math.round((dateFromKey(fim) - dateFromKey(inicio)) / 86400000);
+          return { inicio, fim, antInicio: keyFromDate(iniAnt), antFim: shiftDayKey(keyFromDate(iniAnt), dias) };
+        }
+        const n = Number(periodo) || 7;
+        const inicio = shiftDayKey(hoje, -(n - 1));
+        return { inicio, fim: hoje, antInicio: shiftDayKey(inicio, -n), antFim: shiftDayKey(inicio, -1) };
+      };
+
+      const MOTIVOS_PERDA = { vencido: 'Vencido', danificado: 'Avaria física', qualidade: 'Sabor ou textura', quebrado: 'Queda ou quebra' };
+      const fmtInt = (n) => Math.round(Number(n) || 0).toLocaleString('pt-BR');
+      const pct = (n) => `${(Number(n) || 0).toFixed(1).replace('.', ',')}%`;
+      const variacaoPct = (atual, antes) => (antes > 0 ? Math.round(((atual - antes) / antes) * 100) : null);
+      const diaCurto = (key) => { const [, m, d] = key.split('-'); return `${d}/${m}`; };
+
+      const ReportsView = ({
+        currentUnit, unitName, products, recipes, recipeItems, supplies, supplyPurchases,
+        saleRecords, lossRecords, productionRecords
+      }) => {
+        const [periodo, setPeriodo] = useState(() => lerPreferencia('relatorio-periodo', '30'));
+        const [categoria, setCategoria] = useState('todas');
+        const [busca, setBusca] = useState('');
+        const [ordem, setOrdem] = useState({ campo: 'faturamento', desc: true });
+        const [diaHover, setDiaHover] = useState(null);
+        const mudarPeriodo = (id) => { setPeriodo(id); guardarPreferencia('relatorio-periodo', id); };
+
+        // Preço e custo de cada produto, calculados uma vez
+        const precoCusto = useMemo(() => {
+          const mapa = {};
+          products.forEach((p) => {
+            const ficha = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
+            mapa[p.id] = { preco: Number(p.price) || 0, custo: custoPorUnidadeDeVenda(p, ficha), produto: p };
+          });
+          return mapa;
+        }, [products, recipes, recipeItems, supplies, supplyPurchases]);
+
+        const r = useMemo(() => {
+          const { inicio, fim, antInicio, antFim } = intervaloDoPeriodo(periodo);
+          const daCategoria = (rec) => categoria === 'todas' || precoCusto[rec.productId]?.produto.category === categoria;
+          const filtrar = (lista, campo, de, ate) => lista.filter((x) => {
+            const dia = toDayKey(x[campo]);
+            return x.unit === currentUnit && dia >= de && dia <= ate && daCategoria(x);
+          });
+          const vendas = filtrar(saleRecords, 'timestamp', inicio, fim);
+          const perdas = filtrar(lossRecords, 'lossDate', inicio, fim);
+          const producao = filtrar(productionRecords, 'timestamp', inicio, fim);
+          const vendasAnt = filtrar(saleRecords, 'timestamp', antInicio, antFim);
+          const perdasAnt = filtrar(lossRecords, 'lossDate', antInicio, antFim);
+
+          const qtd = (lista) => lista.reduce((t, x) => t + (Number(x.qty) || 0), 0);
+          const reais = (lista, campo) => lista.reduce((t, x) => t + (Number(x.qty) || 0) * (precoCusto[x.productId]?.[campo] || 0), 0);
+
+          // Dia a dia
+          const dias = [];
+          for (let d = inicio; d <= fim; d = shiftDayKey(d, 1)) dias.push(d);
+          const porDia = dias.map((dia) => ({
+            dia,
+            vendido: qtd(vendas.filter((x) => toDayKey(x.timestamp) === dia)),
+            perdido: qtd(perdas.filter((x) => toDayKey(x.lossDate) === dia))
+          }));
+
+          // Motivos
+          const motivos = {};
+          perdas.forEach((x) => {
+            const k = x.reason || 'sem motivo';
+            motivos[k] = (motivos[k] || 0) + (Number(x.qty) || 0);
+          });
+          const listaMotivos = Object.entries(motivos).map(([k, v]) => ({ motivo: MOTIVOS_PERDA[k] || k, qty: v })).sort((a, b) => b.qty - a.qty);
+
+          // Por produto
+          const linhas = {};
+          const linha = (x) => {
+            const id = x.productId || x.productName;
+            if (!linhas[id]) linhas[id] = { id: x.productId, nome: precoCusto[x.productId]?.produto.name || x.productName, produzido: 0, vendido: 0, perdido: 0, faturamento: 0, custoPerda: 0 };
+            return linhas[id];
+          };
+          producao.forEach((x) => { linha(x).produzido += Number(x.qty) || 0; });
+          vendas.forEach((x) => { const l = linha(x); l.vendido += Number(x.qty) || 0; l.faturamento += (Number(x.qty) || 0) * (precoCusto[x.productId]?.preco || 0); });
+          perdas.forEach((x) => { const l = linha(x); l.perdido += Number(x.qty) || 0; l.custoPerda += (Number(x.qty) || 0) * (precoCusto[x.productId]?.custo || 0); });
+          const produtos = Object.values(linhas).map((l) => ({ ...l, perdaPct: l.vendido + l.perdido > 0 ? (l.perdido / (l.vendido + l.perdido)) * 100 : 0 }));
+
+          const vendido = qtd(vendas);
+          const perdido = qtd(perdas);
+          return {
+            inicio, fim, porDia, listaMotivos, produtos,
+            vendido, perdido, produzido: qtd(producao),
+            faturamento: reais(vendas, 'preco'),
+            custoPerda: reais(perdas, 'custo'),
+            perdaPct: vendido + perdido > 0 ? (perdido / (vendido + perdido)) * 100 : 0,
+            varFaturamento: variacaoPct(reais(vendas, 'preco'), reais(vendasAnt, 'preco')),
+            varVendido: variacaoPct(vendido, qtd(vendasAnt)),
+            varPerdido: variacaoPct(perdido, qtd(perdasAnt))
+          };
+        }, [periodo, categoria, currentUnit, saleRecords, lossRecords, productionRecords, precoCusto]);
+
+        const produtosVisiveis = useMemo(() => {
+          const lista = r.produtos.filter((l) => casaComBusca(l.nome, busca));
+          const { campo, desc } = ordem;
+          return lista.sort((a, b) => {
+            const va = a[campo]; const vb = b[campo];
+            const c = typeof va === 'string' ? va.localeCompare(vb, 'pt-BR') : va - vb;
+            return desc ? -c : c;
+          });
+        }, [r.produtos, busca, ordem]);
+
+        const maxDia = Math.max(1, ...r.porDia.map((d) => d.vendido + d.perdido));
+        const topo = (() => { const passo = Math.pow(10, Math.floor(Math.log10(maxDia))); return Math.ceil(maxDia / passo) * passo; })();
+        const maxMotivo = Math.max(1, ...r.listaMotivos.map((m) => m.qty));
+        const rotuloCada = r.porDia.length > 16 ? Math.ceil(r.porDia.length / 8) : 1;
+        const periodoTexto = `${formatDateBR(r.inicio)} a ${formatDateBR(r.fim)}`;
+
+        const ordenar = (campo) => setOrdem((o) => ({ campo, desc: o.campo === campo ? !o.desc : campo !== 'nome' }));
+        const Cab = ({ campo, children, num = true }) => (
+          <th className={num ? 'num' : ''} aria-sort={ordem.campo === campo ? (ordem.desc ? 'descending' : 'ascending') : 'none'}>
+            <button type="button" onClick={() => ordenar(campo)}>{children}{ordem.campo === campo ? (ordem.desc ? ' ↓' : ' ↑') : ''}</button>
+          </th>
+        );
+
+        const exportar = () => {
+          const cab = ['Produto', 'Produzido', 'Vendido', 'Perdido', '% perda', 'Faturamento (R$)', 'Custo da perda (R$)'];
+          const num = (n, d = 2) => String((Number(n) || 0).toFixed(d)).replace('.', ',');
+          const linhas = produtosVisiveis.map((l) => [l.nome, num(l.produzido, 0), num(l.vendido, 0), num(l.perdido, 0), num(l.perdaPct, 1), num(l.faturamento), num(l.custoPerda)]);
+          const csv = [cab, ...linhas].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+          const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `relatorio-${unitName || 'loja'}-${r.inicio}-a-${r.fim}.csv`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        };
+
+        const hover = diaHover !== null ? r.porDia[diaHover] : null;
+
+        return (
+          <div className="rel space-y-5">
+            <div className="rel-head">
+              <div>
+                <h2 className="t-display">Relatórios</h2>
+                <p className="t-body mt-1">{unitName} · {periodoTexto}</p>
+              </div>
+              <div className="rel-filters">
+                <div className="segmented">
+                  {PERIODOS_RELATORIO.map((op) => (
+                    <button key={op.id} type="button" onClick={() => mudarPeriodo(op.id)} data-active={periodo === op.id}>{op.label}</button>
+                  ))}
+                </div>
+                <select className="field field-sm field-select field-auto" value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-label="Categoria">
+                  <option value="todas">Todas as categorias</option>
+                  {PRODUCT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="rel-tiles">
+              <div className="card rel-tile rel-hero">
+                <span>Faturamento estimado</span>
+                <strong>{formatCurrencyBR(r.faturamento)}</strong>
+                <small>{r.varFaturamento === null ? 'sem período anterior para comparar' : <><Delta percent={r.varFaturamento} subirEhRuim={false} /> vs. período anterior</>}</small>
+              </div>
+              <div className="card rel-tile">
+                <span>Vendido</span>
+                <strong>{fmtInt(r.vendido)} <em>itens</em></strong>
+                <small>{r.varVendido === null ? `${fmtInt(r.produzido)} produzidos` : <><Delta percent={r.varVendido} subirEhRuim={false} /> vs. período anterior</>}</small>
+              </div>
+              <div className="card rel-tile">
+                <span>Perdido</span>
+                <strong>{fmtInt(r.perdido)} <em>itens</em></strong>
+                <small>{r.varPerdido === null ? `${formatCurrencyBR(r.custoPerda)} de custo` : <><Delta percent={r.varPerdido} /> · {formatCurrencyBR(r.custoPerda)} de custo</>}</small>
+              </div>
+              <div className="card rel-tile">
+                <span>Taxa de perda</span>
+                <strong className={r.perdaPct > 10 ? 'ink-expired' : r.perdaPct > 5 ? 'ink-last' : ''}>{r.vendido + r.perdido > 0 ? pct(r.perdaPct) : '—'}</strong>
+                <small>{r.perdaPct > 10 ? '⚠ acima de 10%' : 'perdido ÷ (vendido + perdido)'}</small>
+              </div>
+            </div>
+
+            <div className="rel-grid">
+              <section className="card rel-card">
+                <header className="rel-card-head">
+                  <h3>Vendas e perdas por dia</h3>
+                  <div className="rel-legend" aria-hidden="true">
+                    <span><i style={{ background: 'var(--rel-s1)' }} />Vendido</span>
+                    <span><i style={{ background: 'var(--rel-s2)' }} />Perdido</span>
+                  </div>
+                </header>
+                <div className="rel-chart" role="img" aria-label={`Vendido e perdido por dia, ${periodoTexto}. Total vendido ${fmtInt(r.vendido)}, perdido ${fmtInt(r.perdido)}.`} onMouseLeave={() => setDiaHover(null)}>
+                  <div className="rel-yaxis">
+                    <span style={{ bottom: '100%' }}>{fmtInt(topo)}</span>
+                    <span style={{ bottom: '50%' }}>{fmtInt(topo / 2)}</span>
+                    <span style={{ bottom: '0%' }}>0</span>
+                  </div>
+                  <div className="rel-plot">
+                    <i className="rel-grid-line" style={{ bottom: '100%' }} />
+                    <i className="rel-grid-line" style={{ bottom: '50%' }} />
+                    <i className="rel-grid-line rel-base" style={{ bottom: 0 }} />
+                    {r.porDia.map((d, i) => (
+                      <div key={d.dia} className="rel-col" data-hover={diaHover === i} onMouseEnter={() => setDiaHover(i)} onFocus={() => setDiaHover(i)} tabIndex={0}
+                        aria-label={`${diaCurto(d.dia)}: ${fmtInt(d.vendido)} vendidos, ${fmtInt(d.perdido)} perdidos`}>
+                        <div className="rel-stack" style={{ height: `${((d.vendido + d.perdido) / topo) * 100}%` }}>
+                          {d.perdido > 0 && <b className="rel-s2" style={{ flexGrow: d.perdido }} />}
+                          {d.vendido > 0 && <b className="rel-s1" style={{ flexGrow: d.vendido }} />}
+                        </div>
+                        <span className="rel-x">{(i % rotuloCada === 0 && r.porDia.length - 1 - i >= rotuloCada) || i === r.porDia.length - 1 ? diaCurto(d.dia) : ''}</span>
+                      </div>
+                    ))}
+                    {hover && (
+                      <div className="rel-tip" style={{ left: `${((diaHover + 0.5) / r.porDia.length) * 100}%` }}>
+                        <strong>{weekdayName(hover.dia).replace('-feira', '')}, {diaCurto(hover.dia)}</strong>
+                        <span><i style={{ background: 'var(--rel-s1)' }} />Vendido <b>{fmtInt(hover.vendido)}</b></span>
+                        <span><i style={{ background: 'var(--rel-s2)' }} />Perdido <b>{fmtInt(hover.perdido)}</b></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="card rel-card">
+                <header className="rel-card-head"><h3>Perdas por motivo</h3></header>
+                {r.listaMotivos.length ? (
+                  <ul className="rel-bars">
+                    {r.listaMotivos.map((m) => (
+                      <li key={m.motivo} title={`${m.motivo}: ${fmtInt(m.qty)} itens`}>
+                        <span className="rel-bar-label">{m.motivo}</span>
+                        <span className="rel-bar-track"><b style={{ width: `${(m.qty / maxMotivo) * 100}%` }} /></span>
+                        <span className="rel-bar-val">{fmtInt(m.qty)} <small>{r.perdido ? `${Math.round((m.qty / r.perdido) * 100)}%` : ''}</small></span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="rel-empty">Nenhuma perda no período. 🎉</p>}
+              </section>
+            </div>
+
+            <section className="card rel-card">
+              <header className="rel-card-head rel-card-head-wrap">
+                <h3>Produtos no período <small>{produtosVisiveis.length}</small></h3>
+                <div className="rel-filters">
+                  <input type="search" className="field field-sm field-auto" placeholder="Buscar produto…" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar produto" />
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={!produtosVisiveis.length}>Exportar planilha</button>
+                </div>
+              </header>
+              <div className="rola-x">
+                <table className="rel-table">
+                  <thead>
+                    <tr>
+                      <Cab campo="nome" num={false}>Produto</Cab>
+                      <Cab campo="produzido">Produzido</Cab>
+                      <Cab campo="vendido">Vendido</Cab>
+                      <Cab campo="perdido">Perdido</Cab>
+                      <Cab campo="perdaPct">% perda</Cab>
+                      <Cab campo="faturamento">Faturamento</Cab>
+                      <Cab campo="custoPerda">Custo da perda</Cab>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {produtosVisiveis.length === 0 ? (
+                      <tr><td colSpan={7} className="rel-empty">Nenhum lançamento no período{busca ? ' com essa busca' : ''}.</td></tr>
+                    ) : produtosVisiveis.map((l) => (
+                      <tr key={l.id || l.nome}>
+                        <td>{l.id ? <button type="button" className="pp-link" onClick={() => abrirPaginaDoProduto(l.id)}>{l.nome}</button> : l.nome}</td>
+                        <td className="num">{fmtInt(l.produzido)}</td>
+                        <td className="num">{fmtInt(l.vendido)}</td>
+                        <td className="num">{fmtInt(l.perdido)}</td>
+                        <td className="num">
+                          <span className="rel-meter" title={pct(l.perdaPct)}><b style={{ width: `${Math.min(100, l.perdaPct)}%` }} /></span>
+                          <span className={l.perdaPct > 10 ? 'ink-expired font-bold' : ''}>{l.vendido + l.perdido > 0 ? pct(l.perdaPct) : '—'}</span>
+                        </td>
+                        <td className="num">{formatCurrencyBR(l.faturamento)}</td>
+                        <td className="num">{l.custoPerda > 0 ? formatCurrencyBR(l.custoPerda) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="rel-note">Faturamento = quantidade vendida × preço atual do produto. Custo da perda = quantidade perdida × custo da ficha técnica.</p>
+            </section>
           </div>
         );
       };
@@ -28395,6 +28700,21 @@ ${BARRA_ACOES_HTML}
                   unitName={getUnitName(units, currentUnit)}
                   lossRecords={lossRecords}
                   onDeleteLoss={handleDeleteLoss}
+                />
+              )}
+
+              {activeTab === 'relatorios' && (
+                <ReportsView
+                  currentUnit={currentUnit}
+                  unitName={getUnitName(units, currentUnit)}
+                  products={products}
+                  recipes={recipes}
+                  recipeItems={recipeItems}
+                  supplies={supplies}
+                  supplyPurchases={supplyPurchases}
+                  saleRecords={saleRecords}
+                  lossRecords={lossRecords}
+                  productionRecords={productionRecords}
                 />
               )}
 
