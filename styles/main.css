@@ -3613,3 +3613,25 @@
   .controle-side .controle-side-home{flex-shrink:0}
   .app-main{margin-left:220px!important;width:calc(100% - 220px)!important;min-width:0!important}
 }
+
+/* Busca rápida (Ctrl+K) e atalho de busca no menu lateral. */
+.controle-side-search{display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:8px 10px;margin-bottom:6px;border:1px solid #dfe7e1;border-radius:8px;background:#f7f9f7;color:#6b7b71;font-size:12px;font-weight:600;text-align:left;cursor:pointer}
+.controle-side-search:hover{border-color:#9cb7a6;color:#1c4b36}
+.controle-side-search span{flex:1}
+.controle-side-search kbd,.cmdk kbd{font:600 10px ui-monospace,Menlo,monospace;color:#6b7b71;background:#fff;border:1px solid #d7e0d9;border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+.controle-mobile-menu-button svg{flex-shrink:0}
+.controle-side-search svg,.cmdk svg{width:16px;height:16px;flex-shrink:0}
+.cmdk-overlay{position:fixed;inset:0;z-index:10040;background:rgba(10,26,18,.42);display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 16px}
+.cmdk{width:100%;max-width:620px;max-height:70vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.25);overflow:hidden;font-family:Manrope,Arial,sans-serif}
+.cmdk-input{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #e8ece8;color:#6b7b71}
+.cmdk-input input{flex:1;border:0;outline:0;font-size:15px;color:#1f2f25;background:transparent;min-width:0}
+.cmdk-list{overflow-y:auto;padding:6px}
+.cmdk-group{padding:10px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a988f}
+.cmdk-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:8px;text-align:left;color:#2c3e31;font-size:13px;cursor:pointer;background:none;border:0}
+.cmdk-item[data-selected="true"]{background:#eaf2ec;color:#184b35}
+.cmdk-label{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-detail{margin-left:auto;font-size:11px;color:#8a988f;white-space:nowrap;padding-left:10px}
+.cmdk-empty{padding:22px;text-align:center;color:#7b897f;font-size:13px}
+.cmdk-foot{display:flex;gap:16px;padding:9px 16px;border-top:1px solid #e8ece8;font-size:11px;color:#8a988f}
+.cmdk-foot kbd{margin-right:3px}
+@media(max-width:640px){.cmdk-overlay{padding:8px}.cmdk{max-height:85vh}.cmdk-detail{display:none}.cmdk-foot{display:none}}
