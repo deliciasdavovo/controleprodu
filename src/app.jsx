@@ -1557,6 +1557,13 @@ const { useState, useEffect, useMemo, useRef } = React;
         usageUnit: row.usage_unit || ''
       });
 
+      // A grade de sabores (src/product-variants.js) roda fora do React. Ela usa
+      // estas mesmas contas para o CMV ao vivo bater com o da tela de CMV.
+      window.ControleCMV = {
+        fichaDoProduto, custoPorUnidadeDeVenda, calcularCmv, getCmvStatus,
+        fromProduct, fromSupply, fromSupplyPurchase, fromRecipe, fromRecipeItem
+      };
+
       const fromResalePurchase = (row) => ({
         id: row.id,
         separatedProductId: row.separated_product_id,
@@ -25674,6 +25681,13 @@ ${BARRA_ACOES_HTML}
         };
 
         useEffect(() => { reload(); }, []);
+
+        // Telas de fora do React (ex.: grade de sabores) pedem a atualização
+        // depois de gravar, para a tela principal não ficar desatualizada.
+        useEffect(() => {
+          window.ControleProduRecarregar = () => reload({ silent: true });
+          return () => { delete window.ControleProduRecarregar; };
+        }, []);
 
         // Mantém a tela em dia com o que as outras unidades e aparelhos gravaram
         useEffect(() => {
