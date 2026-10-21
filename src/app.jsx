@@ -1407,7 +1407,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         shelfLifeDays: row.shelf_life_days,
         price: Number(row.price) || 0,
         priceUnit: row.price_unit || 'un',
-        manualCost: Number(row.manual_cost) || 0
+        manualCost: Number(row.manual_cost) || 0,
+        parentProductId: row.parent_product_id || null,
+        variantName: row.variant_name || ''
       });
 
       const fromSlot = (row) => ({
@@ -2528,8 +2530,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           const limite = 8;
           const itens = [
             ...(products || []).filter((p) => casa(p.name)).slice(0, limite).map((p) => ({
-              key: `producao:${p.id}`, grupo: 'Produtos', label: p.name, detalhe: 'Abrir em Cadastros e fichas', icon: Icons.ChefHat,
-              abrir: () => onEditCatalog(`producao:${p.id}`)
+              key: `producao:${p.id}`, grupo: 'Produtos', label: p.name, detalhe: 'Abrir página do produto', icon: Icons.ChefHat,
+              abrir: () => abrirPaginaDoProduto(p.id)
             })),
             ...(supplies || []).filter((x) => casa(x.name)).slice(0, limite).map((x) => ({
               key: `insumo:${x.id}`, grupo: 'Insumos', label: x.name, detalhe: 'Editar cadastro e compras', icon: Icons.Package,
@@ -2587,6 +2589,248 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
               <div className="cmdk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir</span></div>
             </div>
+          </div>,
+          document.body
+        );
+      };
+
+      // ==========================================
+      // PÁGINA DO PRODUTO
+      //
+      // Tudo de um produto num lugar só: dados de venda, custo e CMV, ficha
+      // técnica, sabores e o movimento dos últimos 30 dias. Abre pela busca
+      // rápida ou clicando no nome do produto nas tabelas.
+      // ==========================================
+      const abrirPaginaDoProduto = (productId) =>
+        window.dispatchEvent(new CustomEvent('controle:abrir-produto', { detail: productId }));
+
+      const somarQtd = (lista) => lista.reduce((t, r) => t + (Number(r.qty) || 0), 0);
+      const fmtQtd = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+      const ProductPage = ({
+        productId, products, recipes, recipeItems, supplies, supplyPurchases,
+        saleRecords, lossRecords, productionRecords, currentUnit, unitName,
+        onUpdateProduct, onClose, onOpenProduct, onEditFicha, onTabChange
+      }) => {
+        const [aba, setAba] = useState('geral');
+        const produto = products.find((p) => p.id === productId);
+        const [rascunho, setRascunho] = useState({});
+        useEffect(() => { setRascunho({}); setAba('geral'); }, [productId]);
+        useEffect(() => {
+          const fechar = (e) => { if (e.key === 'Escape') onClose(); };
+          window.addEventListener('keydown', fechar);
+          return () => window.removeEventListener('keydown', fechar);
+        }, [onClose]);
+
+        const dados = useMemo(() => {
+          if (!produto) return null;
+          const ficha = fichaDoProduto(produto.id, recipes, recipeItems, supplies, supplyPurchases, products);
+          const custoUn = custoPorUnidadeDeVenda(produto, ficha);
+          const preco = Number(produto.price) || 0;
+          const cmv = calcularCmv(custoUn, preco);
+          const linhas = (ficha?.itens || []).map((item) => {
+            const insumo = item.supplyId ? supplies.find((x) => x.id === item.supplyId) : null;
+            const componente = item.componentProductId ? products.find((x) => x.id === item.componentProductId) : null;
+            const custo = custoDoItemDaFicha(item, supplies, supplyPurchases, products, recipes, recipeItems);
+            return { item, insumo, componente, nome: insumo?.name || componente?.name || '—', custo };
+          }).sort((a, b) => b.custo - a.custo);
+          const baseId = produto.parentProductId || produto.id;
+          const base = products.find((p) => p.id === baseId);
+          const sabores = products.filter((p) => p.parentProductId === baseId).map((p) => {
+            const f = fichaDoProduto(p.id, recipes, recipeItems, supplies, supplyPurchases, products);
+            const c = custoPorUnidadeDeVenda(p, f);
+            return { p, custo: c, cmv: calcularCmv(c, Number(p.price) || 0), pendente: !!f?.custoPendente };
+          });
+          const corte = new Date();
+          corte.setDate(corte.getDate() - 30);
+          const desde = corte.toISOString().slice(0, 10);
+          const doProduto = (lista, campoData) => lista.filter((r) => r.productId === produto.id
+            && (!currentUnit || r.unit === currentUnit)
+            && String(r[campoData] || '').slice(0, 10) >= desde);
+          const vendas = doProduto(saleRecords, 'timestamp');
+          const perdas = doProduto(lossRecords, 'lossDate');
+          const producao = doProduto(productionRecords, 'timestamp');
+          const movimentos = [
+            ...vendas.map((r) => ({ tipo: 'Venda', data: r.timestamp, r })),
+            ...perdas.map((r) => ({ tipo: 'Perda', data: r.lossDate, r })),
+            ...producao.map((r) => ({ tipo: 'Produção', data: r.timestamp, r }))
+          ].sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 12);
+          const unidadeMov = (vendas[0] || perdas[0] || producao[0])?.unitOfMeasure || produto.defaultUnit || 'un';
+          return {
+            ficha, custoUn, preco, cmv, sugerido: precoSugerido(custoUn), linhas, base, sabores,
+            vendido: somarQtd(vendas), perdido: somarQtd(perdas), produzido: somarQtd(producao), movimentos, unidadeMov
+          };
+        }, [produto, products, recipes, recipeItems, supplies, supplyPurchases, saleRecords, lossRecords, productionRecords, currentUnit]);
+
+        if (!produto || !dados) return null;
+        const status = dados.cmv > 0 ? getCmvStatus(dados.cmv) : null;
+        const ehBase = !produto.parentProductId;
+        const valor = (campo) => rascunho[campo] ?? String(produto[campo] ?? '');
+        const editar = (campo, v) => setRascunho((r) => ({ ...r, [campo]: v }));
+        const gravar = (campo, conversor = (v) => v) => {
+          if (rascunho[campo] === undefined) return;
+          const novo = conversor(rascunho[campo]);
+          setRascunho(({ [campo]: _, ...resto }) => resto);
+          if (novo !== produto[campo]) onUpdateProduct({ ...produto, [campo]: novo });
+        };
+        const numero = (v) => { const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : 0; };
+        const aoEnter = (e) => { if (e.key === 'Enter') e.currentTarget.blur(); };
+        const totalFicha = dados.ficha?.custo || 0;
+        const perdaPct = dados.produzido > 0 ? (dados.perdido / dados.produzido) * 100 : 0;
+        const categoria = PRODUCT_CATEGORIES.find((c) => c.value === produto.category)?.label || 'Sem categoria';
+
+        return ReactDOM.createPortal(
+          <div className="pp-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+            <aside className="pp" role="dialog" aria-modal="true" aria-label={`Produto ${produto.name}`}>
+              <header className="pp-head">
+                <div className="pp-title">
+                  <span className="pp-over">{categoria}{!ehBase && dados.base ? <> · sabor de <button type="button" className="pp-link" onClick={() => onOpenProduct(dados.base.id)}>{dados.base.name}</button></> : null}</span>
+                  <h2>{produto.name}</h2>
+                  {produto.showcaseEnabled === false && <span className="pp-chip">Inativo na vitrine</span>}
+                </div>
+                <button type="button" className="pp-close" onClick={onClose} aria-label="Fechar">×</button>
+              </header>
+
+              <div className="pp-stats">
+                <div><span>Preço</span><strong>{formatCurrencyBR(dados.preco)}<small>/{produto.priceUnit || 'un'}</small></strong></div>
+                <div><span>Custo</span><strong>{dados.ficha?.custoPendente ? 'pendente' : dados.custoUn > 0 ? formatCurrencyBR(dados.custoUn) : '—'}</strong></div>
+                <div><span>CMV</span><strong className={status ? status.ink : ''}>{dados.cmv > 0 ? `${dados.cmv.toFixed(1).replace('.', ',')}%` : '—'}</strong>{status && <small className={status.ink}>{status.label}</small>}</div>
+                <div><span>Preço sugerido</span><strong>{dados.sugerido > 0 ? formatCurrencyBR(dados.sugerido) : '—'}</strong><small>CMV 40%</small></div>
+              </div>
+
+              <nav className="pp-tabs" role="tablist">
+                {[['geral', 'Visão geral'], ['ficha', 'Ficha técnica'], ['sabores', `Sabores${dados.sabores.length ? ` (${dados.sabores.length})` : ''}`], ['movimento', 'Vendas e perdas']].map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={aba === id} data-active={aba === id} onClick={() => setAba(id)}>{label}</button>
+                ))}
+              </nav>
+
+              <div className="pp-body">
+                {aba === 'geral' && (
+                  <>
+                    <div className="pp-form">
+                      <label className="pp-wide">Nome
+                        <input className="field" value={valor('name')} onChange={(e) => editar('name', e.target.value)} onBlur={() => gravar('name', (v) => v.trim() || produto.name)} onKeyDown={aoEnter} />
+                      </label>
+                      <label>Categoria
+                        <select className="field" value={produto.category || 'outro'} onChange={(e) => onUpdateProduct({ ...produto, category: e.target.value })}>
+                          {PRODUCT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </label>
+                      <label>Preço de venda (R$)
+                        <input className="field" inputMode="decimal" value={valor('price')} onChange={(e) => editar('price', e.target.value)} onBlur={() => gravar('price', numero)} onKeyDown={aoEnter} />
+                      </label>
+                      <label>Vendido por
+                        <select className="field" value={produto.priceUnit || 'un'} onChange={(e) => onUpdateProduct({ ...produto, priceUnit: e.target.value })}>
+                          <option value="un">Unidade</option>
+                          <option value="kg">Quilo</option>
+                        </select>
+                      </label>
+                      <label>Validade (dias)
+                        <input className="field" inputMode="numeric" value={valor('shelfLifeDays')} onChange={(e) => editar('shelfLifeDays', e.target.value)} onBlur={() => gravar('shelfLifeDays', (v) => Math.max(1, Math.round(numero(v)) || 1))} onKeyDown={aoEnter} />
+                      </label>
+                      <label>Responsável
+                        <input className="field" value={valor('responsible')} onChange={(e) => editar('responsible', e.target.value)} onBlur={() => gravar('responsible')} onKeyDown={aoEnter} />
+                      </label>
+                      <label className="pp-check">
+                        <input type="checkbox" checked={produto.showcaseEnabled !== false} onChange={(e) => onUpdateProduct({ ...produto, showcaseEnabled: e.target.checked })} />
+                        Aparece na vitrine
+                      </label>
+                    </div>
+                    <p className="pp-hint">As alterações são salvas sozinhas ao sair do campo.</p>
+                    <div className="pp-actions">
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditFicha(produto.id)}><Icons.ClipboardList className="w-3.5 h-3.5" /> Editar ficha técnica</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.abrirVariacoesProdutos?.(dados.base?.id || produto.id)}><Icons.Copy className="w-3.5 h-3.5" /> Sabores em grade</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => { onClose(); onTabChange('embalagens'); }}><Icons.Package className="w-3.5 h-3.5" /> Embalagens</button>
+                    </div>
+                  </>
+                )}
+
+                {aba === 'ficha' && (
+                  dados.ficha ? (
+                    <>
+                      <p className="pp-sub">Rende <strong>{fmtQtd(dados.ficha.yieldQty)} {dados.ficha.yieldUnit}</strong> · custo da receita <strong>{formatCurrencyBR(totalFicha)}</strong></p>
+                      {dados.ficha.pendencias.length > 0 && (
+                        <div className="pp-warn">{dados.ficha.pendencias.map((x) => `${x.nome}: ${x.motivo}`).join(' · ')}</div>
+                      )}
+                      <table className="pp-table">
+                        <thead><tr><th>Ingrediente</th><th className="num">Qtd</th><th className="num">Custo</th><th className="num">%</th></tr></thead>
+                        <tbody>
+                          {dados.linhas.map(({ item, componente, nome, custo }) => (
+                            <tr key={item.id}>
+                              <td>{componente
+                                ? <button type="button" className="pp-link" onClick={() => onOpenProduct(componente.id)}>{nome}</button>
+                                : nome}{componente && <small> · preparo da casa</small>}</td>
+                              <td className="num">{fmtQtd(item.qty)} {item.usageUnit}</td>
+                              <td className="num">{custo > 0 ? formatCurrencyBR(custo) : '—'}</td>
+                              <td className="num">{totalFicha > 0 ? `${Math.round((custo / totalFicha) * 100)}%` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="pp-actions"><button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditFicha(produto.id)}>Editar ficha técnica</button></div>
+                    </>
+                  ) : (
+                    <div className="pp-empty">
+                      <p>Este produto ainda não tem ficha técnica{Number(produto.manualCost) > 0 ? `; o CMV usa o custo digitado à mão (${formatCurrencyBR(produto.manualCost)})` : ''}.</p>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => onEditFicha(produto.id)}>Montar ficha técnica</button>
+                    </div>
+                  )
+                )}
+
+                {aba === 'sabores' && (
+                  <>
+                    {!ehBase && dados.base && <p className="pp-sub">Sabor de <button type="button" className="pp-link" onClick={() => onOpenProduct(dados.base.id)}>{dados.base.name}</button>. Os sabores irmãos:</p>}
+                    {dados.sabores.length ? (
+                      <table className="pp-table">
+                        <thead><tr><th>Sabor</th><th className="num">Preço</th><th className="num">Custo</th><th className="num">CMV</th></tr></thead>
+                        <tbody>
+                          {dados.sabores.map(({ p, custo, cmv, pendente }) => {
+                            const st = cmv > 0 ? getCmvStatus(cmv) : null;
+                            return (
+                              <tr key={p.id} data-current={p.id === produto.id}>
+                                <td><button type="button" className="pp-link" onClick={() => onOpenProduct(p.id)}>{p.variantName || p.name}</button></td>
+                                <td className="num">{formatCurrencyBR(p.price)}</td>
+                                <td className="num">{pendente ? 'pendente' : custo > 0 ? formatCurrencyBR(custo) : '—'}</td>
+                                <td className={`num ${st ? st.ink : ''}`}>{cmv > 0 ? `${cmv.toFixed(1).replace('.', ',')}%` : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : <div className="pp-empty"><p>Nenhum sabor cadastrado a partir deste produto.</p></div>}
+                    <div className="pp-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => window.abrirVariacoesProdutos?.(dados.base?.id || produto.id)}>{dados.sabores.length ? 'Editar sabores em grade' : 'Criar sabores'}</button></div>
+                  </>
+                )}
+
+                {aba === 'movimento' && (
+                  <>
+                    <p className="pp-sub">Últimos 30 dias{unitName ? ` · ${unitName}` : ''}</p>
+                    <div className="pp-stats pp-stats-sm">
+                      <div><span>Produzido</span><strong>{fmtQtd(dados.produzido)} <small>{dados.unidadeMov}</small></strong></div>
+                      <div><span>Vendido</span><strong>{fmtQtd(dados.vendido)} <small>{dados.unidadeMov}</small></strong></div>
+                      <div><span>Perdido</span><strong>{fmtQtd(dados.perdido)} <small>{dados.unidadeMov}</small></strong></div>
+                      <div><span>Perda</span><strong className={perdaPct > 10 ? 'ink-expired' : ''}>{dados.produzido > 0 ? `${perdaPct.toFixed(1).replace('.', ',')}%` : '—'}</strong><small>do produzido</small></div>
+                    </div>
+                    {dados.movimentos.length ? (
+                      <table className="pp-table">
+                        <thead><tr><th>Data</th><th>Tipo</th><th className="num">Qtd</th><th>Detalhe</th></tr></thead>
+                        <tbody>
+                          {dados.movimentos.map(({ tipo, data, r }) => (
+                            <tr key={`${tipo}:${r.id}`}>
+                              <td>{data ? new Date(String(data).length === 10 ? `${data}T12:00:00` : data).toLocaleDateString('pt-BR') : '—'}</td>
+                              <td>{tipo}</td>
+                              <td className="num">{fmtQtd(r.qty)} {r.unitOfMeasure}</td>
+                              <td className="pp-muted">{r.reason || r.responsible || ''}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : <div className="pp-empty"><p>Sem produção, venda ou perda registrada nos últimos 30 dias.</p></div>}
+                    <div className="pp-actions"><button type="button" className="btn btn-secondary btn-sm" onClick={() => { onClose(); onTabChange('historico'); }}>Ver histórico completo</button></div>
+                  </>
+                )}
+              </div>
+            </aside>
           </div>,
           document.body
         );
@@ -16398,7 +16642,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                         <tr key={produto.id} className="border-t hairline hover:bg-black/[0.015] transition-colors">
                           <td className="py-2.5 pr-3 sticky left-0 bg-white z-10">
                             <div className="w-36 sm:w-52">
-                              <span className="t-callout font-semibold block truncate" title={produto.name}>{produto.name}</span>
+                              <button type="button" className="t-callout font-semibold block truncate max-w-full text-left hover:underline" title={`Abrir página de ${produto.name}`} onClick={() => abrirPaginaDoProduto(produto.id)}>{produto.name}</button>
                               {!ficha && (
                                 <span className="t-nano ink-quiet">
                                   {Number(produto.manualCost) > 0 ? 'custo digitado à mão' : 'sem ficha técnica'}
@@ -25605,6 +25849,7 @@ ${BARRA_ACOES_HTML}
           if (isScreenTab(tab)) guardarPreferencia('aba', tab);
         };
         const [buscaAberta, setBuscaAberta] = useState(false);
+        const [produtoAberto, setProdutoAberto] = useState(null);
         const [catalogEditTarget, setCatalogEditTarget] = useState(null);
         const [catalogQuickEditTarget, setCatalogQuickEditTarget] = useState(null);
         const [selectedDay, setSelectedDay] = useState('segunda');
@@ -25751,6 +25996,14 @@ ${BARRA_ACOES_HTML}
         };
 
         useEffect(() => { reload(); }, []);
+
+        // Qualquer tela abre a página do produto com abrirPaginaDoProduto(id).
+        useEffect(() => {
+          const abrir = (e) => setProdutoAberto(e.detail || null);
+          window.addEventListener('controle:abrir-produto', abrir);
+          window.abrirPaginaDoProduto = abrirPaginaDoProduto;
+          return () => { window.removeEventListener('controle:abrir-produto', abrir); delete window.abrirPaginaDoProduto; };
+        }, []);
 
         // Ctrl+K (ou ⌘K) abre a busca rápida de qualquer tela.
         useEffect(() => {
@@ -27951,6 +28204,29 @@ ${BARRA_ACOES_HTML}
             />
 
             <DesktopSidebar activeTab={activeTab} onTabChange={setActiveTab} onSearch={() => setBuscaAberta(true)} totalAlerts={totalAlerts} />
+
+            {produtoAberto && <ProductPage
+              productId={produtoAberto}
+              products={products}
+              recipes={recipes}
+              recipeItems={recipeItems}
+              supplies={supplies}
+              supplyPurchases={supplyPurchases}
+              saleRecords={saleRecords}
+              lossRecords={lossRecords}
+              productionRecords={productionRecords}
+              currentUnit={currentUnit}
+              unitName={getUnitName(units, currentUnit)}
+              onUpdateProduct={handleUpdateProduct}
+              onClose={() => setProdutoAberto(null)}
+              onOpenProduct={setProdutoAberto}
+              onTabChange={setActiveTab}
+              onEditFicha={(id) => {
+                setProdutoAberto(null);
+                setCatalogEditTarget({ id: Date.now(), value: `producao:${id}` });
+                setActiveTab('insumos');
+              }}
+            />}
 
             {buscaAberta && <CommandPalette
               onClose={() => setBuscaAberta(false)}
