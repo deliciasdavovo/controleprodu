@@ -16666,7 +16666,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <td class="num">${formatCurrencyBR(x.preco)}<span class="un">/${escaparHtml(x.unidadePreco)}</span></td>
               <td class="num">${formatCurrencyBR(x.custo)}</td>
               <td class="num cmv ${x.situacao === 'Alto' ? 'alto' : 'atencao'}">${x.cmv.toFixed(1).replace('.', ',')}%</td>
-              <td class="sit">${x.situacao}</td>
+              <td class="sit"><span class="chip ${x.situacao === 'Alto' ? 'alto' : 'atencao'}">${x.situacao}</span></td>
               <td class="num forte">${formatCurrencyBR(x.sugerido)}</td>
               <td class="num">${x.diferenca > 0 ? '+' : ''}${formatCurrencyBR(x.diferenca)}</td>
               <td class="assinar"></td>
@@ -16686,6 +16686,17 @@ const { useState, useEffect, useMemo, useRef } = React;
                 <tbody>${linhas}</tbody>
               </table>`;
           };
+
+          // Resumo em cartões: quantos estão no vermelho, quantos em atenção e
+          // qual o pior CMV da lista.
+          const nAlto = precosParaReverFiltrados.filter((x) => x.situacao === 'Alto').length;
+          const nAtencao = precosParaReverFiltrados.length - nAlto;
+          const piorCmv = precosParaReverFiltrados.reduce((m, x) => (x.cmv > (m?.cmv || 0) ? x : m), null);
+          const placarPrecos = `<div class="placar">
+              <div class="metrica alerta"><span>CMV alto</span><b>${nAlto}</b></div>
+              <div class="metrica atencao"><span>Em atenção</span><b>${nAtencao}</b></div>
+              <div class="metrica alerta"><span>Maior CMV</span><b>${piorCmv ? piorCmv.cmv.toFixed(1).replace('.', ',') + '%' : '—'}</b>${piorCmv ? `<span style="text-transform:none;letter-spacing:0;font-weight:600">${escaparHtml(piorCmv.nome)}</span>` : ''}</div>
+            </div>`;
 
           const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
             <title>Preços a rever — ${escaparHtml(unitName)}</title>
@@ -16734,6 +16745,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <h1>Preços a rever</h1>
               <div class="sub">${escaparHtml(unitName)} · ${formatDateBR(getTodayDateString())} · ${totalParaRever} ${totalParaRever === 1 ? 'item' : 'itens'} fora da meta</div>
             </header>
+            ${placarPrecos}
             ${secao(
               `${painel === 'revenda' ? 'Revenda' : 'Produção'} — filtros da tela (${precosParaReverFiltrados.length})`,
               precosParaReverFiltrados
@@ -17762,7 +17774,61 @@ const { useState, useEffect, useMemo, useRef } = React;
       // Exporta a própria folha do relatório para PNG. Em folhas compridas,
       // fatia na proporção do A4 vertical para o texto continuar legível no
       // celular em vez de virar uma imagem única enorme e minúscula.
-      const BARRA_ACOES_SCRIPT = `
+      // ==========================================
+      // IDENTIDADE VISUAL DOS RELATÓRIOS
+      //
+      // Todos os relatórios em PDF/PNG trazem a barra de ações, então é por
+      // ela que entra a mesma cara para todos: Montserrat, assinatura da
+      // casa no topo, faixa de cores, seções com destaque, filtros como
+      // etiquetas, números do resumo em cartões e tabelas sem palavra
+      // quebrada no meio. Vem no <body>, depois do CSS de cada relatório, e
+      // só ajusta aparência — o conteúdo e as contas continuam os mesmos.
+      // ==========================================
+      const TEMA_RELATORIOS_HTML = `
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap">
+        <style>
+          body { font-family: Montserrat, Arial, Helvetica, sans-serif !important; color: #1f3328;
+                 -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          button, input, select { font-family: inherit; }
+          body > header { border-bottom: 0 !important; padding: 4px 0 0 !important; margin-bottom: 16px !important; }
+          body > header::before { content: 'DELÍCIAS DA VOVÓ'; display: block; font-size: 8pt; font-weight: 800;
+                 letter-spacing: .18em; color: #4f7a62; margin-bottom: 6px; }
+          body > header::after { content: ''; display: block; height: 4px; border-radius: 3px; margin-top: 12px;
+                 background: linear-gradient(90deg, #145444 0 40%, #d9733a 40% 52%, #cc4f86 52% 62%, #b88a1e 62% 72%, #e3ece6 72%); }
+          body > header h1 { font-size: 21pt !important; font-weight: 800 !important; letter-spacing: -.02em;
+                 color: #14402f !important; margin: 0 !important; line-height: 1.15 !important; }
+          body > header .sub { color: #5b6b61 !important; font-size: 9.5pt !important; margin-top: 5px !important; }
+          h2 { font-weight: 800 !important; letter-spacing: -.01em; }
+          body > h2, body > section > h2, section.bloco > h2 { background: #eef5f0 !important; color: #14402f !important;
+                 border-left: 5px solid #145444; border-radius: 7px !important; padding: 7px 12px !important; font-size: 12.5pt !important; }
+          section.bloco > h2.sobe { border-left-color: #b4232c; background: #fbeeee !important; color: #7d1f25 !important; }
+          section.bloco > h2.desce { border-left-color: #1d7a4a; background: #eaf6ef !important; color: #145a36 !important; }
+          .filtros { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+          .filtro { display: inline-block; background: #f2f6f3 !important; border: 1px solid #dde7e0 !important;
+                 border-radius: 999px !important; padding: 4px 11px !important; font-size: 8.5pt !important; color: #3d5546; }
+          .placar { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px !important; }
+          .placar > div, .placar .metrica { background: #fff !important; border: 1px solid #dde7e0 !important;
+                 border-top: 4px solid #145444 !important; border-radius: 10px !important; padding: 10px 13px !important;
+                 display: flex; flex-direction: column; gap: 3px; font-size: 9pt; color: #5b6b61; }
+          .placar > div b, .placar .metrica b { font-size: 17pt; font-weight: 800; color: #14402f; line-height: 1.1; order: -1; }
+          .placar .metrica b { order: 0; }
+          .placar .metrica span { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #6b7b71; }
+          .placar > .sobe, .placar .metrica.alerta { border-top-color: #b4232c !important; }
+          .placar > .sobe b { color: #9b1f27; }
+          .placar > .desce, .placar .metrica.bom { border-top-color: #1d7a4a !important; }
+          .placar > .desce b { color: #17663d; }
+          .placar .metrica.atencao { border-top-color: #b8860b !important; }
+          /* Cabeçalho menor e sem espaçamento largo: as palavras cabem inteiras
+             na coluna, sem "REFERÊNCI A" partido no meio. */
+          th { overflow-wrap: normal !important; word-break: normal !important; hyphens: none !important;
+               letter-spacing: .01em !important; font-size: 7.5pt !important; line-height: 1.25 !important; }
+          .chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 8.5pt; font-weight: 800; white-space: nowrap; }
+          .chip.alto { background: #fbe4e4; color: #8f1d24; }
+          .chip.atencao { background: #fbf0d6; color: #7a5300; }
+          body > footer, .rodape-relatorio { border-top: 1px solid #dde7e0 !important; color: #6b7b71 !important; }
+        </style>`;
+
+      const BARRA_ACOES_SCRIPT = `${TEMA_RELATORIOS_HTML}
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"><\/script>
         <script>
           async function baixarRelatorioImagem(botao) {
@@ -28007,7 +28073,11 @@ ${BARRA_ACOES_HTML}
           new Error(
             error.code === '23505'
               ? 'já existe um produto com esse nome'
-              : error.message
+              : String(error.message || '').includes('products_category_check')
+                // O banco ainda tem a lista fechada de categorias: falta rodar
+                // supabase/migrations/20261021_categorias_livres_produtos.sql
+                ? 'o banco de dados ainda não aceita esta categoria. Peça para liberar as categorias de produtos no Supabase (migração 20261021_categorias_livres_produtos).'
+                : error.message
           );
 
         const handleAddProduct = (prod) => {
