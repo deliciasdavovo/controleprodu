@@ -73,12 +73,17 @@ jobs:
                 throw new Error('A pagina nao terminou de abrir no Chromium.');
               }
               console.log('PAGINA_ABRIU_NAVEGADOR: SIM');
+              // Desde o menu único não existe mais a tela "Entrar no CMV": o
+              // sistema abre direto com o menu lateral. A versão antiga ainda
+              // pode estar no cache do Pages por alguns minutos — aí o botão
+              // de entrada é clicado como antes.
               const entrarCMV = page.getByRole('button', { name: /Entrar no CMV/i });
-              console.log('BOTAO_ENTRAR_CMV:', await entrarCMV.count());
-              if (await entrarCMV.count() < 1) throw new Error('Botao de entrada CMV nao apareceu');
-              await entrarCMV.first().click();
-              await page.waitForTimeout(6000);
-              console.log('TEXTO_APOS_CMV:', (await page.locator('#root').innerText()).slice(0, 1100));
+              if (await entrarCMV.count()) await entrarCMV.first().click();
+              const menu = page.locator('.controle-side');
+              console.log('MENU_LATERAL:', await menu.count());
+              if (await menu.count() < 1) throw new Error('Menu lateral nao apareceu');
+              await page.waitForTimeout(3000);
+              console.log('TEXTO_COM_MENU:', (await page.locator('#root').innerText()).slice(0, 1100));
               const botaoEmbalagens = page.getByRole('button', { name: /^Embalagens$/i });
               console.log('BOTAO_EMBALAGENS:', await botaoEmbalagens.count());
               if (await botaoEmbalagens.count() < 1) throw new Error('Botao Embalagens nao existe');

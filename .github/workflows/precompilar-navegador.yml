@@ -167,7 +167,11 @@ jobs:
             } finally { await browser.close(); }
           })().catch(e => {console.error(e.stack || e); process.exit(1)});
           NODE
+      # Na main quem publica os compilados é "Compilar e publicar interface".
+      # Os dois rodam juntos no mesmo push, e o segundo a gravar era recusado
+      # (fetch first), deixando este teste vermelho mesmo com tudo aprovado.
       - name: Publicar scripts compilados no repositorio
+        if: github.ref_name != 'main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
