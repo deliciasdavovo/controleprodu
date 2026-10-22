@@ -19,7 +19,8 @@ permissions:
 
 jobs:
   testar-e-compilar:
-    runs-on: ubuntu-latest
+    # O ubuntu-latest passou a ser 26.04, que o Playwright 1.56 não suporta.
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
