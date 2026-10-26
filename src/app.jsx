@@ -6698,13 +6698,18 @@ const { useState, useEffect, useMemo, useRef } = React;
 
       const ProductionPlanningView = ({
         currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
-        onSavePlan, onCopyDayPlan, onReorder, onGenerateOrder
+        onSavePlan, onCopyDayPlan, onReorder, onGenerateOrder, onOpenProduct
       }) => {
         const [busca,setBusca] = useState('');
         const [categoria,setCategoria] = useState('todas');
         const [novoProduto,setNovoProduto] = useState('');
         const [novaQtd,setNovaQtd] = useState('1');
         const [diaDestino,setDiaDestino] = useState('terca');
+        const [editandoProduto,setEditandoProduto] = useState(null);
+        const [produtoEdicao,setProdutoEdicao] = useState('');
+        const [quantidadeEdicao,setQuantidadeEdicao] = useState('1');
+        const [salvandoEdicao,setSalvandoEdicao] = useState(false);
+        useEffect(()=>{setEditandoProduto(null);},[currentUnit,selectedDay]);
         const [arrastando,setArrastando] = useState(null);
         const [sobre,setSobre] = useState(null);
         const dragRef = useRef(null);
@@ -6746,11 +6751,39 @@ const { useState, useEffect, useMemo, useRef } = React;
           return map;
         },{});
         const resumo=Object.entries(totais).map(([unit,q])=>q+' '+unit).join(' · ')||'0';
-        const incluir=()=>{
+        const incluir=async()=>{
           const qty=Math.max(0,Math.floor(Number(novaQtd)||0));
           if(!novoProduto||qty<=0)return;
-          onSavePlan(selectedDay,novoProduto,qty);
-          setNovoProduto('');setNovaQtd('1');
+          const gravado=await onSavePlan(selectedDay,novoProduto,qty);
+          if(gravado===true){setNovoProduto('');setNovaQtd('1');}
+        };
+        const iniciarEdicao=(item)=>{
+          setEditandoProduto(item.id);
+          setProdutoEdicao(item.id);
+          setQuantidadeEdicao(String(item.dias[selectedDay]||1));
+        };
+        const salvarEdicao=async(item)=>{
+          const quantidade=Number(quantidadeEdicao);
+          if(salvandoEdicao||!produtoEdicao||!Number.isInteger(quantidade)||quantidade<=0)return;
+          setSalvandoEdicao(true);
+          try{
+            // Primeiro garante o novo produto. Só retira o anterior se a gravação der certo.
+            const salvo=await onSavePlan(selectedDay,produtoEdicao,quantidade);
+            if(salvo!==true)return;
+            if(produtoEdicao!==item.id){
+              const retirado=await onSavePlan(selectedDay,item.id,0);
+              if(retirado!==true)return;
+            }
+            setEditandoProduto(null);
+          }finally{setSalvandoEdicao(false);}
+        };
+        const removerDoDia=async(item)=>{
+          if(salvandoEdicao||!window.confirm('Retirar "'+item.nome+'" do padrão de '+getDayNameBR(selectedDay).toLowerCase()+'?'))return;
+          setSalvandoEdicao(true);
+          try{
+            const retirado=await onSavePlan(selectedDay,item.id,0);
+            if(retirado===true)setEditandoProduto(null);
+          }finally{setSalvandoEdicao(false);}
         };
         const mover=(source,target)=>{
           if(!source||!target||source===target)return;
@@ -6857,12 +6890,44 @@ const { useState, useEffect, useMemo, useRef } = React;
                 <div className="plan-card-body">
                   <h4>{item.nome}</h4>
                   <p>{item.responsavel}</p>
+                  <button type="button" className="plan-card-edit"
+                    aria-expanded={editandoProduto===item.id}
+                    onClick={()=>editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item)}>
+                    {editandoProduto===item.id?'Fechar edição':'Editar produto'}
+                  </button>
                 </div>
-                <div className="plan-card-bottom">
-                  <span>Quantidade do dia <small>({item.unidade})</small></span>
-                  <PlanQtyControl label={'Quantidade de '+item.nome} value={item.dias[selectedDay]||0}
-                    onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
-                </div>
+                {editandoProduto===item.id?
+                  <form className="plan-card-editor" onSubmit={e=>{e.preventDefault();salvarEdicao(item);}}>
+                    <label>Produto
+                      <select className="field field-sm" aria-label={'Produto para substituir '+item.nome}
+                        value={produtoEdicao} onChange={e=>setProdutoEdicao(e.target.value)}
+                        disabled={salvandoEdicao}>
+                        {ativos.filter(p=>p.id===item.id||!produtosNoDia.has(p.id))
+                          .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))
+                          .map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </label>
+                    <label>Quantidade do dia
+                      <input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
+                        aria-label={'Quantidade editada de '+item.nome} value={quantidadeEdicao}
+                        disabled={salvandoEdicao} onChange={e=>setQuantidadeEdicao(e.target.value)}/>
+                    </label>
+                    <button type="submit" className="btn btn-primary btn-sm"
+                      disabled={salvandoEdicao||!produtoEdicao||!Number.isInteger(Number(quantidadeEdicao))||Number(quantidadeEdicao)<=0}>
+                      {salvandoEdicao?'Salvando…':'Salvar alterações'}
+                    </button>
+                    <div className="plan-card-editor-links">
+                      <button type="button" disabled={salvandoEdicao}
+                        onClick={()=>onOpenProduct&&onOpenProduct(item.id)}>Editar cadastro</button>
+                      <button type="button" className="plan-card-remove" disabled={salvandoEdicao}
+                        onClick={()=>removerDoDia(item)}>Retirar do dia</button>
+                    </div>
+                  </form>:
+                  <div className="plan-card-bottom">
+                    <span>Quantidade do dia <small>({item.unidade})</small></span>
+                    <PlanQtyControl label={'Quantidade de '+item.nome} value={item.dias[selectedDay]||0}
+                      onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
+                  </div>}
               </article>)}
                   {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
                     <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
@@ -6929,7 +6994,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         currentUnit,unitName,products,standardPlans,selectedDay,onSelectDay,onRegisterProduction
       }) => {
         const [busca,setBusca]=useState('');
-        const [agrupar,setAgrupar]=useState('responsavel');
+        const [agrupar,setAgrupar]=useState('categoria');
         const [mostrar,setMostrar]=useState('tudo');
         const [visualizacao,setVisualizacao]=useState('lista');
         const [marcados,setMarcados]=useState({});
@@ -7034,7 +7099,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <label className="checklist-ok">
                 <input type="checkbox" checked={marcado} aria-label={'OK, produzir '+item.nome}
                   onChange={e=>marcar(item,e.target.checked)}/>
-                <span>{marcado?'OK · Produzir':'Marcar para produzir'}</span>
+                <span>OK</span>
               </label>
               <span className="checklist-product-name">
                 <strong>{item.nome}</strong>
@@ -7059,7 +7124,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-5 sm:p-6">
             <p className="t-overline mb-2">{unitName} · padrão do dia</p>
             <h2 className="t-display">Checklist de produção</h2>
-            <p className="t-body mt-1 max-w-2xl">Confira o padrão da vitrine de {unitName}, por lista ou em slots visuais. Marque <strong>OK · Produzir</strong> apenas nos produtos que precisam ser feitos. A seleção não controla estoque.</p>
+            <p className="t-body mt-1 max-w-2xl">Confira o padrão da vitrine de {unitName}, por lista ou em slots visuais. Marque <strong>OK</strong> nos produtos que precisam ser feitos. A seleção não controla estoque.</p>
             <div className="plan-day-tabs mt-5">
               {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
                 aria-pressed={day===selectedDay} onClick={()=>onSelectDay(day)}>
@@ -29561,6 +29626,7 @@ ${BARRA_ACOES_HTML}
                   onSavePlan={handleSaveProductionPlan}
                   onCopyDayPlan={handleCopyDayPlan}
                   onReorder={handleReorderProductionPlan}
+                  onOpenProduct={setProdutoAberto}
                   onGenerateOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
                 />
               )}
