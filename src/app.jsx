@@ -7079,7 +7079,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-4 sm:p-5">
             <div className="production-view-selector" role="group" aria-label="Visualização do pedido de produção">
               <button type="button" data-active={visualizacao==='lista'} aria-pressed={visualizacao==='lista'}
-                onClick={()=>setVisualizacao('lista')}><Icons.List className="w-4 h-4"/> Lista</button>
+                onClick={()=>setVisualizacao('lista')}><Icons.ClipboardList className="w-4 h-4"/> Lista</button>
               <button type="button" data-active={visualizacao==='slots'} aria-pressed={visualizacao==='slots'}
                 onClick={()=>setVisualizacao('slots')}><Icons.LayoutGrid className="w-4 h-4"/> Slots</button>
               <span>Mesmo checklist nas duas visualizações</span>
