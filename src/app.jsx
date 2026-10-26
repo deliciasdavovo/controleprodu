@@ -6895,13 +6895,16 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [agrupar,setAgrupar]=useState('responsavel');
         const [mostrar,setMostrar]=useState('tudo');
         const [marcados,setMarcados]=useState({});
-        const [naVitrine,setNaVitrine]=useState({});
+        const [observacoes,setObservacoes]=useState('');
+        const [itensLivres,setItensLivres]=useState([]);
+        const [nomeLivre,setNomeLivre]=useState('');
+        const [qtdLivre,setQtdLivre]=useState('1');
         const [quantidades,setQuantidades]=useState({});
         const [extras,setExtras]=useState([]);
         const [extraId,setExtraId]=useState('');
         const [registrado,setRegistrado]=useState(false);
         const [dataRegistro,setDataRegistro]=useState(getTodayDateString());
-        useEffect(()=>{setMarcados({});setNaVitrine({});setQuantidades({});setExtras([]);setRegistrado(false);},[currentUnit,selectedDay]);
+        useEffect(()=>{setMarcados({});setQuantidades({});setExtras([]);setItensLivres([]);setObservacoes('');setRegistrado(false);},[currentUnit,selectedDay]);
         const padroes=useMemo(()=>{
           const m=new Map();
           standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===selectedDay).forEach(p=>
@@ -6914,17 +6917,17 @@ const { useState, useEffect, useMemo, useRef } = React;
             categoria:p?.category||'outro',
             responsavel:p?getResponsibleName(p):NO_RESPONSIBLE_LABEL,
             unidade:p?.defaultUnit||'un',padrao:padroes.get(id)||0};
-        }).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')),[padroes,extras,products]);
-        const qtdSugestao=(item)=>{
-          const observado=naVitrine[item.id];
-          return observado===undefined||observado===''?item.padrao:
-            Math.max(0,item.padrao-Math.max(0,Number(observado)||0));
-        };
-        const qtdDe=item=>quantidades[item.id]===undefined?qtdSugestao(item):quantidades[item.id];
+        }).concat(itensLivres).sort((a,b)=>
+          a.responsavel.localeCompare(b.responsavel,'pt-BR')||
+          a.nome.localeCompare(b.nome,'pt-BR')),[padroes,extras,itensLivres,products]);
+        // Os produtos do padrão aparecem desmarcados; só entram no pedido
+        // quando a conferência física decide que é preciso produzir.
+        const qtdDe=item=>quantidades[item.id]===undefined?Math.max(1,item.padrao):quantidades[item.id];
         const selecionados=linhas.filter(x=>!!marcados[x.id]&&qtdDe(x)>0);
         const porUnidade=selecionados.reduce((m,x)=>{m[x.unidade]=(m[x.unidade]||0)+qtdDe(x);return m;},{});
         const resumo=Object.entries(porUnidade).map(([un,n])=>n+' '+un).join(' · ')||'0';
-        const completos=linhas.filter(x=>!marcados[x.id]).length;
+        const totalPadrao=padroes.size;
+        const naoMarcados=linhas.filter(x=>!marcados[x.id]).length;
         const visiveis=linhas.filter(x=>normalizeName(x.nome).includes(normalizeName(busca))&&
           (mostrar==='tudo'||(mostrar==='marcados'?!!marcados[x.id]:!marcados[x.id])));
         const grupos=new Map();
@@ -6942,12 +6945,30 @@ const { useState, useEffect, useMemo, useRef } = React;
         };
         const todos=()=>{const m={};linhas.forEach(x=>{m[x.id]=true;});setMarcados(m);setRegistrado(false);};
         const limpar=()=>{setMarcados({});setRegistrado(false);};
+        const adicionarLivre=()=>{
+          const nome=nomeLivre.trim(),qty=Math.max(1,Math.floor(Number(qtdLivre)||1));
+          if(!nome)return;
+          const id='extra-manual:'+Date.now()+':'+Math.random().toString(36).slice(2,7);
+          setItensLivres(prev=>[...prev,{
+            id,nome,categoria:'Avulso',responsavel:'Itens adicionais',
+            unidade:'un',padrao:0
+          }]);
+          setQuantidades(prev=>({...prev,[id]:qty}));
+          setMarcados(prev=>({...prev,[id]:true}));
+          setNomeLivre('');setQtdLivre('1');setRegistrado(false);
+        };
+        const excluirLivre=id=>{
+          setItensLivres(prev=>prev.filter(x=>x.id!==id));
+          setMarcados(prev=>{const next={...prev};delete next[id];return next;});
+          setRegistrado(false);
+        };
         const textoPedido=()=>{
           const m=new Map();
           selecionados.forEach(x=>{if(!m.has(x.responsavel))m.set(x.responsavel,[]);m.get(x.responsavel).push(x);});
-          return ['PEDIDO DE PRODUÇÃO',unitName+' · '+getDayNameBR(selectedDay),
-            ...[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
-            .map(([resp,items])=>[resp.toUpperCase(),...items.map(x=>qtdDe(x)+' '+x.unidade+' — '+x.nome)].join('\n'))].join('\n\n');
+          const secoes=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
+            .map(([resp,items])=>[resp.toUpperCase(),...items.map(x=>qtdDe(x)+' '+x.unidade+' — '+x.nome)].join('\n'));
+          if(observacoes.trim())secoes.push('ANOTAÇÕES\n'+observacoes.trim());
+          return ['PEDIDO DE PRODUÇÃO',unitName+' · '+getDayNameBR(selectedDay),...secoes].join('\n\n');
         };
         const copiar=async()=>{
           if(!selecionados.length)return;
@@ -6958,16 +6979,16 @@ const { useState, useEffect, useMemo, useRef } = React;
           if(!window.confirm('Registrar '+selecionados.length+' produto(s) como produzidos em '+dataRegistro+'?'))
             return;
           const ok=await onRegisterProduction(selecionados.map(x=>({
-            productId:x.id,productName:x.nome,responsible:x.responsavel,
+            productId:x.id.startsWith('extra-manual:')?null:x.id,productName:x.nome,responsible:x.responsavel,
             qty:qtdDe(x),unitOfMeasure:x.unidade
           })),dataRegistro);
           if(ok)setRegistrado(true);
         };
         return <div className="space-y-4 production-checklist">
           <div className="card p-5 sm:p-6">
-            <p className="t-overline mb-2">Conferência da vitrine · {unitName}</p>
+            <p className="t-overline mb-2">Padrão do dia · {unitName}</p>
             <h2 className="t-display">Checklist de produção</h2>
-            <p className="t-body mt-1 max-w-2xl">Compare o que está exposto com o padrão do dia e marque apenas o que precisa produzir. A coluna "Na vitrine" é uma anotação para este pedido: não atualiza estoque.</p>
+            <p className="t-body mt-1 max-w-2xl">Estes são os produtos previstos para a vitrine no dia. Confira visualmente o que já tem e toque em <strong>OK · Produzir</strong> somente no que precisa ser feito. Não é necessário contar ou registrar estoque.</p>
             <div className="plan-day-tabs mt-5">
               {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
                 aria-pressed={day===selectedDay} onClick={()=>onSelectDay(day)}>
@@ -6975,9 +6996,9 @@ const { useState, useEffect, useMemo, useRef } = React;
               </button>)}
             </div>
             <div className="checklist-summary mt-4">
-              <div><strong>{selecionados.length}</strong><span>Selecionados</span></div>
-              <div><strong>{completos}</strong><span>A conferir</span></div>
-              <div><strong>{resumo}</strong><span>Para produzir</span></div>
+              <div><strong>{totalPadrao}</strong><span>Produtos no padrão</span></div>
+              <div><strong>{selecionados.length}</strong><span>Marcados para produzir</span></div>
+              <div><strong>{resumo}</strong><span>Quantidade selecionada</span></div>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
               <button type="button" className="btn btn-primary btn-sm" disabled={!selecionados.length} onClick={copiar}>Copiar pedido para WhatsApp</button>
@@ -6993,13 +7014,13 @@ const { useState, useEffect, useMemo, useRef } = React;
                   <option value="responsavel">Por responsável</option><option value="categoria">Por categoria</option><option value="todos">Sem grupos</option>
                 </select>
                 <select aria-label="Filtrar checklist" className="field field-sm" value={mostrar} onChange={e=>setMostrar(e.target.value)}>
-                  <option value="tudo">Todos</option><option value="marcados">Marcados</option><option value="pendentes">Não marcados</option>
+                  <option value="tudo">Todos do padrão</option><option value="marcados">Somente marcados</option><option value="pendentes">Não marcados</option>
                 </select>
               </div>
               <div className="flex gap-2"><button type="button" className="btn btn-secondary btn-sm" onClick={todos}>Marcar todos</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={limpar}>Limpar seleção</button></div>
             </div>
-            <div className="checklist-legend"><span>Produto</span><span>Padrão</span><span>Na vitrine</span><span>Produzir</span></div>
+            <div className="checklist-legend"><span>Produto no padrão do dia</span><span>Quantidade padrão</span><span>Quantidade a produzir</span></div>
             {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([name,itens])=>
               <section key={name} className="checklist-group">
                 <h3>{name} <small>{itens.length}</small></h3>
@@ -7007,41 +7028,69 @@ const { useState, useEffect, useMemo, useRef } = React;
                   const marked=!!marcados[item.id],produzir=qtdDe(item);
                   return <div key={item.id} className="checklist-row" data-selected={marked}
                     data-print-omit={!marked}>
-                    <label className="checklist-product">
-                      <input type="checkbox" checked={marked} aria-label={'Incluir '+item.nome+' no pedido'}
-                        onChange={e=>marcar(item,e.target.checked)}/>
-                      <span><strong>{item.nome}</strong><small>{item.categoria} · {item.responsavel}</small></span>
-                    </label>
-                    <div className="checklist-number"><span>Padrão</span><strong>{item.padrao} <small>{item.unidade}</small></strong></div>
-                    <label className="checklist-field"><span>Na vitrine</span>
-                      <input className="field field-sm" type="number" min="0" step="1" inputMode="numeric"
-                        placeholder="—" aria-label={'Quantidade vista na vitrine de '+item.nome}
-                        value={naVitrine[item.id]===undefined?'':naVitrine[item.id]}
-                        onChange={e=>{setNaVitrine(prev=>({...prev,[item.id]:e.target.value}));setRegistrado(false);}}/>
-                    </label>
+                    <div className="checklist-product">
+                      <label className="checklist-ok">
+                        <input type="checkbox" checked={marked} aria-label={'OK, produzir '+item.nome}
+                          onChange={e=>marcar(item,e.target.checked)}/>
+                        <span>{marked?'OK · Produzir':'Marcar para produzir'}</span>
+                      </label>
+                      <span className="checklist-product-name">
+                        <strong>{item.nome}</strong>
+                        <small>{item.categoria} · {item.responsavel}</small>
+                      </span>
+                      {item.id.startsWith('extra-manual:')&&<button type="button" className="checklist-remove"
+                        aria-label={'Remover item adicional '+item.nome} onClick={()=>excluirLivre(item.id)}>Remover</button>}
+                    </div>
+                    <div className="checklist-number"><span>Padrão do dia</span>
+                      <strong>{item.padrao?item.padrao:'Extra'} <small>{item.padrao?item.unidade:''}</small></strong></div>
                     <label className="checklist-field"><span>Produzir</span>
-                      <input className="field field-sm" type="number" min="0" step="1" inputMode="numeric"
+                      {marked?<input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
                         aria-label={'Quantidade a produzir de '+item.nome} value={produzir}
-                        onChange={e=>{setQuantidades(prev=>({...prev,[item.id]:Math.max(0,Math.floor(Number(e.target.value)||0))}));
-                          if(!marked)setMarcados(prev=>({...prev,[item.id]:true}));setRegistrado(false);}}/>
+                        onChange={e=>{setQuantidades(prev=>({...prev,[item.id]:Math.max(1,Math.floor(Number(e.target.value)||1))}));
+                          setRegistrado(false);}}/>:
+                        <span className="checklist-not-selected">—</span>}
                     </label>
                   </div>;
                 })}
               </section>)}
             {!visiveis.length&&<p className="t-body p-5 text-center">Nenhum produto no filtro selecionado.</p>}
-            <div className="checklist-extra">
-              <label className="t-caption">Produto fora do padrão
-                <select aria-label="Adicionar produto extra ao checklist" className="field field-sm mt-1 w-full"
-                  value={extraId} onChange={e=>setExtraId(e.target.value)}>
-                  <option value="">Escolha um produto</option>
-                  {disponiveis.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+            <div className="checklist-annotations">
+              <h3 className="t-title">Itens extras e anotações</h3>
+              <p className="t-caption mt-1">Inclua algo que não estava no padrão ou deixe orientações para a produção.</p>
+              <div className="checklist-extra">
+                <label className="t-caption">Adicionar um produto do cadastro
+                  <select aria-label="Adicionar produto do cadastro" className="field field-sm mt-1 w-full"
+                    value={extraId} onChange={e=>setExtraId(e.target.value)}>
+                    <option value="">Escolha um produto</option>
+                    {disponiveis.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={!extraId}
+                  onClick={()=>{setExtras(p=>[...p,extraId]);setMarcados(p=>({...p,[extraId]:true}));
+                    setQuantidades(p=>({...p,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
+                  <Icons.Plus className="w-4 h-4"/> Incluir
+                </button>
+              </div>
+              <form className="checklist-extra" onSubmit={e=>{e.preventDefault();adicionarLivre();}}>
+                <label className="t-caption">Ou escrever um item avulso
+                  <input type="text" className="field field-sm mt-1 w-full" placeholder="Ex.: 2 bolos para encomenda"
+                    value={nomeLivre} onChange={e=>setNomeLivre(e.target.value)}/>
+                </label>
+                <label className="t-caption checklist-extra-qty">Quantidade
+                  <input type="number" min="1" step="1" className="field field-sm mt-1 w-full"
+                    value={qtdLivre} onChange={e=>setQtdLivre(e.target.value)}/>
+                </label>
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={!nomeLivre.trim()}>
+                  <Icons.Plus className="w-4 h-4"/> Incluir item
+                </button>
+              </form>
+              <label className="t-caption checklist-notes-label">Anotações para a produção
+                <textarea rows={3} className="field checklist-notes mt-2 w-full"
+                  placeholder="Ex.: preparar antes das 10h, fazer metade sem queijo, separar para encomenda..."
+                  value={observacoes} onChange={e=>setObservacoes(e.target.value)}/>
               </label>
-              <button type="button" className="btn btn-secondary btn-sm" disabled={!extraId}
-                onClick={()=>{setExtras(p=>[...p,extraId]);setMarcados(p=>({...p,[extraId]:true}));
-                  setQuantidades(p=>({...p,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
-                <Icons.Plus className="w-4 h-4"/> Incluir
-              </button>
+              <p className="t-caption">Itens extras e anotações entram no pedido copiado para o WhatsApp.</p>
+              {observacoes.trim()&&<p className="checklist-notes-print">Anotações: {observacoes.trim()}</p>}
             </div>
             <div className="checklist-register">
               <label className="t-caption">Data de produção
@@ -7050,7 +7099,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               </label>
               <button type="button" className="btn btn-primary btn-md" disabled={registrado||!selecionados.length||!dataRegistro}
                 onClick={registrar}>{registrado?'Registrado no histórico':'Registrar produção realizada'}</button>
-              <p className="t-caption">Só registra o que foi produzido, sem movimentar estoque.</p>
+              <p className="t-caption">Registrar é opcional: marca os itens como realizados no Histórico. O checklist não movimenta estoque.</p>
             </div>
           </div>
         </div>;
