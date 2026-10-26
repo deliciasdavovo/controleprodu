@@ -13175,6 +13175,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         const blocoRevisaoRef = useRef(null);
         const [alertaDuplicata, setAlertaDuplicata] = useState(null);
         const resolverDuplicataRef = useRef(null);
+        const [alertaNotaExistente, setAlertaNotaExistente] = useState(null);
+        const resolverNotaExistenteRef = useRef(null);
 
         const fecharAlertaDuplicata = (confirmado) => {
           const resolver = resolverDuplicataRef.current;
@@ -13200,6 +13202,53 @@ const { useState, useEffect, useMemo, useRef } = React;
 
         const comprasDoInsumo = (id) => supplyPurchases.filter((c) => c.supplyId === id);
         const comprasDaRevenda = (id) => resalePurchases.filter((c) => c.separatedProductId === id);
+
+        // O banco guarda uma linha por produto, não por nota. Por isso
+        // comparamos fornecedor e data e mostramos todas as linhas do histórico
+        // dessa combinação (sem afirmar que todas sejam da mesma NF-e).
+        const consultarNotaExistente = (fornecedor, data) => {
+          const chave = normalizeName(String(fornecedor || '').trim());
+          const dia = String(data || '').slice(0, 10);
+          if (!chave || !dia) return [];
+          const coincide = (compra) =>
+            String(compra.purchaseDate || '').slice(0, 10) === dia
+            && normalizeName(String(compra.supplier || '').trim()) === chave;
+          const itensInsumos = supplyPurchases.filter(coincide).map((compra) => {
+            const prod = supplies.find((x) => String(x.id) === String(compra.supplyId));
+            return {
+              key: 'insumo:' + compra.id, tipo: 'Insumo',
+              nome: prod?.name || 'Insumo não encontrado',
+              qty: Number(compra.qty) || 0,
+              unit: compra.quantityBasis === 'base'
+                ? (prod?.unit || compra.purchaseUnit || 'un')
+                : (compra.purchaseUnit || prod?.unit || 'un'),
+              cost: Number(compra.cost) || 0
+            };
+          });
+          const itensRevenda = resalePurchases.filter(coincide).map((compra) => {
+            const prod = separatedProducts.find((x) => String(x.id) === String(compra.separatedProductId));
+            return {
+              key: 'revenda:' + compra.id, tipo: 'Revenda',
+              nome: prod?.productName || 'Produto de revenda não encontrado',
+              qty: Number(compra.qty) || 0,
+              unit: compra.purchaseUnit || prod?.unitOfMeasure || 'un',
+              cost: Number(compra.cost) || 0
+            };
+          });
+          return [...itensInsumos, ...itensRevenda].sort((a,b) =>
+            a.nome.localeCompare(b.nome, 'pt-BR') || a.tipo.localeCompare(b.tipo,'pt-BR'));
+        };
+
+        const revisarNotaExistente = (dados) => new Promise((resolve) => {
+          resolverNotaExistenteRef.current = resolve;
+          setAlertaNotaExistente(dados);
+        });
+        const fecharRevisaoNotaExistente = (continuar) => {
+          const resolver = resolverNotaExistenteRef.current;
+          resolverNotaExistenteRef.current = null;
+          setAlertaNotaExistente(null);
+          if (resolver) resolver(!!continuar);
+        };
 
         // Evita lançamentos acidentais repetidos sem bloquear exceções reais.
         // Consideramos possível duplicata quando o MESMO item já tem compra
@@ -14054,29 +14103,26 @@ const { useState, useEffect, useMemo, useRef } = React;
           setTimeout(() => nomeRef.current && nomeRef.current.focus(), 50);
         };
 
-        const salvarItensNotaColada = async ({ itens, fornecedor, data, numeroNota = '' }) => {
-          // Verificação no nível da nota, antes de lançar qualquer item.
-          // O histórico atual guarda compras por item, portanto fornecedor + data
-          // é um indício (não prova) de nota repetida.
+        const salvarItensNotaColada = async ({ itens, fornecedor, data, numeroNota = '', revisaoNotaExistente = null }) => {
+          // Se fornecedor e data coincidem, a pessoa vê os PRODUTOS já
+          // registrados antes de decidir. Não basta mostrar a contagem.
           const dataNota = String(data || dataSugerida || '').slice(0, 10);
-          const fornecedorNota = normalizeName(String(fornecedor || '').trim());
-          const comprasNaMesmaData = [...supplyPurchases, ...resalePurchases].filter((compra) =>
-            String(compra.purchaseDate || '').slice(0, 10) === dataNota
-            && normalizeName(String(compra.supplier || '').trim()) === fornecedorNota
-          );
-          if (comprasNaMesmaData.length) {
-            const identificacao = String(numeroNota || '').trim()
-              ? '\nNota informada: ' + String(numeroNota).trim()
-              : '';
-            const continuar = window.confirm(
-              'Possível nota fiscal já lançada!\n\n'
-              + 'Fornecedor: ' + String(fornecedor || '').trim() + '\n'
-              + 'Data: ' + formatDateBR(dataNota) + identificacao + '\n'
-              + 'Já existem ' + comprasNaMesmaData.length + ' lançamento(s) desse fornecedor nessa data.\n\n'
-              + 'Pode ser outra nota do mesmo dia. Confira antes de continuar.\n\n'
-              + 'OK: lançar mesmo assim | Cancelar: voltar e conferir.'
-            );
+          const fornecedorInformado = String(fornecedor || '').trim();
+          const comprasNaMesmaData = consultarNotaExistente(fornecedorInformado, dataNota);
+          const revisadaNaLeitura = !!revisaoNotaExistente
+            && String(revisaoNotaExistente.data || '').slice(0,10) === dataNota
+            && normalizeName(String(revisaoNotaExistente.fornecedor || '').trim())
+              === normalizeName(fornecedorInformado);
+          let documentoJaRevisado = revisadaNaLeitura && comprasNaMesmaData.length > 0;
+          if (comprasNaMesmaData.length && !documentoJaRevisado) {
+            const continuar = await revisarNotaExistente({
+              fornecedor: fornecedorInformado,
+              data: dataNota,
+              numeroNota: String(numeroNota || '').trim(),
+              itens: comprasNaMesmaData
+            });
             if (!continuar) return false;
+            documentoJaRevisado = true;
           }
           // Confere conflitos antes de escrever as compras: nenhum código de um
           // fornecedor pode mudar silenciosamente de produto.
@@ -14107,7 +14153,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 
           for (let indice = 0; indice < itens.length; indice += 1) {
             const item = itens[indice];
-            if (item.duplicateAccepted) continue;
+            if (item.duplicateAccepted || documentoJaRevisado) continue;
 
             const nome = String(item.name || '').trim();
             const tipo = item.purchaseKind || 'revenda';
@@ -16389,8 +16435,15 @@ const { useState, useEffect, useMemo, useRef } = React;
               />
             )}
 
-            {alertaDuplicata && (
-              <div className="fixed inset-0 z-[140] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4">
+            {alertaNotaExistente && (
+              <ExistingInvoiceReviewDialog
+                alerta={alertaNotaExistente}
+                onDecide={fecharRevisaoNotaExistente}
+              />
+            )}
+
+            {alertaDuplicata && ReactDOM.createPortal((
+              <div className="invoice-modal-viewport fixed inset-0 z-[140] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4">
                 <button
                   type="button"
                   className="absolute inset-0"
@@ -16456,7 +16509,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                   </div>
                 </div>
               </div>
-            )}
+            ), document.body)}
 
             {compraManualAberta && (
               <ManualPurchaseModal
@@ -16475,6 +16528,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 fornecedores={fornecedores}
                 dataSugerida={dataSugerida}
                 detectarDuplicata={detectarPossivelDuplicataCompra}
+                consultarNotaExistente={consultarNotaExistente}
                 onConfirm={salvarItensNotaColada}
                 onClose={() => setXmlCompraAberta(false)}
               />
