@@ -42,7 +42,7 @@ jobs:
             const browser = await chromium.launch({headless: true});
             const errors=[];
             const page=await browser.newPage({viewport:{width:1350,height:850}});
-            page.on('pageerror',e=>errors.push(e.message));
+            page.on('pageerror',e=>{ errors.push(e.message); console.log('PAGE_ERROR:',e.stack||e.message); });
             try {
               await page.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
               await page.locator('.controle-side').waitFor({state:'visible',timeout:45000});
@@ -59,7 +59,8 @@ jobs:
                 const cols=await gridThree.evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
                 if(cols!==3)throw new Error('Vitrine doce/sobremesa deveria ter 3 colunas, encontrou '+cols);
               }
-              await page.getByRole('button',{name:/Produção/i}).first().click();
+              await page.locator('.controle-side').getByRole('button',{name:'Produção',exact:true}).click();
+              console.log('DESKTOP_ABA_ANTES:',(await page.locator('#root').innerText()).slice(0,700));
               await page.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
               await page.locator('.checklist-summary').waitFor({state:'visible',timeout:10000});
               // Exercita o checklist sem gravar nada no banco: item avulso,
@@ -89,7 +90,7 @@ jobs:
               await mobile.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
               await mobile.locator('.production-board').waitFor({state:'visible',timeout:45000});
               await mobile.locator('.plan-day-tabs button').first().waitFor({state:'visible'});
-              await mobile.getByRole('button',{name:/Produção/i}).first().click();
+              await mobile.locator('.controle-mobile-bottom').getByRole('button',{name:'Produção',exact:true}).click();
               await mobile.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
               await mobile.getByRole('button',{name:'Slots',exact:true}).click();
               await mobile.locator('.production-slots-view').waitFor({state:'visible',timeout:12000});
