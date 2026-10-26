@@ -6695,6 +6695,9 @@ const { useState, useEffect, useMemo, useRef } = React;
           ...vitrine,itens:itens.filter(item=>tipoVitrineVirtual(item.categoria)===vitrine.id)
         })).filter(vitrine=>vitrine.itens.length>0);
       const completarFileira = (quantidade,colunas) => (colunas-(quantidade%colunas))%colunas;
+      // Rotina diária da padaria: segunda a sábado. Domingo não entra na
+      // exigência de "todo dia", mas continua disponível no planejamento.
+      const DIAS_ROTINA_PRODUCAO = WEEK_DAYS.filter(day=>day!=='domingo');
 
       const ProductionPlanningView = ({
         currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
@@ -6885,8 +6888,20 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </div>
                 <div className="plan-card-grid virtual-showcase-grid" data-cols={vitrine.columns}>
                   {vitrine.itens.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
-                className="plan-card" data-dragging={arrastando===item.id}
+                className="plan-card plan-card-clickable" data-dragging={arrastando===item.id}
                 data-over={sobre===item.id&&arrastando!==item.id}
+                tabIndex="0" role="group" aria-label={'Produto '+item.nome+'. Pressione Enter para editar.'}
+                onClick={e=>{
+                  if(e.target.closest?.('button,input,select,textarea,a,label,[draggable="true"]'))return;
+                  editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item);
+                }}
+                onKeyDown={e=>{
+                  if(e.target!==e.currentTarget)return;
+                  if(e.key==='Enter'||e.key===' '){
+                    e.preventDefault();
+                    editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item);
+                  }
+                }}
                 onDragOver={e=>{if(dragRef.current){e.preventDefault();setSobre(item.id);}}}
                 onDrop={e=>{e.preventDefault();mover(dragRef.current,item.id);acabar();}}>
                 <div className="plan-card-top">
@@ -6919,11 +6934,10 @@ const { useState, useEffect, useMemo, useRef } = React;
                 <div className="plan-card-body">
                   <h4>{item.nome}</h4>
                   <p>{item.responsavel}</p>
-                  <button type="button" className="plan-card-edit"
-                    aria-expanded={editandoProduto===item.id}
-                    onClick={()=>editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item)}>
-                    {editandoProduto===item.id?'Fechar edição':'Editar produto'}
-                  </button>
+                  <span className="plan-card-open-hint" aria-hidden="true">
+                    <Icons.Pencil className="w-3.5 h-3.5"/>
+                    {editandoProduto===item.id?'Toque no card para fechar':'Toque no card para editar'}
+                  </span>
                 </div>
                 {editandoProduto===item.id?
                   <form className="plan-card-editor" onSubmit={e=>{e.preventDefault();salvarEdicao(item);}}>
@@ -7023,6 +7037,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         currentUnit,unitName,products,standardPlans,selectedDay,onSelectDay,onRegisterProduction
       }) => {
         const [busca,setBusca]=useState('');
+        const [buscaCadastro,setBuscaCadastro]=useState('');
+        const [filtroCadastro,setFiltroCadastro]=useState('todos');
         const [agrupar,setAgrupar]=useState('categoria');
         const [mostrar,setMostrar]=useState('tudo');
         const [visualizacao,setVisualizacao]=useState('lista');
@@ -7033,7 +7049,6 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [qtdLivre,setQtdLivre]=useState('1');
         const [quantidades,setQuantidades]=useState({});
         const [extras,setExtras]=useState([]);
-        const [extraId,setExtraId]=useState('');
         const [registrado,setRegistrado]=useState(false);
         const [dataRegistro,setDataRegistro]=useState(getTodayDateString());
         useEffect(()=>{setMarcados({});setQuantidades({});setExtras([]);setItensLivres([]);setObservacoes('');setRegistrado(false);},[currentUnit,selectedDay]);
@@ -7043,15 +7058,26 @@ const { useState, useEffect, useMemo, useRef } = React;
             m.set(p.productId,(m.get(p.productId)||0)+(Number(p.idealQty)||0)));
           return m;
         },[standardPlans,currentUnit,selectedDay]);
+        const frequenciaPorProduto=useMemo(()=>{
+          const mapa=new Map();
+          standardPlans.filter(p=>p.unit===currentUnit&&(Number(p.idealQty)||0)>0).forEach(p=>{
+            if(!mapa.has(p.productId))mapa.set(p.productId,new Set());
+            mapa.get(p.productId).add(p.dayOfWeek);
+          });
+          return new Map([...mapa.entries()].map(([id,dias])=>[
+            id,DIAS_ROTINA_PRODUCAO.every(day=>dias.has(day))?'diario':'variavel'
+          ]));
+        },[standardPlans,currentUnit]);
         const linhas=useMemo(()=>[...new Set([...padroes.keys(),...extras])].map(id=>{
           const p=products.find(x=>x.id===id);
           return {id,nome:p?.name||'Produto não encontrado',
             categoria:p?.category||'outro',
             responsavel:p?getResponsibleName(p):NO_RESPONSIBLE_LABEL,
-            unidade:p?.defaultUnit||'un',padrao:padroes.get(id)||0};
+            unidade:p?.defaultUnit||'un',padrao:padroes.get(id)||0,
+            rotina:frequenciaPorProduto.get(id)||'extra'};
         }).concat(itensLivres).sort((a,b)=>
           a.responsavel.localeCompare(b.responsavel,'pt-BR')||
-          a.nome.localeCompare(b.nome,'pt-BR')),[padroes,extras,itensLivres,products]);
+          a.nome.localeCompare(b.nome,'pt-BR')),[padroes,extras,itensLivres,products,frequenciaPorProduto]);
         // Os produtos do padrão aparecem desmarcados; só entram no pedido
         // quando a conferência física decide que é preciso produzir.
         const qtdDe=item=>quantidades[item.id]===undefined?Math.max(1,item.padrao):quantidades[item.id];
@@ -7071,6 +7097,23 @@ const { useState, useEffect, useMemo, useRef } = React;
         });
         const disponiveis=products.filter(p=>p.showcaseEnabled!==false&&!linhas.some(x=>x.id===p.id))
           .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+        const produtosCadastro=disponiveis.filter(p=>
+          normalizeName(p.name).includes(normalizeName(buscaCadastro))&&
+          (filtroCadastro==='todos'||(filtroCadastro==='variados'
+            ?frequenciaPorProduto.has(p.id):!frequenciaPorProduto.has(p.id))));
+        const gruposCadastro=new Map();
+        produtosCadastro.forEach(p=>{
+          const grupo=p.category||'Outros';
+          if(!gruposCadastro.has(grupo))gruposCadastro.set(grupo,[]);
+          gruposCadastro.get(grupo).push(p);
+        });
+        const incluirDoCadastro=(id)=>{
+          if(!id||linhas.some(x=>x.id===id))return;
+          setExtras(prev=>prev.includes(id)?prev:[...prev,id]);
+          setMarcados(prev=>({...prev,[id]:true}));
+          setQuantidades(prev=>({...prev,[id]:1}));
+          setRegistrado(false);
+        };
         const marcar=(item,checked)=>{
           setMarcados(prev=>({...prev,[item.id]:checked}));
           if(checked&&qtdDe(item)<=0)setQuantidades(prev=>({...prev,[item.id]:Math.max(1,item.padrao||1)}));
@@ -7139,6 +7182,9 @@ const { useState, useEffect, useMemo, useRef } = React;
               </label>
               <span className="checklist-product-name">
                 <strong>{item.nome}</strong>
+                <span className="production-routine-chip" data-routine={item.rotina||'extra'}>
+                  {item.rotina==='diario'?'Todo dia':item.rotina==='variavel'?'Dias específicos':'Extra'}
+                </span>
                 <small>{item.categoria} · {item.responsavel}</small>
               </span>
               {item.id.startsWith('extra-manual:')&&<button type="button" className="checklist-remove"
@@ -7199,48 +7245,87 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div className="flex gap-2"><button type="button" className="btn btn-secondary btn-sm" onClick={todos}>Marcar todos</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={limpar}>Limpar seleção</button></div>
             </div>
-            {visualizacao==='lista'?
-              <div className="production-list-view">
-                <div className="checklist-legend"><span>Produto no padrão do dia</span><span>Quantidade padrão</span><span>Quantidade a produzir</span></div>
-                {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([nome,itens])=>
-                  <section key={nome} className="checklist-group">
-                    <h3>{nome} <small>{itens.length}</small></h3>
-                    {itens.map(item=>renderChecklistItem(item))}
-                  </section>)}
-              </div>:
-              <div className="virtual-showcase-board production-slots-view">
-                {vitrines.map(vitrine=><section key={vitrine.id} className="virtual-showcase-section" data-vitrine={vitrine.id}>
-                  <div className="virtual-showcase-heading">
-                    <div><h4>{vitrine.label}</h4><p>{vitrine.columns} slots por fileira · {unitName}</p></div>
-                    <span>{vitrine.itens.length} {vitrine.itens.length===1?'produto':'produtos'}</span>
-                  </div>
-                  <div className="virtual-showcase-grid production-slot-grid" data-cols={vitrine.columns}>
-                    {vitrine.itens.map((item,index)=>renderChecklistItem(item,'slots',index))}
-                    {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
-                      <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
-                        <span>Espaço livre</span>
+            <div className={'production-workspace-grid'+(visualizacao==='slots'?' is-slots':'')}>
+              <section className="production-workspace-checklist" aria-label="Conferência do padrão do dia">
+                <div className="production-workspace-title">
+                  <div><h3>Conferência do dia</h3><p>Marque OK apenas no que precisa produzir</p></div>
+                  <span>{visiveis.length} itens</span>
+                </div>
+                {visualizacao==='lista'?
+                  <div className="production-list-view">
+                    {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([nome,itens])=>
+                      <section key={nome} className="checklist-group">
+                        <h3>{nome} <small>{itens.length}</small></h3>
+                        {itens.map(item=>renderChecklistItem(item))}
+                      </section>)}
+                  </div>:
+                  <div className="virtual-showcase-board production-slots-view">
+                    {vitrines.map(vitrine=><section key={vitrine.id} className="virtual-showcase-section" data-vitrine={vitrine.id}>
+                      <div className="virtual-showcase-heading">
+                        <div><h4>{vitrine.label}</h4><p>{vitrine.columns} slots por fileira · {unitName}</p></div>
+                        <span>{vitrine.itens.length} {vitrine.itens.length===1?'produto':'produtos'}</span>
+                      </div>
+                      <div className="virtual-showcase-grid production-slot-grid" data-cols={vitrine.columns}>
+                        {vitrine.itens.map((item,index)=>renderChecklistItem(item,'slots',index))}
+                        {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
+                          <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
+                            <span>Espaço livre</span>
+                          </div>)}
+                      </div>
+                    </section>)}
+                  </div>}
+                {!visiveis.length&&<p className="t-body p-5 text-center">Nenhum produto no filtro selecionado.</p>}
+              </section>
+              <aside className="production-product-catalog" aria-label="Produtos cadastrados para incluir no pedido">
+                <div className="production-workspace-title">
+                  <div><h3>Produtos cadastrados</h3><p>Inclua no pedido sem alterar o padrão da semana</p></div>
+                  <span>{produtosCadastro.length}</span>
+                </div>
+                <div className="production-catalog-filters">
+                  <input className="field field-sm" type="search" value={buscaCadastro}
+                    onChange={e=>setBuscaCadastro(e.target.value)} placeholder="Buscar no cadastro…"
+                    aria-label="Buscar produtos cadastrados"/>
+                  <select className="field field-sm" value={filtroCadastro}
+                    onChange={e=>setFiltroCadastro(e.target.value)} aria-label="Filtrar produtos cadastrados">
+                    <option value="todos">Todos disponíveis</option>
+                    <option value="variados">Com padrão em outros dias</option>
+                    <option value="sem">Sem padrão semanal</option>
+                  </select>
+                </div>
+                <div className="production-routine-legend">
+                  <span className="production-routine-chip" data-routine="diario">Todo dia</span>
+                  <span className="production-routine-chip" data-routine="variavel">Dias específicos</span>
+                </div>
+                <div className="production-catalog-list">
+                  {[...gruposCadastro.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([nome,itens])=>
+                    <section key={nome} className="production-catalog-category">
+                      <h4>{nome} <small>{itens.length}</small></h4>
+                      {itens.map(p=><div key={p.id} className="production-catalog-item">
+                        <div className="production-catalog-item-info">
+                          <strong>{p.name}</strong>
+                          <span className="production-routine-chip"
+                            data-routine={frequenciaPorProduto.get(p.id)||'extra'}>
+                            {frequenciaPorProduto.get(p.id)==='diario'?'Todo dia':
+                              frequenciaPorProduto.has(p.id)?'Dias específicos':'Sem padrão'}
+                          </span>
+                        </div>
+                        <button type="button" className="production-catalog-add"
+                          aria-label={'Incluir '+p.name+' no pedido de '+getDayNameBR(selectedDay)}
+                          onClick={()=>incluirDoCadastro(p.id)}>
+                          <Icons.Plus className="w-4 h-4"/> Incluir
+                        </button>
                       </div>)}
-                  </div>
-                </section>)}
-              </div>}
-            {!visiveis.length&&<p className="t-body p-5 text-center">Nenhum produto no filtro selecionado.</p>}
+                    </section>)}
+                  {!produtosCadastro.length&&<p className="production-catalog-empty">
+                    Nenhum produto disponível nesse filtro.
+                  </p>}
+                </div>
+              </aside>
+            </div>
             <div className="checklist-annotations">
               <h3 className="t-title">Itens extras e anotações</h3>
               <p className="t-caption mt-1">Inclua algo que não estava no padrão ou deixe orientações para a produção.</p>
-              <div className="checklist-extra">
-                <label className="t-caption">Adicionar um produto do cadastro
-                  <select aria-label="Adicionar produto do cadastro" className="field field-sm mt-1 w-full"
-                    value={extraId} onChange={e=>setExtraId(e.target.value)}>
-                    <option value="">Escolha um produto</option>
-                    {disponiveis.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </label>
-                <button type="button" className="btn btn-secondary btn-sm" disabled={!extraId}
-                  onClick={()=>{setExtras(p=>[...p,extraId]);setMarcados(p=>({...p,[extraId]:true}));
-                    setQuantidades(p=>({...p,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
-                  <Icons.Plus className="w-4 h-4"/> Incluir
-                </button>
-              </div>
+              <p className="t-caption mt-2">Para incluir um produto já cadastrado, use a lista de produtos ao lado.</p>
               <form className="checklist-extra" onSubmit={e=>{e.preventDefault();adicionarLivre();}}>
                 <label className="t-caption">Ou escrever um item avulso
                   <input type="text" className="field field-sm mt-1 w-full" placeholder="Ex.: 2 bolos para encomenda"
