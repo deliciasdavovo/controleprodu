@@ -85,6 +85,20 @@ jobs:
               console.log('DESKTOP: Lista e Slots preservam o checklist e 4/3 colunas');
               console.log('DESKTOP: Checklist, itens extras e notas funcionando');
               console.log('DESKTOP: Planejamento e checklist abriram');
+              // Abre o modal de XML sem salvar dados; deve permanecer na área
+              // visível do navegador, mesmo dentro da tela de cadastros.
+              await page.locator('.controle-side').getByRole('button',{name:'Cadastros e fichas',exact:true}).click();
+              await page.locator('.lark-cadastros-ui').waitFor({state:'visible',timeout:12000});
+              await page.getByRole('button',{name:'XML',exact:true}).first().click();
+              await page.locator('.invoice-modal-viewport').waitFor({state:'visible',timeout:10000});
+              const modalBounds=await page.locator('.invoice-modal-viewport > div.relative').first().boundingBox();
+              if(!modalBounds || modalBounds.x < -2 || modalBounds.y < -2 ||
+                modalBounds.x + modalBounds.width > 1352 ||
+                modalBounds.y + modalBounds.height > 852) {
+                throw new Error('Modal de NF-e saiu dos limites da tela desktop: '+JSON.stringify(modalBounds));
+              }
+              await page.getByRole('button',{name:'Fechar janela de importação XML'}).click();
+              console.log('DESKTOP: Modal de NF-e dentro da tela');
               const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
               mobile.on('pageerror',e=>errors.push('mobile: '+e.message));
               await mobile.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
@@ -100,6 +114,18 @@ jobs:
               await mobile.getByRole('button',{name:'Lista',exact:true}).click();
               await mobile.locator('.production-list-view').waitFor({state:'visible',timeout:12000});
               console.log('MOBILE: Planejamento, lista e slots abriram sem rolagem horizontal');
+              await mobile.locator('.controle-mobile-bottom').getByRole('button',{name:'Cadastros e fichas',exact:true}).click();
+              await mobile.locator('.lark-cadastros-ui').waitFor({state:'visible',timeout:12000});
+              await mobile.getByRole('button',{name:'XML',exact:true}).first().click();
+              await mobile.locator('.invoice-modal-viewport').waitFor({state:'visible',timeout:10000});
+              const mobileBounds=await mobile.locator('.invoice-modal-viewport > div.relative').first().boundingBox();
+              if(!mobileBounds || mobileBounds.x < -2 || mobileBounds.y < -2 ||
+                mobileBounds.x + mobileBounds.width > 392 ||
+                mobileBounds.y + mobileBounds.height > 846) {
+                throw new Error('Modal de NF-e saiu da tela mobile: '+JSON.stringify(mobileBounds));
+              }
+              await mobile.getByRole('button',{name:'Fechar janela de importação XML'}).click();
+              console.log('MOBILE: Modal de NF-e dentro da tela');
               if(errors.length)throw new Error('Erros na execução: '+errors.join(' | '));
               console.log('SEM_ERROS_DE_REACT: SIM');
             } finally {await browser.close();}
