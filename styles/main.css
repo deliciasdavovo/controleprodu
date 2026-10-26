@@ -3742,3 +3742,24 @@
 .rel-note{font-size:11px;color:var(--rel-ink-3);margin:12px 0 0}
 @media(max-width:1100px){.rel-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.rel-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rel-tile{padding:12px 14px}.rel-tile strong{font-size:20px}.rel-hero strong{font-size:22px}.rel-card{padding:14px}.rel-chart{height:180px}}
+
+
+/* Impressão do novo pedido de produção: somente a relação de produtos. */
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body { background: #fff !important; color: #222 !important; }
+  .app-navbar, .controle-side, .controle-mobile-bottom-link,
+  .controle-mobile-drawer, .producao-actions, footer { display: none !important; }
+  .app-main { padding: 0 !important; max-width: none !important; }
+  .producao-fluxo { margin: 0 !important; padding: 0 !important; }
+  .producao-fluxo .card { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  .producao-fluxo .rola-x { overflow: visible !important; }
+  .producao-fluxo input[type="number"] {
+    border: 0 !important; background: transparent !important; box-shadow: none !important;
+    color: #222 !important; padding: 0 !important; font-weight: 700 !important;
+    width: 60px !important; appearance: textfield;
+  }
+  .producao-fluxo tr { break-inside: avoid; }
+  .producao-fluxo table { min-width: 0 !important; }
+  .producao-fluxo tbody tr:first-child th { background: #efefef !important; print-color-adjust: exact; }
+}

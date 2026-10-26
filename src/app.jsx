@@ -2256,11 +2256,9 @@ const { useState, useEffect, useMemo, useRef } = React;
           label: 'Hoje',
           title: 'O dia a dia da loja',
           tabs: [
-            { id: 'vitrine', label: 'Vitrine', fullLabel: 'Vitrine Operacional', icon: Icons.LayoutGrid },
-            { id: 'padrao', label: 'Padrão', fullLabel: 'Vitrine Padrão', icon: Icons.ClipboardList },
+            { id: 'padrao', label: 'Planejamento', fullLabel: 'Planejamento de produção', icon: Icons.ClipboardList },
             { id: 'producao', label: 'Produção', fullLabel: 'Pedido de Produção', icon: Icons.ChefHat },
-            { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown },
-            { id: 'fora', label: 'Fora da vitrine', fullLabel: 'Fora da Vitrine', icon: Icons.Coffee }
+            { id: 'perdas', label: 'Perdas', fullLabel: 'Relatório de Perdas', icon: Icons.TrendingDown }
           ]
         },
         produtos: {
@@ -2377,7 +2375,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                     </div>
                     <div className="app-brand-copy leading-none">
                       <h1 className="t-headline text-[#1d1d1f]">Delícias da Vovó</h1>
-                      <p className="t-caption mt-0.5">Gestão de vitrine</p>
+                      <p className="t-caption mt-0.5">Planejamento e produção</p>
                     </div>
                   </div>
 
@@ -6645,6 +6643,327 @@ const { useState, useEffect, useMemo, useRef } = React;
             return { ...alvo, qty };
           })
           .filter((alvo) => alvo.qty > 0);
+      };
+
+
+      // ==========================================
+      // PLANEJAMENTO E PRODUÇÃO SEM DEPENDER DA VITRINE
+      // Mantém os padrões já cadastrados, inclusive os antigos com slot.
+      // Novos produtos usam slot_code nulo: planejamento é por produto/dia.
+      // ==========================================
+      const ProductionPlanningView = ({
+        currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
+        onSavePlan, onCopyDayPlan, onGenerateOrder
+      }) => {
+        const [busca, setBusca] = useState('');
+        const [categoria, setCategoria] = useState('todas');
+        const [novoProduto, setNovoProduto] = useState('');
+        const [novaQtd, setNovaQtd] = useState('1');
+        const [diaDestino, setDiaDestino] = useState('terca');
+        const planosUnidade = standardPlans.filter((p) => p.unit === currentUnit);
+        const catalogo = products.filter((p) => p.showcaseEnabled !== false);
+        const categorias = [...new Set(catalogo.map((p) => p.category).filter(Boolean))].sort();
+        const linhas = useMemo(() => {
+          const mapa = new Map();
+          planosUnidade.forEach((p) => {
+            if (!mapa.has(p.productId)) {
+              const produto = products.find((item) => item.id === p.productId);
+              mapa.set(p.productId, {
+                id: p.productId, nome: produto?.name || 'Produto não encontrado',
+                categoria: produto?.category || 'outro',
+                responsavel: produto ? getResponsibleName(produto) : NO_RESPONSIBLE_LABEL,
+                unidade: produto?.defaultUnit || p.unitOfMeasure || 'un',
+                dias: {}
+              });
+            }
+            const linha = mapa.get(p.productId);
+            linha.dias[p.dayOfWeek] = (linha.dias[p.dayOfWeek] || 0) + (Number(p.idealQty) || 0);
+          });
+          return [...mapa.values()].sort((a, b) =>
+            a.categoria.localeCompare(b.categoria, 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'));
+        }, [standardPlans, currentUnit, products]);
+        const filtradas = linhas.filter((r) =>
+          (categoria === 'todas' || r.categoria === categoria) &&
+          normalizeName(r.nome).includes(normalizeName(busca))
+        );
+        const qtdDia = linhas.filter((r) => (r.dias[selectedDay] || 0) > 0).length;
+        const unDia = linhas.reduce((n, r) => n + (r.dias[selectedDay] || 0), 0);
+        const disponiveis = catalogo
+          .filter((p) => !linhas.some((r) => r.id === p.id))
+          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        const incluir = () => {
+          const qty = Math.max(0, Math.floor(Number(novaQtd) || 0));
+          if (!novoProduto || qty < 1) return;
+          onSavePlan(selectedDay, novoProduto, qty);
+          setNovoProduto('');
+          setNovaQtd('1');
+        };
+        const copiarDia = () => {
+          if (diaDestino === selectedDay) return;
+          if (!window.confirm('Substituir o planejamento de ' + getDayNameBR(diaDestino).toLowerCase() +
+            ' pelo de ' + getDayNameBR(selectedDay).toLowerCase() + '?')) return;
+          onCopyDayPlan(selectedDay, diaDestino);
+        };
+
+        return (
+          <div className="space-y-4">
+            <div className="card p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <p className="t-overline mb-2">Rotina por produto · {unitName}</p>
+                  <h2 className="t-display">Planejamento de produção</h2>
+                  <p className="t-body mt-1 max-w-2xl">Defina quanto costuma ser produzido em cada dia da semana. Não é necessário cadastrar a posição do produto na vitrine. Digite 0 para retirá-lo de um dia.</p>
+                </div>
+                <button className="btn btn-primary btn-md shrink-0" type="button" onClick={onGenerateOrder}>
+                  <Icons.ChefHat className="w-4 h-4" /> Montar pedido
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-5">
+                {WEEK_DAYS.map((day) =>
+                  <button key={day} type="button" onClick={() => onSelectDay(day)}
+                    className={selectedDay === day ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>
+                    {getDayShortBR(day)}
+                  </button>)}
+              </div>
+              <div className="flex gap-5 mt-4 t-caption">
+                <span><strong className="text-[#244833]">{qtdDia}</strong> produtos em {getDayNameBR(selectedDay).toLowerCase()}</span>
+                <span><strong className="text-[#244833]">{unDia}</strong> unidades planejadas</span>
+              </div>
+            </div>
+
+            <div className="card p-4 sm:p-5">
+              <h3 className="t-title mb-2">Adicionar ao planejamento</h3>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+                <label className="flex-1 min-w-0 t-caption">
+                  Produto do cadastro
+                  <select aria-label="Produto para adicionar" className="field field-md mt-1 w-full" value={novoProduto} onChange={(e) => setNovoProduto(e.target.value)}>
+                    <option value="">Selecione um produto</option>
+                    {disponiveis.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <label className="t-caption sm:w-32">
+                  Quantidade
+                  <input aria-label="Quantidade inicial" type="number" min="1" step="1" className="field field-md mt-1 w-full text-right"
+                    value={novaQtd} onChange={(e) => setNovaQtd(e.target.value)} />
+                </label>
+                <button type="button" disabled={!novoProduto || !(Number(novaQtd) > 0)} className="btn btn-primary btn-md"
+                  onClick={incluir}><Icons.Plus className="w-4 h-4" /> Adicionar</button>
+              </div>
+              <p className="t-caption mt-2">O produto entra no dia selecionado. Depois você pode preencher os outros dias diretamente na tabela.</p>
+            </div>
+
+            <div className="card p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between mb-4">
+                <div>
+                  <h3 className="t-title">Padrão da semana</h3>
+                  <p className="t-caption">Uma linha por produto, sem posições ou espaços de vitrine.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <input type="search" aria-label="Buscar produto no planejamento" className="field field-sm" placeholder="Buscar produto…"
+                    value={busca} onChange={(e) => setBusca(e.target.value)}/>
+                  <select aria-label="Filtrar categoria" className="field field-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                    <option value="todas">Todas as categorias</option>
+                    {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="rola-x">
+                <table className="w-full text-left text-[12px] min-w-[760px]">
+                  <thead><tr className="border-b hairline">
+                    <th className="py-3 pr-3 min-w-[200px]">Produto</th>
+                    {WEEK_DAYS.map((day) => <th key={day} className="text-center px-1.5 py-3 min-w-[72px]"
+                      style={selectedDay === day ? {background:'#eff5ef'} : undefined}>{getDayShortBR(day)}</th>)}
+                    <th className="text-right px-2">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {filtradas.map((linha) =>
+                      <tr key={linha.id} className="border-b hairline">
+                        <td className="py-2.5 pr-3">
+                          <div className="font-semibold">{linha.nome}</div>
+                          <div className="t-micro">{linha.categoria} · {linha.responsavel} · {linha.unidade}</div>
+                        </td>
+                        {WEEK_DAYS.map((day) => <td key={day} className="px-1.5 py-2" style={selectedDay === day ? {background:'#f5f9f5'} : undefined}>
+                          <WeeklyQtyCell value={linha.dias[day] || 0}
+                            title={linha.nome + ' · ' + getDayNameBR(day) + ' · 0 retira deste dia'}
+                            onCommit={(qty) => onSavePlan(day, linha.id, qty)} />
+                        </td>)}
+                        <td className="text-right px-2 font-semibold">
+                          {WEEK_DAYS.reduce((acc, day) => acc + (linha.dias[day] || 0), 0)}
+                        </td>
+                      </tr>)}
+                  </tbody>
+                </table>
+                {!filtradas.length && <p className="t-body p-5 text-center">Nenhum produto encontrado. Adicione um produto acima para começar.</p>}
+              </div>
+              <div className="flex flex-wrap items-end gap-2 mt-5 pt-4 border-t hairline">
+                <label className="t-caption">Copiar {getDayNameBR(selectedDay).toLowerCase()} para
+                  <select className="field field-sm mt-1" aria-label="Dia de destino da cópia" value={diaDestino} onChange={(e) => setDiaDestino(e.target.value)}>
+                    {WEEK_DAYS.map((day) => <option key={day} value={day}>{getDayNameBR(day)}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={copiarDia} disabled={!qtdDia || diaDestino === selectedDay}>Copiar planejamento</button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const ProductionWorkflowView = ({
+        currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay, onRegisterProduction
+      }) => {
+        const [busca, setBusca] = useState('');
+        const [agrupar, setAgrupar] = useState('responsavel');
+        const [mostrar, setMostrar] = useState('pedido');
+        const [quantidades, setQuantidades] = useState({});
+        const [extras, setExtras] = useState([]);
+        const [extraId, setExtraId] = useState('');
+        const [registrado, setRegistrado] = useState(false);
+        const [dataRegistro, setDataRegistro] = useState(getTodayDateString());
+        useEffect(() => { setQuantidades({}); setExtras([]); setRegistrado(false); }, [currentUnit, selectedDay]);
+
+        const planejados = useMemo(() => {
+          const agrupado = new Map();
+          standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay).forEach((sp) =>
+            agrupado.set(sp.productId, (agrupado.get(sp.productId) || 0) + (Number(sp.idealQty) || 0)));
+          return agrupado;
+        }, [standardPlans, selectedDay, currentUnit]);
+        const linhas = useMemo(() => [...new Set([...planejados.keys(), ...extras])].map((id) => {
+          const produto = products.find((p) => p.id === id);
+          return {
+            id, nome: produto?.name || 'Produto não encontrado',
+            responsavel: produto ? getResponsibleName(produto) : NO_RESPONSIBLE_LABEL,
+            categoria: produto?.category || 'outro', unidade: produto?.defaultUnit || 'un',
+            padrao: planejados.get(id) || 0
+          };
+        }).sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')), [planejados, extras, products]);
+        const qtdDe = (item) => quantidades[item.id] === undefined ? item.padrao : quantidades[item.id];
+        const mudar = (id, valor) => {
+          setRegistrado(false);
+          setQuantidades((prev) => ({...prev, [id]: Math.max(0, Math.floor(Number(valor) || 0))}));
+        };
+        const lista = linhas.filter((r) => qtdDe(r) > 0);
+        const total = lista.reduce((acc, r) => acc + qtdDe(r), 0);
+        const visiveis = linhas.filter((r) =>
+          normalizeName(r.nome).includes(normalizeName(busca)) &&
+          (mostrar === 'tudo' || (mostrar === 'pedido' ? qtdDe(r) > 0 : qtdDe(r) === 0)));
+        const grupos = new Map();
+        visiveis.forEach((r) => {
+          const key = agrupar === 'responsavel' ? r.responsavel : (agrupar === 'categoria' ? r.categoria : 'Produtos');
+          if (!grupos.has(key)) grupos.set(key, []);
+          grupos.get(key).push(r);
+        });
+        const disponiveis = products.filter((p) => p.showcaseEnabled !== false && !linhas.some((r) => r.id === p.id))
+          .sort((a,b) => a.name.localeCompare(b.name,'pt-BR'));
+        const textoDoPedido = () => {
+          const porResponsavel = new Map();
+          lista.forEach((item) => {
+            if (!porResponsavel.has(item.responsavel)) porResponsavel.set(item.responsavel, []);
+            porResponsavel.get(item.responsavel).push(item);
+          });
+          const secoes = [...porResponsavel.entries()].sort((a,b) => a[0].localeCompare(b[0],'pt-BR'))
+            .map(([nome,itens]) => [nome.toUpperCase(), ...itens.map((p) => qtdDe(p) + ' ' + p.unidade + ' — ' + p.nome)].join('\n'));
+          return ['PEDIDO DE PRODUÇÃO',unitName + ' · ' + getDayNameBR(selectedDay), lista.length + ' produtos', ...secoes].join('\n\n');
+        };
+        const copiar = async () => {
+          if (!lista.length) return;
+          const ok = await copyTextToClipboard(textoDoPedido());
+          if (!ok) window.alert('Não foi possível copiar o pedido.');
+        };
+        const registrar = async () => {
+          if (!lista.length || registrado || !dataRegistro) return;
+          if (!window.confirm('Registrar ' + lista.length + ' produto(s) como produzidos em ' + dataRegistro + '? Esse registro ficará no histórico.')) return;
+          const sucesso = await onRegisterProduction(lista.map((r) => ({
+            productId: r.id, productName: r.nome, responsible: r.responsavel,
+            qty: qtdDe(r), unitOfMeasure: r.unidade
+          })), dataRegistro);
+          if (sucesso) setRegistrado(true);
+        };
+        return (
+          <div className="space-y-4 producao-fluxo">
+            <div className="card p-5 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="t-overline mb-2">Pedido diário · {unitName}</p>
+                  <h2 className="t-display">Pedido de produção</h2>
+                  <p className="t-body mt-1">As quantidades vêm do planejamento semanal. Ajuste a coluna <strong>Produzir</strong> conforme a necessidade real, sem lançar produtos na vitrine.</p>
+                </div>
+                <button type="button" className="btn btn-primary btn-md producao-actions" disabled={!lista.length} onClick={copiar}>
+                  Copiar pedido para WhatsApp
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-5 producao-actions">
+                {WEEK_DAYS.map((day) => <button key={day} onClick={() => onSelectDay(day)}
+                  className={selectedDay === day ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>{getDayShortBR(day)}</button>)}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-6 text-[13px]">
+                <span><strong className="text-[#244833]">{lista.length}</strong> produtos no pedido</span>
+                <span><strong className="text-[#244833]">{total}</strong> unidades para produzir</span>
+              </div>
+            </div>
+            <div className="card p-4 sm:p-5 producao-actions">
+              <div className="flex flex-wrap gap-2 items-end">
+                <label className="flex-1 min-w-[190px] t-caption">Incluir produto avulso
+                  <select aria-label="Incluir item avulso" className="field field-sm mt-1 w-full" value={extraId} onChange={(e)=>setExtraId(e.target.value)}>
+                    <option value="">Escolher produto...</option>
+                    {disponiveis.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={!extraId}
+                  onClick={() => {setExtras((prev)=>[...prev,extraId]);setQuantidades((prev)=>({...prev,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
+                  <Icons.Plus className="w-4 h-4"/> Incluir
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={()=>{setQuantidades({});setExtras([]);setRegistrado(false);}}>Voltar ao padrão</button>
+              </div>
+            </div>
+            <div className="card p-4 sm:p-5">
+              <div className="flex flex-wrap gap-2 items-center justify-between mb-4 producao-actions">
+                <div className="flex flex-wrap gap-2">
+                  <input type="search" aria-label="Buscar no pedido" className="field field-sm" placeholder="Buscar produto…" value={busca} onChange={(e)=>setBusca(e.target.value)}/>
+                  <select aria-label="Agrupar pedido" className="field field-sm" value={agrupar} onChange={(e)=>setAgrupar(e.target.value)}>
+                    <option value="responsavel">Por responsável</option><option value="categoria">Por categoria</option><option value="nenhum">Sem grupos</option>
+                  </select>
+                  <select aria-label="Mostrar produtos" className="field field-sm" value={mostrar} onChange={(e)=>setMostrar(e.target.value)}>
+                    <option value="pedido">Somente no pedido</option><option value="tudo">Todos</option><option value="fora">Fora do pedido</option>
+                  </select>
+                </div>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={()=>window.print()}>Imprimir</button>
+              </div>
+              <div className="rola-x">
+                <table className="w-full min-w-[510px] text-left text-[13px]">
+                  <thead><tr className="border-b hairline">
+                    <th className="py-3 pr-3">Produto</th><th className="text-right px-3">Padrão</th>
+                    <th className="text-right px-3">Produzir</th><th className="px-3">Un.</th>
+                  </tr></thead>
+                  {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([grupo,itens])=>
+                    <tbody key={grupo}>
+                      <tr><th colSpan={4} className="bg-[#eff5ef] text-[#244833] px-3 py-2 text-[12px]">{grupo}</th></tr>
+                      {itens.map((item)=><tr key={item.id} className="border-b hairline">
+                        <td className="py-3 pr-3 font-semibold">{item.nome}</td>
+                        <td className="text-right px-3 tnum">{item.padrao}</td>
+                        <td className="text-right px-3">
+                          <input type="number" min="0" step="1" aria-label={'Produzir ' + item.nome}
+                            className="field field-sm w-24 text-right font-bold" value={qtdDe(item)} onChange={(e)=>mudar(item.id,e.target.value)}/>
+                        </td>
+                        <td className="px-3">{item.unidade}</td>
+                      </tr>)}
+                    </tbody>)}
+                  <tfoot><tr className="border-t hairline"><th className="py-3">Total do pedido</th>
+                    <td></td><td className="text-right px-3 font-bold text-[#244833]">{total}</td><td></td></tr></tfoot>
+                </table>
+              </div>
+              {!visiveis.length && <p className="t-body p-5 text-center">Nenhum produto neste filtro. Volte para “Todos” ou inclua um item avulso.</p>}
+              <div className="producao-actions mt-5 pt-4 border-t hairline flex flex-wrap items-end gap-3">
+                <label className="t-caption">Data em que a produção foi realizada
+                  <input type="date" value={dataRegistro} className="field field-sm mt-1 block" onChange={(e)=>{setDataRegistro(e.target.value);setRegistrado(false);}}/>
+                </label>
+                <button type="button" className="btn btn-primary btn-md" disabled={!lista.length || registrado || !dataRegistro} onClick={registrar}>
+                  {registrado ? 'Produção registrada' : 'Registrar como produzido'}
+                </button>
+                <p className="t-caption">O registro vai para o Histórico, sem alterar o estoque da vitrine.</p>
+              </div>
+            </div>
+          </div>
+        );
       };
 
       const ProductionOrderView = ({
@@ -26236,12 +26555,13 @@ ${BARRA_ACOES_HTML}
         const [currentUnit, setCurrentUnit] = useState('');
         // Abre na última tela usada neste aparelho, sem passar por uma escolha.
         const [activeTab, setActiveTabState] = useState(() => {
-          const salva = lerPreferencia('aba', 'vitrine');
-          return isScreenTab(salva) ? salva : 'vitrine';
+          const salva = lerPreferencia('aba', 'padrao');
+          return isScreenTab(salva) ? salva : 'padrao';
         });
         const setActiveTab = (tab) => {
-          setActiveTabState(tab);
-          if (isScreenTab(tab)) guardarPreferencia('aba', tab);
+          const destino = (tab === 'vitrine' || tab === 'fora') ? 'padrao' : tab;
+          setActiveTabState(destino);
+          if (isScreenTab(destino)) guardarPreferencia('aba', destino);
         };
         const [buscaAberta, setBuscaAberta] = useState(false);
         const [produtoAberto, setProdutoAberto] = useState(null);
@@ -27357,6 +27677,78 @@ ${BARRA_ACOES_HTML}
             await run('standard_plans', sb.from('standard_plans')
               .delete().eq('unit_code', currentUnit).eq('day_of_week', day));
             setStandardPlans((prev) => prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === day)));
+          });
+        };
+
+
+        // Planejamento por produto/dia: dispensa a associação a qualquer móvel.
+        // Planos antigos continuam legíveis; a edição consolida a quantidade.
+        const handleSaveProductionPlan = (day, productId, novaQtd) => {
+          const produto = products.find((p) => p.id === productId);
+          if (!produto) return;
+          const qty = Math.max(0, Math.floor(Number(novaQtd) || 0));
+          const existentes = standardPlans.filter((p) =>
+            p.unit === currentUnit && p.dayOfWeek === day && p.productId === productId);
+          return write('Salvar planejamento', async () => {
+            if (qty === 0) {
+              if (!existentes.length) return true;
+              const ids = existentes.map((p) => p.id);
+              await run('standard_plans', sb.from('standard_plans').delete().in('id', ids));
+              setStandardPlans((prev) => prev.filter((p) => !ids.includes(p.id)));
+              return true;
+            }
+            if (!existentes.length) {
+              const novos = await run('standard_plans', sb.from('standard_plans').insert({
+                unit_code: currentUnit, day_of_week: day,
+                slot_code: null, product_id: productId, ideal_qty: qty,
+                unit_of_measure: produto.defaultUnit || 'un',
+                priority: 'B', frequency: 'dias', min_qty: 0
+              }).select());
+              setStandardPlans((prev) => [...prev, ...novos.map(fromPlan)]);
+              return true;
+            }
+            // Preserva os registros de outras datas. Caso a quantidade fique
+            // menor que os espaços antigos, remove somente os excedentes deste dia.
+            const ordenados = [...existentes].sort((a,b) => (b.idealQty || 0) - (a.idealQty || 0));
+            const manter = ordenados.slice(0, Math.min(ordenados.length, qty));
+            const retirar = ordenados.slice(manter.length);
+            const base = Math.floor(qty / manter.length), resto = qty % manter.length;
+            const novas = manter.map((p,i) => ({
+              id:p.id,qty:base + (i<resto?1:0),
+              min:Math.min(p.minQty || 0, base + (i<resto?1:0))
+            }));
+            for (const row of novas) {
+              await run('standard_plans', sb.from('standard_plans')
+                .update({ideal_qty:row.qty,min_qty:row.min}).eq('id',row.id));
+            }
+            if (retirar.length) await run('standard_plans', sb.from('standard_plans')
+              .delete().in('id', retirar.map((p)=>p.id)));
+            const excluidos = new Set(retirar.map((p) => p.id));
+            setStandardPlans((prev) => prev
+              .filter((p) => !excluidos.has(p.id))
+              .map((p) => {
+                const novo = novas.find((n) => n.id === p.id);
+                return novo ? {...p,idealQty:novo.qty,minQty:novo.min} : p;
+              }));
+            return true;
+          });
+        };
+
+        // Registra a produção de fato no histórico, sem inventar um lote ou
+        // movimentar o estoque de uma vitrine que deixou de ser controlada.
+        const handleRegisterPlannedProduction = (items, date) => {
+          if (!items.length || !date) return Promise.resolve(false);
+          return write('Registrar produção realizada', async () => {
+            const rows = items.map((item) => ({
+              unit_code:currentUnit,product_id:item.productId,
+              product_name:item.productName,responsible:item.responsible === NO_RESPONSIBLE_LABEL ? '' : item.responsible,
+              qty:item.qty,unit_of_measure:item.unitOfMeasure,
+              manufacture_date:date,slot_code:null,source:'pedido'
+            }));
+            const saved = await run('production_records', sb.from('production_records').insert(rows).select());
+            aplicarProducao([...saved.map(fromProduction), ...productionRecordsRef.current]);
+            setProductionReady(true);
+            return true;
           });
         };
 
@@ -28754,37 +29146,28 @@ ${BARRA_ACOES_HTML}
               )}
 
               {activeTab === 'padrao' && (
-                <StandardShowcaseView
+                <ProductionPlanningView
                   currentUnit={currentUnit}
                   unitName={getUnitName(units, currentUnit)}
-                  slots={slots}
                   products={products}
                   standardPlans={standardPlans}
                   selectedDay={selectedDay}
                   onSelectDay={setSelectedDay}
-                  onUpdatePlanItem={handleUpdatePlanItem}
-                  onRemovePlanItem={handleRemovePlanItem}
-                  onUpdatePlanSchedule={handleUpdatePlanSchedule}
-                  onSetPlanMin={handleSetPlanMin}
-                  onSetWeeklyQty={handleSetWeeklyQty}
-                  onSetWeeklyMin={handleSetWeeklyMin}
+                  onSavePlan={handleSaveProductionPlan}
                   onCopyDayPlan={handleCopyDayPlan}
-                  onClearDayPlan={handleClearDayPlan}
-                  onGenerateProductionOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
+                  onGenerateOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
                 />
               )}
 
               {activeTab === 'producao' && (
-                <ProductionOrderView
+                <ProductionWorkflowView
                   currentUnit={currentUnit}
                   unitName={getUnitName(units, currentUnit)}
-                  slots={slots}
-                  slotItems={slotItems}
                   products={products}
                   standardPlans={standardPlans}
                   selectedDay={productionDay}
                   onSelectDay={setProductionDay}
-                  onApplyProductionToShowcase={handleApplyProductionToShowcase}
+                  onRegisterProduction={handleRegisterPlannedProduction}
                 />
               )}
 
