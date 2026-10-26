@@ -12550,7 +12550,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             }}
             className={embedded
               ? "w-full"
-              : "fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
+              : "invoice-modal-viewport fixed inset-0 z-[116] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-2 sm:p-5"
             }
           >
             {!embedded && (
