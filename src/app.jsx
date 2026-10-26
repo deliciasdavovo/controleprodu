@@ -6674,6 +6674,28 @@ const { useState, useEffect, useMemo, useRef } = React;
       // Padrão visual. A ordem é gravada na própria rotina semanal, não em
       // coordenadas da vitrine. No desktop arrasta; no celular, pressiona o
       // puxador por um instante e solta sobre outro card.
+
+      // Vitrines virtuais: apenas disposição visual de cards por categoria.
+      // Nenhum espaço representa estoque, bandeja ou posição física cadastrada.
+      const VITRINES_VIRTUAIS = [
+        {id:'salgados',label:'Salgados',columns:4},
+        {id:'doces',label:'Doces',columns:3},
+        {id:'sobremesas',label:'Sobremesas',columns:3},
+        {id:'outros',label:'Outros produtos',columns:3}
+      ];
+      const tipoVitrineVirtual = (categoria) => {
+        const nome=String(categoria||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+        if(/sobremesa|torta|pudim|mousse|pav(e|lova)/.test(nome))return 'sobremesas';
+        if(/doce|bolo|confeitaria|brigadeiro|chocolate/.test(nome))return 'doces';
+        if(/salgad|pao|panific|lanche|folhado|quiche|frito|sanduiche|pizza|salgada/.test(nome))return 'salgados';
+        return 'outros';
+      };
+      const agruparVitrineVirtual = (itens) =>
+        VITRINES_VIRTUAIS.map(vitrine=>({
+          ...vitrine,itens:itens.filter(item=>tipoVitrineVirtual(item.categoria)===vitrine.id)
+        })).filter(vitrine=>vitrine.itens.length>0);
+      const completarFileira = (quantidade,colunas) => (colunas-(quantidade%colunas))%colunas;
+
       const ProductionPlanningView = ({
         currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
         onSavePlan, onCopyDayPlan, onReorder, onGenerateOrder
@@ -6716,6 +6738,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         });
         const mostrados = dia.filter(p=>(categoria==='todas'||p.categoria===categoria)&&
           normalizeName(p.nome).includes(normalizeName(busca)));
+        const vitrines=agruparVitrineVirtual(mostrados);
         const produtosNoDia = new Set(dia.map(p=>p.id));
         const disponiveis=ativos.filter(p=>!produtosNoDia.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
         const totais=dia.reduce((map,p)=>{
@@ -6731,7 +6754,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         };
         const mover=(source,target)=>{
           if(!source||!target||source===target)return;
-          const ids=dia.map(x=>x.id);
+          const sourceItem=dia.find(x=>x.id===source),targetItem=dia.find(x=>x.id===target);
+          if(!sourceItem||!targetItem||tipoVitrineVirtual(sourceItem.categoria)!==tipoVitrineVirtual(targetItem.categoria))return;
+          const ids=VITRINES_VIRTUAIS.flatMap(v=>dia.filter(x=>tipoVitrineVirtual(x.categoria)===v.id).map(x=>x.id));
           const old=ids.indexOf(source),next=ids.indexOf(target);
           if(old===-1||next===-1)return;
           ids.splice(old,1);ids.splice(next,0,source);
@@ -6774,7 +6799,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div>
                 <p className="t-overline mb-2">Rotina semanal · {unitName}</p>
                 <h2 className="t-display">Padrão de produção</h2>
-                <p className="t-body mt-1 max-w-xl">Organize os produtos do dia em cards. Arraste para mudar a ordem ou ajuste as quantidades pelos botões.</p>
+                <p className="t-body mt-1 max-w-xl">Organize a vitrine virtual do dia. Salgados ficam em fileiras de 4; doces e sobremesas, de 3. Arraste os cards ou ajuste as quantidades.</p>
               </div>
               <button type="button" className="btn btn-primary btn-md self-start"
                 onClick={onGenerateOrder}><Icons.ChefHat className="w-4 h-4"/> Montar checklist</button>
@@ -6794,8 +6819,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           </div>
           <div className="card p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
-              <div><h3 className="t-title">Produtos do dia</h3>
-                <p className="t-caption">Segure o ícone de linhas e solte em outro card para reorganizar.</p></div>
+              <div><h3 className="t-title">Vitrine virtual · {unitName}</h3>
+                <p className="t-caption">Arraste para trocar a ordem dentro da seção. A organização é visual, sem controlar estoque.</p></div>
               <div className="flex flex-wrap gap-2">
                 <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
                   value={busca} onChange={e=>setBusca(e.target.value)}/>
@@ -6805,8 +6830,14 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </select>
               </div>
             </div>
-            <div className="plan-card-grid">
-              {mostrados.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
+            <div className="virtual-showcase-board">
+              {vitrines.map((vitrine)=><section className="virtual-showcase-section" key={vitrine.id} data-vitrine={vitrine.id}>
+                <div className="virtual-showcase-heading">
+                  <div><h4>{vitrine.label}</h4><p>{vitrine.columns} produtos por fileira</p></div>
+                  <span>{vitrine.itens.length} {vitrine.itens.length===1?'produto':'produtos'}</span>
+                </div>
+                <div className="plan-card-grid virtual-showcase-grid" data-cols={vitrine.columns}>
+                  {vitrine.itens.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
                 className="plan-card" data-dragging={arrastando===item.id}
                 data-over={sobre===item.id&&arrastando!==item.id}
                 onDragOver={e=>{if(dragRef.current){e.preventDefault();setSobre(item.id);}}}
@@ -6833,6 +6864,12 @@ const { useState, useEffect, useMemo, useRef } = React;
                     onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
                 </div>
               </article>)}
+                  {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
+                    <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
+                      <span>Espaço livre</span>
+                    </div>)}
+                </div>
+              </section>)}
               {!mostrados.length&&<div className="plan-card-empty">Nenhum produto neste dia ou filtro. Adicione abaixo para montar seu padrão.</div>}
             </div>
             <div className="plan-add-section">
@@ -6894,6 +6931,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [busca,setBusca]=useState('');
         const [agrupar,setAgrupar]=useState('responsavel');
         const [mostrar,setMostrar]=useState('tudo');
+        const [visualizacao,setVisualizacao]=useState('lista');
         const [marcados,setMarcados]=useState({});
         const [observacoes,setObservacoes]=useState('');
         const [itensLivres,setItensLivres]=useState([]);
@@ -6930,6 +6968,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const naoMarcados=linhas.filter(x=>!marcados[x.id]).length;
         const visiveis=linhas.filter(x=>normalizeName(x.nome).includes(normalizeName(busca))&&
           (mostrar==='tudo'||(mostrar==='marcados'?!!marcados[x.id]:!marcados[x.id])));
+        const vitrines=agruparVitrineVirtual(visiveis);
         const grupos=new Map();
         visiveis.forEach(x=>{
           const key=agrupar==='responsavel'?x.responsavel:agrupar==='categoria'?x.categoria:'Produtos';
@@ -6984,11 +7023,43 @@ const { useState, useEffect, useMemo, useRef } = React;
           })),dataRegistro);
           if(ok)setRegistrado(true);
         };
+        // Um único controle de marcação serve às duas visualizações.
+        // Trocar Lista/Slots não apaga os OK, quantidades ou observações.
+        const renderChecklistItem=(item,modo='lista',posicao=0)=>{
+          const marcado=!!marcados[item.id],quantidade=qtdDe(item);
+          return <div key={item.id} className={modo==='slots'?'order-slot-card':'checklist-row'}
+            data-selected={marcado} data-print-omit={!marcado}>
+            {modo==='slots'&&<span className="order-slot-position">Espaço visual {String(posicao+1).padStart(2,'0')}</span>}
+            <div className="checklist-product">
+              <label className="checklist-ok">
+                <input type="checkbox" checked={marcado} aria-label={'OK, produzir '+item.nome}
+                  onChange={e=>marcar(item,e.target.checked)}/>
+                <span>{marcado?'OK · Produzir':'Marcar para produzir'}</span>
+              </label>
+              <span className="checklist-product-name">
+                <strong>{item.nome}</strong>
+                <small>{item.categoria} · {item.responsavel}</small>
+              </span>
+              {item.id.startsWith('extra-manual:')&&<button type="button" className="checklist-remove"
+                aria-label={'Remover item adicional '+item.nome} onClick={()=>excluirLivre(item.id)}>Remover</button>}
+            </div>
+            <div className="checklist-number"><span>Padrão do dia</span>
+              <strong>{item.padrao?item.padrao:'Extra'} <small>{item.padrao?item.unidade:''}</small></strong>
+            </div>
+            <label className="checklist-field"><span>Produzir</span>
+              {marcado?<input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
+                aria-label={'Quantidade a produzir de '+item.nome} value={quantidade}
+                onChange={e=>{setQuantidades(prev=>({...prev,[item.id]:Math.max(1,Math.floor(Number(e.target.value)||1))}));
+                  setRegistrado(false);}}/>:
+                <span className="checklist-not-selected">—</span>}
+            </label>
+          </div>;
+        };
         return <div className="space-y-4 production-checklist">
           <div className="card p-5 sm:p-6">
-            <p className="t-overline mb-2">Padrão do dia · {unitName}</p>
+            <p className="t-overline mb-2">{unitName} · padrão do dia</p>
             <h2 className="t-display">Checklist de produção</h2>
-            <p className="t-body mt-1 max-w-2xl">Estes são os produtos previstos para a vitrine no dia. Confira visualmente o que já tem e toque em <strong>OK · Produzir</strong> somente no que precisa ser feito. Não é necessário contar ou registrar estoque.</p>
+            <p className="t-body mt-1 max-w-2xl">Confira o padrão da vitrine de {unitName}, por lista ou em slots visuais. Marque <strong>OK · Produzir</strong> apenas nos produtos que precisam ser feitos. A seleção não controla estoque.</p>
             <div className="plan-day-tabs mt-5">
               {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
                 aria-pressed={day===selectedDay} onClick={()=>onSelectDay(day)}>
@@ -7006,13 +7077,20 @@ const { useState, useEffect, useMemo, useRef } = React;
             </div>
           </div>
           <div className="card p-4 sm:p-5">
+            <div className="production-view-selector" role="group" aria-label="Visualização do pedido de produção">
+              <button type="button" data-active={visualizacao==='lista'} aria-pressed={visualizacao==='lista'}
+                onClick={()=>setVisualizacao('lista')}><Icons.List className="w-4 h-4"/> Lista</button>
+              <button type="button" data-active={visualizacao==='slots'} aria-pressed={visualizacao==='slots'}
+                onClick={()=>setVisualizacao('slots')}><Icons.LayoutGrid className="w-4 h-4"/> Slots</button>
+              <span>Mesmo checklist nas duas visualizações</span>
+            </div>
             <div className="flex flex-wrap justify-between gap-3 items-center mb-4 checklist-toolbar">
               <div className="flex flex-wrap gap-2">
                 <input type="search" className="field field-sm" aria-label="Buscar produto no checklist"
                   placeholder="Buscar produto…" value={busca} onChange={e=>setBusca(e.target.value)}/>
-                <select aria-label="Agrupar checklist" className="field field-sm" value={agrupar} onChange={e=>setAgrupar(e.target.value)}>
+                {visualizacao==='lista'&&<select aria-label="Agrupar checklist" className="field field-sm" value={agrupar} onChange={e=>setAgrupar(e.target.value)}>
                   <option value="responsavel">Por responsável</option><option value="categoria">Por categoria</option><option value="todos">Sem grupos</option>
-                </select>
+                </select>}
                 <select aria-label="Filtrar checklist" className="field field-sm" value={mostrar} onChange={e=>setMostrar(e.target.value)}>
                   <option value="tudo">Todos do padrão</option><option value="marcados">Somente marcados</option><option value="pendentes">Não marcados</option>
                 </select>
@@ -7020,39 +7098,30 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div className="flex gap-2"><button type="button" className="btn btn-secondary btn-sm" onClick={todos}>Marcar todos</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={limpar}>Limpar seleção</button></div>
             </div>
-            <div className="checklist-legend"><span>Produto no padrão do dia</span><span>Quantidade padrão</span><span>Quantidade a produzir</span></div>
-            {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([name,itens])=>
-              <section key={name} className="checklist-group">
-                <h3>{name} <small>{itens.length}</small></h3>
-                {itens.map(item=>{
-                  const marked=!!marcados[item.id],produzir=qtdDe(item);
-                  return <div key={item.id} className="checklist-row" data-selected={marked}
-                    data-print-omit={!marked}>
-                    <div className="checklist-product">
-                      <label className="checklist-ok">
-                        <input type="checkbox" checked={marked} aria-label={'OK, produzir '+item.nome}
-                          onChange={e=>marcar(item,e.target.checked)}/>
-                        <span>{marked?'OK · Produzir':'Marcar para produzir'}</span>
-                      </label>
-                      <span className="checklist-product-name">
-                        <strong>{item.nome}</strong>
-                        <small>{item.categoria} · {item.responsavel}</small>
-                      </span>
-                      {item.id.startsWith('extra-manual:')&&<button type="button" className="checklist-remove"
-                        aria-label={'Remover item adicional '+item.nome} onClick={()=>excluirLivre(item.id)}>Remover</button>}
-                    </div>
-                    <div className="checklist-number"><span>Padrão do dia</span>
-                      <strong>{item.padrao?item.padrao:'Extra'} <small>{item.padrao?item.unidade:''}</small></strong></div>
-                    <label className="checklist-field"><span>Produzir</span>
-                      {marked?<input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
-                        aria-label={'Quantidade a produzir de '+item.nome} value={produzir}
-                        onChange={e=>{setQuantidades(prev=>({...prev,[item.id]:Math.max(1,Math.floor(Number(e.target.value)||1))}));
-                          setRegistrado(false);}}/>:
-                        <span className="checklist-not-selected">—</span>}
-                    </label>
-                  </div>;
-                })}
-              </section>)}
+            {visualizacao==='lista'?
+              <div className="production-list-view">
+                <div className="checklist-legend"><span>Produto no padrão do dia</span><span>Quantidade padrão</span><span>Quantidade a produzir</span></div>
+                {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([nome,itens])=>
+                  <section key={nome} className="checklist-group">
+                    <h3>{nome} <small>{itens.length}</small></h3>
+                    {itens.map(item=>renderChecklistItem(item))}
+                  </section>)}
+              </div>:
+              <div className="virtual-showcase-board production-slots-view">
+                {vitrines.map(vitrine=><section key={vitrine.id} className="virtual-showcase-section" data-vitrine={vitrine.id}>
+                  <div className="virtual-showcase-heading">
+                    <div><h4>{vitrine.label}</h4><p>{vitrine.columns} slots por fileira · {unitName}</p></div>
+                    <span>{vitrine.itens.length} {vitrine.itens.length===1?'produto':'produtos'}</span>
+                  </div>
+                  <div className="virtual-showcase-grid production-slot-grid" data-cols={vitrine.columns}>
+                    {vitrine.itens.map((item,index)=>renderChecklistItem(item,'slots',index))}
+                    {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
+                      <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
+                        <span>Espaço livre</span>
+                      </div>)}
+                  </div>
+                </section>)}
+              </div>}
             {!visiveis.length&&<p className="t-body p-5 text-center">Nenhum produto no filtro selecionado.</p>}
             <div className="checklist-annotations">
               <h3 className="t-title">Itens extras e anotações</h3>
