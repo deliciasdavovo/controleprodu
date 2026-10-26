@@ -6712,6 +6712,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         useEffect(()=>{setEditandoProduto(null);},[currentUnit,selectedDay]);
         const [arrastando,setArrastando] = useState(null);
         const [sobre,setSobre] = useState(null);
+        const [movendoCard,setMovendoCard] = useState(false);
         const dragRef = useRef(null);
         const touchRef = useRef(null);
         const planos = standardPlans.filter(p=>p.unit===currentUnit);
@@ -6785,15 +6786,28 @@ const { useState, useEffect, useMemo, useRef } = React;
             if(retirado===true)setEditandoProduto(null);
           }finally{setSalvandoEdicao(false);}
         };
-        const mover=(source,target)=>{
-          if(!source||!target||source===target)return;
+        // A troca é visível assim que ocorre e o banco recebe a nova ordem.
+        // Enquanto salva, bloqueia outro movimento para não embaralhar cliques rápidos.
+        const mover=async(source,target)=>{
+          if(movendoCard||!source||!target||source===target)return;
           const sourceItem=dia.find(x=>x.id===source),targetItem=dia.find(x=>x.id===target);
           if(!sourceItem||!targetItem||tipoVitrineVirtual(sourceItem.categoria)!==tipoVitrineVirtual(targetItem.categoria))return;
           const ids=VITRINES_VIRTUAIS.flatMap(v=>dia.filter(x=>tipoVitrineVirtual(x.categoria)===v.id).map(x=>x.id));
           const old=ids.indexOf(source),next=ids.indexOf(target);
           if(old===-1||next===-1)return;
           ids.splice(old,1);ids.splice(next,0,source);
-          onReorder(selectedDay,ids);
+          setMovendoCard(true);
+          try{
+            await onReorder(selectedDay,ids);
+          }finally{
+            setMovendoCard(false);
+          }
+        };
+        // Alternativa acessível ao arrastar: uma posição anterior ou seguinte,
+        // mesmo quando a fileira quebra em 4 ou 3 colunas.
+        const moverUmPasso=(vitrine,item,index,delta)=>{
+          const alvo=vitrine.itens[index+delta];
+          if(alvo)mover(item.id,alvo.id);
         };
         const acabar=()=>{if(touchRef.current?.timer)clearTimeout(touchRef.current.timer);
           touchRef.current=null;dragRef.current=null;setArrastando(null);setSobre(null);};
@@ -6853,7 +6867,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
               <div><h3 className="t-title">Vitrine virtual · {unitName}</h3>
-                <p className="t-caption">Arraste para trocar a ordem dentro da seção. A organização é visual, sem controlar estoque.</p></div>
+                <p className="t-caption">Use as setas de cada card para mudar a posição ou arraste pelo ícone de linhas. A ordem é salva para o dia e a unidade.</p></div>
               <div className="flex flex-wrap gap-2">
                 <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
                   value={busca} onChange={e=>setBusca(e.target.value)}/>
@@ -6878,14 +6892,29 @@ const { useState, useEffect, useMemo, useRef } = React;
                 <div className="plan-card-top">
                   <span className="plan-card-index">{String(index+1).padStart(2,'0')}</span>
                   <span className="plan-card-category">{item.categoria}</span>
-                  <button className="plan-card-drag" draggable="true" type="button"
-                    title={'Arrastar '+item.nome} aria-label={'Segurar e arrastar '+item.nome}
-                    onDragStart={e=>{dragRef.current=item.id;setArrastando(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
-                    onDragEnd={acabar}
-                    onPointerDown={e=>tocar(e,item.id)} onPointerMove={deslizar}
-                    onPointerUp={soltar} onPointerCancel={acabar} onContextMenu={e=>e.preventDefault()}>
-                    <Icons.Menu className="w-5 h-5"/>
-                  </button>
+                  <div className="plan-card-order-actions" role="group" aria-label={'Alterar posição de '+item.nome}>
+                    <button type="button" className="plan-card-step" title="Mover uma posição para trás"
+                      aria-label={'Mover '+item.nome+' para posição anterior'}
+                      disabled={movendoCard||index===0}
+                      onClick={()=>moverUmPasso(vitrine,item,index,-1)}>
+                      <Icons.ChevronLeft className="w-4 h-4"/>
+                    </button>
+                    <button type="button" className="plan-card-step" title="Mover uma posição para frente"
+                      aria-label={'Mover '+item.nome+' para próxima posição'}
+                      disabled={movendoCard||index===vitrine.itens.length-1}
+                      onClick={()=>moverUmPasso(vitrine,item,index,1)}>
+                      <Icons.ChevronRight className="w-4 h-4"/>
+                    </button>
+                    <button className="plan-card-drag" draggable={!movendoCard} type="button"
+                      disabled={movendoCard}
+                      title={'Arrastar '+item.nome} aria-label={'Arrastar '+item.nome+' para outra posição da mesma seção'}
+                      onDragStart={e=>{if(movendoCard){e.preventDefault();return;}dragRef.current=item.id;setArrastando(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
+                      onDragEnd={acabar}
+                      onPointerDown={e=>{if(!movendoCard)tocar(e,item.id);}} onPointerMove={deslizar}
+                      onPointerUp={soltar} onPointerCancel={acabar} onContextMenu={e=>e.preventDefault()}>
+                      <Icons.Menu className="w-5 h-5"/>
+                    </button>
+                  </div>
                 </div>
                 <div className="plan-card-body">
                   <h4>{item.nome}</h4>
@@ -28190,23 +28219,22 @@ ${BARRA_ACOES_HTML}
         };
 
         const handleReorderProductionPlan = (day,productIds) => {
-          if(!Array.isArray(productIds)||!productIds.length)return;
-          const idsByProduct=new Map();
-          standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===day).forEach(p=>{
-            if(!idsByProduct.has(p.productId))idsByProduct.set(p.productId,[]);
-            idsByProduct.get(p.productId).push(p.id);
-          });
-          write('Salvar ordem do padrão',async()=>{
-            // Agrupa por posição para atualizar todos os espaços herdados do
-            // mesmo produto de uma só vez.
-            for(const [index,productId] of productIds.entries()){
-              const rowIds=idsByProduct.get(productId)||[];
-              if(rowIds.length)await run('standard_plans',sb.from('standard_plans')
-                .update({display_order:index+1}).in('id',rowIds));
-            }
-            const orderById=new Map(productIds.map((id,index)=>[id,index+1]));
-            setStandardPlans(prev=>prev.map(p=>p.unit===currentUnit&&p.dayOfWeek===day&&orderById.has(p.productId)
-              ? {...p,displayOrder:orderById.get(p.productId)}:p));
+          if(!Array.isArray(productIds)||!productIds.length)return Promise.resolve(false);
+          const unidade=currentUnit;
+          const orderById=new Map(productIds.map((id,index)=>[id,index+1]));
+          const linhasAlteradas=standardPlans.filter(p=>p.unit===unidade&&p.dayOfWeek===day&&
+            orderById.has(p.productId)&&Number(p.displayOrder)!==orderById.get(p.productId));
+          if(!linhasAlteradas.length)return Promise.resolve(true);
+          // Atualiza a interface imediatamente, em vez de esperar vários pedidos
+          // sequenciais ao banco para mostrar uma única troca de lugar.
+          setStandardPlans(prev=>prev.map(p=>p.unit===unidade&&p.dayOfWeek===day&&orderById.has(p.productId)
+            ? {...p,displayOrder:orderById.get(p.productId)}:p));
+          // write() restaura a leitura do banco se uma operação falhar.
+          return write('Salvar ordem do padrão',async()=>{
+            // Registros antigos podem ter mais de uma linha para um produto.
+            // Atualiza só os itens cuja posição realmente mudou.
+            await Promise.all(linhasAlteradas.map(p=>run('standard_plans',sb.from('standard_plans')
+              .update({display_order:orderById.get(p.productId)}).eq('id',p.id))));
             return true;
           });
         };
