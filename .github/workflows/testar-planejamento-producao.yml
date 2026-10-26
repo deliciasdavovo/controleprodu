@@ -97,7 +97,7 @@ jobs:
                 modalBounds.y + modalBounds.height > 852) {
                 throw new Error('Modal de NF-e saiu dos limites da tela desktop: '+JSON.stringify(modalBounds));
               }
-              await page.getByRole('button',{name:'Fechar importação XML'}).click();
+              await page.getByRole('button',{name:'Fechar janela de importação XML'}).click();
               console.log('DESKTOP: Modal de NF-e dentro da tela');
               const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
               mobile.on('pageerror',e=>errors.push('mobile: '+e.message));
@@ -124,7 +124,7 @@ jobs:
                 mobileBounds.y + mobileBounds.height > 846) {
                 throw new Error('Modal de NF-e saiu da tela mobile: '+JSON.stringify(mobileBounds));
               }
-              await mobile.getByRole('button',{name:'Fechar importação XML'}).click();
+              await mobile.getByRole('button',{name:'Fechar janela de importação XML'}).click();
               console.log('MOBILE: Modal de NF-e dentro da tela');
               if(errors.length)throw new Error('Erros na execução: '+errors.join(' | '));
               console.log('SEM_ERROS_DE_REACT: SIM');
