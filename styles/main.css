@@ -4273,3 +4273,208 @@
     max-width:calc(100% - 36px);
   }
 }
+
+
+/* Pedido de produção em duas listas e edição direta dos cards. */
+.production-board .plan-card-clickable{
+  cursor:pointer;
+  scroll-margin-top:85px;
+}
+.production-board .plan-card-clickable:focus-visible{
+  outline:3px solid #60936f;outline-offset:3px;
+}
+.production-board .plan-card-open-hint{
+  display:inline-flex;align-items:center;gap:5px;
+  margin-top:10px;padding:5px 0;
+  color:#557b60;font:700 11px Manrope,Arial,sans-serif;
+}
+.production-board .plan-card-clickable:hover .plan-card-open-hint{
+  color:#23583b;
+}
+.production-checklist .production-workspace-grid{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:15px;align-items:start;
+}
+.production-checklist .production-workspace-grid.is-slots{
+  grid-template-columns:minmax(0,1fr);
+}
+.production-checklist .production-workspace-checklist,
+.production-checklist .production-product-catalog{
+  min-width:0;max-width:100%;padding:13px;
+  border:1px solid #e0e9df;border-radius:15px;background:#fff;
+}
+.production-checklist .production-product-catalog{
+  background:#f9fbf8;
+}
+.production-workspace-title{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;margin-bottom:14px;
+}
+.production-workspace-title h3{
+  font:800 15px Manrope,Arial,sans-serif;color:#28523a;
+  line-height:1.3;
+}
+.production-workspace-title p{
+  font-size:11px;color:#839084;line-height:1.5;margin-top:3px;
+}
+.production-workspace-title>span{
+  flex:none;padding:5px 9px;border-radius:99px;
+  border:1px solid #e1eae0;background:#fff;
+  font-size:11px;font-weight:700;color:#506958;
+}
+.production-workspace-checklist .checklist-group{
+  margin-top:11px;
+}
+.production-workspace-checklist .checklist-group h3{
+  margin:0;border-radius:9px 9px 0 0;padding:9px 10px;
+}
+.production-checklist .production-workspace-checklist .checklist-legend{display:none}
+.production-checklist .production-workspace-checklist .checklist-row,
+.production-checklist .production-workspace-checklist .checklist-row[data-selected="true"]{
+  display:grid;grid-template-columns:minmax(0,1fr) 86px;
+  align-items:center;column-gap:9px;min-height:58px;
+  padding:10px 9px;
+}
+.production-checklist .production-workspace-checklist .checklist-row[data-selected="true"]{
+  padding-left:8px;
+}
+.production-checklist .production-workspace-checklist .checklist-product{
+  min-width:0;grid-column:1;grid-row:1;
+  flex-wrap:wrap;gap:6px 9px;
+}
+.production-checklist .production-workspace-checklist .checklist-product-name{
+  min-width:0;flex:1 1 145px;gap:3px;
+}
+.production-checklist .production-workspace-checklist .checklist-ok{
+  min-height:37px;padding:7px 9px;
+}
+.production-checklist .production-workspace-checklist .checklist-number,
+.production-checklist .production-workspace-checklist .checklist-field{
+  grid-column:2;grid-row:1;min-width:0;
+  text-align:right;align-self:center;padding:0;
+}
+.production-checklist .production-workspace-checklist .checklist-number>span,
+.production-checklist .production-workspace-checklist .checklist-field>span{
+  display:none;
+}
+.production-checklist .production-workspace-checklist .checklist-number strong{
+  font-size:14px;padding:0;
+}
+.production-checklist .production-workspace-checklist .checklist-row[data-selected="true"] .checklist-number,
+.production-checklist .production-workspace-checklist .checklist-row[data-selected="false"] .checklist-field{
+  display:none;
+}
+.production-checklist .production-workspace-checklist .checklist-field input{
+  width:100%;max-width:100%;min-height:38px;
+  text-align:center;font-size:14px;
+}
+.production-routine-chip{
+  display:inline-flex;align-items:center;align-self:flex-start;
+  padding:2px 7px;border-radius:99px;
+  font:750 10px Manrope,Arial,sans-serif;
+  white-space:nowrap;max-width:100%;
+  border:1px solid #b8d7bc;background:#e9f5e9;color:#306044;
+}
+.production-routine-chip[data-routine="diario"]::before,
+.production-routine-chip[data-routine="variavel"]::before{
+  content:'';display:block;width:6px;height:6px;flex:none;
+  border-radius:50%;margin-right:5px;background:#437c4e;
+}
+.production-routine-chip[data-routine="variavel"]{
+  color:#776032;background:#fff7e7;border-color:#eddcb0;
+}
+.production-routine-chip[data-routine="variavel"]::before{
+  background:#c18c3c;
+}
+.production-routine-chip[data-routine="extra"]{
+  color:#68766c;background:#f3f6f2;border-color:#dfe6de;
+}
+.production-checklist .production-workspace-checklist .checklist-product-name .production-routine-chip{
+  margin-top:2px;font-size:9px;
+}
+.production-checklist .production-workspace-checklist [data-selected="true"] .checklist-product-name .production-routine-chip{
+  display:inline-flex;
+}
+.production-catalog-filters{
+  display:grid;grid-template-columns:minmax(0,1fr);gap:8px;
+  margin-bottom:10px;
+}
+.production-catalog-filters .field{
+  width:100%;max-width:none;min-width:0;min-height:39px;
+}
+.production-routine-legend{
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;
+}
+.production-catalog-list{
+  display:flex;flex-direction:column;gap:9px;
+  max-height:660px;overflow-y:auto;overscroll-behavior:contain;
+  padding-right:3px;scrollbar-width:thin;
+}
+.production-catalog-category h4{
+  display:flex;align-items:center;gap:7px;
+  margin:0 0 5px;padding:8px 9px;
+  border-radius:8px;background:#eff4ed;
+  color:#42684c;font:800 12px Manrope,Arial,sans-serif;
+  text-transform:capitalize;
+}
+.production-catalog-category h4 small{font-size:10px;color:#859785}
+.production-catalog-item{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 8px;border-bottom:1px solid #e5ede3;
+  min-width:0;background:#fff;
+}
+.production-catalog-item-info{
+  min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+}
+.production-catalog-item-info strong{
+  font:750 12px/1.45 Manrope,Arial,sans-serif;
+  color:#304736;overflow-wrap:anywhere;
+}
+.production-catalog-add{
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  gap:4px;min-height:38px;padding:7px 10px;border-radius:10px;
+  background:#e8f2e7;border:1px solid #c8ddc6;
+  font:750 11px Manrope,Arial,sans-serif;color:#315c3f;cursor:pointer;
+}
+.production-catalog-add:hover{background:#dcebdc;border-color:#98c09e}
+.production-catalog-add:focus-visible{outline:3px solid #87ac8f;outline-offset:2px}
+.production-catalog-empty{
+  padding:20px 10px;font-size:12px;text-align:center;color:#7b897c;
+}
+@media(max-width:1060px){
+  .production-checklist .production-workspace-grid{grid-template-columns:minmax(0,1fr)}
+  .production-checklist .production-workspace-checklist,
+  .production-checklist .production-product-catalog{padding:12px}
+}
+@media(max-width:650px){
+  .production-checklist .production-workspace-checklist .checklist-row,
+  .production-checklist .production-workspace-checklist .checklist-row[data-selected="true"]{
+    grid-template-columns:minmax(0,1fr) 78px;
+    gap:7px;padding:10px 8px;
+  }
+  .production-checklist .production-workspace-checklist .checklist-product-name{
+    flex-basis:115px;
+  }
+  .production-checklist .production-workspace-checklist .checklist-ok{
+    width:auto;min-height:35px;
+  }
+  .production-checklist .production-workspace-checklist .checklist-product{
+    grid-column:1;
+  }
+  .production-checklist .production-workspace-checklist .checklist-field{
+    grid-column:2;grid-row:1;
+  }
+  .production-catalog-list{max-height:460px}
+}
+@media print{
+  .production-checklist .production-workspace-grid,
+  .production-checklist .production-workspace-grid.is-slots{display:block}
+  .production-checklist .production-product-catalog{display:none!important}
+  .production-checklist .production-workspace-checklist{
+    border:0!important;padding:0!important;
+  }
+  .production-checklist .production-workspace-title{display:none!important}
+  .production-checklist .production-workspace-checklist .checklist-row[data-selected="true"]{
+    background:#fff!important;
+  }
+}
