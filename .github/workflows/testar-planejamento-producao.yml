@@ -51,6 +51,19 @@ jobs:
               await page.getByRole('button',{name:/Produção/i}).first().click();
               await page.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
               await page.locator('.checklist-summary').waitFor({state:'visible',timeout:10000});
+              // Exercita o checklist sem gravar nada no banco: item avulso,
+              // checkbox OK e campo de observações para WhatsApp.
+              await page.locator('.checklist-notes').fill('Separar encomenda após a produção');
+              await page.getByPlaceholder('Ex.: 2 bolos para encomenda').fill('Item de teste');
+              await page.getByRole('button',{name:'Incluir item',exact:true}).click();
+              const check=page.getByRole('checkbox',{name:'OK, produzir Item de teste'});
+              await check.waitFor({state:'visible'});
+              if(!(await check.isChecked()))throw new Error('Item extra não foi marcado para produzir');
+              await check.uncheck();
+              if(await check.isChecked())throw new Error('Não foi possível desmarcar o OK');
+              await check.check();
+              if(!(await check.isChecked()))throw new Error('Não foi possível marcar o OK');
+              console.log('DESKTOP: Checklist, itens extras e notas funcionando');
               console.log('DESKTOP: Planejamento e checklist abriram');
               const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
               mobile.on('pageerror',e=>errors.push('mobile: '+e.message));
