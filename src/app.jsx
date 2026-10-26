@@ -26760,7 +26760,8 @@ ${BARRA_ACOES_HTML}
       // MAIN APP COMPONENT
       // ==========================================
       function App() {
-        const [currentUnit, setCurrentUnit] = useState('');
+        const [currentUnit, setCurrentUnit] = useState(() => lerPreferencia('unidade', 'vilanova'));
+        useEffect(() => { if (currentUnit) guardarPreferencia('unidade', currentUnit); }, [currentUnit]);
         // Abre na última tela usada neste aparelho, sem passar por uma escolha.
         const [activeTab, setActiveTabState] = useState(() => {
           const salva = lerPreferencia('aba', 'padrao');
