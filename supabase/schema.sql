@@ -154,6 +154,9 @@ create table if not exists public.standard_plans (
   constraint standard_plans_slot_day_unique unique (unit_code, day_of_week, slot_code)
 );
 
+-- Ordem editável dos cards de cada dia no planejamento.
+alter table public.standard_plans add column if not exists display_order integer not null default 0;
+
 -- Planejamento novo dispensa slot físico, sem remover vínculos antigos.
 alter table public.standard_plans alter column slot_code drop not null;
 create unique index if not exists standard_plans_product_day_without_slot
