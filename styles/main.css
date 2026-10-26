@@ -4152,3 +4152,83 @@
     background:#fff;box-shadow:none;border-color:#aebcaf
   }
 }
+
+
+/* Padrão de produção: edição dos produtos e cabeçalhos compactos. */
+.production-board > .card:first-child,
+.production-checklist > .card:first-child{
+  padding:14px 17px!important
+}
+.production-board > .card:first-child .t-overline,
+.production-checklist > .card:first-child .t-overline{
+  margin-bottom:4px!important;font-size:10px
+}
+.production-board > .card:first-child h2.t-display,
+.production-checklist > .card:first-child h2.t-display{
+  font-size:clamp(21px,2.3vw,27px);line-height:1.18;letter-spacing:-.025em
+}
+.production-board > .card:first-child .t-body,
+.production-checklist > .card:first-child .t-body{
+  font-size:12px;line-height:1.5
+}
+.production-board > .card:first-child .plan-day-tabs,
+.production-checklist > .card:first-child .plan-day-tabs{
+  margin-top:12px!important
+}
+.production-board > .card:first-child .plan-day-summary,
+.production-checklist > .card:first-child .checklist-summary{
+  margin-top:10px!important
+}
+.production-board > .card:first-child .plan-day-tabs button,
+.production-checklist > .card:first-child .plan-day-tabs button{
+  min-height:36px;padding:7px 10px
+}
+.production-checklist > .card:first-child .checklist-summary{
+  padding:10px 13px;gap:11px 17px
+}
+.production-checklist > .card:first-child .checklist-summary strong{
+  font-size:17px
+}
+.plan-card-edit{
+  display:inline-flex;align-items:center;min-height:34px;
+  margin-top:12px;padding:5px 10px;
+  font:750 11px Manrope,Arial,sans-serif;color:#28543a;
+  border:1px solid #c9dcc9;background:#f2f7f1;border-radius:9px;
+  cursor:pointer
+}
+.plan-card-edit:hover,.plan-card-edit[aria-expanded="true"]{
+  background:#e5f1e6;border-color:#98ba9e
+}
+.plan-card-edit:focus-visible,.plan-card-editor button:focus-visible{
+  outline:3px solid #83a88a;outline-offset:2px
+}
+.plan-card-editor{
+  display:flex;flex-direction:column;gap:10px;
+  padding:13px 12px;background:#f6faf5;
+  border-top:1px solid #dbe9dc
+}
+.plan-card-editor label{
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+  font:700 11px Manrope,Arial,sans-serif;color:#5b7360
+}
+.plan-card-editor .field{
+  min-width:0;width:100%;max-width:100%;min-height:39px;
+  font-size:13px;background:#fff
+}
+.plan-card-editor .btn{width:100%;min-height:38px}
+.plan-card-editor-links{
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:9px
+}
+.plan-card-editor-links button{
+  padding:5px 0;min-height:32px;text-align:left;
+  font:700 11px Manrope,Arial,sans-serif;
+  color:#336343;cursor:pointer;text-decoration:underline
+}
+.plan-card-editor-links .plan-card-remove{color:#a15149}
+.plan-card-editor-links button:disabled{opacity:.5;cursor:default}
+@media(max-width:650px){
+  .production-board > .card:first-child,
+  .production-checklist > .card:first-child{padding:12px!important}
+  .plan-card-edit{min-height:36px;margin-top:10px}
+  .plan-card-editor{padding:10px 9px}
+}
