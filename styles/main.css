@@ -4232,3 +4232,44 @@
   .plan-card-edit{min-height:36px;margin-top:10px}
   .plan-card-editor{padding:10px 9px}
 }
+
+
+/* Padrão de produção: controles acessíveis para reorganizar cards. */
+.production-board .plan-card-top{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+}
+.production-board .plan-card-order-actions{
+  display:flex;align-items:center;gap:4px;margin-left:auto;
+}
+.production-board .plan-card-step{
+  display:grid;place-items:center;flex:none;width:32px;height:36px;
+  border:1px solid #d7e4d6;border-radius:10px;
+  background:#f4f8f2;color:#2c5c3d;cursor:pointer;
+  transition:background .15s ease,border-color .15s ease;
+}
+.production-board .plan-card-step:hover:not(:disabled){
+  background:#e1f0e2;border-color:#91b69a;
+}
+.production-board .plan-card-step:disabled{
+  background:#f5f7f4;color:#b6c2b6;border-color:#edf1ec;cursor:not-allowed;
+}
+.production-board .plan-card-step:focus-visible{
+  outline:3px solid #80a88a;outline-offset:2px;
+}
+.production-board .plan-card-order-actions .plan-card-drag{
+  margin-left:2px;width:36px;height:36px;
+}
+.production-board .plan-card-order-actions .plan-card-drag:disabled{
+  opacity:.5;cursor:wait;
+}
+@media(max-width:650px){
+  .production-board .plan-card-order-actions{
+    gap:4px;flex:0 0 auto;
+  }
+  .production-board .plan-card-order-actions .plan-card-step{
+    width:36px;height:38px;
+  }
+  .production-board .plan-card-top .plan-card-category{
+    max-width:calc(100% - 36px);
+  }
+}
