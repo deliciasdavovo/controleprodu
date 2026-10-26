@@ -2479,7 +2479,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               document.body
             )}
             <nav className="controle-mobile-bottom lg:hidden" aria-label="Acesso rápido">
-              {['vitrine', 'producao', 'insumos', 'cmv'].map(tabById).map((tab) => {
+              {['padrao', 'producao', 'insumos', 'cmv'].map(tabById).filter(Boolean).map((tab) => {
                 const Icon = tab.icon;
                 return <button type="button" key={tab.id} onClick={() => abrirAba(tab.id)}
                   aria-current={activeTab === tab.id ? 'page' : undefined}
