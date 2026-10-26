@@ -11941,7 +11941,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                   <h3 className="t-title">Cadastrar compra com XML</h3>
                   <p className="t-caption mt-1">O XML preenche fornecedor, data, produtos, quantidades e valores. Você confere antes de salvar.</p>
                 </div>
-                <button type="button" disabled={salvando} onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
+                <button type="button" disabled={salvando} aria-label="Fechar janela de importação XML" onClick={onClose} className="w-9 h-9 rounded-full bg-black/[0.05] hover:bg-black/[0.09] flex items-center justify-center shrink-0">
                   <Icons.X className="w-4 h-4" />
                 </button>
               </div>
