@@ -3826,7 +3826,7 @@
 .checklist-summary>div{display:flex;flex-direction:column;gap:4px;min-width:90px}
 .checklist-summary strong{font-size:19px;color:#234a35;line-height:1.2;font-weight:800}
 .checklist-summary span{font-size:11px;color:#758578}
-.checklist-legend,.checklist-row{display:grid;grid-template-columns:minmax(220px,1fr) 85px 100px 100px;align-items:center;gap:12px}
+.checklist-legend,.checklist-row{display:grid;grid-template-columns:minmax(260px,1fr) 128px 140px;align-items:center;gap:14px}
 .checklist-legend{padding:0 13px 11px;border-bottom:1px solid #e8ede7;font-size:10px;color:#879388;font-weight:750}
 .checklist-legend span:not(:first-child){text-align:right}
 .checklist-group{margin-top:15px}
@@ -3837,9 +3837,9 @@
   transition:background .16s ease,opacity .16s ease}
 .checklist-row:hover{background:#fafcf9}
 .checklist-row[data-selected=true]{background:#f3f9f3}
-.checklist-product{display:flex;align-items:center;gap:12px;min-width:0;cursor:pointer}
-.checklist-product input[type=checkbox]{flex:none;width:23px;height:23px;accent-color:#315a42;cursor:pointer}
-.checklist-product>span{min-width:0;display:flex;flex-direction:column;gap:4px}
+.checklist-product{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+.checklist-product input[type=checkbox]{flex:none;width:20px;height:20px;accent-color:#315a42;cursor:pointer}
+.checklist-product-name{min-width:0;display:flex;flex-direction:column;gap:4px;flex:1 1 150px}
 .checklist-product strong{font-size:13px;color:#2b3d31;line-height:1.35}
 .checklist-product small{font-size:10px;color:#8a968d}
 .checklist-number{text-align:right}
@@ -3855,7 +3855,7 @@
 @media(max-width:780px){
   .plan-card-grid{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px}
   .checklist-legend{display:none}
-  .checklist-row{grid-template-columns:1fr 1fr 1fr;gap:12px 10px;padding:15px 10px}
+  .checklist-row{grid-template-columns:1fr 1fr;gap:12px 10px;padding:15px 10px}
   .checklist-product{grid-column:1/-1}
   .checklist-number>span,.checklist-field>span{display:block;font-size:10px;margin-bottom:5px;
     text-align:left;color:#78877b;font-weight:650}
@@ -3882,6 +3882,47 @@
   .production-checklist .checklist-row[data-print-omit=true]{display:none!important}
   .production-checklist .checklist-row{break-inside:avoid}
 }
+
+/* Checklist sem controle de estoque: botão de OK com alvo amplo e estado claro. */
+.checklist-ok{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;cursor:pointer;
+  font-size:12px;font-weight:750;color:#576e5e;background:#f5f8f3;
+  border:1px solid #dbe5d9;border-radius:13px;padding:9px 11px;
+  min-height:45px;transition:background .16s ease,border-color .16s ease}
+.checklist-ok:has(input:checked){color:#fff;background:#27533c;border-color:#27533c}
+.checklist-ok:has(input:checked) input{accent-color:#c2e2c6}
+.checklist-ok:focus-within{outline:3px solid #8cae91;outline-offset:2px}
+.checklist-product-name strong{font-size:14px;line-height:1.35;color:#283e2f}
+.checklist-product-name small{font-size:11px;color:#8a968d}
+.checklist-remove{font-size:11px;color:#944f48;text-decoration:underline;cursor:pointer}
+.checklist-not-selected{display:flex;align-items:center;justify-content:center;min-height:40px;
+  background:#f6f8f5;border-radius:9px;color:#a2ada2;font-size:16px}
+.checklist-annotations{margin-top:24px;padding:19px;border:1px solid #e2eade;background:#fafcf9;border-radius:16px}
+.checklist-annotations .checklist-extra{border-top:none;margin-top:12px;padding-top:0;gap:10px}
+.checklist-extra-qty{flex:0 0 95px!important;min-width:95px!important;max-width:95px!important}
+.checklist-notes-label{display:block;margin-top:17px}
+.checklist-notes{min-height:98px;padding:12px!important;font-size:14px;line-height:1.5;
+  border-radius:11px;border:1px solid #dce7dc;background:#fff;resize:vertical}
+.checklist-notes-print{display:none;white-space:pre-wrap}
+@media(max-width:780px){
+  .checklist-product{gap:9px}
+  .checklist-ok{min-height:47px;padding:9px;flex:0 0 auto}
+  .checklist-number{padding-left:6px}
+  .checklist-annotations{padding:15px 12px}
+}
+@media(max-width:420px){
+  .checklist-ok{width:100%;justify-content:center}
+  .checklist-product-name{flex-basis:100%}
+}
+@media print{
+  .production-checklist .checklist-notes-print{display:block;margin-top:15px;
+    padding:8px 0;border-top:1px solid #aaa;font-size:12px}
+  .production-checklist .checklist-annotations{border:0;padding:0;background:#fff}
+  .production-checklist .checklist-annotations>*:not(.checklist-notes-print){display:none!important}
+  .production-checklist .checklist-ok input{display:none}
+  .production-checklist .checklist-ok{border:0;padding:0;min-height:0;background:none;color:#222}
+  .production-checklist .checklist-row{grid-template-columns:minmax(0,1fr) 90px 90px}
+}
+
 @media(prefers-reduced-motion:reduce){
   .plan-card,.plan-day-tabs button,.checklist-row{transition:none!important}
   .plan-card:hover,.plan-card[data-over=true]{transform:none}
