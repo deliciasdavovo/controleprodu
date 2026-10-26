@@ -7068,9 +7068,16 @@ const { useState, useEffect, useMemo, useRef } = React;
         };
         const textoPedido=()=>{
           const m=new Map();
-          selecionados.forEach(x=>{if(!m.has(x.responsavel))m.set(x.responsavel,[]);m.get(x.responsavel).push(x);});
+          // O texto copiado acompanha o agrupamento escolhido na tela.
+          selecionados.forEach(x=>{
+            const grupo=agrupar==='categoria'?x.categoria:agrupar==='responsavel'?x.responsavel:'Produtos';
+            if(!m.has(grupo))m.set(grupo,[]);
+            m.get(grupo).push(x);
+          });
           const secoes=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
-            .map(([resp,items])=>[resp.toUpperCase(),...items.map(x=>qtdDe(x)+' '+x.unidade+' — '+x.nome)].join('\n'));
+            .map(([grupo,items])=>[grupo.toUpperCase(),...items
+              .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'))
+              .map(x=>qtdDe(x)+' '+x.unidade+' — '+x.nome)].join('\n'));
           if(observacoes.trim())secoes.push('ANOTAÇÕES\n'+observacoes.trim());
           return ['PEDIDO DE PRODUÇÃO',unitName+' · '+getDayNameBR(selectedDay),...secoes].join('\n\n');
         };
