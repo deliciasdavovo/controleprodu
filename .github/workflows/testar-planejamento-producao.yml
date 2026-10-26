@@ -48,6 +48,17 @@ jobs:
               await page.locator('.controle-side').waitFor({state:'visible',timeout:45000});
               await page.locator('.production-board').waitFor({state:'visible',timeout:10000});
               await page.locator('.plan-day-tabs button').first().waitFor({state:'visible',timeout:10000});
+              // Padrão usa uma vitrine virtual: salgado em 4 colunas, doces em 3.
+              const gridFour = page.locator('.production-board .virtual-showcase-grid[data-cols="4"]').first();
+              const gridThree = page.locator('.production-board .virtual-showcase-grid[data-cols="3"]').first();
+              if(await gridFour.count()){
+                const cols=await gridFour.evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
+                if(cols!==4)throw new Error('Vitrine salgada deveria ter 4 colunas, encontrou '+cols);
+              }
+              if(await gridThree.count()){
+                const cols=await gridThree.evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
+                if(cols!==3)throw new Error('Vitrine doce/sobremesa deveria ter 3 colunas, encontrou '+cols);
+              }
               await page.getByRole('button',{name:/Produção/i}).first().click();
               await page.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
               await page.locator('.checklist-summary').waitFor({state:'visible',timeout:10000});
@@ -63,6 +74,14 @@ jobs:
               if(await check.isChecked())throw new Error('Não foi possível desmarcar o OK');
               await check.check();
               if(!(await check.isChecked()))throw new Error('Não foi possível marcar o OK');
+              await page.getByRole('button',{name:'Slots',exact:true}).click();
+              await page.locator('.production-slots-view').waitFor({state:'visible'});
+              const slotCheck=page.getByRole('checkbox',{name:'OK, produzir Item de teste'});
+              if(!(await slotCheck.isChecked()))throw new Error('A marcação OK não persistiu na visualização Slots');
+              await page.getByRole('button',{name:'Lista',exact:true}).click();
+              await page.locator('.production-list-view').waitFor({state:'visible'});
+              if(!(await check.isChecked()))throw new Error('A marcação OK não persistiu ao voltar à Lista');
+              console.log('DESKTOP: Lista e Slots preservam o checklist e 4/3 colunas');
               console.log('DESKTOP: Checklist, itens extras e notas funcionando');
               console.log('DESKTOP: Planejamento e checklist abriram');
               const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
@@ -72,7 +91,14 @@ jobs:
               await mobile.locator('.plan-day-tabs button').first().waitFor({state:'visible'});
               await mobile.getByRole('button',{name:/Produção/i}).first().click();
               await mobile.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
-              console.log('MOBILE: Planejamento e checklist abriram');
+              await mobile.getByRole('button',{name:'Slots',exact:true}).click();
+              await mobile.locator('.production-slots-view').waitFor({state:'visible',timeout:12000});
+              const metrics=await mobile.evaluate(()=>({width:document.documentElement.clientWidth,
+                scrollWidth:document.documentElement.scrollWidth}));
+              if(metrics.scrollWidth>metrics.width+3)throw new Error('Slots causam rolagem horizontal no celular');
+              await mobile.getByRole('button',{name:'Lista',exact:true}).click();
+              await mobile.locator('.production-list-view').waitFor({state:'visible',timeout:12000});
+              console.log('MOBILE: Planejamento, lista e slots abriram sem rolagem horizontal');
               if(errors.length)throw new Error('Erros na execução: '+errors.join(' | '));
               console.log('SEM_ERROS_DE_REACT: SIM');
             } finally {await browser.close();}
