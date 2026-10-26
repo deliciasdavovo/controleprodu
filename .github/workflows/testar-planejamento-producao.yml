@@ -1,0 +1,80 @@
+name: Validar telas de planejamento e producao
+
+on:
+  pull_request:
+    paths:
+      - 'src/app.jsx'
+      - 'styles/main.css'
+      - 'index.html'
+      - '.github/workflows/testar-planejamento-producao.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/app.jsx'
+      - 'styles/main.css'
+      - 'index.html'
+      - '.github/workflows/testar-planejamento-producao.yml'
+
+jobs:
+  abrir-telas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador de teste
+        run: |
+          npm install --no-save esbuild@0.25.12 playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Compilar o codigo da interface
+        run: |
+          mkdir -p compiled
+          npx esbuild src/app.jsx --loader:.jsx=jsx --jsx=transform --format=iife --target=es2018 --minify --outfile=compiled/app.js
+          npx esbuild src/embalagens.jsx --loader:.jsx=jsx --jsx=transform --format=iife --target=es2018 --minify --outfile=compiled/embalagens.js
+      - name: Validar abertura e navegacao real
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/site-log.txt 2>&1 &
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({headless: true});
+            const errors=[];
+            const page=await browser.newPage({viewport:{width:1350,height:850}});
+            page.on('pageerror',e=>errors.push(e.message));
+            try {
+              await page.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
+              await page.locator('.controle-side').waitFor({state:'visible',timeout:45000});
+              await page.locator('.production-board').waitFor({state:'visible',timeout:10000});
+              await page.locator('.plan-day-tabs button').first().waitFor({state:'visible',timeout:10000});
+              await page.getByRole('button',{name:/Produção/i}).first().click();
+              await page.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
+              await page.locator('.checklist-summary').waitFor({state:'visible',timeout:10000});
+              // Exercita o checklist sem gravar nada no banco: item avulso,
+              // checkbox OK e campo de observações para WhatsApp.
+              await page.locator('.checklist-notes').fill('Separar encomenda após a produção');
+              await page.getByPlaceholder('Ex.: 2 bolos para encomenda').fill('Item de teste');
+              await page.getByRole('button',{name:'Incluir item',exact:true}).click();
+              const check=page.getByRole('checkbox',{name:'OK, produzir Item de teste'});
+              await check.waitFor({state:'visible'});
+              if(!(await check.isChecked()))throw new Error('Item extra não foi marcado para produzir');
+              await check.uncheck();
+              if(await check.isChecked())throw new Error('Não foi possível desmarcar o OK');
+              await check.check();
+              if(!(await check.isChecked()))throw new Error('Não foi possível marcar o OK');
+              console.log('DESKTOP: Checklist, itens extras e notas funcionando');
+              console.log('DESKTOP: Planejamento e checklist abriram');
+              const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+              mobile.on('pageerror',e=>errors.push('mobile: '+e.message));
+              await mobile.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded',timeout:60000});
+              await mobile.locator('.production-board').waitFor({state:'visible',timeout:45000});
+              await mobile.locator('.plan-day-tabs button').first().waitFor({state:'visible'});
+              await mobile.getByRole('button',{name:/Produção/i}).first().click();
+              await mobile.locator('.production-checklist').waitFor({state:'visible',timeout:12000});
+              console.log('MOBILE: Planejamento e checklist abriram');
+              if(errors.length)throw new Error('Erros na execução: '+errors.join(' | '));
+              console.log('SEM_ERROS_DE_REACT: SIM');
+            } finally {await browser.close();}
+          })().catch(e=>{console.error(e.stack||e);process.exit(1)});
+          NODE

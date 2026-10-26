@@ -16,6 +16,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         TrendingDown: (props) => <IconBase d="M23 18l-9.5-9.5-5 5L1 6" {...props} />,
         History: (props) => <IconBase d={["M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5", "M12 7v5l4 2"]} {...props} />,
         Package: (props) => <IconBase d={["M16.5 9.4 7.55 4.24", "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "M3.27 6.96 12 12.01l8.73-5.05", "M12 22.08V12"]} {...props} />,
+        Menu: (props) => <IconBase d={["M4 6h16", "M4 12h16", "M4 18h16"]} {...props} />,
         Plus: (props) => <IconBase d="M12 5v14M5 12h14" {...props} />,
         Minus: (props) => <IconBase d="M5 12h14" {...props} />,
         Trash2: (props) => <IconBase d={["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"]} {...props} />,
@@ -1468,7 +1469,8 @@ const { useState, useEffect, useMemo, useRef } = React;
         minQty: row.min_qty || 0,
         unitOfMeasure: row.unit_of_measure,
         priority: row.priority || DEFAULT_PRIORITY,
-        frequency: row.frequency || 'dias'
+        frequency: row.frequency || 'dias',
+        displayOrder: Number(row.display_order) || 0
       });
 
       const fromSale = (row) => ({
@@ -6651,321 +6653,456 @@ const { useState, useEffect, useMemo, useRef } = React;
       // Mantém os padrões já cadastrados, inclusive os antigos com slot.
       // Novos produtos usam slot_code nulo: planejamento é por produto/dia.
       // ==========================================
-      const ProductionPlanningView = ({
-        currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
-        onSavePlan, onCopyDayPlan, onGenerateOrder
-      }) => {
-        const [busca, setBusca] = useState('');
-        const [categoria, setCategoria] = useState('todas');
-        const [novoProduto, setNovoProduto] = useState('');
-        const [novaQtd, setNovaQtd] = useState('1');
-        const [diaDestino, setDiaDestino] = useState('terca');
-        const planosUnidade = standardPlans.filter((p) => p.unit === currentUnit);
-        const catalogo = products.filter((p) => p.showcaseEnabled !== false);
-        const categorias = [...new Set(catalogo.map((p) => p.category).filter(Boolean))].sort();
-        const linhas = useMemo(() => {
-          const mapa = new Map();
-          planosUnidade.forEach((p) => {
-            if (!mapa.has(p.productId)) {
-              const produto = products.find((item) => item.id === p.productId);
-              mapa.set(p.productId, {
-                id: p.productId, nome: produto?.name || 'Produto não encontrado',
-                categoria: produto?.category || 'outro',
-                responsavel: produto ? getResponsibleName(produto) : NO_RESPONSIBLE_LABEL,
-                unidade: produto?.defaultUnit || p.unitOfMeasure || 'un',
-                dias: {}
-              });
-            }
-            const linha = mapa.get(p.productId);
-            linha.dias[p.dayOfWeek] = (linha.dias[p.dayOfWeek] || 0) + (Number(p.idealQty) || 0);
-          });
-          return [...mapa.values()].sort((a, b) =>
-            a.categoria.localeCompare(b.categoria, 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'));
-        }, [standardPlans, currentUnit, products]);
-        const filtradas = linhas.filter((r) =>
-          (categoria === 'todas' || r.categoria === categoria) &&
-          normalizeName(r.nome).includes(normalizeName(busca))
-        );
-        const qtdDia = linhas.filter((r) => (r.dias[selectedDay] || 0) > 0).length;
-        const totaisDia = linhas.reduce((map, r) => { const qty = r.dias[selectedDay] || 0; if (qty) map[r.unidade] = (map[r.unidade] || 0) + qty; return map; }, {});
-        const resumoDia = Object.entries(totaisDia).map(([u, qty]) => qty + ' ' + u).join(' · ') || '0';
-        const disponiveis = catalogo
-          .filter((p) => !linhas.some((r) => r.id === p.id))
-          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-        const incluir = () => {
-          const qty = Math.max(0, Math.floor(Number(novaQtd) || 0));
-          if (!novoProduto || qty < 1) return;
-          onSavePlan(selectedDay, novoProduto, qty);
-          setNovoProduto('');
-          setNovaQtd('1');
-        };
-        const copiarDia = () => {
-          if (diaDestino === selectedDay) return;
-          if (!window.confirm('Substituir o planejamento de ' + getDayNameBR(diaDestino).toLowerCase() +
-            ' pelo de ' + getDayNameBR(selectedDay).toLowerCase() + '?')) return;
-          onCopyDayPlan(selectedDay, diaDestino);
-        };
 
-        return (
-          <div className="space-y-4">
-            <div className="card p-5 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <p className="t-overline mb-2">Rotina por produto · {unitName}</p>
-                  <h2 className="t-display">Planejamento de produção</h2>
-                  <p className="t-body mt-1 max-w-2xl">Defina quanto costuma ser produzido em cada dia da semana. Não é necessário cadastrar a posição do produto na vitrine. Digite 0 para retirá-lo de um dia.</p>
-                </div>
-                <button className="btn btn-primary btn-md shrink-0" type="button" onClick={onGenerateOrder}>
-                  <Icons.ChefHat className="w-4 h-4" /> Montar pedido
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-5">
-                {WEEK_DAYS.map((day) =>
-                  <button key={day} type="button" onClick={() => onSelectDay(day)}
-                    className={selectedDay === day ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>
-                    {getDayShortBR(day)}
-                  </button>)}
-              </div>
-              <div className="flex gap-5 mt-4 t-caption">
-                <span><strong className="text-[#244833]">{qtdDia}</strong> produtos em {getDayNameBR(selectedDay).toLowerCase()}</span>
-                <span><strong className="text-[#244833]">{resumoDia}</strong> planejados</span>
-              </div>
-            </div>
-
-            <div className="card p-4 sm:p-5">
-              <h3 className="t-title mb-2">Adicionar ao planejamento</h3>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
-                <label className="flex-1 min-w-0 t-caption">
-                  Produto do cadastro
-                  <select aria-label="Produto para adicionar" className="field field-md mt-1 w-full" value={novoProduto} onChange={(e) => setNovoProduto(e.target.value)}>
-                    <option value="">Selecione um produto</option>
-                    {disponiveis.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </label>
-                <label className="t-caption sm:w-32">
-                  Quantidade
-                  <input aria-label="Quantidade inicial" type="number" min="1" step="1" className="field field-md mt-1 w-full text-right"
-                    value={novaQtd} onChange={(e) => setNovaQtd(e.target.value)} />
-                </label>
-                <button type="button" disabled={!novoProduto || !(Number(novaQtd) > 0)} className="btn btn-primary btn-md"
-                  onClick={incluir}><Icons.Plus className="w-4 h-4" /> Adicionar</button>
-              </div>
-              <p className="t-caption mt-2">O produto entra no dia selecionado. Depois você pode preencher os outros dias diretamente na tabela.</p>
-            </div>
-
-            <div className="card p-4 sm:p-5">
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between mb-4">
-                <div>
-                  <h3 className="t-title">Padrão da semana</h3>
-                  <p className="t-caption">Uma linha por produto, sem posições ou espaços de vitrine.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <input type="search" aria-label="Buscar produto no planejamento" className="field field-sm" placeholder="Buscar produto…"
-                    value={busca} onChange={(e) => setBusca(e.target.value)}/>
-                  <select aria-label="Filtrar categoria" className="field field-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-                    <option value="todas">Todas as categorias</option>
-                    {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="rola-x">
-                <table className="w-full text-left text-[12px] min-w-[760px]">
-                  <thead><tr className="border-b hairline">
-                    <th className="py-3 pr-3 min-w-[200px]">Produto</th>
-                    {WEEK_DAYS.map((day) => <th key={day} className="text-center px-1.5 py-3 min-w-[72px]"
-                      style={selectedDay === day ? {background:'#eff5ef'} : undefined}>{getDayShortBR(day)}</th>)}
-                    <th className="text-right px-2">Total</th>
-                  </tr></thead>
-                  <tbody>
-                    {filtradas.map((linha) =>
-                      <tr key={linha.id} className="border-b hairline">
-                        <td className="py-2.5 pr-3">
-                          <div className="font-semibold">{linha.nome}</div>
-                          <div className="t-micro">{linha.categoria} · {linha.responsavel} · {linha.unidade}</div>
-                        </td>
-                        {WEEK_DAYS.map((day) => <td key={day} className="px-1.5 py-2" style={selectedDay === day ? {background:'#f5f9f5'} : undefined}>
-                          <WeeklyQtyCell value={linha.dias[day] || 0}
-                            title={linha.nome + ' · ' + getDayNameBR(day) + ' · 0 retira deste dia'}
-                            onCommit={(qty) => onSavePlan(day, linha.id, qty)} />
-                        </td>)}
-                        <td className="text-right px-2 font-semibold">
-                          {WEEK_DAYS.reduce((acc, day) => acc + (linha.dias[day] || 0), 0)}
-                        </td>
-                      </tr>)}
-                  </tbody>
-                </table>
-                {!filtradas.length && <p className="t-body p-5 text-center">Nenhum produto encontrado. Adicione um produto acima para começar.</p>}
-              </div>
-              <div className="flex flex-wrap items-end gap-2 mt-5 pt-4 border-t hairline">
-                <label className="t-caption">Copiar {getDayNameBR(selectedDay).toLowerCase()} para
-                  <select className="field field-sm mt-1" aria-label="Dia de destino da cópia" value={diaDestino} onChange={(e) => setDiaDestino(e.target.value)}>
-                    {WEEK_DAYS.map((day) => <option key={day} value={day}>{getDayNameBR(day)}</option>)}
-                  </select>
-                </label>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={copiarDia} disabled={!qtdDia || diaDestino === selectedDay}>Copiar planejamento</button>
-              </div>
-            </div>
-          </div>
-        );
+      // Quantidade em card: a digitação só grava no Enter ou ao sair do campo.
+      const PlanQtyControl = ({value, onCommit, label}) => {
+        const [texto,setTexto] = useState(String(value||0));
+        useEffect(()=>setTexto(String(value||0)),[value]);
+        const number = ()=>Math.max(0,Math.floor(Number(texto)||0));
+        const commit = ()=>{const next=number();setTexto(String(next));if(next!==value)onCommit(next);};
+        return <div className="plan-card-qty" aria-label={label}>
+          <button type="button" aria-label={'Diminuir '+label} disabled={value<=0}
+            onMouseDown={e=>e.preventDefault()} onClick={()=>onCommit(Math.max(0,value-1))}>−</button>
+          <input type="number" min="0" step="1" inputMode="numeric" value={texto}
+            aria-label={label} onChange={e=>setTexto(e.target.value)} onBlur={commit}
+            onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}}/>
+          <button type="button" aria-label={'Aumentar '+label} onMouseDown={e=>e.preventDefault()} onClick={()=>onCommit(value+1)}>+</button>
+        </div>;
       };
 
-      const ProductionWorkflowView = ({
-        currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay, onRegisterProduction
-      }) => {
-        const [busca, setBusca] = useState('');
-        const [agrupar, setAgrupar] = useState('responsavel');
-        const [mostrar, setMostrar] = useState('tudo');
-        const [quantidades, setQuantidades] = useState({});
-        const [extras, setExtras] = useState([]);
-        const [extraId, setExtraId] = useState('');
-        const [registrado, setRegistrado] = useState(false);
-        const [dataRegistro, setDataRegistro] = useState(getTodayDateString());
-        useEffect(() => { setQuantidades({}); setExtras([]); setRegistrado(false); }, [currentUnit, selectedDay]);
 
-        const planejados = useMemo(() => {
-          const agrupado = new Map();
-          standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === selectedDay).forEach((sp) =>
-            agrupado.set(sp.productId, (agrupado.get(sp.productId) || 0) + (Number(sp.idealQty) || 0)));
-          return agrupado;
-        }, [standardPlans, selectedDay, currentUnit]);
-        const linhas = useMemo(() => [...new Set([...planejados.keys(), ...extras])].map((id) => {
-          const produto = products.find((p) => p.id === id);
-          return {
-            id, nome: produto?.name || 'Produto não encontrado',
-            responsavel: produto ? getResponsibleName(produto) : NO_RESPONSIBLE_LABEL,
-            categoria: produto?.category || 'outro', unidade: produto?.defaultUnit || 'un',
-            padrao: planejados.get(id) || 0
-          };
-        }).sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')), [planejados, extras, products]);
-        const qtdDe = (item) => quantidades[item.id] === undefined ? item.padrao : quantidades[item.id];
-        const mudar = (id, valor) => {
-          setRegistrado(false);
-          setQuantidades((prev) => ({...prev, [id]: Math.max(0, Math.floor(Number(valor) || 0))}));
-        };
-        const lista = linhas.filter((r) => qtdDe(r) > 0);
-        const totais = lista.reduce((map, r) => { map[r.unidade] = (map[r.unidade] || 0) + qtdDe(r); return map; }, {});
-        const resumoQuantidades = Object.entries(totais).map(([un, qty]) => qty + ' ' + un).join(' · ') || '0';
-        const visiveis = linhas.filter((r) =>
-          normalizeName(r.nome).includes(normalizeName(busca)) &&
-          (mostrar === 'tudo' || (mostrar === 'pedido' ? qtdDe(r) > 0 : qtdDe(r) === 0)));
-        const grupos = new Map();
-        visiveis.forEach((r) => {
-          const key = agrupar === 'responsavel' ? r.responsavel : (agrupar === 'categoria' ? r.categoria : 'Produtos');
-          if (!grupos.has(key)) grupos.set(key, []);
-          grupos.get(key).push(r);
-        });
-        const disponiveis = products.filter((p) => p.showcaseEnabled !== false && !linhas.some((r) => r.id === p.id))
-          .sort((a,b) => a.name.localeCompare(b.name,'pt-BR'));
-        const textoDoPedido = () => {
-          const porResponsavel = new Map();
-          lista.forEach((item) => {
-            if (!porResponsavel.has(item.responsavel)) porResponsavel.set(item.responsavel, []);
-            porResponsavel.get(item.responsavel).push(item);
+      // Padrão visual. A ordem é gravada na própria rotina semanal, não em
+      // coordenadas da vitrine. No desktop arrasta; no celular, pressiona o
+      // puxador por um instante e solta sobre outro card.
+      const ProductionPlanningView = ({
+        currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
+        onSavePlan, onCopyDayPlan, onReorder, onGenerateOrder
+      }) => {
+        const [busca,setBusca] = useState('');
+        const [categoria,setCategoria] = useState('todas');
+        const [novoProduto,setNovoProduto] = useState('');
+        const [novaQtd,setNovaQtd] = useState('1');
+        const [diaDestino,setDiaDestino] = useState('terca');
+        const [arrastando,setArrastando] = useState(null);
+        const [sobre,setSobre] = useState(null);
+        const dragRef = useRef(null);
+        const touchRef = useRef(null);
+        const planos = standardPlans.filter(p=>p.unit===currentUnit);
+        const ativos = products.filter(p=>p.showcaseEnabled!==false);
+        const categorias = [...new Set(ativos.map(p=>p.category).filter(Boolean))].sort();
+        const linhas = useMemo(()=>{
+          const m=new Map();
+          planos.forEach(p=>{
+            if(!m.has(p.productId)){
+              const prod=products.find(x=>x.id===p.productId);
+              m.set(p.productId,{
+                id:p.productId,nome:prod?.name||'Produto não encontrado',
+                categoria:prod?.category||'outro',
+                responsavel:prod?getResponsibleName(prod):NO_RESPONSIBLE_LABEL,
+                unidade:prod?.defaultUnit||p.unitOfMeasure||'un',dias:{},ordem:{}
+              });
+            }
+            const item=m.get(p.productId);
+            item.dias[p.dayOfWeek]=(item.dias[p.dayOfWeek]||0)+(Number(p.idealQty)||0);
+            const sort=Number(p.displayOrder)||0;
+            if(sort>0) item.ordem[p.dayOfWeek]=item.ordem[p.dayOfWeek]?
+              Math.min(item.ordem[p.dayOfWeek],sort):sort;
           });
-          const secoes = [...porResponsavel.entries()].sort((a,b) => a[0].localeCompare(b[0],'pt-BR'))
-            .map(([nome,itens]) => [nome.toUpperCase(), ...itens.map((p) => qtdDe(p) + ' ' + p.unidade + ' — ' + p.nome)].join('\n'));
-          return ['PEDIDO DE PRODUÇÃO',unitName + ' · ' + getDayNameBR(selectedDay), lista.length + ' produtos', ...secoes].join('\n\n');
+          return [...m.values()];
+        },[standardPlans,currentUnit,products]);
+        const dia = linhas.filter(p=>(p.dias[selectedDay]||0)>0).sort((a,b)=>{
+          const aOrdem=a.ordem[selectedDay]||999999,bOrdem=b.ordem[selectedDay]||999999;
+          return aOrdem-bOrdem||a.categoria.localeCompare(b.categoria,'pt-BR')||a.nome.localeCompare(b.nome,'pt-BR');
+        });
+        const mostrados = dia.filter(p=>(categoria==='todas'||p.categoria===categoria)&&
+          normalizeName(p.nome).includes(normalizeName(busca)));
+        const produtosNoDia = new Set(dia.map(p=>p.id));
+        const disponiveis=ativos.filter(p=>!produtosNoDia.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+        const totais=dia.reduce((map,p)=>{
+          map[p.unidade]=(map[p.unidade]||0)+p.dias[selectedDay];
+          return map;
+        },{});
+        const resumo=Object.entries(totais).map(([unit,q])=>q+' '+unit).join(' · ')||'0';
+        const incluir=()=>{
+          const qty=Math.max(0,Math.floor(Number(novaQtd)||0));
+          if(!novoProduto||qty<=0)return;
+          onSavePlan(selectedDay,novoProduto,qty);
+          setNovoProduto('');setNovaQtd('1');
         };
-        const copiar = async () => {
-          if (!lista.length) return;
-          const ok = await copyTextToClipboard(textoDoPedido());
-          if (!ok) window.alert('Não foi possível copiar o pedido.');
+        const mover=(source,target)=>{
+          if(!source||!target||source===target)return;
+          const ids=dia.map(x=>x.id);
+          const old=ids.indexOf(source),next=ids.indexOf(target);
+          if(old===-1||next===-1)return;
+          ids.splice(old,1);ids.splice(next,0,source);
+          onReorder(selectedDay,ids);
         };
-        const registrar = async () => {
-          if (!lista.length || registrado || !dataRegistro) return;
-          if (!window.confirm('Registrar ' + lista.length + ' produto(s) como produzidos em ' + dataRegistro + '? Esse registro ficará no histórico.')) return;
-          const sucesso = await onRegisterProduction(lista.map((r) => ({
-            productId: r.id, productName: r.nome, responsible: r.responsavel,
-            qty: qtdDe(r), unitOfMeasure: r.unidade
-          })), dataRegistro);
-          if (sucesso) setRegistrado(true);
+        const acabar=()=>{if(touchRef.current?.timer)clearTimeout(touchRef.current.timer);
+          touchRef.current=null;dragRef.current=null;setArrastando(null);setSobre(null);};
+        const tocar=(e,id)=>{
+          if(e.pointerType==='mouse')return;
+          const handle=e.currentTarget,pointerId=e.pointerId;
+          const item={id,pointerId,active:false,over:null,timer:null};
+          item.timer=window.setTimeout(()=>{
+            if(touchRef.current!==item)return;
+            item.active=true;setArrastando(id);
+            try{handle.setPointerCapture(pointerId);}catch(e){}
+          },260);
+          touchRef.current=item;
         };
-        return (
-          <div className="space-y-4 producao-fluxo">
-            <div className="card p-5 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="t-overline mb-2">Pedido diário · {unitName}</p>
-                  <h2 className="t-display">Pedido de produção</h2>
-                  <p className="t-body mt-1">As quantidades vêm do planejamento semanal. Ajuste a coluna <strong>Produzir</strong> conforme a necessidade real, sem lançar produtos na vitrine.</p>
-                </div>
-                <button type="button" className="btn btn-primary btn-md producao-actions" disabled={!lista.length} onClick={copiar}>
-                  Copiar pedido para WhatsApp
-                </button>
+        const deslizar=(e)=>{
+          const item=touchRef.current;
+          if(!item?.active)return;
+          const el=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-plan-card-id]');
+          const id=el?.getAttribute('data-plan-card-id')||null;
+          item.over=id;setSobre(id);
+        };
+        const soltar=(e)=>{
+          const item=touchRef.current;
+          if(item?.active&&item.over)mover(item.id,item.over);
+          acabar();
+        };
+        const copiar=()=>{
+          if(diaDestino===selectedDay)return;
+          if(window.confirm('Substituir o padrão de '+getDayNameBR(diaDestino).toLowerCase()+
+            ' pelo de '+getDayNameBR(selectedDay).toLowerCase()+'?'))
+            onCopyDayPlan(selectedDay,diaDestino);
+        };
+        return <div className="space-y-4 production-board">
+          <div className="card p-5 sm:p-6">
+            <div className="flex flex-col md:flex-row md:justify-between gap-3">
+              <div>
+                <p className="t-overline mb-2">Rotina semanal · {unitName}</p>
+                <h2 className="t-display">Padrão de produção</h2>
+                <p className="t-body mt-1 max-w-xl">Organize os produtos do dia em cards. Arraste para mudar a ordem ou ajuste as quantidades pelos botões.</p>
               </div>
-              <div className="flex flex-wrap gap-2 mt-5 producao-actions">
-                {WEEK_DAYS.map((day) => <button key={day} onClick={() => onSelectDay(day)}
-                  className={selectedDay === day ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>{getDayShortBR(day)}</button>)}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-6 text-[13px]">
-                <span><strong className="text-[#244833]">{lista.length}</strong> produtos no pedido</span>
-                <span><strong className="text-[#244833]">{resumoQuantidades}</strong> para produzir</span>
+              <button type="button" className="btn btn-primary btn-md self-start"
+                onClick={onGenerateOrder}><Icons.ChefHat className="w-4 h-4"/> Montar checklist</button>
+            </div>
+            <div className="plan-day-tabs mt-5" role="group" aria-label="Dia do planejamento">
+              {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
+                onClick={()=>{acabar();onSelectDay(day);}} aria-pressed={day===selectedDay}>
+                <span>{getDayShortBR(day)}</span>
+                <small>{linhas.filter(p=>(p.dias[day]||0)>0).length}</small>
+              </button>)}
+            </div>
+            <div className="plan-day-summary mt-4">
+              <strong>{getDayNameBR(selectedDay)}</strong>
+              <span>{dia.length} produtos</span>
+              <span>{resumo} planejados</span>
+            </div>
+          </div>
+          <div className="card p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
+              <div><h3 className="t-title">Produtos do dia</h3>
+                <p className="t-caption">Segure o ícone de linhas e solte em outro card para reorganizar.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
+                  value={busca} onChange={e=>setBusca(e.target.value)}/>
+                <select className="field field-sm" aria-label="Filtrar categoria" value={categoria} onChange={e=>setCategoria(e.target.value)}>
+                  <option value="todas">Todas as categorias</option>
+                  {categorias.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             </div>
-            <div className="card p-4 sm:p-5 producao-actions">
-              <div className="flex flex-wrap gap-2 items-end">
-                <label className="flex-1 min-w-[190px] t-caption">Incluir produto avulso
-                  <select aria-label="Incluir item avulso" className="field field-sm mt-1 w-full" value={extraId} onChange={(e)=>setExtraId(e.target.value)}>
-                    <option value="">Escolher produto...</option>
-                    {disponiveis.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <div className="plan-card-grid">
+              {mostrados.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
+                className="plan-card" data-dragging={arrastando===item.id}
+                data-over={sobre===item.id&&arrastando!==item.id}
+                onDragOver={e=>{if(dragRef.current){e.preventDefault();setSobre(item.id);}}}
+                onDrop={e=>{e.preventDefault();mover(dragRef.current,item.id);acabar();}}>
+                <div className="plan-card-top">
+                  <span className="plan-card-index">{String(index+1).padStart(2,'0')}</span>
+                  <span className="plan-card-category">{item.categoria}</span>
+                  <button className="plan-card-drag" draggable="true" type="button"
+                    title={'Arrastar '+item.nome} aria-label={'Segurar e arrastar '+item.nome}
+                    onDragStart={e=>{dragRef.current=item.id;setArrastando(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
+                    onDragEnd={acabar}
+                    onPointerDown={e=>tocar(e,item.id)} onPointerMove={deslizar}
+                    onPointerUp={soltar} onPointerCancel={acabar} onContextMenu={e=>e.preventDefault()}>
+                    <Icons.Menu className="w-5 h-5"/>
+                  </button>
+                </div>
+                <div className="plan-card-body">
+                  <h4>{item.nome}</h4>
+                  <p>{item.responsavel}</p>
+                </div>
+                <div className="plan-card-bottom">
+                  <span>Quantidade do dia <small>({item.unidade})</small></span>
+                  <PlanQtyControl label={'Quantidade de '+item.nome} value={item.dias[selectedDay]||0}
+                    onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
+                </div>
+              </article>)}
+              {!mostrados.length&&<div className="plan-card-empty">Nenhum produto neste dia ou filtro. Adicione abaixo para montar seu padrão.</div>}
+            </div>
+            <div className="plan-add-section">
+              <h3 className="t-title">Adicionar produto</h3>
+              <div className="flex flex-col sm:flex-row gap-2 mt-3 items-stretch sm:items-end">
+                <label className="t-caption flex-1 min-w-0">Produto
+                  <select className="field field-md w-full mt-1" value={novoProduto}
+                    onChange={e=>setNovoProduto(e.target.value)} aria-label="Produto para incluir">
+                    <option value="">Escolha um produto</option>
+                    {disponiveis.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <label className="t-caption sm:w-28">Quantidade
+                  <input type="number" className="field field-md w-full mt-1" min="1" step="1"
+                    value={novaQtd} onChange={e=>setNovaQtd(e.target.value)}/>
+                </label>
+                <button type="button" className="btn btn-primary btn-md" onClick={incluir}
+                  disabled={!novoProduto||!(Number(novaQtd)>0)}><Icons.Plus className="w-4 h-4"/> Adicionar</button>
+              </div>
+            </div>
+            <div className="plan-copy-section">
+              <label className="t-caption">Copiar o padrão de {getDayNameBR(selectedDay).toLowerCase()} para
+                <select className="field field-sm mt-1 block" value={diaDestino} aria-label="Dia de destino"
+                  onChange={e=>setDiaDestino(e.target.value)}>
+                  {WEEK_DAYS.map(day=><option key={day} value={day}>{getDayNameBR(day)}</option>)}
+                </select>
+              </label>
+              <button className="btn btn-secondary btn-sm" type="button"
+                disabled={diaDestino===selectedDay||!dia.length} onClick={copiar}>Copiar dia</button>
+            </div>
+          </div>
+          <div className="card p-4 sm:p-5">
+            <details className="plan-week-details">
+              <summary>Ver e editar a semana inteira <span>Planilha detalhada</span></summary>
+              <div className="rola-x mt-4">
+                <table className="w-full text-left min-w-[760px] text-[12px]">
+                  <thead><tr><th>Produto</th>{WEEK_DAYS.map(day=><th key={day} className="px-2 text-center">{getDayShortBR(day)}</th>)}</tr></thead>
+                  <tbody>{linhas.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(item=>
+                    <tr key={item.id} className="border-b hairline">
+                      <td className="py-2 font-semibold">{item.nome}</td>
+                      {WEEK_DAYS.map(day=><td key={day} className="px-2 py-1">
+                        <WeeklyQtyCell value={item.dias[day]||0} title={item.nome+' · '+getDayNameBR(day)}
+                          onCommit={qty=>onSavePlan(day,item.id,qty)}/>
+                      </td>)}
+                    </tr>)}</tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </div>;
+      };
+
+
+      // Checklist da conferência: "na vitrine" é observação temporária desta
+      // montagem de pedido, e NÃO é estoque (não grava nem movimenta lotes).
+      const ProductionWorkflowView = ({
+        currentUnit,unitName,products,standardPlans,selectedDay,onSelectDay,onRegisterProduction
+      }) => {
+        const [busca,setBusca]=useState('');
+        const [agrupar,setAgrupar]=useState('responsavel');
+        const [mostrar,setMostrar]=useState('tudo');
+        const [marcados,setMarcados]=useState({});
+        const [observacoes,setObservacoes]=useState('');
+        const [itensLivres,setItensLivres]=useState([]);
+        const [nomeLivre,setNomeLivre]=useState('');
+        const [qtdLivre,setQtdLivre]=useState('1');
+        const [quantidades,setQuantidades]=useState({});
+        const [extras,setExtras]=useState([]);
+        const [extraId,setExtraId]=useState('');
+        const [registrado,setRegistrado]=useState(false);
+        const [dataRegistro,setDataRegistro]=useState(getTodayDateString());
+        useEffect(()=>{setMarcados({});setQuantidades({});setExtras([]);setItensLivres([]);setObservacoes('');setRegistrado(false);},[currentUnit,selectedDay]);
+        const padroes=useMemo(()=>{
+          const m=new Map();
+          standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===selectedDay).forEach(p=>
+            m.set(p.productId,(m.get(p.productId)||0)+(Number(p.idealQty)||0)));
+          return m;
+        },[standardPlans,currentUnit,selectedDay]);
+        const linhas=useMemo(()=>[...new Set([...padroes.keys(),...extras])].map(id=>{
+          const p=products.find(x=>x.id===id);
+          return {id,nome:p?.name||'Produto não encontrado',
+            categoria:p?.category||'outro',
+            responsavel:p?getResponsibleName(p):NO_RESPONSIBLE_LABEL,
+            unidade:p?.defaultUnit||'un',padrao:padroes.get(id)||0};
+        }).concat(itensLivres).sort((a,b)=>
+          a.responsavel.localeCompare(b.responsavel,'pt-BR')||
+          a.nome.localeCompare(b.nome,'pt-BR')),[padroes,extras,itensLivres,products]);
+        // Os produtos do padrão aparecem desmarcados; só entram no pedido
+        // quando a conferência física decide que é preciso produzir.
+        const qtdDe=item=>quantidades[item.id]===undefined?Math.max(1,item.padrao):quantidades[item.id];
+        const selecionados=linhas.filter(x=>!!marcados[x.id]&&qtdDe(x)>0);
+        const porUnidade=selecionados.reduce((m,x)=>{m[x.unidade]=(m[x.unidade]||0)+qtdDe(x);return m;},{});
+        const resumo=Object.entries(porUnidade).map(([un,n])=>n+' '+un).join(' · ')||'0';
+        const totalPadrao=padroes.size;
+        const naoMarcados=linhas.filter(x=>!marcados[x.id]).length;
+        const visiveis=linhas.filter(x=>normalizeName(x.nome).includes(normalizeName(busca))&&
+          (mostrar==='tudo'||(mostrar==='marcados'?!!marcados[x.id]:!marcados[x.id])));
+        const grupos=new Map();
+        visiveis.forEach(x=>{
+          const key=agrupar==='responsavel'?x.responsavel:agrupar==='categoria'?x.categoria:'Produtos';
+          if(!grupos.has(key))grupos.set(key,[]);
+          grupos.get(key).push(x);
+        });
+        const disponiveis=products.filter(p=>p.showcaseEnabled!==false&&!linhas.some(x=>x.id===p.id))
+          .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+        const marcar=(item,checked)=>{
+          setMarcados(prev=>({...prev,[item.id]:checked}));
+          if(checked&&qtdDe(item)<=0)setQuantidades(prev=>({...prev,[item.id]:Math.max(1,item.padrao||1)}));
+          setRegistrado(false);
+        };
+        const todos=()=>{const m={};linhas.forEach(x=>{m[x.id]=true;});setMarcados(m);setRegistrado(false);};
+        const limpar=()=>{setMarcados({});setRegistrado(false);};
+        const adicionarLivre=()=>{
+          const nome=nomeLivre.trim(),qty=Math.max(1,Math.floor(Number(qtdLivre)||1));
+          if(!nome)return;
+          const id='extra-manual:'+Date.now()+':'+Math.random().toString(36).slice(2,7);
+          setItensLivres(prev=>[...prev,{
+            id,nome,categoria:'Avulso',responsavel:'Itens adicionais',
+            unidade:'un',padrao:0
+          }]);
+          setQuantidades(prev=>({...prev,[id]:qty}));
+          setMarcados(prev=>({...prev,[id]:true}));
+          setNomeLivre('');setQtdLivre('1');setRegistrado(false);
+        };
+        const excluirLivre=id=>{
+          setItensLivres(prev=>prev.filter(x=>x.id!==id));
+          setMarcados(prev=>{const next={...prev};delete next[id];return next;});
+          setRegistrado(false);
+        };
+        const textoPedido=()=>{
+          const m=new Map();
+          selecionados.forEach(x=>{if(!m.has(x.responsavel))m.set(x.responsavel,[]);m.get(x.responsavel).push(x);});
+          const secoes=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR'))
+            .map(([resp,items])=>[resp.toUpperCase(),...items.map(x=>qtdDe(x)+' '+x.unidade+' — '+x.nome)].join('\n'));
+          if(observacoes.trim())secoes.push('ANOTAÇÕES\n'+observacoes.trim());
+          return ['PEDIDO DE PRODUÇÃO',unitName+' · '+getDayNameBR(selectedDay),...secoes].join('\n\n');
+        };
+        const copiar=async()=>{
+          if(!selecionados.length)return;
+          if(!(await copyTextToClipboard(textoPedido())))window.alert('Não foi possível copiar o pedido.');
+        };
+        const registrar=async()=>{
+          if(!selecionados.length||registrado||!dataRegistro)return;
+          if(!window.confirm('Registrar '+selecionados.length+' produto(s) como produzidos em '+dataRegistro+'?'))
+            return;
+          const ok=await onRegisterProduction(selecionados.map(x=>({
+            productId:x.id.startsWith('extra-manual:')?null:x.id,productName:x.nome,responsible:x.responsavel,
+            qty:qtdDe(x),unitOfMeasure:x.unidade
+          })),dataRegistro);
+          if(ok)setRegistrado(true);
+        };
+        return <div className="space-y-4 production-checklist">
+          <div className="card p-5 sm:p-6">
+            <p className="t-overline mb-2">Padrão do dia · {unitName}</p>
+            <h2 className="t-display">Checklist de produção</h2>
+            <p className="t-body mt-1 max-w-2xl">Estes são os produtos previstos para a vitrine no dia. Confira visualmente o que já tem e toque em <strong>OK · Produzir</strong> somente no que precisa ser feito. Não é necessário contar ou registrar estoque.</p>
+            <div className="plan-day-tabs mt-5">
+              {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
+                aria-pressed={day===selectedDay} onClick={()=>onSelectDay(day)}>
+                {getDayShortBR(day)}
+              </button>)}
+            </div>
+            <div className="checklist-summary mt-4">
+              <div><strong>{totalPadrao}</strong><span>Produtos no padrão</span></div>
+              <div><strong>{selecionados.length}</strong><span>Marcados para produzir</span></div>
+              <div><strong>{resumo}</strong><span>Quantidade selecionada</span></div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button type="button" className="btn btn-primary btn-sm" disabled={!selecionados.length} onClick={copiar}>Copiar pedido para WhatsApp</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={()=>window.print()}>Imprimir seleção</button>
+            </div>
+          </div>
+          <div className="card p-4 sm:p-5">
+            <div className="flex flex-wrap justify-between gap-3 items-center mb-4 checklist-toolbar">
+              <div className="flex flex-wrap gap-2">
+                <input type="search" className="field field-sm" aria-label="Buscar produto no checklist"
+                  placeholder="Buscar produto…" value={busca} onChange={e=>setBusca(e.target.value)}/>
+                <select aria-label="Agrupar checklist" className="field field-sm" value={agrupar} onChange={e=>setAgrupar(e.target.value)}>
+                  <option value="responsavel">Por responsável</option><option value="categoria">Por categoria</option><option value="todos">Sem grupos</option>
+                </select>
+                <select aria-label="Filtrar checklist" className="field field-sm" value={mostrar} onChange={e=>setMostrar(e.target.value)}>
+                  <option value="tudo">Todos do padrão</option><option value="marcados">Somente marcados</option><option value="pendentes">Não marcados</option>
+                </select>
+              </div>
+              <div className="flex gap-2"><button type="button" className="btn btn-secondary btn-sm" onClick={todos}>Marcar todos</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={limpar}>Limpar seleção</button></div>
+            </div>
+            <div className="checklist-legend"><span>Produto no padrão do dia</span><span>Quantidade padrão</span><span>Quantidade a produzir</span></div>
+            {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([name,itens])=>
+              <section key={name} className="checklist-group">
+                <h3>{name} <small>{itens.length}</small></h3>
+                {itens.map(item=>{
+                  const marked=!!marcados[item.id],produzir=qtdDe(item);
+                  return <div key={item.id} className="checklist-row" data-selected={marked}
+                    data-print-omit={!marked}>
+                    <div className="checklist-product">
+                      <label className="checklist-ok">
+                        <input type="checkbox" checked={marked} aria-label={'OK, produzir '+item.nome}
+                          onChange={e=>marcar(item,e.target.checked)}/>
+                        <span>{marked?'OK · Produzir':'Marcar para produzir'}</span>
+                      </label>
+                      <span className="checklist-product-name">
+                        <strong>{item.nome}</strong>
+                        <small>{item.categoria} · {item.responsavel}</small>
+                      </span>
+                      {item.id.startsWith('extra-manual:')&&<button type="button" className="checklist-remove"
+                        aria-label={'Remover item adicional '+item.nome} onClick={()=>excluirLivre(item.id)}>Remover</button>}
+                    </div>
+                    <div className="checklist-number"><span>Padrão do dia</span>
+                      <strong>{item.padrao?item.padrao:'Extra'} <small>{item.padrao?item.unidade:''}</small></strong></div>
+                    <label className="checklist-field"><span>Produzir</span>
+                      {marked?<input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
+                        aria-label={'Quantidade a produzir de '+item.nome} value={produzir}
+                        onChange={e=>{setQuantidades(prev=>({...prev,[item.id]:Math.max(1,Math.floor(Number(e.target.value)||1))}));
+                          setRegistrado(false);}}/>:
+                        <span className="checklist-not-selected">—</span>}
+                    </label>
+                  </div>;
+                })}
+              </section>)}
+            {!visiveis.length&&<p className="t-body p-5 text-center">Nenhum produto no filtro selecionado.</p>}
+            <div className="checklist-annotations">
+              <h3 className="t-title">Itens extras e anotações</h3>
+              <p className="t-caption mt-1">Inclua algo que não estava no padrão ou deixe orientações para a produção.</p>
+              <div className="checklist-extra">
+                <label className="t-caption">Adicionar um produto do cadastro
+                  <select aria-label="Adicionar produto do cadastro" className="field field-sm mt-1 w-full"
+                    value={extraId} onChange={e=>setExtraId(e.target.value)}>
+                    <option value="">Escolha um produto</option>
+                    {disponiveis.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </label>
                 <button type="button" className="btn btn-secondary btn-sm" disabled={!extraId}
-                  onClick={() => {setExtras((prev)=>[...prev,extraId]);setQuantidades((prev)=>({...prev,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
+                  onClick={()=>{setExtras(p=>[...p,extraId]);setMarcados(p=>({...p,[extraId]:true}));
+                    setQuantidades(p=>({...p,[extraId]:1}));setExtraId('');setRegistrado(false);}}>
                   <Icons.Plus className="w-4 h-4"/> Incluir
                 </button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={()=>{setQuantidades({});setExtras([]);setRegistrado(false);}}>Voltar ao padrão</button>
               </div>
-            </div>
-            <div className="card p-4 sm:p-5">
-              <div className="flex flex-wrap gap-2 items-center justify-between mb-4 producao-actions">
-                <div className="flex flex-wrap gap-2">
-                  <input type="search" aria-label="Buscar no pedido" className="field field-sm" placeholder="Buscar produto…" value={busca} onChange={(e)=>setBusca(e.target.value)}/>
-                  <select aria-label="Agrupar pedido" className="field field-sm" value={agrupar} onChange={(e)=>setAgrupar(e.target.value)}>
-                    <option value="responsavel">Por responsável</option><option value="categoria">Por categoria</option><option value="nenhum">Sem grupos</option>
-                  </select>
-                  <select aria-label="Mostrar produtos" className="field field-sm" value={mostrar} onChange={(e)=>setMostrar(e.target.value)}>
-                    <option value="pedido">Somente no pedido</option><option value="tudo">Todos</option><option value="fora">Fora do pedido</option>
-                  </select>
-                </div>
-                <button className="btn btn-secondary btn-sm" type="button" onClick={()=>window.print()}>Imprimir</button>
-              </div>
-              <div className="rola-x">
-                <table className="w-full min-w-[510px] text-left text-[13px]">
-                  <thead><tr className="border-b hairline">
-                    <th className="py-3 pr-3">Produto</th><th className="text-right px-3">Padrão</th>
-                    <th className="text-right px-3">Produzir</th><th className="px-3">Un.</th>
-                  </tr></thead>
-                  {[...grupos.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([grupo,itens])=>
-                    <tbody key={grupo}>
-                      <tr><th colSpan={4} className="bg-[#eff5ef] text-[#244833] px-3 py-2 text-[12px]">{grupo}</th></tr>
-                      {itens.map((item)=><tr key={item.id} className="border-b hairline">
-                        <td className="py-3 pr-3 font-semibold">{item.nome}</td>
-                        <td className="text-right px-3 tnum">{item.padrao}</td>
-                        <td className="text-right px-3">
-                          <input type="number" min="0" step="1" aria-label={'Produzir ' + item.nome}
-                            className="field field-sm w-24 text-right font-bold" value={qtdDe(item)} onChange={(e)=>mudar(item.id,e.target.value)}/>
-                        </td>
-                        <td className="px-3">{item.unidade}</td>
-                      </tr>)}
-                    </tbody>)}
-                  <tfoot><tr className="border-t hairline"><th className="py-3">Total do pedido</th>
-                    <td></td><td className="text-right px-3 font-bold text-[#244833]">{resumoQuantidades}</td><td></td></tr></tfoot>
-                </table>
-              </div>
-              {!visiveis.length && <p className="t-body p-5 text-center">Nenhum produto neste filtro. Volte para “Todos” ou inclua um item avulso.</p>}
-              <div className="producao-actions mt-5 pt-4 border-t hairline flex flex-wrap items-end gap-3">
-                <label className="t-caption">Data em que a produção foi realizada
-                  <input type="date" value={dataRegistro} className="field field-sm mt-1 block" onChange={(e)=>{setDataRegistro(e.target.value);setRegistrado(false);}}/>
+              <form className="checklist-extra" onSubmit={e=>{e.preventDefault();adicionarLivre();}}>
+                <label className="t-caption">Ou escrever um item avulso
+                  <input type="text" className="field field-sm mt-1 w-full" placeholder="Ex.: 2 bolos para encomenda"
+                    value={nomeLivre} onChange={e=>setNomeLivre(e.target.value)}/>
                 </label>
-                <button type="button" className="btn btn-primary btn-md" disabled={!lista.length || registrado || !dataRegistro} onClick={registrar}>
-                  {registrado ? 'Produção registrada' : 'Registrar como produzido'}
+                <label className="t-caption checklist-extra-qty">Quantidade
+                  <input type="number" min="1" step="1" className="field field-sm mt-1 w-full"
+                    value={qtdLivre} onChange={e=>setQtdLivre(e.target.value)}/>
+                </label>
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={!nomeLivre.trim()}>
+                  <Icons.Plus className="w-4 h-4"/> Incluir item
                 </button>
-                <p className="t-caption">O registro vai para o Histórico, sem alterar o estoque da vitrine.</p>
-              </div>
+              </form>
+              <label className="t-caption checklist-notes-label">Anotações para a produção
+                <textarea rows={3} className="field checklist-notes mt-2 w-full"
+                  placeholder="Ex.: preparar antes das 10h, fazer metade sem queijo, separar para encomenda..."
+                  value={observacoes} onChange={e=>setObservacoes(e.target.value)}/>
+              </label>
+              <p className="t-caption">Itens extras e anotações entram no pedido copiado para o WhatsApp.</p>
+              {observacoes.trim()&&<p className="checklist-notes-print">Anotações: {observacoes.trim()}</p>}
+            </div>
+            <div className="checklist-register">
+              <label className="t-caption">Data de produção
+                <input type="date" className="field field-sm mt-1 block" value={dataRegistro}
+                  onChange={e=>{setDataRegistro(e.target.value);setRegistrado(false);}}/>
+              </label>
+              <button type="button" className="btn btn-primary btn-md" disabled={registrado||!selecionados.length||!dataRegistro}
+                onClick={registrar}>{registrado?'Registrado no histórico':'Registrar produção realizada'}</button>
+              <p className="t-caption">Registrar é opcional: marca os itens como realizados no Histórico. O checklist não movimenta estoque.</p>
             </div>
           </div>
-        );
+        </div>;
       };
 
       const ProductionOrderView = ({
@@ -26575,7 +26712,7 @@ ${BARRA_ACOES_HTML}
         // é planejamento (fica no dia que está sendo editado) e o pedido é
         // rotina de véspera, então ele abre no dia seguinte ao de hoje. Quem
         // vem da vitrine padrão pelo botão "Gerar pedido" leva o dia de lá.
-        const [productionDay, setProductionDay] = useState(getTomorrowDayOfWeek());
+        const [productionDay, setProductionDay] = useState(getTodayDayOfWeek());
 
         // Qual vitrine está aberta na tela operacional. Fica aqui em cima
         // porque a vitrine física e a lista de apoio mostram sempre a mesma:
@@ -27660,7 +27797,8 @@ ${BARRA_ACOES_HTML}
                   slot_code: sp.slotId,
                   product_id: sp.productId,
                   ideal_qty: sp.idealQty,
-                  unit_of_measure: sp.unitOfMeasure
+                  unit_of_measure: sp.unitOfMeasure,
+                  display_order: sp.displayOrder || 0
                 }, getPriority(sp.priority).value, frequencyFor(sp.slotId, sp.productId, toDay)),
                 limitarMin(sp.minQty, sp.idealQty)))
               ).select());
@@ -27704,7 +27842,8 @@ ${BARRA_ACOES_HTML}
                 unit_code: currentUnit, day_of_week: day,
                 slot_code: null, product_id: productId, ideal_qty: qty,
                 unit_of_measure: produto.defaultUnit || 'un',
-                priority: 'B', frequency: 'dias', min_qty: 0
+                priority: 'B', frequency: 'dias', min_qty: 0,
+                display_order: 1 + Math.max(0,...standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===day).map(p=>p.displayOrder||0))
               }).select());
               setStandardPlans((prev) => [...prev, ...novos.map(fromPlan)]);
               return true;
@@ -27732,6 +27871,28 @@ ${BARRA_ACOES_HTML}
                 const novo = novas.find((n) => n.id === p.id);
                 return novo ? {...p,idealQty:novo.qty,minQty:novo.min} : p;
               }));
+            return true;
+          });
+        };
+
+        const handleReorderProductionPlan = (day,productIds) => {
+          if(!Array.isArray(productIds)||!productIds.length)return;
+          const idsByProduct=new Map();
+          standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===day).forEach(p=>{
+            if(!idsByProduct.has(p.productId))idsByProduct.set(p.productId,[]);
+            idsByProduct.get(p.productId).push(p.id);
+          });
+          write('Salvar ordem do padrão',async()=>{
+            // Agrupa por posição para atualizar todos os espaços herdados do
+            // mesmo produto de uma só vez.
+            for(const [index,productId] of productIds.entries()){
+              const rowIds=idsByProduct.get(productId)||[];
+              if(rowIds.length)await run('standard_plans',sb.from('standard_plans')
+                .update({display_order:index+1}).in('id',rowIds));
+            }
+            const orderById=new Map(productIds.map((id,index)=>[id,index+1]));
+            setStandardPlans(prev=>prev.map(p=>p.unit===currentUnit&&p.dayOfWeek===day&&orderById.has(p.productId)
+              ? {...p,displayOrder:orderById.get(p.productId)}:p));
             return true;
           });
         };
@@ -29157,6 +29318,7 @@ ${BARRA_ACOES_HTML}
                   onSelectDay={setSelectedDay}
                   onSavePlan={handleSaveProductionPlan}
                   onCopyDayPlan={handleCopyDayPlan}
+                  onReorder={handleReorderProductionPlan}
                   onGenerateOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
                 />
               )}
