@@ -140,7 +140,7 @@ create table if not exists public.standard_plans (
   id               uuid primary key default gen_random_uuid(),
   unit_code        text not null references public.units (code) on delete cascade,
   day_of_week      text not null,
-  slot_code        text not null references public.showcase_slots (code) on delete cascade,
+  slot_code        text references public.showcase_slots (code) on delete cascade,
   product_id       uuid not null references public.products (id) on delete cascade,
   ideal_qty        integer not null default 1,
   unit_of_measure  text not null default 'un',
@@ -153,6 +153,12 @@ create table if not exists public.standard_plans (
   constraint standard_plans_ideal_check check (ideal_qty > 0),
   constraint standard_plans_slot_day_unique unique (unit_code, day_of_week, slot_code)
 );
+
+-- Planejamento novo dispensa slot físico, sem remover vínculos antigos.
+alter table public.standard_plans alter column slot_code drop not null;
+create unique index if not exists standard_plans_product_day_without_slot
+  on public.standard_plans (unit_code, day_of_week, product_id)
+  where slot_code is null;
 
 -- Classificação do item na vitrine padrão. Bancos criados antes recebem as
 -- colunas aqui, já com o valor que o app usa como padrão.
