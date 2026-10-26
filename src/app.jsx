@@ -6892,7 +6892,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 data-over={sobre===item.id&&arrastando!==item.id}
                 tabIndex="0" role="group" aria-label={'Produto '+item.nome+'. Pressione Enter para editar.'}
                 onClick={e=>{
-                  if(e.target.closest?.('button,input,select,textarea,a,label,[draggable="true"]'))return;
+                  if(e.target.closest?.('button,input,select,textarea,a,label,form,[draggable="true"]'))return;
                   editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item);
                 }}
                 onKeyDown={e=>{
