@@ -16,6 +16,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         TrendingDown: (props) => <IconBase d="M23 18l-9.5-9.5-5 5L1 6" {...props} />,
         History: (props) => <IconBase d={["M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5", "M12 7v5l4 2"]} {...props} />,
         Package: (props) => <IconBase d={["M16.5 9.4 7.55 4.24", "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "M3.27 6.96 12 12.01l8.73-5.05", "M12 22.08V12"]} {...props} />,
+        Menu: (props) => <IconBase d={["M4 6h16", "M4 12h16", "M4 18h16"]} {...props} />,
         Plus: (props) => <IconBase d="M12 5v14M5 12h14" {...props} />,
         Minus: (props) => <IconBase d="M5 12h14" {...props} />,
         Trash2: (props) => <IconBase d={["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M10 11v6", "M14 11v6"]} {...props} />,
@@ -6661,11 +6662,11 @@ const { useState, useEffect, useMemo, useRef } = React;
         const commit = ()=>{const next=number();setTexto(String(next));if(next!==value)onCommit(next);};
         return <div className="plan-card-qty" aria-label={label}>
           <button type="button" aria-label={'Diminuir '+label} disabled={value<=0}
-            onClick={()=>onCommit(Math.max(0,value-1))}>−</button>
+            onMouseDown={e=>e.preventDefault()} onClick={()=>onCommit(Math.max(0,value-1))}>−</button>
           <input type="number" min="0" step="1" inputMode="numeric" value={texto}
             aria-label={label} onChange={e=>setTexto(e.target.value)} onBlur={commit}
             onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}}/>
-          <button type="button" aria-label={'Aumentar '+label} onClick={()=>onCommit(value+1)}>+</button>
+          <button type="button" aria-label={'Aumentar '+label} onMouseDown={e=>e.preventDefault()} onClick={()=>onCommit(value+1)}>+</button>
         </div>;
       };
 
@@ -27833,7 +27834,6 @@ ${BARRA_ACOES_HTML}
             idsByProduct.get(p.productId).push(p.id);
           });
           write('Salvar ordem do padrão',async()=>{
-            const updates=productIds.flatMap((id,index)=>(idsByProduct.get(id)||[]).map(rowId=>({rowId,order:index+1})));
             // Agrupa por posição para atualizar todos os espaços herdados do
             // mesmo produto de uma só vez.
             for(const [index,productId] of productIds.entries()){
