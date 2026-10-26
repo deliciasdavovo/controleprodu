@@ -11484,7 +11484,88 @@ const { useState, useEffect, useMemo, useRef } = React;
       // conferência. Nada é salvo na leitura: a pessoa corrige descrição,
       // tipo, volume, quantidade e valor antes de confirmar.
 
-      const XmlPurchaseModal = ({ catalogOptions, fornecedores = [], dataSugerida, detectarDuplicata, onConfirm, onClose }) => {
+
+      // Revisão de fornecedor + data: não assume que notas diferentes no mesmo
+      // dia sejam duplicadas. Mostra os itens do histórico antes de salvar.
+      const ExistingInvoiceReviewDialog = ({ alerta, onDecide }) => {
+        useEffect(() => {
+          const original = document.body.style.overflow;
+          document.body.style.overflow = 'hidden';
+          const fecharEsc = (e) => {
+            if (e.key === 'Escape') onDecide(false);
+          };
+          document.addEventListener('keydown', fecharEsc);
+          return () => {
+            document.body.style.overflow = original;
+            document.removeEventListener('keydown', fecharEsc);
+          };
+        }, [onDecide]);
+        const linhas = alerta?.itens || [];
+        return ReactDOM.createPortal(
+          <div className="invoice-review-backdrop" role="presentation">
+            <button type="button" className="invoice-review-shade"
+              aria-label="Voltar sem lançar a nota" onClick={() => onDecide(false)} />
+            <section className="invoice-review-dialog" role="dialog" aria-modal="true"
+              aria-labelledby="invoice-review-title">
+              <div className="invoice-review-header">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className="invoice-review-icon"><Icons.AlertTriangle className="w-5 h-5"/></span>
+                  <div className="min-w-0">
+                    <p className="t-overline">Possível nota repetida</p>
+                    <h2 className="t-title mt-1" id="invoice-review-title">
+                      Já existem compras desse fornecedor nessa data
+                    </h2>
+                    <p className="t-caption mt-1">
+                      Confira os produtos abaixo antes de lançar novamente.
+                    </p>
+                  </div>
+                </div>
+                <button type="button" className="invoice-review-close"
+                  aria-label="Fechar e voltar à nota" onClick={() => onDecide(false)}>
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="invoice-review-body">
+                <div className="invoice-review-info">
+                  <div><span>Fornecedor</span><strong>{alerta.fornecedor}</strong></div>
+                  <div><span>Data</span><strong>{formatDateBR(alerta.data)}</strong></div>
+                  {alerta.numeroNota && <div><span>Nota em análise</span><strong>{alerta.numeroNota}</strong></div>}
+                </div>
+                <h3 className="invoice-review-section-title">
+                  Itens que já estão cadastrados <span>{linhas.length}</span>
+                </h3>
+                <div className="invoice-review-scroll">
+                  <table className="invoice-review-table">
+                    <thead><tr><th>Produto existente</th><th className="num">Quantidade</th><th className="num">Valor lançado</th></tr></thead>
+                    <tbody>
+                      {linhas.map((item, i) =>
+                        <tr key={item.key || i}>
+                          <td><strong>{item.nome}</strong><small>{item.tipo}</small></td>
+                          <td className="num">{numeroCurtoBR(item.qty)} <small>{item.unit || 'un'}</small></td>
+                          <td className="num">{formatCurrencyBR(item.cost)}</td>
+                        </tr>)}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="invoice-review-hint">
+                  O histórico registra compras por produto, não uma nota fiscal completa. Duas notas
+                  diferentes podem ter o mesmo fornecedor e a mesma data; por isso, confira os itens
+                  e o documento antes de decidir.
+                </p>
+              </div>
+              <div className="invoice-review-actions">
+                <button type="button" className="btn btn-secondary btn-md"
+                  onClick={() => onDecide(false)}>Voltar e conferir</button>
+                <button type="button" className="btn btn-primary btn-md"
+                  onClick={() => onDecide(true)}>Lançar mesmo assim</button>
+              </div>
+            </section>
+          </div>,
+          document.body
+        );
+      };
+
+      const XmlPurchaseModal = ({ catalogOptions, fornecedores = [], dataSugerida, detectarDuplicata, consultarNotaExistente, onConfirm, onClose }) => {
         const [arquivo, setArquivo] = useState(null);
         const [itens, setItens] = useState([]);
         const [fornecedor, setFornecedor] = useState('');
@@ -11496,6 +11577,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [salvando, setSalvando] = useState(false);
         const [duplicatasAntesDaConferencia, setDuplicatasAntesDaConferencia] = useState([]);
         const [duplicatasRevisadas, setDuplicatasRevisadas] = useState(false);
+        const [notaJaExistente, setNotaJaExistente] = useState(null);
         const [fornecedorXmlOriginal, setFornecedorXmlOriginal] = useState('');
         const [fornecedorConfidence, setFornecedorConfidence] = useState('none');
 
@@ -11797,11 +11879,18 @@ const { useState, useEffect, useMemo, useRef } = React;
             setData(dataCompraXml);
             setNumeroNota(nNF);
             setChave(chaveXml);
+            const jaRegistrados = typeof consultarNotaExistente === 'function'
+              ? consultarNotaExistente(fornecedorResolvido.nome || fornecedorXml, dataCompraXml)
+              : [];
+            setNotaJaExistente(jaRegistrados.length
+              ? { fornecedor: fornecedorResolvido.nome || fornecedorXml, data: dataCompraXml, itens: jaRegistrados }
+              : null);
             setDuplicatasAntesDaConferencia(duplicatasEncontradas);
-            setDuplicatasRevisadas(duplicatasEncontradas.length === 0);
+            setDuplicatasRevisadas(duplicatasEncontradas.length === 0 && jaRegistrados.length === 0);
             setItens(lidos);
           } catch (e) {
             setItens([]);
+            setNotaJaExistente(null);
             setErro(e?.message || 'Não foi possível ler este XML.');
           } finally {
             setLendo(false);
@@ -11829,15 +11918,18 @@ const { useState, useEffect, useMemo, useRef } = React;
           }
           setSalvando(true);
           try {
-            const resultado = await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data, numeroNota, chave });
+            const revisaoNotaExistente = duplicatasRevisadas && notaJaExistente
+              ? { fornecedor: notaJaExistente.fornecedor, data: notaJaExistente.data }
+              : null;
+            const resultado = await onConfirm({ itens: selecionados, fornecedor: fornecedor.trim(), data, numeroNota, chave, revisaoNotaExistente });
             if (resultado !== false) onClose();
           } finally {
             setSalvando(false);
           }
         };
 
-        return (
-          <div className="fixed inset-0 z-[115] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5">
+        return ReactDOM.createPortal((
+          <div className="invoice-modal-viewport fixed inset-0 z-[115] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5">
             <button type="button" className="absolute inset-0" aria-label="Fechar importação XML" onClick={() => !salvando && onClose()} />
             <div className="relative bg-white rounded-[22px] w-full max-w-6xl max-h-[94vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col">
               <div className="px-5 py-4 border-b hairline flex items-start justify-between gap-3">
@@ -11877,7 +11969,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                       </div>
                     )}
                   </div>
-                ) : !duplicatasRevisadas && duplicatasAntesDaConferencia.length > 0 ? (
+                ) : !duplicatasRevisadas && (duplicatasAntesDaConferencia.length > 0 || !!notaJaExistente) ? (
                   <div className="max-w-2xl mx-auto py-3 sm:py-6">
                     <div className="rounded-[22px] border border-[#8a5a00]/15 bg-[#fffaf0] p-5 sm:p-6">
                       <div className="flex items-start gap-3">
@@ -11887,17 +11979,42 @@ const { useState, useEffect, useMemo, useRef } = React;
                         <div>
                           <p className="t-overline mb-1">Antes da conferência</p>
                           <h3 className="t-title">
-                            {duplicatasAntesDaConferencia.length === 1
-                              ? 'Encontramos uma compra que pode estar duplicada'
-                              : 'Encontramos compras que podem estar duplicadas'}
+                            {notaJaExistente
+                              ? 'Já existem produtos lançados desse fornecedor nesta data'
+                              : duplicatasAntesDaConferencia.length === 1
+                                ? 'Encontramos uma compra que pode estar duplicada'
+                                : 'Encontramos compras que podem estar duplicadas'}
                           </h3>
                           <p className="t-caption mt-1.5">
-                            Veja isso agora, antes de revisar todos os itens da nota.
+                            Confira o histórico antes de importar: pode ser uma nota diferente do mesmo dia.
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-5 space-y-2">
+                      {notaJaExistente && (
+                        <div className="mt-5">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <strong className="t-callout">Produtos já registrados</strong>
+                            <span className="t-micro">{notaJaExistente.fornecedor} · {formatDateBR(notaJaExistente.data)}</span>
+                          </div>
+                          <div className="invoice-review-scroll invoice-xml-existing">
+                            <table className="invoice-review-table">
+                              <thead><tr><th>Produto</th><th className="num">Qtd.</th><th className="num">Valor</th></tr></thead>
+                              <tbody>
+                                {notaJaExistente.itens.map((old,i)=>
+                                  <tr key={old.key||i}>
+                                    <td><strong>{old.nome}</strong><small>{old.tipo}</small></td>
+                                    <td className="num">{numeroCurtoBR(old.qty)} <small>{old.unit||'un'}</small></td>
+                                    <td className="num">{formatCurrencyBR(old.cost)}</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {duplicatasAntesDaConferencia.length > 0 && <div className="mt-5 space-y-2">
+                        <strong className="t-callout block">Itens também coincidentes em quantidade</strong>
                         {duplicatasAntesDaConferencia.map((dup) => (
                           <div key={dup.itemId} className="rounded-[15px] bg-white border hairline p-3.5">
                             <strong className="t-callout block">{dup.itemName || 'Item da nota'}</strong>
@@ -11908,7 +12025,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                             </div>
                           </div>
                         ))}
-                      </div>
+                      </div>}
 
                       <p className="t-micro mt-4">
                         Se esta for realmente uma nova compra feita com os mesmos dados, você pode continuar para a conferência.
@@ -11918,7 +12035,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                         <button
                           type="button"
                           className="btn btn-secondary btn-md"
-                          onClick={() => { setItens([]); setArquivo(null); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); }}
+                          onClick={() => { setItens([]); setArquivo(null); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); setNotaJaExistente(null); }}
                         >
                           Não importar esta nota
                         </button>
@@ -12136,7 +12253,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                     </p>
 
                     <div className="flex flex-wrap justify-between gap-2">
-                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); setFornecedorXmlOriginal(''); setFornecedorConfidence('none'); }} className="btn btn-secondary btn-md">
+                      <button type="button" disabled={salvando} onClick={() => { setItens([]); setArquivo(null); setErro(''); setDuplicatasAntesDaConferencia([]); setDuplicatasRevisadas(false); setNotaJaExistente(null); setFornecedorXmlOriginal(''); setFornecedorConfidence('none'); }} className="btn btn-secondary btn-md">
                         Trocar XML
                       </button>
                       <button type="button" disabled={!selecionados.length || salvando} onClick={confirmar} className="btn btn-primary btn-md disabled:opacity-40">
@@ -12148,7 +12265,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
             </div>
           </div>
-        );
+        ), document.body);
       };
 
 
@@ -12421,7 +12538,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           }
         };
 
-        return (
+        const modalNotaManual = (
           <div
             data-nota-form
             onKeyDownCapture={(e) => {
@@ -12713,6 +12830,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             </div>
           </div>
         );
+        return embedded ? modalNotaManual : ReactDOM.createPortal(modalNotaManual, document.body);
       };
 
       const PasteInvoiceModal = ({ catalogOptions, fornecedores, dataSugerida, onConfirm, onClose }) => {
@@ -12780,8 +12898,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           }
         };
 
-        return (
-          <div className="fixed inset-0 z-[110] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5">
+        return ReactDOM.createPortal((
+          <div className="invoice-modal-viewport fixed inset-0 z-[110] bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-5">
             <button type="button" className="absolute inset-0" aria-label="Fechar leitura da nota" onClick={() => !salvando && onClose()} />
             <div className="relative bg-white rounded-[22px] w-full max-w-6xl max-h-[94vh] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.25)] border hairline flex flex-col">
               <div className="px-5 py-4 border-b hairline flex items-start justify-between gap-3">
@@ -12903,7 +13021,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
             </div>
           </div>
-        );
+        ), document.body);
       };
 
       // ==========================================
