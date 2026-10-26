@@ -6687,7 +6687,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           normalizeName(r.nome).includes(normalizeName(busca))
         );
         const qtdDia = linhas.filter((r) => (r.dias[selectedDay] || 0) > 0).length;
-        const unDia = linhas.reduce((n, r) => n + (r.dias[selectedDay] || 0), 0);
+        const totaisDia = linhas.reduce((map, r) => { const qty = r.dias[selectedDay] || 0; if (qty) map[r.unidade] = (map[r.unidade] || 0) + qty; return map; }, {});
+        const resumoDia = Object.entries(totaisDia).map(([u, qty]) => qty + ' ' + u).join(' · ') || '0';
         const disponiveis = catalogo
           .filter((p) => !linhas.some((r) => r.id === p.id))
           .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
@@ -6727,7 +6728,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
               <div className="flex gap-5 mt-4 t-caption">
                 <span><strong className="text-[#244833]">{qtdDia}</strong> produtos em {getDayNameBR(selectedDay).toLowerCase()}</span>
-                <span><strong className="text-[#244833]">{unDia}</strong> unidades planejadas</span>
+                <span><strong className="text-[#244833]">{resumoDia}</strong> planejados</span>
               </div>
             </div>
 
@@ -6813,7 +6814,7 @@ const { useState, useEffect, useMemo, useRef } = React;
       }) => {
         const [busca, setBusca] = useState('');
         const [agrupar, setAgrupar] = useState('responsavel');
-        const [mostrar, setMostrar] = useState('pedido');
+        const [mostrar, setMostrar] = useState('tudo');
         const [quantidades, setQuantidades] = useState({});
         const [extras, setExtras] = useState([]);
         const [extraId, setExtraId] = useState('');
@@ -6842,7 +6843,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           setQuantidades((prev) => ({...prev, [id]: Math.max(0, Math.floor(Number(valor) || 0))}));
         };
         const lista = linhas.filter((r) => qtdDe(r) > 0);
-        const total = lista.reduce((acc, r) => acc + qtdDe(r), 0);
+        const totais = lista.reduce((map, r) => { map[r.unidade] = (map[r.unidade] || 0) + qtdDe(r); return map; }, {});
+        const resumoQuantidades = Object.entries(totais).map(([un, qty]) => qty + ' ' + un).join(' · ') || '0';
         const visiveis = linhas.filter((r) =>
           normalizeName(r.nome).includes(normalizeName(busca)) &&
           (mostrar === 'tudo' || (mostrar === 'pedido' ? qtdDe(r) > 0 : qtdDe(r) === 0)));
@@ -6897,7 +6899,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
               <div className="mt-4 flex flex-wrap gap-6 text-[13px]">
                 <span><strong className="text-[#244833]">{lista.length}</strong> produtos no pedido</span>
-                <span><strong className="text-[#244833]">{total}</strong> unidades para produzir</span>
+                <span><strong className="text-[#244833]">{resumoQuantidades}</strong> para produzir</span>
               </div>
             </div>
             <div className="card p-4 sm:p-5 producao-actions">
@@ -6948,7 +6950,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                       </tr>)}
                     </tbody>)}
                   <tfoot><tr className="border-t hairline"><th className="py-3">Total do pedido</th>
-                    <td></td><td className="text-right px-3 font-bold text-[#244833]">{total}</td><td></td></tr></tfoot>
+                    <td></td><td className="text-right px-3 font-bold text-[#244833]">{resumoQuantidades}</td><td></td></tr></tfoot>
                 </table>
               </div>
               {!visiveis.length && <p className="t-body p-5 text-center">Nenhum produto neste filtro. Volte para “Todos” ou inclua um item avulso.</p>}
