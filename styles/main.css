@@ -4081,3 +4081,74 @@
   .invoice-modal-viewport{padding:8px!important}
   .invoice-modal-viewport>div.relative{max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
 }
+
+
+/* Checklist de produção: seleção compacta e destacada, inclusive nos slots. */
+.production-checklist .checklist-row[data-selected="true"]{
+  grid-template-columns:minmax(0,1fr) 118px;
+  gap:10px;
+  min-height:60px;
+  margin:3px 0;
+  padding:9px 12px 9px 10px;
+  background:#e3f1e5;
+  border-left:4px solid #4e8b60;
+  border-bottom-color:#c7dfcc;
+  border-radius:10px;
+}
+.production-checklist .checklist-row[data-selected="true"]:hover{background:#dcebdd}
+.production-checklist [data-selected="true"] .checklist-product-name small,
+.production-checklist [data-selected="true"] .checklist-number,
+.production-checklist .order-slot-card[data-selected="true"] .order-slot-position{display:none}
+.production-checklist .checklist-row[data-selected="true"] .checklist-product{gap:9px}
+.production-checklist .checklist-row[data-selected="true"] .checklist-ok{
+  min-height:38px;padding:7px 9px
+}
+.production-checklist .checklist-row[data-selected="true"] .checklist-field .field{
+  width:100%;max-width:100%;min-height:38px;background:#fff
+}
+.production-checklist .order-slot-card[data-selected="true"]{
+  min-height:0;gap:9px;padding:12px;
+  background:#e3f1e5;border-color:#82b38c;
+  box-shadow:0 0 0 1px #b0d0b8
+}
+.production-checklist .order-slot-card[data-selected="true"] .checklist-product{
+  flex:0 1 auto;gap:8px
+}
+.production-checklist .order-slot-card[data-selected="true"] .checklist-product-name{
+  flex:0 1 auto
+}
+.production-checklist .order-slot-card[data-selected="true"] .checklist-product-name strong{
+  min-height:0
+}
+.production-checklist .order-slot-card[data-selected="true"] .checklist-ok{
+  margin-top:0
+}
+@media(max-width:780px){
+  .production-checklist .checklist-row[data-selected="true"]{
+    grid-template-columns:minmax(0,1fr) 95px;
+    gap:8px;
+  }
+  .production-checklist .checklist-row[data-selected="true"] .checklist-product{
+    grid-column:1;min-width:0
+  }
+  .production-checklist .checklist-row[data-selected="true"] .checklist-field{
+    grid-column:2;grid-row:1;min-width:0;align-self:center
+  }
+  .production-checklist .checklist-row[data-selected="true"] .checklist-field>span{
+    display:none
+  }
+}
+@media(max-width:420px){
+  .production-checklist .checklist-row[data-selected="true"] .checklist-ok{
+    width:auto;min-height:36px
+  }
+  .production-checklist .checklist-row[data-selected="true"] .checklist-product-name{
+    flex-basis:100%
+  }
+}
+@media print{
+  .production-checklist .checklist-row[data-selected="true"],
+  .production-checklist .order-slot-card[data-selected="true"]{
+    background:#fff;box-shadow:none;border-color:#aebcaf
+  }
+}
