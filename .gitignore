@@ -7,3 +7,7 @@ db_cluster-*.gz
 supabase/private/
 supabase/legacy_private*.sql
 supabase/*legacy*private*.sql
+
+# Certificados digitais A1 nunca devem entrar no repositório
+*.pfx
+*.p12
