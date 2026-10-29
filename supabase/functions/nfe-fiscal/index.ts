@@ -5,7 +5,7 @@ import { XMLParser } from "npm:fast-xml-parser@4.5.0";
 import forge from "npm:node-forge@1.3.1";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("NFE_ALLOWED_ORIGIN") || "https://deliciasdavovo.github.io",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-nfe-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -30,6 +30,49 @@ const serviceKey = () => {
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+class FiscalAccessError extends Error {
+  status: number;
+  constructor(message: string, status = 403) {
+    super(message);
+    this.name = "FiscalAccessError";
+    this.status = status;
+  }
+}
+
+const requireFiscalAdmin = async (req: Request) => {
+  const authorization = req.headers.get("authorization") || "";
+  const match = /^Bearer\s+(\S+)$/i.exec(authorization);
+  if (!match) throw new FiscalAccessError("Entre na sua conta administrativa.", 401);
+  const jwt = match[1];
+  const { data, error } = await admin.auth.getUser(jwt);
+  const user = data?.user;
+  if (error || !user || user.is_anonymous) {
+    throw new FiscalAccessError("Sessão inválida. Entre novamente.", 401);
+  }
+  const { data: allowed, error: permissionError } = await admin
+    .from("nfe_fiscal_admins")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (permissionError) throw new Error("Não foi possível validar sua permissão fiscal.");
+  if (!allowed) throw new FiscalAccessError("Conta sem autorização fiscal.", 403);
+
+  let claims: { sub?: string; aal?: string };
+  try {
+    const base64url = jwt.split(".")[1] || "";
+    const encoded = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    claims = JSON.parse(atob(encoded + "=".repeat((4 - (encoded.length % 4)) % 4)));
+  } catch {
+    throw new FiscalAccessError("Sessão inválida. Entre novamente.", 401);
+  }
+  // Auth.getUser verified this exact JWT before these claims are considered.
+  if (claims.sub !== user.id || claims.aal !== "aal2") {
+    throw new FiscalAccessError("Confirme o aplicativo autenticador.", 403);
+  }
+  return user.id;
+};
+
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -143,6 +186,7 @@ const configureCertificate = async (body: any) => {
   const environment = Number(body.environment || 1) === 2 ? "2" : "1";
 
   if (!pfxBase64) throw new Error("Selecione o certificado A1 (.pfx ou .p12).");
+  if (pfxBase64.length > 2_000_000) throw new Error("Arquivo de certificado muito grande.");
   if (!password) throw new Error("Informe a senha do certificado A1.");
   if (cnpj.length !== 14) throw new Error("Informe o CNPJ com 14 dígitos.");
   if (ufCode.length !== 2) throw new Error("UF inválida.");
@@ -839,7 +883,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
 
+  const expectedOrigin = Deno.env.get("NFE_ALLOWED_ORIGIN") || "https://deliciasdavovo.github.io";
+  const requestOrigin = req.headers.get("origin");
+  if (requestOrigin && requestOrigin !== expectedOrigin) return json({ error: "Origem não autorizada." }, 403);
+  const contentLength = Number(req.headers.get("content-length") || "0");
+  if (contentLength > 8_000_000) return json({ error: "Requisição muito grande." }, 413);
   try {
+    await requireFiscalAdmin(req);
     await requireFiscalToken(req);
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "status");
@@ -887,6 +937,6 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Ação fiscal desconhecida." }, 400);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return json({ error: message }, 400);
+    return json({ error: message }, error instanceof FiscalAccessError ? error.status : 400);
   }
 });
