@@ -1401,7 +1401,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 
       const nfeSb = isSupabaseConfigured && window.supabase
         ? window.supabase.createClient(SUPABASE_URL, NFE_FUNCTION_ANON_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
+            auth: { persistSession: true, autoRefreshToken: true, storage: window.sessionStorage, storageKey: 'dv-nfe-auth-session', detectSessionInUrl: false }
           })
         : null;
 
@@ -20221,6 +20221,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const fiscalCall = async (action, payload = {}) => {
           if (!nfeSb) throw new Error('Supabase não conectado.');
           if (!fiscalToken) throw new Error('Informe o código fiscal deste aparelho.');
+          await window.DDVFiscalAuth.ensureReady(nfeSb);
 
           const result = await nfeSb.functions.invoke('nfe-fiscal', {
             body: {
