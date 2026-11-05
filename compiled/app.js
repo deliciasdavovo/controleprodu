@@ -926,6 +926,66 @@ table:not(.hist-tab) tr { break-inside: avoid; page-break-inside: avoid; }
             .subtitulo-detalhes { margin: 13px 0 5px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9.5pt; font-weight: 700; }
             footer { margin-top: 16px; padding-top: 7px; border-top: 1px solid #bbb; color: #666; font-size: 8pt; }
             @media screen and (max-width: 700px) { .duas { grid-template-columns: 1fr; } .placar { grid-template-columns: 1fr 1fr; } }
+
+            /* Relatorios de compras: leitura, comparacao e impressao */
+            @page { size: A4 landscape; margin: 11mm 10mm; }
+            body { max-width: 1240px; padding: 0 24px 48px; font-size: 9pt; line-height: 1.48; color: #24372d; }
+            header { border-bottom: 3px solid #315b43; padding: 14px 0 16px; margin-bottom: 16px; }
+            h1 { font-size: 22pt; letter-spacing: -.035em; color: #244733; }
+            .sub { color: #63756a; font-size: 9pt; }
+            .filtros { gap: 7px; margin: 14px 0 18px; }
+            .filtro { background: #edf3ed; border: 1px solid #dbe7dc; color: #365340; padding: 6px 9px; font-size: 8pt; }
+            .placar { gap: 10px; margin-bottom: 17px; }
+            .metrica { background: #f7faf7; border: 1px solid #dce7de; border-radius: 8px; padding: 13px 14px; }
+            .metrica span { color: #627668; font-size: 7.6pt; }
+            .metrica b { font-size: 17pt; color: #214b32; letter-spacing: -.025em; }
+            .movimentos { background: #f2f6f2; border-left: 3px solid #49785a; border-radius: 3px; flex-wrap: wrap; }
+            section { margin-top: 24px; }
+            h2 { background: #eaf1eb; color: #244b34; padding: 10px 12px; font-size: 12pt; border-radius: 5px; }
+            .nota { font-size: 8pt; line-height: 1.55; margin: 6px 0 13px; }
+            table { border: 1px solid #e0e8e0; margin-bottom: 12px; }
+            th { background: #eaf0eb; color: #2c4c36; border-bottom: 2px solid #9eb5a3; padding: 9px 8px; font-size: 7.8pt; }
+            td { padding: 9px 8px; border-bottom: 1px solid #e4ebe4; line-height: 1.45; }
+            tbody tr:nth-child(even) { background: #f7faf7; }
+            td small { color: #65766a; font-size: 7.4pt; line-height: 1.4; margin-top: 3px; }
+            td b { color: #233e2d; }
+            .num { white-space: nowrap; }
+            .grupo-fornecedor { margin: 17px 0 24px; break-inside: auto; }
+            .grupo-fornecedor-cabecalho { background: #e9f1e9; border: 1px solid #c9dbcc; border-left: 4px solid #3c6c4a; padding: 13px 15px; grid-template-columns: minmax(0,1fr) 165px 130px; }
+            .grupo-fornecedor-nome b { font-size: 12pt; }
+            .grupo-fornecedor-cabecalho > div > b { color: #245238; }
+            .t-fornecedor-compras th:nth-child(1) { width: 13%; }
+            .t-fornecedor-compras th:nth-child(2) { width: 41%; }
+            .t-fornecedor-compras th:nth-child(3) { width: 13%; }
+            .t-fornecedor-compras th:nth-child(4) { width: 17%; }
+            .t-fornecedor-compras th:nth-child(5) { width: 16%; }
+            .t-mes-fornecedor th, .t-mes-fornecedor td { white-space: normal !important; overflow-wrap: anywhere; }
+            .t-mes-fornecedor th:first-child, .t-mes-fornecedor td:first-child { width: 21%; }
+            .t-mes-fornecedor thead th { background: #e9f1ea; }
+            .mes-fornecedor-bloco { break-inside: auto; }
+            .mes-total-linha { font-weight: 700; }
+            .t-itens .compra-recente .preco-unitario { white-space: normal; }
+            @media screen and (max-width: 700px) {
+              body { padding: 12px; }
+              .placar { grid-template-columns: repeat(2,minmax(0,1fr)); }
+              .metrica { padding: 10px; }
+              .metrica b { font-size: 13pt; }
+              .grupo-fornecedor-cabecalho { grid-template-columns: 1fr 1fr; }
+              .grupo-fornecedor-nome { grid-column: 1/-1; }
+              .grupo-fornecedor-cabecalho > div:not(.grupo-fornecedor-nome) { text-align: left; }
+              section { overflow-x: auto; }
+              .t-fornecedor-compras, .t-itens, .t-mes-fornecedor { min-width: 720px; }
+            }
+            @media print {
+              body { padding: 0; max-width: none; font-size: 8pt; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+              .placar { grid-template-columns: repeat(4,1fr); }
+              .metrica { padding: 9px; }
+              .metrica b { font-size: 13pt; }
+              th,td { padding: 5px 6px; }
+              .grupo-fornecedor-cabecalho { break-after: avoid; }
+              thead { display: table-header-group; }
+              tr { break-inside: avoid; }
+            }
           ${CSS_RELATORIO_PLANILHA}
           </style></head><body>
           ${BARRA_ACOES_HTML}
