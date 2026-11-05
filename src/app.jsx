@@ -6195,6 +6195,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [targetCopyDay, setTargetCopyDay] = useState('terca');
         const [priorityFilter, setPriorityFilter] = useState('todas');
         const [organizing, setOrganizing] = useState(null);
+        const [editingSlot, setEditingSlot] = useState(null);
 
         const unitSlots = slots.filter((s) => s.unit === currentUnit);
         const dayPlans = standardPlans.filter(
@@ -6266,7 +6267,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                   <h2 className="t-display">Vitrine padrão</h2>
                   <p className="t-body mt-1.5 max-w-lg">
                     Defina como a vitrine deve ser montada em cada dia — {unitName}.
-                    Cada item tem dois números por dia: a quantidade do padrão e a
+                    Toque em um espaço numerado para escolher o produto. Cada item tem dois números por dia: a quantidade do padrão e a
                     quantidade mínima, que é a que chama o item no pedido de produção.
                     Os dois se digitam na célula — na grade de cada vitrine, espaço
                     por espaço, ou na tabela da semana, aqui embaixo.
@@ -6375,7 +6376,6 @@ const { useState, useEffect, useMemo, useRef } = React;
                 const planejados = vitrine.slots.filter((s) => planOf(s.id));
                 const total = planejados.reduce((acc, s) => acc + (planOf(s.id)?.idealQty || 0), 0);
                 const totalMinimo = planejados.reduce((acc, s) => acc + (planOf(s.id)?.minQty || 0), 0);
-                const colunas = showcaseColumnsFor(currentUnit, vitrine.showcaseType);
                 // O espaço da vitrine salgada só oferece produto salgado
                 const productOptions = [
                   { value: '', label: 'Espaço vazio', muted: true },
@@ -6383,7 +6383,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 ];
 
                 return (
-                  <div key={vitrine.key} className="card p-4 sm:p-5">
+                  <div key={vitrine.key} className="card p-4 sm:p-5 standard-showcase">
                     <div className="flex items-start justify-between gap-3 pb-3">
                       <div className="min-w-0">
                         <h3 className="t-headline text-[#1d1d1f] truncate">{vitrine.title}</h3>
@@ -6402,11 +6402,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                         desenho da vitrine, sem cartão em volta de cada um */}
                     <div className="rola-x">
                       <div
-                        className="grid gap-px bg-[var(--hairline)] border hairline rounded-xl overflow-hidden"
-                        style={{
-                          gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))`,
-                          minWidth: `${colunas * 190}px`
-                        }}
+                        className="standard-showcase-grid"
                       >
                         {vitrine.slots.map((slot) => {
                           const planItem = planOf(slot.id);
@@ -6425,21 +6421,31 @@ const { useState, useEffect, useMemo, useRef } = React;
                           const organizar = () => setOrganizing({ slot, plan: planItem, product, dias });
 
                           return (
-                            <div
-                              key={slot.id}
-                              className={`px-2.5 py-2 bg-[var(--bg-surface)] transition-opacity ${
-                                apagado
-                                  ? 'opacity-30'
-                                  : planItem
-                                    ? ''
-                                    : 'opacity-45 hover:opacity-100 focus-within:opacity-100'
-                              }`}
-                            >
+                            <React.Fragment key={slot.id}>
+                              <button
+                                type="button"
+                                className={`standard-slot ${planItem ? 'is-filled' : ''} ${apagado ? 'is-filtered' : ''}`}
+                                aria-label={`Espaço ${slot.slotNumber}: ${product?.name || 'escolher produto'}`}
+                                aria-expanded={editingSlot === slot.id}
+                                aria-controls={`standard-slot-editor-${slot.id}`}
+                                onClick={() => setEditingSlot(editingSlot === slot.id ? null : slot.id)}
+                              >
+                                {product && <span className="standard-slot-product">{product.name}</span>}
+                                {planItem && <span className="standard-slot-qty">{planItem.idealQty} un · mín. {planItem.minQty || 0}</span>}
+                                <span className="standard-slot-number">{slot.slotNumber}</span>
+                              </button>
+                              {editingSlot === slot.id && (
+                              <div className="standard-slot-editor" id={`standard-slot-editor-${slot.id}`}>
+                                <div className="standard-slot-editor-heading">
+                                  <strong>Produto do espaço {slot.slotNumber}</strong>
+                                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingSlot(null)}>Concluir</button>
+                                </div>
                               <div className="flex items-center gap-1.5">
                                 <span className="t-caption tnum w-4 shrink-0 text-center">{slot.slotNumber}</span>
                                 <PickerField
                                   value={planItem?.productId || ''}
                                   options={opcoes}
+                                  inputProps={{ autoFocus: true }}
                                   placeholder="Espaço vazio"
                                   emptyLabel="Nenhum produto desta vitrine com esse nome"
                                   onPick={(opt) => {
@@ -6505,6 +6511,8 @@ const { useState, useEffect, useMemo, useRef } = React;
                                 )}
                               </div>
                             </div>
+                              )}
+                            </React.Fragment>
                           );
                         })}
                       </div>
