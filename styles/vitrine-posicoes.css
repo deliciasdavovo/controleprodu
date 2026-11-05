@@ -17,3 +17,39 @@
   .standard-slot-product { font-size: 12px; }
   .standard-slot-number { font-size: 26px; }
 }
+
+/* Planejamento > Padrão de produção: vitrine virtual em slots. */
+.numbered-showcase-board .virtual-showcase-section { background: #e8e8e8; border: 0; box-shadow: none; }
+.numbered-showcase-board .virtual-showcase-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.numbered-showcase-board .numbered-product-slot,
+.numbered-empty-slot { position: relative; min-width: 0; min-height: 160px; border: 0; border-radius: 16px; box-shadow: none; }
+.numbered-showcase-board .numbered-product-slot { background: #063e43; color: white; padding: 16px 12px 50px; cursor: pointer; }
+.numbered-showcase-board .numbered-product-slot[hidden] { display: none; }
+.numbered-showcase-board .plan-card-top { margin: 0; }
+.numbered-showcase-board .plan-card-index { position: absolute; left: 14px; bottom: 15px; font-size: 30px; line-height: 1; color: white; background: none; }
+.numbered-showcase-board .plan-card-category,
+.numbered-showcase-board .plan-card-order-actions,
+.numbered-showcase-board .plan-card-open-hint,
+.numbered-showcase-board .plan-card-body > p { display: none; }
+.numbered-showcase-board .plan-card-body { padding: 0; }
+.numbered-showcase-board .plan-card-body h4 { color: white; font-size: 14px; overflow-wrap: anywhere; }
+.numbered-showcase-board .plan-card-bottom { margin-top: 10px; padding: 0; border: 0; background: none; flex-wrap: wrap; gap: 6px; }
+.numbered-showcase-board .plan-card-bottom > span { color: #e0eeee; font-size: 10px; }
+.numbered-empty-slot { background: #c8cbcc; }
+.numbered-slot-add { display: flex; flex-direction: column; justify-content: space-between; width: 100%; min-height: 160px; padding: 16px 14px; border: 0; background: transparent; color: white; text-align: left; cursor: pointer; border-radius: inherit; }
+.numbered-slot-add-label { font-size: 12px; }
+.numbered-slot-number { font-size: 30px; line-height: 1; font-weight: 750; }
+.numbered-slot-add:focus-visible { outline: 3px solid #a67b00; outline-offset: 2px; }
+.numbered-showcase-board .is-editing { grid-column: 1 / -1; }
+.numbered-showcase-board .plan-card-editor,
+.numbered-slot-form { display: flex; flex-direction: column; gap: 10px; background: white; color: #173d38; padding: 14px; border-radius: 12px; margin-top: 12px; }
+.numbered-slot-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.numbered-empty-slot:has(.numbered-slot-form) { grid-column: 1 / -1; }
+@media (max-width: 440px) {
+  .numbered-showcase-board .virtual-showcase-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+  .numbered-showcase-board .numbered-product-slot { min-height: 140px; padding: 12px 8px 45px; }
+  .numbered-showcase-board .plan-card-body h4 { font-size: 12px; }
+  .numbered-slot-add { min-height: 140px; padding: 12px 10px; }
+  .numbered-showcase-board .plan-card-index, .numbered-slot-number { font-size: 26px; }
+}
+.numbered-showcase-board .is-editing .plan-card-order-actions { display: flex; margin-bottom: 12px; }

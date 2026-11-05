@@ -6714,13 +6714,15 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [busca,setBusca] = useState('');
         const [categoria,setCategoria] = useState('todas');
         const [novoProduto,setNovoProduto] = useState('');
+        const [slotInclusao,setSlotInclusao] = useState(null);
+        const [salvandoInclusao,setSalvandoInclusao] = useState(false);
         const [novaQtd,setNovaQtd] = useState('1');
         const [diaDestino,setDiaDestino] = useState('terca');
         const [editandoProduto,setEditandoProduto] = useState(null);
         const [produtoEdicao,setProdutoEdicao] = useState('');
         const [quantidadeEdicao,setQuantidadeEdicao] = useState('1');
         const [salvandoEdicao,setSalvandoEdicao] = useState(false);
-        useEffect(()=>{setEditandoProduto(null);},[currentUnit,selectedDay]);
+        useEffect(()=>{setEditandoProduto(null);setSlotInclusao(null);},[currentUnit,selectedDay]);
         const [arrastando,setArrastando] = useState(null);
         const [sobre,setSobre] = useState(null);
         const [movendoCard,setMovendoCard] = useState(false);
@@ -6755,7 +6757,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         });
         const mostrados = dia.filter(p=>(categoria==='todas'||p.categoria===categoria)&&
           normalizeName(p.nome).includes(normalizeName(busca)));
-        const vitrines=agruparVitrineVirtual(mostrados);
+        const vitrines=VITRINES_VIRTUAIS.map(v=>({...v,columns:3,itens:dia.filter(item=>tipoVitrineVirtual(item.categoria)===v.id)})).filter(v=>categoria==='todas'||tipoVitrineVirtual(categoria)===v.id);
         const produtosNoDia = new Set(dia.map(p=>p.id));
         const disponiveis=ativos.filter(p=>!produtosNoDia.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
         const totais=dia.reduce((map,p)=>{
@@ -6765,11 +6767,15 @@ const { useState, useEffect, useMemo, useRef } = React;
         const resumo=Object.entries(totais).map(([unit,q])=>q+' '+unit).join(' · ')||'0';
         const incluir=async()=>{
           const qty=Math.max(0,Math.floor(Number(novaQtd)||0));
-          if(!novoProduto||qty<=0)return;
+          if(salvandoInclusao||!novoProduto||qty<=0)return;
+          setSalvandoInclusao(true);
+          try {
           const gravado=await onSavePlan(selectedDay,novoProduto,qty);
-          if(gravado===true){setNovoProduto('');setNovaQtd('1');}
+          if(gravado===true){setNovoProduto('');setNovaQtd('1');setSlotInclusao(null);}
+          } finally { setSalvandoInclusao(false); }
         };
         const iniciarEdicao=(item)=>{
+          setSlotInclusao(null);
           setEditandoProduto(item.id);
           setProdutoEdicao(item.id);
           setQuantidadeEdicao(String(item.dias[selectedDay]||1));
@@ -6857,7 +6863,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div>
                 <p className="t-overline mb-2">Rotina semanal · {unitName}</p>
                 <h2 className="t-display">Padrão de produção</h2>
-                <p className="t-body mt-1 max-w-xl">Organize a vitrine virtual do dia. Salgados ficam em fileiras de 4; doces e sobremesas, de 3. Arraste os cards ou ajuste as quantidades.</p>
+                <p className="t-body mt-1 max-w-xl">Monte o padrão do dia em espaços numerados. Toque em um slot para escolher o produto e definir a quantidade.</p>
               </div>
               <button type="button" className="btn btn-primary btn-md self-start"
                 onClick={onGenerateOrder}><Icons.ChefHat className="w-4 h-4"/> Montar checklist</button>
@@ -6878,7 +6884,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
               <div><h3 className="t-title">Vitrine virtual · {unitName}</h3>
-                <p className="t-caption">Use as setas de cada card para mudar a posição ou arraste pelo ícone de linhas. A ordem é salva para o dia e a unidade.</p></div>
+                <p className="t-caption">Selecione um espaço: cada slot recebe um produto. As posições e quantidades são salvas para o dia e a unidade.</p></div>
               <div className="flex flex-wrap gap-2">
                 <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
                   value={busca} onChange={e=>setBusca(e.target.value)}/>
@@ -6888,7 +6894,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </select>
               </div>
             </div>
-            <div className="virtual-showcase-board">
+            <div className="virtual-showcase-board numbered-showcase-board">
               {vitrines.map((vitrine)=><section className="virtual-showcase-section" key={vitrine.id} data-vitrine={vitrine.id}>
                 <div className="virtual-showcase-heading">
                   <div><h4>{vitrine.label}</h4><p>{vitrine.columns} produtos por fileira</p></div>
@@ -6896,7 +6902,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </div>
                 <div className="plan-card-grid virtual-showcase-grid" data-cols={vitrine.columns}>
                   {vitrine.itens.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
-                className="plan-card plan-card-clickable" data-dragging={arrastando===item.id}
+                className={`plan-card plan-card-clickable numbered-product-slot ${editandoProduto===item.id?'is-editing':''}`} hidden={!mostrados.some(p=>p.id===item.id)} data-dragging={arrastando===item.id}
                 data-over={sobre===item.id&&arrastando!==item.id}
                 tabIndex="0" role="group" aria-label={'Produto '+item.nome+'. Pressione Enter para editar.'}
                 onClick={e=>{
@@ -6980,9 +6986,32 @@ const { useState, useEffect, useMemo, useRef } = React;
                       onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
                   </div>}
               </article>)}
-                  {Array.from({length:completarFileira(vitrine.itens.length,vitrine.columns)},(_,index)=>
-                    <div key={'vazio-'+index} className="virtual-showcase-empty" aria-hidden="true">
-                      <span>Espaço livre</span>
+                  {Array.from({length:Math.max(1,3-((vitrine.itens.length)%3))},(_,index)=>
+                    <div key={'vazio-'+index} className="numbered-empty-slot">
+                      <button type="button" className="numbered-slot-add"
+                        aria-label={`Adicionar produto no espaço ${vitrine.itens.length+index+1} de ${vitrine.label}`}
+                        aria-expanded={slotInclusao===vitrine.id+'-'+index}
+                        onClick={()=>{setSlotInclusao(slotInclusao===vitrine.id+'-'+index?null:vitrine.id+'-'+index);setNovoProduto('');setNovaQtd('1');setEditandoProduto(null);}}>
+                        <span className="numbered-slot-add-label">+ Produto</span>
+                        <span className="numbered-slot-number">{vitrine.itens.length+index+1}</span>
+                      </button>
+                      {slotInclusao===vitrine.id+'-'+index&&<form className="numbered-slot-form" onSubmit={e=>{e.preventDefault();incluir();}}>
+                        <label>Produto
+                          <select autoFocus className="field field-sm" aria-label="Produto do slot" value={novoProduto}
+                            disabled={salvandoInclusao} onChange={e=>setNovoProduto(e.target.value)}>
+                            <option value="">Escolha um produto</option>
+                            {disponiveis.filter(p=>tipoVitrineVirtual(p.category)===vitrine.id).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </label>
+                        <label>Quantidade do dia
+                          <input className="field field-sm" type="number" min="1" step="1" value={novaQtd}
+                            disabled={salvandoInclusao} onChange={e=>setNovaQtd(e.target.value)}/>
+                        </label>
+                        <button type="submit" className="btn btn-primary btn-sm" disabled={salvandoInclusao||!novoProduto||!(Number(novaQtd)>0)}>
+                          {salvandoInclusao?'Salvando…':'Colocar produto'}
+                        </button>
+                        <button type="button" className="btn btn-secondary btn-sm" disabled={salvandoInclusao} onClick={()=>setSlotInclusao(null)}>Cancelar</button>
+                      </form>}
                     </div>)}
                 </div>
               </section>)}
