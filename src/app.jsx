@@ -6707,27 +6707,165 @@ const { useState, useEffect, useMemo, useRef } = React;
       // exigência de "todo dia", mas continua disponível no planejamento.
       const DIAS_ROTINA_PRODUCAO = WEEK_DAYS.filter(day=>day!=='domingo');
 
+      // Negative display_order values encode explicit visual slot numbers.
+      // Positive legacy orders remain readable and receive one slot per product.
+      // Equal negative values group distinct products without changing quantities.
+      const planningSlotLayout = (items, day) => {
+        const reserved = new Set(items.map(p=>p.positions?.[day]).filter(n=>n>0));
+        let next = 1;
+        return items.map(item=>{
+          let position=item.positions?.[day];
+          if(!position){while(reserved.has(next))next++;position=next++;reserved.add(position);}
+          return {...item,position};
+        });
+      };
+      const PlanningSlotsBoard = ({vitrines, selectedDay, products, visibleIds, onSavePlan, onPositionProducts, onOpenProduct}) => {
+        const [editor,setEditor]=useState(null);
+        const [productId,setProductId]=useState('');
+        const [quantity,setQuantity]=useState('1');
+        const [busy,setBusy]=useState(false);
+        const [error,setError]=useState('');
+        const [dragging,setDragging]=useState(null);
+        const [over,setOver]=useState(null);
+        const drag=useRef(null), touch=useRef(null), focusReturn=useRef(null), suppressClick=useRef(false);
+        const layout=vitrines.map(v=>({...v,itens:planningSlotLayout(v.itens,selectedDay)}));
+        const finishDrag=()=>{
+          if(touch.current?.timer)clearTimeout(touch.current.timer);
+          touch.current=null;drag.current=null;setDragging(null);setOver(null);
+        };
+        useEffect(()=>()=>{if(touch.current?.timer)clearTimeout(touch.current.timer);},[]);
+        const open=(vitrine,position,item=null,event=null)=>{
+          if(busy)return;
+          focusReturn.current=event?.currentTarget;
+          setEditor({section:vitrine.id,position,item});setProductId(item?.id||'');
+          setQuantity(String(item?.dias[selectedDay]||1));setError('');
+        };
+        const close=()=>{setEditor(null);focusReturn.current?.focus();};
+        const move=async(source,section,position)=>{
+          const v=layout.find(v=>v.id===section), item=v?.itens.find(p=>p.id===source);
+          if(busy||!item||item.position===position)return;
+          setBusy(true);setError('');
+          try{
+            const assignments=v.itens.map(p=>({productId:p.id,position:p.id===source?position:p.position}));
+            if(await onPositionProducts(selectedDay,assignments)!==true)setError('Não foi possível salvar a posição. Tente novamente.');
+            else setEditor(null);
+          }catch{setError('Não foi possível salvar a posição. Tente novamente.');}
+          finally{setBusy(false);finishDrag();}
+        };
+        const save=async(e, selectedId=productId)=>{
+          e.preventDefault();const qty=Number(quantity);
+          if(busy||!selectedId||!Number.isInteger(qty)||qty<1)return;
+          setBusy(true);setError('');
+          try{
+            // Normalize legacy positions before adding a product to an existing slot.
+            const v=layout.find(v=>v.id===editor.section);
+            if(v.itens.length&&await onPositionProducts(selectedDay,v.itens.map(p=>({productId:p.id,position:p.position})))!==true){
+              setError('Não foi possível preparar o espaço. Tente novamente.');return;
+            }
+            if(await onSavePlan(selectedDay,selectedId,qty,editor.position)!==true){setError('Não foi possível salvar o produto. Tente novamente.');return;}
+            if(editor.item&&editor.item.id!==selectedId&&await onSavePlan(selectedDay,editor.item.id,0)!==true){setError('O novo produto foi salvo, mas o anterior não foi retirado. Confira os dois produtos.');return;}
+            close();
+          }catch{setError('Não foi possível salvar. Tente novamente.');}
+          finally{setBusy(false);}
+        };
+        const remove=async()=>{
+          if(busy||!confirm('Retirar '+editor.item.nome+' deste dia?'))return;
+          setBusy(true);setError('');
+          try{if(await onSavePlan(selectedDay,editor.item.id,0)===true)close();else setError('Não foi possível retirar o produto.');}
+          catch{setError('Não foi possível retirar o produto.');}finally{setBusy(false);}
+        };
+        const pointerStart=(e,id,section)=>{
+          if(e.pointerType==='mouse'||busy)return;
+          const element=e.currentTarget,pointerId=e.pointerId;
+          const state={id,section,active:false,timer:null};
+          state.timer=setTimeout(()=>{state.active=true;drag.current={id,section};setDragging(id);try{element.setPointerCapture(pointerId);}catch{}},220);
+          touch.current=state;
+        };
+        const pointerMove=e=>{
+          if(!touch.current?.active)return;
+          const slot=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-planning-slot]');
+          const same=slot?.dataset.section===touch.current.section;
+          setOver(same?slot.dataset.section+':'+slot.dataset.planningSlot:null);
+          touch.current.destination=same?Number(slot.dataset.planningSlot):null;
+        };
+        const pointerEnd=()=>{
+          const state=touch.current;
+          if(state?.active){suppressClick.current=true;if(state.destination)move(state.id,state.section,state.destination);}
+          finishDrag();
+        };
+        const used=new Set(layout.flatMap(v=>v.itens.map(p=>p.id)));
+        const picker=()=>{
+          const options=products.filter(p=>p.showcaseEnabled!==false&&tipoVitrineVirtual(p.category)===editor.section&&(!used.has(p.id)||p.id===editor.item?.id));
+          if(editor.mode==='move')return <select autoFocus className="planning-inline-picker" aria-label="Mover produto para espaço"
+            value={editor.position} disabled={busy} onBlur={()=>{if(!busy)close();}}
+            onChange={e=>move(editor.item.id,editor.section,Number(e.target.value))}>
+            {Array.from({length:Math.ceil((Math.max(6,...layout.find(v=>v.id===editor.section).itens.map(p=>p.position))+1)/3)*3},(_,i)=><option key={i+1} value={i+1}>Espaço {i+1}</option>)}
+          </select>;
+          return <select autoFocus className="planning-inline-picker" aria-label="Produto do espaço" value={productId} disabled={busy}
+            onKeyDown={e=>{if(e.key==='Escape')close();}} onBlur={()=>{if(!busy)close();}}
+            onChange={e=>{const value=e.target.value;if(value==='__remove__'){remove();return;}setProductId(value);save(e,value);}}>
+            <option value="">Escolha o produto</option>
+            {options.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {editor.item&&<option value="__remove__">Retirar do dia</option>}
+          </select>;
+        };
+        return <div className="planning-slots-board" aria-busy={busy}>
+          {error&&<p role="alert" className="planning-slot-error">{error}</p>}
+          {layout.map(vitrine=>{
+            const max=Math.max(6,...vitrine.itens.map(p=>p.position));
+            const count=Math.ceil((max+1)/3)*3;
+            return <section key={vitrine.id} className="planning-slot-section">
+              <header><h4>{vitrine.label}</h4><span>{vitrine.itens.length} produtos</span></header>
+              <div className="planning-slot-grid">
+                {Array.from({length:count},(_,index)=>{
+                  const position=index+1, all=vitrine.itens.filter(p=>p.position===position);
+                  const items=all.filter(p=>visibleIds.has(p.id));
+                  return <div key={position} data-planning-slot={position} data-section={vitrine.id}
+                    className={`planning-slot ${all.length?'has-products':''} ${over===vitrine.id+':'+position?'is-over':''}`}
+                    onDragOver={e=>{if(drag.current?.section===vitrine.id&&!busy){e.preventDefault();e.dataTransfer.dropEffect='move';setOver(vitrine.id+':'+position);}}}
+                    onDrop={e=>{e.preventDefault();if(drag.current?.section===vitrine.id)move(drag.current.id,vitrine.id,position);finishDrag();}}>
+                    <div className="planning-slot-products">
+                      {items.map(item=><div key={item.id} className="planning-slot-product" data-dragging={dragging===item.id}>
+                        {editor?.section===vitrine.id&&editor.item?.id===item.id?picker():
+                        <button type="button" className="planning-slot-name" disabled={busy}
+                          aria-label={`Editar ${item.nome} no espaço ${position}`} onClick={e=>open(vitrine,position,item,e)}>
+                          <strong>{item.nome}</strong><small>{item.dias[selectedDay]} {item.unidade}</small>
+                        </button>}
+                        <button type="button" className="planning-slot-handle" draggable={!busy} disabled={busy}
+                          aria-label={`Arrastar ${item.nome}`} title="Arraste para outro espaço. Toque no produto para outras opções."
+                          style={{touchAction:'none'}}
+                          onClick={e=>{if(suppressClick.current){suppressClick.current=false;return;}open(vitrine,position,item,e);setEditor({section:vitrine.id,position,item,mode:'move'});}}
+                          onDragStart={e=>{drag.current={id:item.id,section:vitrine.id};setDragging(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
+                          onDragEnd={finishDrag} onPointerDown={e=>pointerStart(e,item.id,vitrine.id)}
+                          onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={finishDrag}>
+                          <Icons.Menu className="w-4 h-4"/>
+                        </button>
+                      </div>)}
+                      {!items.length&&all.length>0&&<small className="planning-slot-filtered">Produto fora do filtro</small>}
+                    </div>
+                    {editor?.section===vitrine.id&&editor.position===position&&!editor.item?picker():
+                    <button type="button" className="planning-slot-add" disabled={busy}
+                      aria-label={`Adicionar produto no espaço ${position} de ${vitrine.label}`} onClick={e=>open(vitrine,position,null,e)}>
+                      + Produto
+                    </button>}
+                  </div>;
+                })}
+              </div>
+            </section>;
+          })}
+        </div>;
+      };
+
       const ProductionPlanningView = ({
         currentUnit, unitName, products, standardPlans, selectedDay, onSelectDay,
-        onSavePlan, onCopyDayPlan, onReorder, onGenerateOrder, onOpenProduct
+        onSavePlan, onCopyDayPlan, onPositionProducts, onGenerateOrder, onOpenProduct
       }) => {
         const [busca,setBusca] = useState('');
         const [categoria,setCategoria] = useState('todas');
         const [novoProduto,setNovoProduto] = useState('');
-        const [slotInclusao,setSlotInclusao] = useState(null);
-        const [salvandoInclusao,setSalvandoInclusao] = useState(false);
         const [novaQtd,setNovaQtd] = useState('1');
         const [diaDestino,setDiaDestino] = useState('terca');
-        const [editandoProduto,setEditandoProduto] = useState(null);
-        const [produtoEdicao,setProdutoEdicao] = useState('');
-        const [quantidadeEdicao,setQuantidadeEdicao] = useState('1');
-        const [salvandoEdicao,setSalvandoEdicao] = useState(false);
-        useEffect(()=>{setEditandoProduto(null);setSlotInclusao(null);},[currentUnit,selectedDay]);
-        const [arrastando,setArrastando] = useState(null);
-        const [sobre,setSobre] = useState(null);
-        const [movendoCard,setMovendoCard] = useState(false);
-        const dragRef = useRef(null);
-        const touchRef = useRef(null);
+        const [salvandoInclusao,setSalvandoInclusao] = useState(false);
         const planos = standardPlans.filter(p=>p.unit===currentUnit);
         const ativos = products.filter(p=>p.showcaseEnabled!==false);
         const categorias = [...new Set(ativos.map(p=>p.category).filter(Boolean))].sort();
@@ -6740,12 +6878,13 @@ const { useState, useEffect, useMemo, useRef } = React;
                 id:p.productId,nome:prod?.name||'Produto não encontrado',
                 categoria:prod?.category||'outro',
                 responsavel:prod?getResponsibleName(prod):NO_RESPONSIBLE_LABEL,
-                unidade:prod?.defaultUnit||p.unitOfMeasure||'un',dias:{},ordem:{}
+                unidade:prod?.defaultUnit||p.unitOfMeasure||'un',dias:{},ordem:{},positions:{}
               });
             }
             const item=m.get(p.productId);
             item.dias[p.dayOfWeek]=(item.dias[p.dayOfWeek]||0)+(Number(p.idealQty)||0);
             const sort=Number(p.displayOrder)||0;
+            if(sort<0){item.positions[p.dayOfWeek]=-sort;item.ordem[p.dayOfWeek]=-sort;}
             if(sort>0) item.ordem[p.dayOfWeek]=item.ordem[p.dayOfWeek]?
               Math.min(item.ordem[p.dayOfWeek],sort):sort;
           });
@@ -6771,85 +6910,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           setSalvandoInclusao(true);
           try {
           const gravado=await onSavePlan(selectedDay,novoProduto,qty);
-          if(gravado===true){setNovoProduto('');setNovaQtd('1');setSlotInclusao(null);}
+          if(gravado===true){setNovoProduto('');setNovaQtd('1');}
           } finally { setSalvandoInclusao(false); }
-        };
-        const iniciarEdicao=(item)=>{
-          setSlotInclusao(null);
-          setEditandoProduto(item.id);
-          setProdutoEdicao(item.id);
-          setQuantidadeEdicao(String(item.dias[selectedDay]||1));
-        };
-        const salvarEdicao=async(item)=>{
-          const quantidade=Number(quantidadeEdicao);
-          if(salvandoEdicao||!produtoEdicao||!Number.isInteger(quantidade)||quantidade<=0)return;
-          setSalvandoEdicao(true);
-          try{
-            // Primeiro garante o novo produto. Só retira o anterior se a gravação der certo.
-            const salvo=await onSavePlan(selectedDay,produtoEdicao,quantidade);
-            if(salvo!==true)return;
-            if(produtoEdicao!==item.id){
-              const retirado=await onSavePlan(selectedDay,item.id,0);
-              if(retirado!==true)return;
-            }
-            setEditandoProduto(null);
-          }finally{setSalvandoEdicao(false);}
-        };
-        const removerDoDia=async(item)=>{
-          if(salvandoEdicao||!window.confirm('Retirar "'+item.nome+'" do padrão de '+getDayNameBR(selectedDay).toLowerCase()+'?'))return;
-          setSalvandoEdicao(true);
-          try{
-            const retirado=await onSavePlan(selectedDay,item.id,0);
-            if(retirado===true)setEditandoProduto(null);
-          }finally{setSalvandoEdicao(false);}
-        };
-        // A troca é visível assim que ocorre e o banco recebe a nova ordem.
-        // Enquanto salva, bloqueia outro movimento para não embaralhar cliques rápidos.
-        const mover=async(source,target)=>{
-          if(movendoCard||!source||!target||source===target)return;
-          const sourceItem=dia.find(x=>x.id===source),targetItem=dia.find(x=>x.id===target);
-          if(!sourceItem||!targetItem||tipoVitrineVirtual(sourceItem.categoria)!==tipoVitrineVirtual(targetItem.categoria))return;
-          const ids=VITRINES_VIRTUAIS.flatMap(v=>dia.filter(x=>tipoVitrineVirtual(x.categoria)===v.id).map(x=>x.id));
-          const old=ids.indexOf(source),next=ids.indexOf(target);
-          if(old===-1||next===-1)return;
-          ids.splice(old,1);ids.splice(next,0,source);
-          setMovendoCard(true);
-          try{
-            await onReorder(selectedDay,ids);
-          }finally{
-            setMovendoCard(false);
-          }
-        };
-        // Alternativa acessível ao arrastar: uma posição anterior ou seguinte,
-        // mesmo quando a fileira quebra em 4 ou 3 colunas.
-        const moverUmPasso=(vitrine,item,index,delta)=>{
-          const alvo=vitrine.itens[index+delta];
-          if(alvo)mover(item.id,alvo.id);
-        };
-        const acabar=()=>{if(touchRef.current?.timer)clearTimeout(touchRef.current.timer);
-          touchRef.current=null;dragRef.current=null;setArrastando(null);setSobre(null);};
-        const tocar=(e,id)=>{
-          if(e.pointerType==='mouse')return;
-          const handle=e.currentTarget,pointerId=e.pointerId;
-          const item={id,pointerId,active:false,over:null,timer:null};
-          item.timer=window.setTimeout(()=>{
-            if(touchRef.current!==item)return;
-            item.active=true;setArrastando(id);
-            try{handle.setPointerCapture(pointerId);}catch(e){}
-          },260);
-          touchRef.current=item;
-        };
-        const deslizar=(e)=>{
-          const item=touchRef.current;
-          if(!item?.active)return;
-          const el=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-plan-card-id]');
-          const id=el?.getAttribute('data-plan-card-id')||null;
-          item.over=id;setSobre(id);
-        };
-        const soltar=(e)=>{
-          const item=touchRef.current;
-          if(item?.active&&item.over)mover(item.id,item.over);
-          acabar();
         };
         const copiar=()=>{
           if(diaDestino===selectedDay)return;
@@ -6863,14 +6925,14 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div>
                 <p className="t-overline mb-2">Rotina semanal · {unitName}</p>
                 <h2 className="t-display">Padrão de produção</h2>
-                <p className="t-body mt-1 max-w-xl">Monte o padrão do dia em espaços numerados. Toque em um slot para escolher o produto e definir a quantidade.</p>
+                <p className="t-body mt-1 max-w-xl">Monte o padrão do dia por produto. Arraste pelo puxador para mudar de espaço; cada slot pode receber vários produtos.</p>
               </div>
               <button type="button" className="btn btn-primary btn-md self-start"
                 onClick={onGenerateOrder}><Icons.ChefHat className="w-4 h-4"/> Montar checklist</button>
             </div>
             <div className="plan-day-tabs mt-5" role="group" aria-label="Dia do planejamento">
               {WEEK_DAYS.map(day=><button type="button" key={day} data-active={day===selectedDay}
-                onClick={()=>{acabar();onSelectDay(day);}} aria-pressed={day===selectedDay}>
+                onClick={()=>onSelectDay(day)} aria-pressed={day===selectedDay}>
                 <span>{getDayShortBR(day)}</span>
                 <small>{linhas.filter(p=>(p.dias[day]||0)>0).length}</small>
               </button>)}
@@ -6884,7 +6946,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
               <div><h3 className="t-title">Vitrine virtual · {unitName}</h3>
-                <p className="t-caption">Selecione um espaço: cada slot recebe um produto. As posições e quantidades são salvas para o dia e a unidade.</p></div>
+                <p className="t-caption">Arraste o produto para um espaço vazio ou junte com outros no mesmo slot. Use + Produto para adicionar. A organização é salva por dia e unidade.</p></div>
               <div className="flex flex-wrap gap-2">
                 <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
                   value={busca} onChange={e=>setBusca(e.target.value)}/>
@@ -6894,129 +6956,9 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </select>
               </div>
             </div>
-            <div className="virtual-showcase-board numbered-showcase-board">
-              {vitrines.map((vitrine)=><section className="virtual-showcase-section" key={vitrine.id} data-vitrine={vitrine.id}>
-                <div className="virtual-showcase-heading">
-                  <div><h4>{vitrine.label}</h4><p>{vitrine.columns} produtos por fileira</p></div>
-                  <span>{vitrine.itens.length} {vitrine.itens.length===1?'produto':'produtos'}</span>
-                </div>
-                <div className="plan-card-grid virtual-showcase-grid" data-cols={vitrine.columns}>
-                  {vitrine.itens.map((item,index)=><article key={item.id} data-plan-card-id={item.id}
-                className={`plan-card plan-card-clickable numbered-product-slot ${editandoProduto===item.id?'is-editing':''}`} hidden={!mostrados.some(p=>p.id===item.id)} data-dragging={arrastando===item.id}
-                data-over={sobre===item.id&&arrastando!==item.id}
-                tabIndex="0" role="group" aria-label={'Produto '+item.nome+'. Pressione Enter para editar.'}
-                onClick={e=>{
-                  if(e.target.closest?.('button,input,select,textarea,a,label,form,[draggable="true"]'))return;
-                  editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item);
-                }}
-                onKeyDown={e=>{
-                  if(e.target!==e.currentTarget)return;
-                  if(e.key==='Enter'||e.key===' '){
-                    e.preventDefault();
-                    editandoProduto===item.id?setEditandoProduto(null):iniciarEdicao(item);
-                  }
-                }}
-                onDragOver={e=>{if(dragRef.current){e.preventDefault();setSobre(item.id);}}}
-                onDrop={e=>{e.preventDefault();mover(dragRef.current,item.id);acabar();}}>
-                <div className="plan-card-top">
-                  <span className="plan-card-index">{String(index+1).padStart(2,'0')}</span>
-                  <span className="plan-card-category">{item.categoria}</span>
-                  <div className="plan-card-order-actions" role="group" aria-label={'Alterar posição de '+item.nome}>
-                    <button type="button" className="plan-card-step" title="Mover uma posição para trás"
-                      aria-label={'Mover '+item.nome+' para posição anterior'}
-                      disabled={movendoCard||index===0}
-                      onClick={()=>moverUmPasso(vitrine,item,index,-1)}>
-                      <Icons.ChevronLeft className="w-4 h-4"/>
-                    </button>
-                    <button type="button" className="plan-card-step" title="Mover uma posição para frente"
-                      aria-label={'Mover '+item.nome+' para próxima posição'}
-                      disabled={movendoCard||index===vitrine.itens.length-1}
-                      onClick={()=>moverUmPasso(vitrine,item,index,1)}>
-                      <Icons.ChevronRight className="w-4 h-4"/>
-                    </button>
-                    <button className="plan-card-drag" draggable={!movendoCard} type="button"
-                      disabled={movendoCard}
-                      title={'Arrastar '+item.nome} aria-label={'Arrastar '+item.nome+' para outra posição da mesma seção'}
-                      onDragStart={e=>{if(movendoCard){e.preventDefault();return;}dragRef.current=item.id;setArrastando(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
-                      onDragEnd={acabar}
-                      onPointerDown={e=>{if(!movendoCard)tocar(e,item.id);}} onPointerMove={deslizar}
-                      onPointerUp={soltar} onPointerCancel={acabar} onContextMenu={e=>e.preventDefault()}>
-                      <Icons.Menu className="w-5 h-5"/>
-                    </button>
-                  </div>
-                </div>
-                <div className="plan-card-body">
-                  <h4>{item.nome}</h4>
-                  <p>{item.responsavel}</p>
-                  <span className="plan-card-open-hint" aria-hidden="true">
-                    <Icons.Pencil className="w-3.5 h-3.5"/>
-                    {editandoProduto===item.id?'Toque no card para fechar':'Toque no card para editar'}
-                  </span>
-                </div>
-                {editandoProduto===item.id?
-                  <form className="plan-card-editor" onSubmit={e=>{e.preventDefault();salvarEdicao(item);}}>
-                    <label>Produto
-                      <select className="field field-sm" aria-label={'Produto para substituir '+item.nome}
-                        value={produtoEdicao} onChange={e=>setProdutoEdicao(e.target.value)}
-                        disabled={salvandoEdicao}>
-                        {ativos.filter(p=>p.id===item.id||!produtosNoDia.has(p.id))
-                          .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))
-                          .map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </label>
-                    <label>Quantidade do dia
-                      <input className="field field-sm" type="number" min="1" step="1" inputMode="numeric"
-                        aria-label={'Quantidade editada de '+item.nome} value={quantidadeEdicao}
-                        disabled={salvandoEdicao} onChange={e=>setQuantidadeEdicao(e.target.value)}/>
-                    </label>
-                    <button type="submit" className="btn btn-primary btn-sm"
-                      disabled={salvandoEdicao||!produtoEdicao||!Number.isInteger(Number(quantidadeEdicao))||Number(quantidadeEdicao)<=0}>
-                      {salvandoEdicao?'Salvando…':'Salvar alterações'}
-                    </button>
-                    <div className="plan-card-editor-links">
-                      <button type="button" disabled={salvandoEdicao}
-                        onClick={()=>onOpenProduct&&onOpenProduct(item.id)}>Editar cadastro</button>
-                      <button type="button" className="plan-card-remove" disabled={salvandoEdicao}
-                        onClick={()=>removerDoDia(item)}>Retirar do dia</button>
-                    </div>
-                  </form>:
-                  <div className="plan-card-bottom">
-                    <span>Quantidade do dia <small>({item.unidade})</small></span>
-                    <PlanQtyControl label={'Quantidade de '+item.nome} value={item.dias[selectedDay]||0}
-                      onCommit={value=>onSavePlan(selectedDay,item.id,value)}/>
-                  </div>}
-              </article>)}
-                  {Array.from({length:Math.max(1,3-((vitrine.itens.length)%3))},(_,index)=>
-                    <div key={'vazio-'+index} className="numbered-empty-slot">
-                      <button type="button" className="numbered-slot-add"
-                        aria-label={`Adicionar produto no espaço ${vitrine.itens.length+index+1} de ${vitrine.label}`}
-                        aria-expanded={slotInclusao===vitrine.id+'-'+index}
-                        onClick={()=>{setSlotInclusao(slotInclusao===vitrine.id+'-'+index?null:vitrine.id+'-'+index);setNovoProduto('');setNovaQtd('1');setEditandoProduto(null);}}>
-                        <span className="numbered-slot-add-label">+ Produto</span>
-                        <span className="numbered-slot-number">{vitrine.itens.length+index+1}</span>
-                      </button>
-                      {slotInclusao===vitrine.id+'-'+index&&<form className="numbered-slot-form" onSubmit={e=>{e.preventDefault();incluir();}}>
-                        <label>Produto
-                          <select autoFocus className="field field-sm" aria-label="Produto do slot" value={novoProduto}
-                            disabled={salvandoInclusao} onChange={e=>setNovoProduto(e.target.value)}>
-                            <option value="">Escolha um produto</option>
-                            {disponiveis.filter(p=>tipoVitrineVirtual(p.category)===vitrine.id).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </label>
-                        <label>Quantidade do dia
-                          <input className="field field-sm" type="number" min="1" step="1" value={novaQtd}
-                            disabled={salvandoInclusao} onChange={e=>setNovaQtd(e.target.value)}/>
-                        </label>
-                        <button type="submit" className="btn btn-primary btn-sm" disabled={salvandoInclusao||!novoProduto||!(Number(novaQtd)>0)}>
-                          {salvandoInclusao?'Salvando…':'Colocar produto'}
-                        </button>
-                        <button type="button" className="btn btn-secondary btn-sm" disabled={salvandoInclusao} onClick={()=>setSlotInclusao(null)}>Cancelar</button>
-                      </form>}
-                    </div>)}
-                </div>
-              </section>)}
-              {!mostrados.length&&<div className="plan-card-empty">Nenhum produto neste dia ou filtro. Adicione abaixo para montar seu padrão.</div>}
-            </div>
+            <PlanningSlotsBoard key={currentUnit+':'+selectedDay} vitrines={vitrines} selectedDay={selectedDay}
+              products={products} visibleIds={new Set(mostrados.map(p=>p.id))} onSavePlan={onSavePlan}
+              onPositionProducts={onPositionProducts} onOpenProduct={onOpenProduct}/>
             <div className="plan-add-section">
               <h3 className="t-title">Adicionar produto</h3>
               <div className="flex flex-col sm:flex-row gap-2 mt-3 items-stretch sm:items-end">
@@ -28289,7 +28231,7 @@ ${BARRA_ACOES_HTML}
 
         // Planejamento por produto/dia: dispensa a associação a qualquer móvel.
         // Planos antigos continuam legíveis; a edição consolida a quantidade.
-        const handleSaveProductionPlan = (day, productId, novaQtd) => {
+        const handleSaveProductionPlan = (day, productId, novaQtd, slotPosition = null) => {
           const produto = products.find((p) => p.id === productId);
           if (!produto) return;
           const qty = Math.max(0, Math.floor(Number(novaQtd) || 0));
@@ -28309,7 +28251,7 @@ ${BARRA_ACOES_HTML}
                 slot_code: null, product_id: productId, ideal_qty: qty,
                 unit_of_measure: produto.defaultUnit || 'un',
                 priority: 'B', frequency: 'dias', min_qty: 0,
-                display_order: 1 + Math.max(0,...standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===day).map(p=>p.displayOrder||0))
+                display_order: slotPosition ? -slotPosition : 1 + Math.max(0,...standardPlans.filter(p=>p.unit===currentUnit&&p.dayOfWeek===day).map(p=>p.displayOrder||0))
               }).select());
               setStandardPlans((prev) => [...prev, ...novos.map(fromPlan)]);
               return true;
@@ -28326,7 +28268,7 @@ ${BARRA_ACOES_HTML}
             }));
             for (const row of novas) {
               await run('standard_plans', sb.from('standard_plans')
-                .update({ideal_qty:row.qty,min_qty:row.min}).eq('id',row.id));
+                .update({ideal_qty:row.qty,min_qty:row.min,...(slotPosition ? {display_order:-slotPosition} : {})}).eq('id',row.id));
             }
             if (retirar.length) await run('standard_plans', sb.from('standard_plans')
               .delete().in('id', retirar.map((p)=>p.id)));
@@ -28335,29 +28277,21 @@ ${BARRA_ACOES_HTML}
               .filter((p) => !excluidos.has(p.id))
               .map((p) => {
                 const novo = novas.find((n) => n.id === p.id);
-                return novo ? {...p,idealQty:novo.qty,minQty:novo.min} : p;
+                return novo ? {...p,idealQty:novo.qty,minQty:novo.min,...(slotPosition ? {displayOrder:-slotPosition} : {})} : p;
               }));
             return true;
           });
         };
 
-        const handleReorderProductionPlan = (day,productIds) => {
-          if(!Array.isArray(productIds)||!productIds.length)return Promise.resolve(false);
-          const unidade=currentUnit;
-          const orderById=new Map(productIds.map((id,index)=>[id,index+1]));
-          const linhasAlteradas=standardPlans.filter(p=>p.unit===unidade&&p.dayOfWeek===day&&
-            orderById.has(p.productId)&&Number(p.displayOrder)!==orderById.get(p.productId));
-          if(!linhasAlteradas.length)return Promise.resolve(true);
-          // Atualiza a interface imediatamente, em vez de esperar vários pedidos
-          // sequenciais ao banco para mostrar uma única troca de lugar.
-          setStandardPlans(prev=>prev.map(p=>p.unit===unidade&&p.dayOfWeek===day&&orderById.has(p.productId)
-            ? {...p,displayOrder:orderById.get(p.productId)}:p));
-          // write() restaura a leitura do banco se uma operação falhar.
-          return write('Salvar ordem do padrão',async()=>{
-            // Registros antigos podem ter mais de uma linha para um produto.
-            // Atualiza só os itens cuja posição realmente mudou.
-            await Promise.all(linhasAlteradas.map(p=>run('standard_plans',sb.from('standard_plans')
-              .update({display_order:orderById.get(p.productId)}).eq('id',p.id))));
+        const handlePositionPlanningProducts = (day, assignments) => {
+          if(!Array.isArray(assignments)||!assignments.length||assignments.some(a=>!Number.isSafeInteger(a.position)||a.position<1||a.position>10000))return Promise.resolve(false);
+          const positions=new Map(assignments.map(a=>[a.productId,-a.position]));
+          const unit=currentUnit;
+          const changed=standardPlans.filter(p=>p.unit===unit&&p.dayOfWeek===day&&positions.has(p.productId)&&p.displayOrder!==positions.get(p.productId));
+          if(!changed.length)return Promise.resolve(true);
+          return write('Salvar espaços do planejamento',async()=>{
+            await Promise.all(changed.map(p=>run('standard_plans',sb.from('standard_plans').update({display_order:positions.get(p.productId)}).eq('id',p.id))));
+            setStandardPlans(prev=>prev.map(p=>p.unit===unit&&p.dayOfWeek===day&&positions.has(p.productId)?{...p,displayOrder:positions.get(p.productId)}:p));
             return true;
           });
         };
@@ -29783,7 +29717,7 @@ ${BARRA_ACOES_HTML}
                   onSelectDay={setSelectedDay}
                   onSavePlan={handleSaveProductionPlan}
                   onCopyDayPlan={handleCopyDayPlan}
-                  onReorder={handleReorderProductionPlan}
+                  onPositionProducts={handlePositionPlanningProducts}
                   onOpenProduct={setProdutoAberto}
                   onGenerateOrder={() => { setProductionDay(selectedDay); setActiveTab('producao'); }}
                 />

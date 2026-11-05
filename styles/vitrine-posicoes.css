@@ -18,38 +18,40 @@
   .standard-slot-number { font-size: 26px; }
 }
 
-/* Planejamento > Padrão de produção: vitrine virtual em slots. */
-.numbered-showcase-board .virtual-showcase-section { background: #e8e8e8; border: 0; box-shadow: none; }
-.numbered-showcase-board .virtual-showcase-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.numbered-showcase-board .numbered-product-slot,
-.numbered-empty-slot { position: relative; min-width: 0; min-height: 160px; border: 0; border-radius: 16px; box-shadow: none; }
-.numbered-showcase-board .numbered-product-slot { background: #063e43; color: white; padding: 16px 12px 50px; cursor: pointer; }
-.numbered-showcase-board .numbered-product-slot[hidden] { display: none; }
-.numbered-showcase-board .plan-card-top { margin: 0; }
-.numbered-showcase-board .plan-card-index { position: absolute; left: 14px; bottom: 15px; font-size: 30px; line-height: 1; color: white; background: none; }
-.numbered-showcase-board .plan-card-category,
-.numbered-showcase-board .plan-card-order-actions,
-.numbered-showcase-board .plan-card-open-hint,
-.numbered-showcase-board .plan-card-body > p { display: none; }
-.numbered-showcase-board .plan-card-body { padding: 0; }
-.numbered-showcase-board .plan-card-body h4 { color: white; font-size: 14px; overflow-wrap: anywhere; }
-.numbered-showcase-board .plan-card-bottom { margin-top: 10px; padding: 0; border: 0; background: none; flex-wrap: wrap; gap: 6px; }
-.numbered-showcase-board .plan-card-bottom > span { color: #e0eeee; font-size: 10px; }
-.numbered-empty-slot { background: #c8cbcc; }
-.numbered-slot-add { display: flex; flex-direction: column; justify-content: space-between; width: 100%; min-height: 160px; padding: 16px 14px; border: 0; background: transparent; color: white; text-align: left; cursor: pointer; border-radius: inherit; }
-.numbered-slot-add-label { font-size: 12px; }
-.numbered-slot-number { font-size: 30px; line-height: 1; font-weight: 750; }
-.numbered-slot-add:focus-visible { outline: 3px solid #a67b00; outline-offset: 2px; }
-.numbered-showcase-board .is-editing { grid-column: 1 / -1; }
-.numbered-showcase-board .plan-card-editor,
-.numbered-slot-form { display: flex; flex-direction: column; gap: 10px; background: white; color: #173d38; padding: 14px; border-radius: 12px; margin-top: 12px; }
-.numbered-slot-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
-.numbered-empty-slot:has(.numbered-slot-form) { grid-column: 1 / -1; }
+/* Produtos são o conteúdo principal; posições ficam apenas na organização. */
+.planning-slots-board { display: flex; flex-direction: column; gap: 24px; }
+.planning-slot-section { padding: 16px; border-radius: 18px; background: #f0f4ee; }
+.planning-slot-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.planning-slot-section h4 { font-size: 17px; font-weight: 750; color: #294733; }
+.planning-slot-section > header > span { font-size: 11px; color: #5f7564; }
+.planning-slot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.planning-slot { display: flex; flex-direction: column; min-width: 0; min-height: 130px; padding: 12px; border: 2px solid transparent; border-radius: 14px; background: #e1e6df; }
+.planning-slot.has-products { background: #cfe5c6; }
+.planning-slot.is-over { border-color: #367344; background: #b9dbaa; }
+.planning-slot-products { display: flex; flex: 1; flex-direction: column; gap: 8px; }
+.planning-slot-product { display: flex; align-items: flex-start; gap: 4px; min-width: 0; padding-bottom: 8px; }
+.planning-slot-product + .planning-slot-product { border-top: 1px solid #aec7a5; padding-top: 10px; }
+.planning-slot-product[data-dragging="true"] { opacity: .45; }
+.planning-slot-name { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; padding: 0; background: none; border: 0; text-align: left; color: #25482d; cursor: pointer; }
+.planning-slot-name strong { font-size: 17px; font-weight: 750; line-height: 1.35; overflow-wrap: anywhere; }
+.planning-slot-name small { font-size: 10px; font-weight: 400; color: #5b775e; }
+.planning-slot-handle { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 32px; padding: 5px; background: #ffffff70; border: 0; border-radius: 7px; color: #426b46; cursor: grab; }
+.planning-slot-handle:active { cursor: grabbing; }
+.planning-slot-add { display: block; width: 100%; padding: 8px 0 0; background: none; border: 0; text-align: left; color: #49674c; font-size: 11px; cursor: pointer; }
+.planning-slot-add:only-child { flex: 1; }
+.planning-inline-picker { width: 100%; min-width: 0; min-height: 40px; font: inherit; font-size: 14px; color: #25482d; border: 1px solid #789c70; border-radius: 7px; background: white; padding: 6px; }
+.planning-slot-error { color: #962b22; font-size: 13px; }
+.planning-slot-filtered { color: #5f7564; font-size: 11px; }
+.planning-slot button:focus-visible { outline: 2px solid #42774a; outline-offset: 3px; }
 @media (max-width: 440px) {
-  .numbered-showcase-board .virtual-showcase-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
-  .numbered-showcase-board .numbered-product-slot { min-height: 140px; padding: 12px 8px 45px; }
-  .numbered-showcase-board .plan-card-body h4 { font-size: 12px; }
-  .numbered-slot-add { min-height: 140px; padding: 12px 10px; }
-  .numbered-showcase-board .plan-card-index, .numbered-slot-number { font-size: 26px; }
+  .planning-slot-section { padding: 10px; }
+  .planning-slot-grid { gap: 7px; }
+  .planning-slot { padding: 9px 7px; min-height: 120px; }
+  .planning-slot-name strong { font-size: 14px; }
+  .planning-slot-product { flex-wrap: wrap; }
+  .planning-slot-handle { width: 27px; height: 27px; }
 }
-.numbered-showcase-board .is-editing .plan-card-order-actions { display: flex; margin-bottom: 12px; }
+
+.planning-slot-product { flex-direction: column; }
+.planning-slot-name { width: 100%; }
+.planning-slot-handle { align-self: flex-end; }
