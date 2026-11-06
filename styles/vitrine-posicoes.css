@@ -20,7 +20,7 @@
 
 /* Planejamento: produtos em primeiro plano, posições discretas. */
 .planning-slots-board { display: flex; flex-direction: column; gap: 24px; }
-.planning-slot-section { padding: 20px; border: 1px solid #e1e9df; border-radius: 22px; background: linear-gradient(145deg,#fbfdf9,#f2f7ef); }
+.planning-slot-section { padding: 20px; border: 1px solid #e1e9df; border-radius: 22px; background: #f5f8f2; }
 .planning-slot-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .planning-section-eyebrow { display: block; margin-bottom: 3px; font-size: 9px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; color: #80917b; }
 .planning-slot-section h4 { margin: 0; font-size: 20px; font-weight: 750; letter-spacing: -.035em; color: #294733; }
@@ -31,7 +31,7 @@
 .planning-slot.has-products { border: 1px solid #c8dfbc; background: #dcecd3; box-shadow: 0 3px 9px #47623a07; }
 .planning-slot.is-over { border: 2px solid #4f8244; padding: 6px; background: #c9e4bb; box-shadow: 0 0 0 4px #81ae6830; }
 .planning-slot-products { display: flex; flex: 1; flex-direction: column; gap: 7px; }
-.planning-slot-product { position: relative; display: flex; min-width: 0; border: 1px solid #d2e1c8; border-radius: 12px; background: linear-gradient(150deg,#fafff7,#edf7e7); box-shadow: 0 2px 6px #38562e0a; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: opacity .15s, box-shadow .15s; }
+.planning-slot-product { position: relative; display: flex; min-width: 0; border: 1px solid #d2e1c8; border-radius: 12px; background: #e9f3e2; box-shadow: 0 2px 6px #38562e0a; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: opacity .15s, box-shadow .15s; }
 .planning-slot-product:hover { box-shadow: 0 4px 12px #38562e15; border-color: #aec99f; }
 .planning-slot-product[data-dragging="true"] { opacity: .35; border: 1px dashed #759768; }
 .planning-slot-name { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 18px; width: 100%; min-width: 0; min-height: 112px; padding: 13px 12px 12px; background: none; border: 0; border-radius: inherit; text-align: left; color: #284b30; cursor: inherit; touch-action: none; }
@@ -84,7 +84,7 @@
 .planning-frequency-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .planning-frequency-legend i { width: 10px; height: 10px; border-radius: 4px; border: 1px solid #bad2ad; background: #dfefd4; }
 .planning-frequency-legend i[data-frequency="occasional"] { border-color: #d3c5e5; background: #eee5f8; }
-.planning-slot-product[data-frequency="occasional"] { border-color: #ded1eb; background: linear-gradient(145deg,#fcf9ff,#f0e8f8); }
+.planning-slot-product[data-frequency="occasional"] { border-color: #ded1eb; background: #eee6f6; }
 .planning-slot-product[data-frequency="occasional"] .planning-slot-name { color: #57436e; }
 .planning-slot-product[data-frequency="occasional"] .planning-slot-handle { border-color: #e1d6ec; background: #eae1f3; color: #8d76a3; }
 .planning-frequency-badge { align-self: flex-start; display: inline-block; margin-top: auto; border-radius: 5px; padding: 3px 5px; background: #dfedd5; color: #6e895c; font-size: 8px; font-weight: 650; line-height: 1.2; }
