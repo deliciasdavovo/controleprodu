@@ -3,8 +3,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/app.jsx'
-      - 'src/embalagens.jsx'
+      - 'src/**'
+      - 'styles/**'
+      - 'scripts/versionar-interface.py'
+      - 'index.html'
       - '.github/workflows/publicar-interface.yml'
   workflow_dispatch:
 
@@ -21,19 +23,8 @@ jobs:
         run: |
           npx --yes esbuild@0.25.12 src/app.jsx --loader:.jsx=jsx --minify --target=es2020 --outfile=compiled/app.js
           npx --yes esbuild@0.25.12 src/embalagens.jsx --loader:.jsx=jsx --minify --target=es2020 --outfile=compiled/embalagens.js
-      - name: Atualizar versão dos scripts
-        run: |
-          python3 - <<'PY'
-          import re, pathlib, os
-          path = pathlib.Path('index.html')
-          html = path.read_text()
-          sha = os.environ['GITHUB_SHA'][:12]
-          for script in ('app', 'embalagens'):
-              html, count = re.subn(r'(\./compiled/'+script+r'\.js\?v=)[^"\']+', lambda m: m.group(1)+sha, html)
-              if count != 1:
-                  raise RuntimeError(f'Script {script}: esperado um link no index.html; encontrado {count}')
-          path.write_text(html)
-          PY
+      - name: Atualizar versão dos arquivos pelo conteúdo
+        run: python3 scripts/versionar-interface.py
       - name: Registrar versão publicada
         run: |
           git config user.name "github-actions[bot]"

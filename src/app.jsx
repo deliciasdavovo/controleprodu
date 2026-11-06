@@ -6902,7 +6902,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                     onDragOver={e=>{if(drag.current?.section===vitrine.id&&!busy){e.preventDefault();e.dataTransfer.dropEffect='move';setOver(vitrine.id+':'+position);}}}
                     onDrop={e=>{e.preventDefault();if(drag.current?.section===vitrine.id)move(drag.current.id,vitrine.id,position);finishDrag();}}>
                     <div className="planning-slot-products">
-                      {items.map(item=><div key={item.id} className="planning-slot-product" data-dragging={dragging===item.id}
+                      {items.map(item=><div key={item.id} className="planning-slot-product" data-frequency={DIAS_ROTINA_PRODUCAO.every(day=>(item.dias[day]||0)>0)?'fixed':'occasional'} data-dragging={dragging===item.id}
                         draggable={!busy&&!editor} onDragStart={e=>{if(touch.current?.active||e.target.closest('select,input')){e.preventDefault();return;}drag.current={id:item.id,section:vitrine.id};setDragging(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
                         onDragEnd={()=>{suppressClick.current=Date.now()+700;finishDrag();}}
                         onPointerDown={e=>pointerStart(e,item,vitrine.id)} onPointerMove={pointerMove} onPointerUp={e=>pointerEnd(e,item,vitrine,position)}
@@ -6911,7 +6911,9 @@ const { useState, useEffect, useMemo, useRef } = React;
                         onClickCapture={e=>{if(Date.now()<suppressClick.current){e.preventDefault();e.stopPropagation();}}}>
                         <button type="button" className="planning-slot-name" draggable={!busy&&!editor} disabled={busy}
                           aria-label={`Editar ${item.nome} no espaço ${position}`} onClick={e=>open(vitrine,position,item,e)}>
-                          <strong>{item.nome}</strong><small>{item.dias[selectedDay]} {item.unidade}</small>
+                          <strong>{item.nome}</strong>
+                          <span className="planning-frequency-badge" title={DIAS_ROTINA_PRODUCAO.every(day=>(item.dias[day]||0)>0)?'Presente de segunda a sábado':'Presente em alguns dias da semana'}>{DIAS_ROTINA_PRODUCAO.every(day=>(item.dias[day]||0)>0)?'Fixo':'Esporádico'}</span>
+                          <small>{item.dias[selectedDay]} {item.unidade}</small>
                         </button>
                         <button type="button" className="planning-slot-remove" data-no-drag disabled={busy}
                           aria-label={`Retirar ${item.nome} do dia`} title="Retirar produto" onClick={e=>{e.stopPropagation();remove(item);}}>×</button>
@@ -6943,7 +6945,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [categoria,setCategoria] = useState('todas');
         const [novoProduto,setNovoProduto] = useState('');
         const [novaQtd,setNovaQtd] = useState('1');
-        const [diaDestino,setDiaDestino] = useState('terca');
+        const [diaDestino,setDiaDestino] = useState('');
         const [salvandoInclusao,setSalvandoInclusao] = useState(false);
         const planos = standardPlans.filter(p=>p.unit===currentUnit);
         const ativos = products.filter(p=>p.showcaseEnabled!==false);
@@ -6993,9 +6995,8 @@ const { useState, useEffect, useMemo, useRef } = React;
           } finally { setSalvandoInclusao(false); }
         };
         const copiar=()=>{
-          if(diaDestino===selectedDay)return;
-          if(window.confirm('Substituir o padrão de '+getDayNameBR(diaDestino).toLowerCase()+
-            ' pelo de '+getDayNameBR(selectedDay).toLowerCase()+'?'))
+          if(!diaDestino||diaDestino===selectedDay)return;
+          if(window.confirm('Copiar a vitrine completa de '+getDayNameBR(selectedDay).toLowerCase()+' para '+getDayNameBR(diaDestino).toLowerCase()+' em '+unitName+'? Os produtos e a organização da vitrine de destino serão substituídos.'))
             onCopyDayPlan(selectedDay,diaDestino);
         };
         return <div className="space-y-4 production-board">
@@ -7035,6 +7036,10 @@ const { useState, useEffect, useMemo, useRef } = React;
                 </select>
               </div>
             </div>
+            <div className="planning-frequency-legend" aria-label="Frequência dos produtos">
+              <span><i data-frequency="fixed"/>Fixos · segunda a sábado</span>
+              <span><i data-frequency="occasional"/>Esporádicos · alguns dias</span>
+            </div>
             <PlanningSlotsBoard key={currentUnit+':'+selectedDay} vitrines={vitrines} selectedDay={selectedDay}
               products={products} visibleIds={new Set(mostrados.map(p=>p.id))} onSavePlan={onSavePlan}
               onPositionProducts={onPositionProducts} onOpenProduct={onOpenProduct}/>
@@ -7057,14 +7062,16 @@ const { useState, useEffect, useMemo, useRef } = React;
               </div>
             </div>
             <div className="plan-copy-section">
-              <label className="t-caption">Copiar o padrão de {getDayNameBR(selectedDay).toLowerCase()} para
+              <label className="t-caption">Copiar esta vitrine para
                 <select className="field field-sm mt-1 block" value={diaDestino} aria-label="Dia de destino"
                   onChange={e=>setDiaDestino(e.target.value)}>
-                  {WEEK_DAYS.map(day=><option key={day} value={day}>{getDayNameBR(day)}</option>)}
+                  <option value="">Escolha o dia</option>
+                  {WEEK_DAYS.map(day=><option key={day} value={day} disabled={day===selectedDay}>{getDayNameBR(day)}</option>)}
                 </select>
               </label>
               <button className="btn btn-secondary btn-sm" type="button"
-                disabled={diaDestino===selectedDay||!dia.length} onClick={copiar}>Copiar dia</button>
+                disabled={!diaDestino||diaDestino===selectedDay||!dia.length} onClick={copiar}>Copiar vitrine</button>
+              <p className="planning-copy-hint">Origem: {getDayNameBR(selectedDay)} · {unitName}. Inclui todos os produtos, quantidades e posições, mesmo com filtros ativos.</p>
             </div>
           </div>
           <div className="card p-4 sm:p-5">
