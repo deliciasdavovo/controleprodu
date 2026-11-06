@@ -24,6 +24,7 @@
 .planning-slot-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .planning-slot-section h4 { font-size: 17px; font-weight: 750; color: #294733; }
 .planning-slot-section > header > span { font-size: 11px; color: #5f7564; }
+.planning-slot-grid[data-cols="4"] { grid-template-columns: repeat(4,minmax(0,1fr)); }
 .planning-slot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
 .planning-slot { display: flex; flex-direction: column; min-width: 0; min-height: 130px; padding: 12px; border: 2px solid transparent; border-radius: 14px; background: #e1e6df; }
 .planning-slot.has-products { background: #cfe5c6; }

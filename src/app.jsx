@@ -6799,7 +6799,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           if(editor.mode==='move')return <select autoFocus className="planning-inline-picker" aria-label="Mover produto para espaço"
             value={editor.position} disabled={busy} onBlur={()=>{if(!busy)close();}}
             onChange={e=>move(editor.item.id,editor.section,Number(e.target.value))}>
-            {Array.from({length:Math.ceil((Math.max(6,...layout.find(v=>v.id===editor.section).itens.map(p=>p.position))+1)/3)*3},(_,i)=><option key={i+1} value={i+1}>Espaço {i+1}</option>)}
+            {Array.from({length:Math.ceil((Math.max(6,...layout.find(v=>v.id===editor.section).itens.map(p=>p.position))+1)/layout.find(v=>v.id===editor.section).columns)*layout.find(v=>v.id===editor.section).columns},(_,i)=><option key={i+1} value={i+1}>Espaço {i+1}</option>)}
           </select>;
           return <select autoFocus className="planning-inline-picker" aria-label="Produto do espaço" value={productId} disabled={busy}
             onKeyDown={e=>{if(e.key==='Escape')close();}} onBlur={()=>{if(!busy)close();}}
@@ -6813,10 +6813,10 @@ const { useState, useEffect, useMemo, useRef } = React;
           {error&&<p role="alert" className="planning-slot-error">{error}</p>}
           {layout.map(vitrine=>{
             const max=Math.max(6,...vitrine.itens.map(p=>p.position));
-            const count=Math.ceil((max+1)/3)*3;
+            const count=Math.ceil((max+1)/vitrine.columns)*vitrine.columns;
             return <section key={vitrine.id} className="planning-slot-section">
               <header><h4>{vitrine.label}</h4><span>{vitrine.itens.length} produtos</span></header>
-              <div className="planning-slot-grid">
+              <div className="planning-slot-grid" data-cols={vitrine.columns}>
                 {Array.from({length:count},(_,index)=>{
                   const position=index+1, all=vitrine.itens.filter(p=>p.position===position);
                   const items=all.filter(p=>visibleIds.has(p.id));
@@ -6896,7 +6896,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         });
         const mostrados = dia.filter(p=>(categoria==='todas'||p.categoria===categoria)&&
           normalizeName(p.nome).includes(normalizeName(busca)));
-        const vitrines=VITRINES_VIRTUAIS.map(v=>({...v,columns:3,itens:dia.filter(item=>tipoVitrineVirtual(item.categoria)===v.id)})).filter(v=>categoria==='todas'||tipoVitrineVirtual(categoria)===v.id);
+        const vitrines=VITRINES_VIRTUAIS.map(v=>({...v,itens:dia.filter(item=>tipoVitrineVirtual(item.categoria)===v.id)})).filter(v=>categoria==='todas'||tipoVitrineVirtual(categoria)===v.id);
         const produtosNoDia = new Set(dia.map(p=>p.id));
         const disponiveis=ativos.filter(p=>!produtosNoDia.has(p.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
         const totais=dia.reduce((map,p)=>{
