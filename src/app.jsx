@@ -6727,18 +6727,25 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [error,setError]=useState('');
         const [dragging,setDragging]=useState(null);
         const [over,setOver]=useState(null);
-        const drag=useRef(null), touch=useRef(null), focusReturn=useRef(null), suppressClick=useRef(false);
+        const [floating,setFloating]=useState(null);
+        const [search,setSearch]=useState('');
+        const [activeOption,setActiveOption]=useState(0);
+        const [searchBox,setSearchBox]=useState(null);
+        const drag=useRef(null), touch=useRef(null), focusReturn=useRef(null), suppressClick=useRef(0);
         const layout=vitrines.map(v=>({...v,itens:planningSlotLayout(v.itens,selectedDay)}));
         const finishDrag=()=>{
-          if(touch.current?.timer)clearTimeout(touch.current.timer);
-          touch.current=null;drag.current=null;setDragging(null);setOver(null);
+          const state=touch.current;
+          if(state?.timer)clearTimeout(state.timer);
+          if(state?.frame)cancelAnimationFrame(state.frame);
+          try{if(state?.element.hasPointerCapture(state.pointerId))state.element.releasePointerCapture(state.pointerId);}catch{}
+          touch.current=null;drag.current=null;setDragging(null);setOver(null);setFloating(null);
         };
-        useEffect(()=>()=>{if(touch.current?.timer)clearTimeout(touch.current.timer);},[]);
+        useEffect(()=>()=>{if(touch.current?.timer)clearTimeout(touch.current.timer);if(touch.current?.frame)cancelAnimationFrame(touch.current.frame);},[]);
         const open=(vitrine,position,item=null,event=null)=>{
           if(busy)return;
           focusReturn.current=event?.currentTarget;
           setEditor({section:vitrine.id,position,item});setProductId(item?.id||'');
-          setQuantity(String(item?.dias[selectedDay]||1));setError('');
+          setQuantity(String(item?.dias[selectedDay]||1));setSearch('');setActiveOption(0);setError('');
         };
         const close=()=>{setEditor(null);focusReturn.current?.focus();};
         const move=async(source,section,position)=>{
@@ -6768,54 +6775,124 @@ const { useState, useEffect, useMemo, useRef } = React;
           }catch{setError('Não foi possível salvar. Tente novamente.');}
           finally{setBusy(false);}
         };
-        const remove=async()=>{
-          if(busy||!confirm('Retirar '+editor.item.nome+' deste dia?'))return;
+        const remove=async(item=editor?.item)=>{
+          if(busy||!item||!confirm('Retirar '+item.nome+' deste dia?'))return;
           setBusy(true);setError('');
-          try{if(await onSavePlan(selectedDay,editor.item.id,0)===true)close();else setError('Não foi possível retirar o produto.');}
+          try{if(await onSavePlan(selectedDay,item.id,0)===true)close();else setError('Não foi possível retirar o produto.');}
           catch{setError('Não foi possível retirar o produto.');}finally{setBusy(false);}
         };
-        const pointerStart=(e,id,section)=>{
-          if(e.pointerType==='mouse'||busy)return;
-          const element=e.currentTarget,pointerId=e.pointerId;
-          const state={id,section,active:false,timer:null};
-          state.timer=setTimeout(()=>{state.active=true;drag.current={id,section};setDragging(id);try{element.setPointerCapture(pointerId);}catch{}},220);
+        const scrollParent=element=>{
+          let parent=element.parentElement;
+          while(parent&&parent!==document.body){
+            if(/auto|scroll/.test(getComputedStyle(parent).overflowY)&&parent.scrollHeight>parent.clientHeight)return parent;
+            parent=parent.parentElement;
+          }
+          return document.scrollingElement;
+        };
+        const updateDestination=state=>{
+          const slot=document.elementFromPoint(state.x,state.y)?.closest('[data-planning-slot]');
+          const same=slot?.dataset.section===state.section;
+          state.destination=same?Number(slot.dataset.planningSlot):null;
+          setOver(same?state.section+':'+state.destination:null);
+        };
+        const pointerStart=(e,item,section)=>{
+          if(e.pointerType==='mouse'||busy||e.target.closest('select,input,[data-no-drag]'))return;
+          const state={id:item.id,name:item.nome,section,element:e.currentTarget,pointerId:e.pointerId,
+            x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,active:false,scrolling:false,
+            scroll:scrollParent(e.currentTarget),timer:null,frame:null};
           touch.current=state;
+          state.timer=setTimeout(()=>{
+            if(touch.current!==state||state.scrolling)return;
+            state.active=true;drag.current={id:item.id,section};setDragging(item.id);setEditor(null);
+            setFloating({name:item.nome,x:state.x,y:state.y});
+            try{state.element.setPointerCapture(state.pointerId);}catch{}
+            updateDestination(state);
+            const autoScroll=()=>{
+              if(touch.current!==state||!state.active)return;
+              const rect=state.scroll===document.scrollingElement?{top:0,bottom:innerHeight}:state.scroll.getBoundingClientRect();
+              const edge=64,delta=state.y<rect.top+edge?-Math.min(14,(rect.top+edge-state.y)/4):state.y>rect.bottom-edge?Math.min(14,(state.y-rect.bottom+edge)/4):0;
+              if(delta){state.scroll.scrollTop+=delta;updateDestination(state);}
+              state.frame=requestAnimationFrame(autoScroll);
+            };
+            state.frame=requestAnimationFrame(autoScroll);
+          },260);
         };
         const pointerMove=e=>{
-          if(!touch.current?.active)return;
-          const slot=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-planning-slot]');
-          const same=slot?.dataset.section===touch.current.section;
-          setOver(same?slot.dataset.section+':'+slot.dataset.planningSlot:null);
-          touch.current.destination=same?Number(slot.dataset.planningSlot):null;
+          const state=touch.current;if(!state||e.pointerId!==state.pointerId)return;
+          const previousY=state.y;state.x=e.clientX;state.y=e.clientY;
+          if(!state.active){
+            if(state.scrolling||Math.hypot(state.x-state.startX,state.y-state.startY)>10){
+              clearTimeout(state.timer);state.scrolling=true;state.scroll.scrollTop+=previousY-state.y;
+              suppressClick.current=Date.now()+700;
+            }
+            return;
+          }
+          e.preventDefault();setFloating({name:state.name,x:state.x,y:state.y});updateDestination(state);
         };
-        const pointerEnd=()=>{
-          const state=touch.current;
-          if(state?.active){suppressClick.current=true;if(state.destination)move(state.id,state.section,state.destination);}
+        const pointerEnd=(e,item,vitrine,position)=>{
+          const state=touch.current;if(!state||e.pointerId!==state.pointerId)return;
+          if(state.active){
+            suppressClick.current=Date.now()+700;updateDestination(state);
+            if(state.destination)move(state.id,state.section,state.destination);
+          }else if(!state.scrolling){
+            const handle=e.target.closest('.planning-slot-handle');
+            const name=e.target.closest('.planning-slot-name');
+            if(handle||name){
+              suppressClick.current=Date.now()+700;
+              open(vitrine,position,item,e);
+              if(handle)setEditor({section:vitrine.id,position,item,mode:'move'});
+            }
+          }
           finishDrag();
         };
+        useEffect(()=>{
+          if(!editor)return;
+          const measure=()=>{
+            const rect=focusReturn.current?.getBoundingClientRect();if(!rect)return;
+            const viewport=window.visualViewport;
+            const height=viewport?.height||innerHeight,offset=viewport?.offsetTop||0;
+            const width=Math.min(336,innerWidth-24),panelHeight=Math.min(340,height-24);
+            setSearchBox({left:Math.max(12,Math.min(rect.left,innerWidth-width-12)),top:Math.max(offset+12,Math.min(rect.bottom+8,offset+height-panelHeight-12)),width,maxHeight:panelHeight});
+          };
+          const outside=e=>{if(!e.target.closest('.planning-product-popover')&&!focusReturn.current?.contains(e.target))setEditor(null);};
+          measure();window.addEventListener('resize',measure);window.addEventListener('scroll',measure,true);
+          window.visualViewport?.addEventListener('resize',measure);document.addEventListener('pointerdown',outside);
+          return ()=>{window.removeEventListener('resize',measure);window.removeEventListener('scroll',measure,true);window.visualViewport?.removeEventListener('resize',measure);document.removeEventListener('pointerdown',outside);};
+        },[editor]);
         const used=new Set(layout.flatMap(v=>v.itens.map(p=>p.id)));
-        const picker=()=>{
-          const options=products.filter(p=>p.showcaseEnabled!==false&&tipoVitrineVirtual(p.category)===editor.section&&(!used.has(p.id)||p.id===editor.item?.id));
-          if(editor.mode==='move')return <select autoFocus className="planning-inline-picker" aria-label="Mover produto para espaço"
-            value={editor.position} disabled={busy} onBlur={()=>{if(!busy)close();}}
-            onChange={e=>move(editor.item.id,editor.section,Number(e.target.value))}>
+        const fold=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+        const options=editor?products.filter(p=>p.showcaseEnabled!==false&&tipoVitrineVirtual(p.category)===editor.section&&(!used.has(p.id)||p.id===editor.item?.id))
+          .filter(p=>fold(search).trim().split(/\s+/).every(term=>fold(p.name).includes(term))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')):[];
+        const selectProduct=id=>{setProductId(id);save({preventDefault(){}},id);};
+        const picker=()=>ReactDOM.createPortal(<div className="planning-product-popover" style={searchBox}>
+          <header><strong>{editor.mode==='move'?'Mover produto':editor.item?'Trocar produto':'Adicionar produto'}</strong><button type="button" disabled={busy} onClick={close} aria-label="Fechar busca de produto">×</button></header>
+          {editor.mode==='move'?<select autoFocus className="planning-inline-picker" aria-label="Mover produto para espaço"
+            value={editor.position} disabled={busy} onChange={e=>move(editor.item.id,editor.section,Number(e.target.value))}>
             {Array.from({length:Math.ceil((Math.max(6,...layout.find(v=>v.id===editor.section).itens.map(p=>p.position))+1)/layout.find(v=>v.id===editor.section).columns)*layout.find(v=>v.id===editor.section).columns},(_,i)=><option key={i+1} value={i+1}>Espaço {i+1}</option>)}
-          </select>;
-          return <select autoFocus className="planning-inline-picker" aria-label="Produto do espaço" value={productId} disabled={busy}
-            onKeyDown={e=>{if(e.key==='Escape')close();}} onBlur={()=>{if(!busy)close();}}
-            onChange={e=>{const value=e.target.value;if(value==='__remove__'){remove();return;}setProductId(value);save(e,value);}}>
-            <option value="">Escolha o produto</option>
-            {options.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-            {editor.item&&<option value="__remove__">Retirar do dia</option>}
-          </select>;
-        };
+          </select>:<>
+            <input autoFocus type="search" role="combobox" aria-label="Buscar produto do espaço" aria-expanded="true" aria-controls="planning-product-options"
+              aria-activedescendant={options[activeOption]?'planning-product-option-'+options[activeOption].id:undefined}
+              value={search} disabled={busy} placeholder="Digite o nome do produto…" onChange={e=>{setSearch(e.target.value);setActiveOption(0);}}
+              onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();close();}else if(e.key==='ArrowDown'){e.preventDefault();setActiveOption(i=>Math.min(options.length-1,i+1));}else if(e.key==='ArrowUp'){e.preventDefault();setActiveOption(i=>Math.max(0,i-1));}else if(e.key==='Enter'&&options[activeOption]){e.preventDefault();selectProduct(options[activeOption].id);}}}/>
+            <div className="planning-product-options" role="listbox" id="planning-product-options" aria-label="Produtos encontrados">
+              {options.map((p,i)=><button type="button" role="option" aria-selected={i===activeOption} id={'planning-product-option-'+p.id} key={p.id}
+                disabled={busy} onMouseDown={e=>e.preventDefault()} onClick={()=>selectProduct(p.id)}>{p.name}{p.id===editor.item?.id&&<small>Atual</small>}</button>)}
+              {!options.length&&<p>Nenhum produto encontrado nesta categoria.</p>}
+            </div>
+            {busy&&<small role="status">Salvando produto…</small>}
+          </>}
+          {error&&<p role="alert" className="planning-slot-error">{error}</p>}
+        </div>,document.body);
         return <div className="planning-slots-board" aria-busy={busy}>
           {error&&<p role="alert" className="planning-slot-error">{error}</p>}
+          {dragging&&<p role="status" className="planning-drag-status">Solte no espaço desejado para mover ou agrupar.</p>}
+          {floating&&ReactDOM.createPortal(<div className="planning-drag-preview" aria-hidden="true" style={{left:Math.max(8,Math.min(innerWidth-188,floating.x+14)),top:Math.max(8,floating.y-30)}}><small>Movendo produto</small><strong>{floating.name}</strong></div>,document.body)}
+          {editor&&searchBox&&picker()}
           {layout.map(vitrine=>{
             const max=Math.max(6,...vitrine.itens.map(p=>p.position));
             const count=Math.ceil((max+1)/vitrine.columns)*vitrine.columns;
             return <section key={vitrine.id} className="planning-slot-section">
-              <header><h4>{vitrine.label}</h4><span>{vitrine.itens.length} produtos</span></header>
+              <header><div><span className="planning-section-eyebrow">Vitrine</span><h4>{vitrine.label}</h4></div><span>{vitrine.itens.length} produtos</span></header>
               <div className="planning-slot-grid" data-cols={vitrine.columns}>
                 {Array.from({length:count},(_,index)=>{
                   const position=index+1, all=vitrine.itens.filter(p=>p.position===position);
@@ -6825,29 +6902,31 @@ const { useState, useEffect, useMemo, useRef } = React;
                     onDragOver={e=>{if(drag.current?.section===vitrine.id&&!busy){e.preventDefault();e.dataTransfer.dropEffect='move';setOver(vitrine.id+':'+position);}}}
                     onDrop={e=>{e.preventDefault();if(drag.current?.section===vitrine.id)move(drag.current.id,vitrine.id,position);finishDrag();}}>
                     <div className="planning-slot-products">
-                      {items.map(item=><div key={item.id} className="planning-slot-product" data-dragging={dragging===item.id}>
-                        {editor?.section===vitrine.id&&editor.item?.id===item.id?picker():
-                        <button type="button" className="planning-slot-name" disabled={busy}
+                      {items.map(item=><div key={item.id} className="planning-slot-product" data-dragging={dragging===item.id}
+                        draggable={!busy&&!editor} onDragStart={e=>{if(touch.current?.active||e.target.closest('select,input')){e.preventDefault();return;}drag.current={id:item.id,section:vitrine.id};setDragging(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
+                        onDragEnd={()=>{suppressClick.current=Date.now()+700;finishDrag();}}
+                        onPointerDown={e=>pointerStart(e,item,vitrine.id)} onPointerMove={pointerMove} onPointerUp={e=>pointerEnd(e,item,vitrine,position)}
+                        onPointerCancel={()=>{if(touch.current){suppressClick.current=Date.now()+700;finishDrag();}}}
+                        onContextMenu={e=>e.preventDefault()}
+                        onClickCapture={e=>{if(Date.now()<suppressClick.current){e.preventDefault();e.stopPropagation();}}}>
+                        <button type="button" className="planning-slot-name" draggable={!busy&&!editor} disabled={busy}
                           aria-label={`Editar ${item.nome} no espaço ${position}`} onClick={e=>open(vitrine,position,item,e)}>
                           <strong>{item.nome}</strong><small>{item.dias[selectedDay]} {item.unidade}</small>
-                        </button>}
-                        <button type="button" className="planning-slot-handle" draggable={!busy} disabled={busy}
-                          aria-label={`Arrastar ${item.nome}`} title="Arraste para outro espaço. Toque no produto para outras opções."
-                          style={{touchAction:'none'}}
-                          onClick={e=>{if(suppressClick.current){suppressClick.current=false;return;}open(vitrine,position,item,e);setEditor({section:vitrine.id,position,item,mode:'move'});}}
-                          onDragStart={e=>{drag.current={id:item.id,section:vitrine.id};setDragging(item.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.id);}}
-                          onDragEnd={finishDrag} onPointerDown={e=>pointerStart(e,item.id,vitrine.id)}
-                          onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={finishDrag}>
+                        </button>
+                        <button type="button" className="planning-slot-remove" data-no-drag disabled={busy}
+                          aria-label={`Retirar ${item.nome} do dia`} title="Retirar produto" onClick={e=>{e.stopPropagation();remove(item);}}>×</button>
+                        <button type="button" className="planning-slot-handle" draggable={!busy&&!editor} disabled={busy}
+                          aria-label={`Arrastar ${item.nome}`} title="Segure o produto para arrastar. Clique aqui para escolher o destino."
+                          onClick={e=>{open(vitrine,position,item,e);setEditor({section:vitrine.id,position,item,mode:'move'});}}>
                           <Icons.Menu className="w-4 h-4"/>
                         </button>
                       </div>)}
                       {!items.length&&all.length>0&&<small className="planning-slot-filtered">Produto fora do filtro</small>}
                     </div>
-                    {editor?.section===vitrine.id&&editor.position===position&&!editor.item?picker():
                     <button type="button" className="planning-slot-add" disabled={busy}
                       aria-label={`Adicionar produto no espaço ${position} de ${vitrine.label}`} onClick={e=>open(vitrine,position,null,e)}>
                       + Produto
-                    </button>}
+                    </button>
                   </div>;
                 })}
               </div>
@@ -6925,7 +7004,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div>
                 <p className="t-overline mb-2">Rotina semanal · {unitName}</p>
                 <h2 className="t-display">Padrão de produção</h2>
-                <p className="t-body mt-1 max-w-xl">Monte o padrão do dia por produto. Arraste pelo puxador para mudar de espaço; cada slot pode receber vários produtos.</p>
+                <p className="t-body mt-1 max-w-xl">Monte o padrão do dia por produto. Segure e arraste para mudar de espaço; cada slot pode receber vários produtos.</p>
               </div>
               <button type="button" className="btn btn-primary btn-md self-start"
                 onClick={onGenerateOrder}><Icons.ChefHat className="w-4 h-4"/> Montar checklist</button>
@@ -6946,7 +7025,7 @@ const { useState, useEffect, useMemo, useRef } = React;
           <div className="card p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 justify-between mb-4">
               <div><h3 className="t-title">Vitrine virtual · {unitName}</h3>
-                <p className="t-caption">Arraste o produto para um espaço vazio ou junte com outros no mesmo slot. Use + Produto para adicionar. A organização é salva por dia e unidade.</p></div>
+                <p className="t-caption">Segure o produto e arraste para mudar de lugar ou juntar no mesmo espaço. Toque no nome para editar. A organização é salva por dia e unidade.</p></div>
               <div className="flex flex-wrap gap-2">
                 <input type="search" aria-label="Buscar produto" className="field field-sm" placeholder="Buscar produto…"
                   value={busca} onChange={e=>setBusca(e.target.value)}/>

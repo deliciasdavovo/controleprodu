@@ -18,41 +18,65 @@
   .standard-slot-number { font-size: 26px; }
 }
 
-/* Produtos são o conteúdo principal; posições ficam apenas na organização. */
+/* Planejamento: produtos em primeiro plano, posições discretas. */
 .planning-slots-board { display: flex; flex-direction: column; gap: 24px; }
-.planning-slot-section { padding: 16px; border-radius: 18px; background: #f0f4ee; }
-.planning-slot-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.planning-slot-section h4 { font-size: 17px; font-weight: 750; color: #294733; }
-.planning-slot-section > header > span { font-size: 11px; color: #5f7564; }
+.planning-slot-section { padding: 20px; border: 1px solid #e1e9df; border-radius: 22px; background: linear-gradient(145deg,#fbfdf9,#f2f7ef); }
+.planning-slot-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.planning-section-eyebrow { display: block; margin-bottom: 3px; font-size: 9px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; color: #80917b; }
+.planning-slot-section h4 { margin: 0; font-size: 20px; font-weight: 750; letter-spacing: -.035em; color: #294733; }
+.planning-slot-section > header > span { border: 1px solid #dce7d6; border-radius: 30px; padding: 6px 10px; background: #fff9; font-size: 11px; font-weight: 600; color: #5b7355; }
+.planning-slot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: stretch; gap: 12px; }
 .planning-slot-grid[data-cols="4"] { grid-template-columns: repeat(4,minmax(0,1fr)); }
-.planning-slot-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
-.planning-slot { display: flex; flex-direction: column; min-width: 0; min-height: 130px; padding: 12px; border: 2px solid transparent; border-radius: 14px; background: #e1e6df; }
-.planning-slot.has-products { background: #cfe5c6; }
-.planning-slot.is-over { border-color: #367344; background: #b9dbaa; }
-.planning-slot-products { display: flex; flex: 1; flex-direction: column; gap: 8px; }
-.planning-slot-product { display: flex; align-items: flex-start; gap: 4px; min-width: 0; padding-bottom: 8px; }
-.planning-slot-product + .planning-slot-product { border-top: 1px solid #aec7a5; padding-top: 10px; }
-.planning-slot-product[data-dragging="true"] { opacity: .45; }
-.planning-slot-name { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; padding: 0; background: none; border: 0; text-align: left; color: #25482d; cursor: pointer; }
-.planning-slot-name strong { font-size: 17px; font-weight: 750; line-height: 1.35; overflow-wrap: anywhere; }
-.planning-slot-name small { font-size: 10px; font-weight: 400; color: #5b775e; }
-.planning-slot-handle { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 32px; padding: 5px; background: #ffffff70; border: 0; border-radius: 7px; color: #426b46; cursor: grab; }
+.planning-slot { display: flex; flex-direction: column; min-width: 0; min-height: 164px; padding: 7px; border: 1px dashed #cddbc6; border-radius: 17px; background: #eaf1e680; transition: background .16s, border-color .16s, box-shadow .16s; }
+.planning-slot.has-products { border: 1px solid #c8dfbc; background: #dcecd3; box-shadow: 0 3px 9px #47623a07; }
+.planning-slot.is-over { border: 2px solid #4f8244; padding: 6px; background: #c9e4bb; box-shadow: 0 0 0 4px #81ae6830; }
+.planning-slot-products { display: flex; flex: 1; flex-direction: column; gap: 7px; }
+.planning-slot-product { position: relative; display: flex; min-width: 0; border: 1px solid #d2e1c8; border-radius: 12px; background: linear-gradient(150deg,#fafff7,#edf7e7); box-shadow: 0 2px 6px #38562e0a; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: opacity .15s, box-shadow .15s; }
+.planning-slot-product:hover { box-shadow: 0 4px 12px #38562e15; border-color: #aec99f; }
+.planning-slot-product[data-dragging="true"] { opacity: .35; border: 1px dashed #759768; }
+.planning-slot-name { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 18px; width: 100%; min-width: 0; min-height: 112px; padding: 13px 12px 12px; background: none; border: 0; border-radius: inherit; text-align: left; color: #284b30; cursor: inherit; touch-action: none; }
+.planning-slot-name strong { font-size: 16px; font-weight: 750; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.planning-slot-name small { align-self: flex-start; max-width: calc(100% - 32px); font-size: 10px; font-weight: 500; color: #77906d; }
+.planning-slot-handle { position: absolute; right: 6px; bottom: 6px; display: grid; place-items: center; width: 34px; height: 34px; padding: 7px; background: #e4eedf; border: 1px solid #d5e3cd; border-radius: 9px; color: #78916d; cursor: grab; touch-action: none; }
 .planning-slot-handle:active { cursor: grabbing; }
-.planning-slot-add { display: block; width: 100%; padding: 8px 0 0; background: none; border: 0; text-align: left; color: #49674c; font-size: 11px; cursor: pointer; }
-.planning-slot-add:only-child { flex: 1; }
-.planning-inline-picker { width: 100%; min-width: 0; min-height: 40px; font: inherit; font-size: 14px; color: #25482d; border: 1px solid #789c70; border-radius: 7px; background: white; padding: 6px; }
+.planning-slot-add { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 32px; margin-top: 4px; padding: 7px 3px 4px; background: none; border: 0; border-radius: 9px; color: #7a9070; font-size: 10px; font-weight: 550; cursor: pointer; }
+.planning-slot-add:hover { background: #ffffff80; color: #3e6633; }
+.planning-slot:not(.has-products) .planning-slot-add { flex: 1; margin-top: 0; }
+.planning-inline-picker { width: 100%; min-width: 0; min-height: 44px; margin: 5px; font: inherit; font-size: 13px; color: #25482d; border: 1px solid #789c70; border-radius: 9px; background: white; padding: 6px; }
+.planning-slot-product:has(.planning-inline-picker) { padding-bottom: 42px; }
 .planning-slot-error { color: #962b22; font-size: 13px; }
 .planning-slot-filtered { color: #5f7564; font-size: 11px; }
-.planning-slot button:focus-visible { outline: 2px solid #42774a; outline-offset: 3px; }
-@media (max-width: 440px) {
-  .planning-slot-section { padding: 10px; }
+.planning-slot button:focus-visible { outline: 2px solid #42774a; outline-offset: 2px; }
+.planning-drag-preview { position: fixed; z-index: 10000; pointer-events: none; display: flex; flex-direction: column; gap: 5px; width: 180px; padding: 15px; border: 1px solid #aacb98; border-radius: 14px; background: #edf8e6; box-shadow: 0 16px 40px #26422435; transform: rotate(2deg); }
+.planning-drag-preview small { color: #7c946f; font-size: 10px; }
+.planning-drag-preview strong { color: #294733; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.planning-drag-status { position: fixed; z-index: 9999; left: 50%; bottom: max(82px,env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 11px 18px; border-radius: 30px; background: #294733; color: #fff; box-shadow: 0 6px 24px #29473330; font-size: 12px; text-align: center; pointer-events: none; }
+@media (max-width: 600px) {
+  .planning-slot-section { padding: 13px 9px; border-radius: 17px; }
   .planning-slot-grid { gap: 7px; }
-  .planning-slot { padding: 9px 7px; min-height: 120px; }
-  .planning-slot-name strong { font-size: 14px; }
-  .planning-slot-product { flex-wrap: wrap; }
-  .planning-slot-handle { width: 27px; height: 27px; }
+  .planning-slot { padding: 4px; min-height: 142px; border-radius: 13px; }
+  .planning-slot.is-over { padding: 3px; }
+  .planning-slot-section h4 { font-size: 18px; }
+  .planning-slot-name { min-height: 108px; padding: 9px 7px 11px; }
+  .planning-slot-name strong { font-size: 12px; line-height: 1.45; }
+  .planning-slot-name small { font-size: 9px; max-width: calc(100% - 23px); }
+  .planning-slot-handle { right: 3px; bottom: 5px; width: 26px; height: 26px; padding: 5px; border-radius: 7px; }
+  .planning-slot-add { font-size: 9px; }
 }
-
-.planning-slot-product { flex-direction: column; }
-.planning-slot-name { width: 100%; }
-.planning-slot-handle { align-self: flex-end; }
+@media (prefers-reduced-motion: reduce) {
+  .planning-slot, .planning-slot-product { transition: none; }
+}
+.planning-slot-name { padding-bottom: 44px; }
+.planning-slot-name small { display: none; }
+.planning-slot-remove { position: absolute; bottom: 7px; left: 8px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; color: #8a9a82; background: transparent; font-size: 21px; line-height: 1; cursor: pointer; }
+.planning-slot-remove:hover { background: #fff0ed; color: #a94837; }
+.planning-product-popover { position: fixed; z-index: 10020; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid #d3e0cc; border-radius: 16px; background: #fff; box-shadow: 0 12px 45px #243d2730; box-sizing: border-box; }
+.planning-product-popover > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #294733; font-size: 13px; }
+.planning-product-popover > header button { width: 30px; height: 30px; border: 0; border-radius: 8px; background: #f2f6f0; font-size: 22px; color: #6a7c61; cursor: pointer; }
+.planning-product-popover > input { flex-shrink: 0; width: 100%; min-height: 44px; border: 1px solid #c9dac0; border-radius: 10px; background: #f7faf5; padding: 10px 12px; font: inherit; font-size: 16px; color: #294733; outline-color: #6d945b; }
+.planning-product-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 3px; }
+.planning-product-options > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; width: 100%; min-height: 44px; border: 0; border-radius: 8px; padding: 10px; background: none; text-align: left; font-size: 13px; color: #294733; cursor: pointer; }
+.planning-product-options > button[aria-selected="true"], .planning-product-options > button:hover { background: #eef5e9; }
+.planning-product-options small { color: #829477; font-size: 10px; }
+.planning-product-options > p { padding: 12px 4px; font-size: 12px; color: #7c8b74; }
+@media (max-width: 600px) { .planning-slot-name { padding-bottom: 40px; } .planning-slot-remove { left: 3px; bottom: 5px; width: 25px; height: 26px; font-size: 19px; } }
