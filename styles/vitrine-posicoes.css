@@ -93,3 +93,7 @@
 
 .planning-slot-product[data-frequency="occasional"] .planning-slot-remove { color: #244A70; }
 .planning-slot-product[data-frequency="occasional"] .planning-slot-remove:hover { color: #963417; }
+.planning-section-copy { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: -4px 0 16px; }
+.planning-section-copy label { display: flex; flex-direction: column; gap: 5px; font-size: 10px; color: #61715c; }
+.planning-section-copy select { min-width: 135px; }
+.planning-copy-message { padding: 10px 14px; border: 1px solid #b7cfa9; border-radius: 10px; color: #37542d; background: #eff6e9; font-size: 12px; }

@@ -6719,7 +6719,25 @@ const { useState, useEffect, useMemo, useRef } = React;
           return {...item,position};
         });
       };
-      const PlanningSlotsBoard = ({vitrines, selectedDay, products, visibleIds, onSavePlan, onPositionProducts, onOpenProduct}) => {
+      const prepareShowcaseCopy = (plans, products, unit, fromDay, toDay, showcaseId) => {
+        const belongs=plan=>tipoVitrineVirtual(products.find(p=>p.id===plan.productId)?.category)===showcaseId;
+        const grouped=new Map();
+        plans.filter(p=>p.unit===unit&&p.dayOfWeek===fromDay&&belongs(p)).forEach(plan=>{
+          const previous=grouped.get(plan.productId);
+          if(!previous)grouped.set(plan.productId,{...plan,slotId:null});
+          else{
+            previous.idealQty+=plan.idealQty;
+            previous.minQty=(previous.minQty||0)+(plan.minQty||0);
+            if(plan.displayOrder<0||!previous.displayOrder)previous.displayOrder=plan.displayOrder;
+            else if(previous.displayOrder>0&&plan.displayOrder>0)previous.displayOrder=Math.min(previous.displayOrder,plan.displayOrder);
+          }
+        });
+        return {
+          source:[...grouped.values()],
+          destinationIds:plans.filter(p=>p.unit===unit&&p.dayOfWeek===toDay&&belongs(p)).map(p=>p.id)
+        };
+      };
+      const PlanningSlotsBoard = ({vitrines, selectedDay, products, visibleIds, onSavePlan, onPositionProducts, onOpenProduct, onCopyVitrine}) => {
         const [editor,setEditor]=useState(null);
         const [productId,setProductId]=useState('');
         const [quantity,setQuantity]=useState('1');
@@ -6731,6 +6749,9 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [search,setSearch]=useState('');
         const [activeOption,setActiveOption]=useState(0);
         const [searchBox,setSearchBox]=useState(null);
+        const [copyTargets,setCopyTargets]=useState({});
+        const [copying,setCopying]=useState(null);
+        const [copyMessage,setCopyMessage]=useState('');
         const drag=useRef(null), touch=useRef(null), focusReturn=useRef(null), suppressClick=useRef(0);
         const layout=vitrines.map(v=>({...v,itens:planningSlotLayout(v.itens,selectedDay)}));
         const finishDrag=()=>{
@@ -6859,6 +6880,17 @@ const { useState, useEffect, useMemo, useRef } = React;
           window.visualViewport?.addEventListener('resize',measure);document.addEventListener('pointerdown',outside);
           return ()=>{window.removeEventListener('resize',measure);window.removeEventListener('scroll',measure,true);window.visualViewport?.removeEventListener('resize',measure);document.removeEventListener('pointerdown',outside);};
         },[editor]);
+        const copyVitrine=async(vitrine)=>{
+          const target=copyTargets[vitrine.id];
+          if(busy||copying||!target||target===selectedDay||!vitrine.itens.length)return;
+          if(!window.confirm('Copiar apenas '+vitrine.label+' de '+getDayNameBR(selectedDay).toLowerCase()+' para '+getDayNameBR(target).toLowerCase()+'? Os produtos desta vitrine no dia de destino serão substituídos.'))return;
+          setCopying(vitrine.id);setError('');setCopyMessage('');
+          try{
+            if(await onCopyVitrine(selectedDay,target,vitrine.id)===true)setCopyMessage(vitrine.label+' copiados para '+getDayNameBR(target).toLowerCase()+'.');
+            else setError('Não foi possível copiar a vitrine. Tente novamente.');
+          }catch{setError('Não foi possível copiar a vitrine. Tente novamente.');}
+          finally{setCopying(null);}
+        };
         const used=new Set(layout.flatMap(v=>v.itens.map(p=>p.id)));
         const fold=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
         const options=editor?products.filter(p=>p.showcaseEnabled!==false&&tipoVitrineVirtual(p.category)===editor.section&&(!used.has(p.id)||p.id===editor.item?.id))
@@ -6885,6 +6917,7 @@ const { useState, useEffect, useMemo, useRef } = React;
         </div>,document.body);
         return <div className="planning-slots-board" aria-busy={busy}>
           {error&&<p role="alert" className="planning-slot-error">{error}</p>}
+          {copyMessage&&<p role="status" className="planning-copy-message">{copyMessage}</p>}
           {dragging&&<p role="status" className="planning-drag-status">Solte no espaço desejado para mover ou agrupar.</p>}
           {floating&&ReactDOM.createPortal(<div className="planning-drag-preview" aria-hidden="true" style={{left:Math.max(8,Math.min(innerWidth-188,floating.x+14)),top:Math.max(8,floating.y-30)}}><small>Movendo produto</small><strong>{floating.name}</strong></div>,document.body)}
           {editor&&searchBox&&picker()}
@@ -6893,6 +6926,20 @@ const { useState, useEffect, useMemo, useRef } = React;
             const count=Math.ceil((max+1)/vitrine.columns)*vitrine.columns;
             return <section key={vitrine.id} className="planning-slot-section">
               <header><div><span className="planning-section-eyebrow">Vitrine</span><h4>{vitrine.label}</h4></div><span>{vitrine.itens.length} produtos</span></header>
+              <div className="planning-section-copy">
+                <label>Copiar {vitrine.label.toLowerCase()} para
+                  <select className="field field-sm" aria-label={'Dia de destino para '+vitrine.label}
+                    disabled={busy||!!copying} value={copyTargets[vitrine.id]||''}
+                    onChange={e=>setCopyTargets(prev=>({...prev,[vitrine.id]:e.target.value}))}>
+                    <option value="">Escolha o dia</option>
+                    {WEEK_DAYS.filter(day=>day!==selectedDay).map(day=><option key={day} value={day}>{getDayNameBR(day)}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="btn btn-secondary btn-sm" aria-label={'Copiar vitrine de '+vitrine.label}
+                  disabled={busy||!!copying||!copyTargets[vitrine.id]||!vitrine.itens.length} onClick={()=>copyVitrine(vitrine)}>
+                  {copying===vitrine.id?'Copiando…':'Copiar vitrine'}
+                </button>
+              </div>
               <div className="planning-slot-grid" data-cols={vitrine.columns}>
                 {Array.from({length:count},(_,index)=>{
                   const position=index+1, all=vitrine.itens.filter(p=>p.position===position);
@@ -6945,7 +6992,6 @@ const { useState, useEffect, useMemo, useRef } = React;
         const [categoria,setCategoria] = useState('todas');
         const [novoProduto,setNovoProduto] = useState('');
         const [novaQtd,setNovaQtd] = useState('1');
-        const [diaDestino,setDiaDestino] = useState('');
         const [salvandoInclusao,setSalvandoInclusao] = useState(false);
         const planos = standardPlans.filter(p=>p.unit===currentUnit);
         const ativos = products.filter(p=>p.showcaseEnabled!==false);
@@ -6994,11 +7040,6 @@ const { useState, useEffect, useMemo, useRef } = React;
           if(gravado===true){setNovoProduto('');setNovaQtd('1');}
           } finally { setSalvandoInclusao(false); }
         };
-        const copiar=()=>{
-          if(!diaDestino||diaDestino===selectedDay)return;
-          if(window.confirm('Copiar a vitrine completa de '+getDayNameBR(selectedDay).toLowerCase()+' para '+getDayNameBR(diaDestino).toLowerCase()+' em '+unitName+'? Os produtos e a organização da vitrine de destino serão substituídos.'))
-            onCopyDayPlan(selectedDay,diaDestino);
-        };
         return <div className="space-y-4 production-board">
           <div className="card p-5 sm:p-6">
             <div className="flex flex-col md:flex-row md:justify-between gap-3">
@@ -7042,7 +7083,7 @@ const { useState, useEffect, useMemo, useRef } = React;
             </div>
             <PlanningSlotsBoard key={currentUnit+':'+selectedDay} vitrines={vitrines} selectedDay={selectedDay}
               products={products} visibleIds={new Set(mostrados.map(p=>p.id))} onSavePlan={onSavePlan}
-              onPositionProducts={onPositionProducts} onOpenProduct={onOpenProduct}/>
+              onPositionProducts={onPositionProducts} onOpenProduct={onOpenProduct} onCopyVitrine={onCopyDayPlan}/>
             <div className="plan-add-section">
               <h3 className="t-title">Adicionar produto</h3>
               <div className="flex flex-col sm:flex-row gap-2 mt-3 items-stretch sm:items-end">
@@ -7061,18 +7102,7 @@ const { useState, useEffect, useMemo, useRef } = React;
                   disabled={!novoProduto||!(Number(novaQtd)>0)}><Icons.Plus className="w-4 h-4"/> Adicionar</button>
               </div>
             </div>
-            <div className="plan-copy-section">
-              <label className="t-caption">Copiar esta vitrine para
-                <select className="field field-sm mt-1 block" value={diaDestino} aria-label="Dia de destino"
-                  onChange={e=>setDiaDestino(e.target.value)}>
-                  <option value="">Escolha o dia</option>
-                  {WEEK_DAYS.map(day=><option key={day} value={day} disabled={day===selectedDay}>{getDayNameBR(day)}</option>)}
-                </select>
-              </label>
-              <button className="btn btn-secondary btn-sm" type="button"
-                disabled={!diaDestino||diaDestino===selectedDay||!dia.length} onClick={copiar}>Copiar vitrine</button>
-              <p className="planning-copy-hint">Origem: {getDayNameBR(selectedDay)} · {unitName}. Inclui todos os produtos, quantidades e posições, mesmo com filtros ativos.</p>
-            </div>
+
           </div>
           <div className="card p-4 sm:p-5">
             <details className="plan-week-details">
@@ -28275,11 +28305,17 @@ ${BARRA_ACOES_HTML}
           });
         };
 
-        const handleCopyDayPlan = (fromDay, toDay) => {
-          const origem = standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === fromDay);
-
-          write('Copiar o padrão do dia', async () => {
-            await run('standard_plans', sb.from('standard_plans')
+        const handleCopyDayPlan = (fromDay, toDay, showcaseId = null) => {
+          if(fromDay===toDay||!WEEK_DAYS.includes(fromDay)||!WEEK_DAYS.includes(toDay)||
+            (showcaseId&&!VITRINES_VIRTUAIS.some(v=>v.id===showcaseId)))return Promise.resolve(false);
+          const scoped=showcaseId?prepareShowcaseCopy(standardPlans,products,currentUnit,fromDay,toDay,showcaseId):null;
+          const origem=scoped?scoped.source:standardPlans.filter((sp) => sp.unit === currentUnit && sp.dayOfWeek === fromDay);
+          if(scoped&&!origem.length)return Promise.resolve(false);
+          return write('Copiar vitrine', async () => {
+            if(scoped){
+              if(scoped.destinationIds.length)await run('standard_plans',sb.from('standard_plans').delete()
+                .eq('unit_code',currentUnit).eq('day_of_week',toDay).in('id',scoped.destinationIds));
+            }else await run('standard_plans', sb.from('standard_plans')
               .delete().eq('unit_code', currentUnit).eq('day_of_week', toDay));
 
             let novos = [];
@@ -28300,9 +28336,10 @@ ${BARRA_ACOES_HTML}
             }
 
             setStandardPlans((prev) => [
-              ...prev.filter((sp) => !(sp.unit === currentUnit && sp.dayOfWeek === toDay)),
+              ...prev.filter((sp) => scoped?!scoped.destinationIds.includes(sp.id):!(sp.unit === currentUnit && sp.dayOfWeek === toDay)),
               ...novos
             ]);
+            return true;
           });
         };
 
