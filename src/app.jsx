@@ -19852,17 +19852,37 @@ const { useState, useEffect, useMemo, useRef } = React;
         // página. Busca, categoria, período e demais filtros já chegam em
         // `compras`; aqui só muda a forma de apresentar os mesmos dados.
         const blocosFornecedores = fornecedores.map((f) => {
-          const comprasDoFornecedor = [...f.lista].sort((a, b) => {
-            const d = (b.data || '').localeCompare(a.data || '');
-            return d !== 0 ? d : (b.criadoEm || '').localeCompare(a.criadoEm || '');
-          });
-          const linhas = comprasDoFornecedor.map((c) => `<tr>
-            <td>${c.data ? formatDateBR(c.data) : '—'}</td>
-            <td><b>${escaparHtml(c.item)}</b><small>${escaparHtml(c.tipo)}</small></td>
-            <td class="num">${escaparHtml(formatQuantidadeCompra(c))}</td>
-            <td class="num forte">${formatCurrencyBR(c.cost)}</td>
-            <td class="num">${formatPrecoCompraComercial(c)}</td>
-          </tr>`).join('');
+          const linhas = (function supplierRows(lista) {
+  const grupos = new Map();
+  const ordenadas = [...lista].sort((a,b)=>(b.data||'').localeCompare(a.data||'') || (b.criadoEm||'').localeCompare(a.criadoEm||''));
+  for (const compra of ordenadas) {
+    const chave = compra.itemId || JSON.stringify([compra.tipo,normalizeName(compra.item)]);
+    if (!grupos.has(chave)) grupos.set(chave,[]);
+    grupos.get(chave).push(compra);
+  }
+  return [...grupos.values()].sort((a,b)=>String(a[0].item||'').localeCompare(String(b[0].item||''),'pt-BR')).map(historico=>{
+    const atual=historico[0], anterior=historico[1];
+    const quantidades=new Map();
+    const total=historico.reduce((soma,compra)=>{
+      const unidade=compra.unidade||'un';
+      quantidades.set(unidade,(quantidades.get(unidade)||0)+(Number(compra.qty)||0));
+      return soma+(Number(compra.cost)||0);
+    },0);
+    const quantidade=[...quantidades].map(([unidade,qtd])=>escaparHtml(formatQuantidadeAcumulada(qtd,unidade))).join('<small> + </small>');
+    const precoAtual=Number(atual.custoUnit), precoAnterior=Number(anterior?.custoUnit);
+    const pct=anterior && atual.unidade===anterior.unidade && precoAtual>0 && precoAnterior>0 ? (precoAtual/precoAnterior-1)*100 : null;
+    const variacao=pct!==null && Number.isFinite(pct) ? Math.abs(pct)<0.05 ? '<small>Sem alteração</small>' : `<small class="${pct>0?'sobe':'desce'}">${pct>0?'+':''}${pct.toFixed(1).replace('.',',')}%</small>` : '';
+    const dataPreco=compra=>`${compra.data?formatDateBR(compra.data):'Sem data'} · ${escaparHtml(formatPrecoCompraComercial(compra))}`;
+    const anteriores=historico.slice(1).map(compra=>`<small class="historico-preco">${dataPreco(compra)}</small>`).join('');
+    return `<tr${historico.length>12?' class="historico-longo"':''}>
+      <td><b>${escaparHtml(atual.item)}</b><small>${escaparHtml(atual.tipo)} · ${historico.length} ${historico.length===1?'compra':'compras'}</small></td>
+      <td class="num">${quantidade}</td>
+      <td class="num"><b>${escaparHtml(formatPrecoCompraComercial(atual))}</b><small>${atual.data?formatDateBR(atual.data):'Sem data'}</small>${variacao}</td>
+      <td>${anteriores||'<span class="quieto">—</span>'}</td>
+      <td class="num forte">${formatCurrencyBR(total)}</td>
+    </tr>`;
+  }).join('');
+})(f.lista);
           return `<div class="grupo-fornecedor">
             <div class="grupo-fornecedor-cabecalho">
               <div class="grupo-fornecedor-nome">
@@ -19873,7 +19893,7 @@ const { useState, useEffect, useMemo, useRef } = React;
               <div><span>Última compra</span><b>${f.recente ? formatDateBR(f.recente) : '—'}</b></div>
             </div>
             <table class="t-fornecedor-compras">
-              <thead><tr><th>Data</th><th>Item</th><th class="num">Qtd.</th><th class="num">Valor pago</th><th class="num">Preço</th></tr></thead>
+              <thead><tr><th>Produto</th><th class="num">Qtd. total</th><th class="num">Último preço</th><th>Histórico anterior</th><th class="num">Total gasto</th></tr></thead>
               <tbody>${linhas || '<tr><td colspan="5" class="quieto">Nenhuma compra neste grupo.</td></tr>'}</tbody>
             </table>
           </div>`;
@@ -19932,9 +19952,9 @@ const { useState, useEffect, useMemo, useRef } = React;
           : visao === 'fornecedor'
           ? `<section>
               <h2>Por fornecedor (${fornecedores.length})</h2>
-              <p class="nota">Os fornecedores estão na mesma ordem escolhida na página e cada grupo mostra somente as compras que passaram pelos filtros atuais.</p>
+              <p class="nota">Cada produto aparece uma vez por fornecedor. O último preço e o histórico consideram apenas as compras dos filtros atuais; a variação compara as duas compras mais recentes deste fornecedor na mesma unidade. Quantidade e total gasto somam todas as compras do produto no período.</p>
               ${tabelaMesFornecedor}
-              ${tabelaMesFornecedor ? '<div class="subtitulo-detalhes">Compras detalhadas por fornecedor</div>' : ''}
+              ${tabelaMesFornecedor ? '<div class="subtitulo-detalhes">Produtos consolidados por fornecedor</div>' : ''}
               ${blocosFornecedores || '<p class="quieto">Nenhum fornecedor nos filtros atuais.</p>'}
             </section>`
           : visao === 'compra'
@@ -20036,10 +20056,15 @@ const { useState, useEffect, useMemo, useRef } = React;
             .grupo-fornecedor-cabecalho span, .grupo-fornecedor-cabecalho small { display: block; color: #666; font-size: 7.5pt; }
             .grupo-fornecedor-cabecalho b { display: block; font-size: 10pt; }
             .grupo-fornecedor-nome b { font-size: 11pt; }
-            .t-fornecedor-compras th:nth-child(1) { width: 12%; }
-            .t-fornecedor-compras th:nth-child(2) { width: 38%; }
-            .t-fornecedor-compras th:nth-child(3) { width: 14%; }
-            .t-fornecedor-compras th:nth-child(4), .t-fornecedor-compras th:nth-child(5) { width: 18%; }
+            .t-fornecedor-compras th:nth-child(1) { width: 29%; }
+            .t-fornecedor-compras th:nth-child(2) { width: 13%; }
+            .t-fornecedor-compras th:nth-child(3) { width: 19%; }
+            .t-fornecedor-compras th:nth-child(4) { width: 25%; }
+            .t-fornecedor-compras th:nth-child(5) { width: 14%; }
+            .t-fornecedor-compras .historico-preco { font-size: 8pt; line-height: 1.35; margin: 2px 0; }
+            .t-fornecedor-compras .historico-longo { break-inside: auto; page-break-inside: auto; }
+            .t-fornecedor-compras .sobe { color: #7D2027; }
+            .t-fornecedor-compras .desce { color: #1E6B44; }
             .mes-fornecedor-bloco { margin: 10px 0 18px; break-inside: avoid-page; }
             .mes-fornecedor-titulo { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
             .mes-fornecedor-titulo b { font-size: 11pt; }
